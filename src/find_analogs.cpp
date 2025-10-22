@@ -18,6 +18,17 @@ inline AggType parse_agg_type(std::string fun_str) {
 }
 
 
+// Single templated helper for climate index queries
+template<int N_DIMS>
+std::vector<int> get_clim_candidates(const arma::mat& ref_climate,
+                                     const arma::rowvec& focal_clim,
+                                     double clim_threshold) {
+      LatticeIndex<N_DIMS> clim_idx;
+      clim_idx.build(ref_climate, 15);
+      return clim_idx.query_box(focal_clim, clim_threshold);
+}
+
+
 // 1. Matrix focal, Raster ref
 // [[Rcpp::export]]
 DataFrame find_analogs_matrix_raster(
@@ -277,7 +288,7 @@ DataFrame find_analogs_matrix_matrix(
       double radius_km = max_dist.isNotNull() ? as<double>(max_dist) : R_PosInf;
       double clim_threshold = max_clim.isNotNull() ? as<double>(max_clim) : R_PosInf;
 
-      // Build indices if beneficial (n_ref large enough)
+      // Build geographic index if beneficial
       LatticeIndex<2> geo_idx;
       bool use_geo_idx = false;
       if (max_dist.isNotNull() && n_ref > 5000) {
@@ -285,12 +296,8 @@ DataFrame find_analogs_matrix_matrix(
             use_geo_idx = true;
       }
 
-      LatticeIndex<10> clim_idx;  // Support up to 10 climate variables
-      bool use_clim_idx = false;
-      if (max_clim.isNotNull() && n_ref > 5000 && n_vars <= 10) {
-            clim_idx.build(ref_climate, 15);
-            use_clim_idx = true;
-      }
+      // Determine if climate index should be used
+      bool use_clim_idx = (max_clim.isNotNull() && n_ref > 5000 && n_vars >= 1 && n_vars <= 4);
 
       std::vector<int> result_focal_idx;
       std::vector<double> result_focal_x;
@@ -320,7 +327,23 @@ DataFrame find_analogs_matrix_matrix(
             if (use_geo_idx && use_clim_idx) {
                   // Use both indices - intersect results
                   auto geo_candidates = geo_idx.query_box(focal_coords.row(f), radius_km);
-                  auto clim_candidates = clim_idx.query_box(focal_clim, clim_threshold);
+
+                  // Get climate candidates based on dimension using template dispatch
+                  std::vector<int> clim_candidates;
+                  switch(n_vars) {
+                  case 1:
+                        clim_candidates = get_clim_candidates<1>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  case 2:
+                        clim_candidates = get_clim_candidates<2>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  case 3:
+                        clim_candidates = get_clim_candidates<3>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  case 4:
+                        clim_candidates = get_clim_candidates<4>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  }
 
                   // Intersect (candidates in both sets)
                   std::set<int> geo_set(geo_candidates.begin(), geo_candidates.end());
@@ -334,7 +357,21 @@ DataFrame find_analogs_matrix_matrix(
                   candidate_pool = geo_idx.query_box(focal_coords.row(f), radius_km);
 
             } else if (use_clim_idx) {
-                  candidate_pool = clim_idx.query_box(focal_clim, clim_threshold);
+                  // Get climate candidates based on dimension using template dispatch
+                  switch(n_vars) {
+                  case 1:
+                        candidate_pool = get_clim_candidates<1>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  case 2:
+                        candidate_pool = get_clim_candidates<2>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  case 3:
+                        candidate_pool = get_clim_candidates<3>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  case 4:
+                        candidate_pool = get_clim_candidates<4>(ref_climate, focal_clim, clim_threshold);
+                        break;
+                  }
 
             } else {
                   // No indices - use all ref points
@@ -342,7 +379,7 @@ DataFrame find_analogs_matrix_matrix(
                   std::iota(candidate_pool.begin(), candidate_pool.end(), 0);
             }
 
-            // Now process candidates (same as before, but on filtered set)
+            // Now process candidates
             std::vector<int> candidate_idx;
             std::vector<double> geo_distances;
             std::vector<double> clim_distances;

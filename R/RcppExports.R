@@ -2,14 +2,14 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 find_analogs_matrix_raster <- function(focal_cells, focal_coords, focal_climate, ref_array, ref_coords, xres, yres, nrow, ncol, max_dist, max_clim, weight, fun, n) {
-    .Call('_analogs_find_analogs_matrix_raster', PACKAGE = 'analogs', focal_cells, focal_coords, focal_climate, ref_array, ref_coords, xres, yres, nrow, ncol, max_dist, max_clim, weight, fun, n)
+    .Call(`_analogs_find_analogs_matrix_raster`, focal_cells, focal_coords, focal_climate, ref_array, ref_coords, xres, yres, nrow, ncol, max_dist, max_clim, weight, fun, n)
 }
 
 find_analogs_matrix_matrix <- function(focal_coords, focal_climate, ref_coords, ref_climate, max_dist, max_clim, weight, fun, n) {
-    .Call('_analogs_find_analogs_matrix_matrix', PACKAGE = 'analogs', focal_coords, focal_climate, ref_coords, ref_climate, max_dist, max_clim, weight, fun, n)
+    .Call(`_analogs_find_analogs_matrix_matrix`, focal_coords, focal_climate, ref_coords, ref_climate, max_dist, max_clim, weight, fun, n)
 }
 
 find_analogs_raster_matrix <- function(focal_array, focal_coords, ref_coords, ref_climate, max_dist, max_clim, weight, fun, n) {
-    .Call('_analogs_find_analogs_raster_matrix', PACKAGE = 'analogs', focal_array, focal_coords, ref_coords, ref_climate, max_dist, max_clim, weight, fun, n)
+    .Call(`_analogs_find_analogs_raster_matrix`, focal_array, focal_coords, ref_coords, ref_climate, max_dist, max_clim, weight, fun, n)
 }
 
