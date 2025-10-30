@@ -1,123 +1,298 @@
-#' Find climate analogs
+#' Find Climate Analogs
 #'
-#' Thin, user-facing wrapper that preserves your original parameter names and
-#' data structures (\code{focal}, \code{ref} as matrix/data.frame with x,y and
-#' climate columns, or \code{SpatRaster}). Internals normalize via
-#' \code{format_data()} and call the C++ core. Adds \code{metric}, \code{weight},
-#' and \code{report_dist} per the roadmap, plus \code{geo = "auto"} to detect
-#' lon/lat vs projected.
+#' Identifies locations in a reference dataset that are climatically similar to
+#' focal locations, with optional constraints on climate distance and geographic
+#' distance. This function supports multiple use cases including climate velocity
+#' analysis, analog availability mapping, and climate impact assessment.
+#'
+#' The function uses an efficient spatial indexing structure (quantile-binned lattice)
+#' to quickly search through large reference datasets. Climate similarity is measured
+#' using Euclidean distance in climate space (ideally pre-whitened; see Details).
+#' Geographic distance can be computed for lat/lon coordinates (great-circle distance)
+#' or projected coordinates (planar distance).
 #'
 #' @param focal Matrix/data.frame with columns x, y, and climate variables,
-#'   OR SpatRaster with climate variable layers.
-#' @param ref   Matrix/data.frame with columns x, y, and climate variables,
-#'   OR SpatRaster with climate variable layers.
-#' @param max_dist Maximum geographic distance constraint in km (NULL = no constraint).
-#' @param max_clim Maximum climate constraint. Either a scalar Euclidean radius in
-#'   climate space, or a length-p vector of per-variable absolute bands (NULL = no constraint).
-#' @param weight Weighting function: "uniform", "inverse_clim", or "inverse_dist".
-#' @param fun Aggregation: "nmax", "sum", "mean", "count", or "all".
-#' @param n Number of analogs to return (required if fun = "nmax").
-#' @param metric Climate distance metric (currently "euclidean"; others TBD per roadmap).
-#' @param report_dist Logical; if TRUE, include distance columns in outputs where applicable.
-#' @param geo One of "auto" (default), "lonlat", or "projected". "auto" detects from coordinates.
+#'   OR SpatRaster with climate variable layers. Each row represents a focal
+#'   location for which analogs will be found.
+#'
+#' @param ref Matrix/data.frame with columns x, y, and climate variables,
+#'   OR SpatRaster with climate variable layers. The reference dataset to search
+#'   for analogs.
+#'
+#' @param max_dist Maximum geographic distance constraint in km (default: NULL =
+#'   no constraint). When specified, only reference locations within this distance
+#'   are considered. Useful for defining "dispersal-constrained" analogs.
+#'
+#' @param max_clim Maximum climate distance constraint (default: NULL = no constraint).
+#'   Can be either:
+#'   \itemize{
+#'     \item A scalar: Euclidean radius in climate space (e.g., 0.5)
+#'     \item A vector: Per-variable absolute differences (length must equal number of climate variables)
+#'   }
+#'   Only reference locations within this climate distance are considered.
+#'
+#' @param weight Weighting function for matches (default: "inverse_clim"):
+#'   \itemize{
+#'     \item \code{"uniform"}: All matches weighted equally (weight = 1.0)
+#'     \item \code{"inverse_clim"}: Weight = 1 / (climate_distance + small_constant)
+#'     \item \code{"inverse_dist"}: Weight = 1 / (geographic_distance + small_constant)
+#'   }
+#'   Used for aggregation functions and optionally reported with matches.
+#'
+#' @param fun Aggregation function determining what to return (default: "nmax"):
+#'   \itemize{
+#'     \item \code{"nmax"}: Return top n closest matches (requires \code{n} parameter)
+#'     \item \code{"all"}: Return all matches passing constraints
+#'     \item \code{"count"}: Count number of matches per focal location
+#'     \item \code{"sum"}: Sum of weights across all matches
+#'     \item \code{"mean"}: Mean of weights across all matches
+#'   }
+#'
+#' @param n Number of analogs to return per focal location. Required when
+#'   \code{fun = "nmax"}, ignored otherwise.
+#'
+#' @param metric Distance metric for climate space (default: "euclidean"). Currently
+#'   only Euclidean distance is supported. Future versions may support additional metrics.
+#'
+#' @param report_dist Logical; if TRUE (default), include distance and weight columns
+#'   in output when \code{fun} is "nmax" or "all". Set to FALSE for more compact output.
+#'
+#' @param geo Coordinate system type (default: "auto"):
+#'   \itemize{
+#'     \item \code{"auto"}: Automatically detect from coordinate ranges
+#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance)
+#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance)
+#'   }
 #'
 #' @return
-#' For fun = "nmax" or "all": data.frame with columns
-#'   focal_index, focal_x, focal_y, analog_index, analog_x, analog_y,
-#'   and optionally clim_dist, geog_dist, weight (when report_dist = TRUE).
+#' The return value depends on the \code{fun} parameter:
 #'
-#' For fun = "sum", "mean", or "count": data.frame with
-#'   focal_index, focal_x, focal_y, value (aggregated by the chosen weight).
+#' **For fun = "nmax" or "all"**: A data.frame with one row per focal-analog pair:
+#' \itemize{
+#'   \item \code{focal_index}: Index of focal location (1-based)
+#'   \item \code{focal_x, focal_y}: Coordinates of focal location
+#'   \item \code{analog_index}: Index of analog location in reference dataset (1-based)
+#'   \item \code{analog_x, analog_y}: Coordinates of analog location
+#'   \item \code{clim_dist}: Climate distance (if \code{report_dist = TRUE})
+#'   \item \code{geog_dist}: Geographic distance in km (if \code{report_dist = TRUE})
+#'   \item \code{weight}: Computed weight value (if \code{report_dist = TRUE})
+#' }
+#'
+#' **For fun = "sum", "mean", or "count"**: A data.frame with one row per focal location:
+#' \itemize{
+#'   \item \code{focal_index}: Index of focal location (1-based)
+#'   \item \code{focal_x, focal_y}: Coordinates of focal location
+#'   \item \code{value}: Aggregated value (count, sum, or mean of weights)
+#' }
+#'
+#' All outputs include diagnostic attributes:
+#' \itemize{
+#'   \item \code{total_bins}: Number of spatial bins created in index
+#'   \item \code{avg_bin_occupancy}: Average points per bin
+#'   \item \code{min_bin_occupancy, max_bin_occupancy}: Range of bin occupancy
+#'   \item \code{binning_method}: Method used ("quantile")
+#'   \item \code{n_ref, n_vars}: Size of reference dataset
+#' }
+#'
+#' @details
+#' **Common Use Cases:**
+#'
+#' \strong{Climate Velocity} (nearest geographic neighbor with similar climate):
+#' \code{find_analogs(focal, ref, max_clim = 0.5, fun = "nmax", n = 1)}
+#'
+#' \strong{Climate Impact} (climatically similar locations within dispersal range):
+#' \code{find_analogs(focal, ref, max_dist = 500, fun = "nmax", n = 10)}
+#'
+#' \strong{Analog Availability} (count of suitable locations):
+#' \code{find_analogs(focal, ref, max_clim = 1.0, max_dist = 500, fun = "count")}
+#'
+#' **Climate Whitening:**
+#' For best results, climate variables should be whitened (standardized and decorrelated)
+#' before analysis. This ensures that Euclidean distance properly represents
+#' Mahalanobis distance. Whitening functionality will be added in a future version;
+#' for now, users should pre-process data externally.
+#'
+#' **Performance:**
+#' The function uses quantile-based spatial binning to efficiently search large
+#' reference datasets. Query time scales approximately O(log n) for top-k searches
+#' and O(n^(d-1)/d) for constrained searches, where n is the reference dataset
+#' size and d is the number of climate variables.
+#'
+#' @examples
+#' \dontrun{
+#' # Example 1: Climate velocity analysis
+#' library(terra)
+#' current <- rast("climate_1981_2010.tif")
+#' future <- rast("climate_2071_2100.tif")
+#'
+#' focal <- as.data.frame(current, xy = TRUE)[1:100, ]
+#' ref <- future
+#'
+#' velocity <- find_analogs(
+#'   focal = focal,
+#'   ref = ref,
+#'   max_clim = 0.5,      # climate similarity threshold
+#'   fun = "nmax",
+#'   n = 1                # nearest neighbor
+#' )
+#'
+#' # Example 2: Analog availability (count)
+#' availability <- find_analogs(
+#'   focal = focal,
+#'   ref = ref,
+#'   max_clim = 1.0,
+#'   max_dist = 500,      # within 500 km
+#'   fun = "count"
+#' )
+#'
+#' # Example 3: Multiple analogs for impact assessment
+#' analogs <- find_analogs(
+#'   focal = focal,
+#'   ref = ref,
+#'   max_dist = 1000,
+#'   fun = "nmax",
+#'   n = 20,
+#'   weight = "inverse_clim"
+#' )
+#'
+#' # Check diagnostic information
+#' cat("Index used", attr(analogs, "total_bins"), "bins\n")
+#' cat("Average bin occupancy:", attr(analogs, "avg_bin_occupancy"), "\n")
+#' }
 #'
 #' @export
 find_analogs <- function(
             focal,
             ref,
-            max_dist   = NULL,
-            max_clim   = NULL,
-            weight     = "inverse_clim",
-            fun        = "nmax",
-            n          = NULL,
-            metric     = "euclidean",
+            max_dist    = NULL,
+            max_clim    = NULL,
+            weight      = "inverse_clim",
+            fun         = "nmax",
+            n           = NULL,
+            metric      = "euclidean",
             report_dist = TRUE,
-            geo        = c("auto", "lonlat", "projected")
+            geo         = c("auto", "lonlat", "projected")
 ) {
-      # ---- validate args -----------------------------------------------------
+      # ---- Input validation --------------------------------------------------
       geo <- match.arg(geo)
+
       valid_weights <- c("uniform", "inverse_clim", "inverse_dist")
-      if (!weight %in% valid_weights) stop("weight must be one of: ", paste(valid_weights, collapse=", "))
+      if (!weight %in% valid_weights) {
+            stop("weight must be one of: ", paste(valid_weights, collapse = ", "))
+      }
+
+      # TODO: Rename "nmax" to "topk" and add "argmin" per roadmap
       valid_funs <- c("nmax", "sum", "mean", "count", "all")
-      if (!fun %in% valid_funs) stop("fun must be one of: ", paste(valid_funs, collapse=", "))
+      if (!fun %in% valid_funs) {
+            stop("fun must be one of: ", paste(valid_funs, collapse = ", "))
+      }
+
       metric <- tolower(metric)
       if (!metric %in% c("euclidean")) {
-            stop("metric='", metric, "' not yet supported; currently only 'euclidean' is implemented in the core")
+            stop("metric = '", metric, "' not yet supported; ",
+                 "currently only 'euclidean' is implemented")
       }
-      if (fun == "nmax" && is.null(n)) stop("n must be specified when fun = 'nmax'")
+
+      if (fun == "nmax" && is.null(n)) {
+            stop("n must be specified when fun = 'nmax'")
+      }
+
       if (!is.null(n)) n <- as.integer(n)
 
-      # ---- normalize inputs via user's helpers -------------------------------
+      # ---- Data normalization ------------------------------------------------
       focal_mm <- .format_data(focal)
       ref_mm   <- .format_data(ref)
-      if (ncol(focal_mm$climate) != ncol(ref_mm$climate)) stop("number of climate variables must match between focal and ref")
 
-      # geo mode
+      if (ncol(focal_mm$climate) != ncol(ref_mm$climate)) {
+            stop("Number of climate variables must match between focal and ref. ",
+                 "focal has ", ncol(focal_mm$climate), " variables, ",
+                 "ref has ", ncol(ref_mm$climate), " variables.")
+      }
+
+      # Detect geographic coordinate system
       geo_mode <- switch(geo,
                          auto      = .detect_geo(focal_mm$coords, ref_mm$coords),
                          lonlat    = "lonlat",
                          projected = "projected"
       )
 
-      # constraints
+      # Parse constraints
       radius_km <- if (is.null(max_dist)) Inf else as.numeric(max_dist)[1L]
-      climate_band <- if (is.null(max_clim)) Inf else max_clim
+
+      climate_band <- if (is.null(max_clim)) {
+            Inf
+      } else {
+            max_clim
+      }
+
       if (length(climate_band) == 1L) {
             climate_band <- as.numeric(climate_band)[1L]
       } else if (length(climate_band) == ncol(ref_mm$climate)) {
             climate_band <- as.numeric(climate_band)
       } else {
-            stop("`max_clim` must be NULL, a scalar, or length ncol(climate) vector")
+            stop("`max_clim` must be NULL, a scalar, or a vector of length ",
+                 ncol(ref_mm$climate), " (number of climate variables)")
       }
 
-      # choose k behavior to match previous API
+      # Map user's 'fun' parameter to internal k parameter
+      # TODO: This mapping will change with operation classification (Task #2)
       k <- if (identical(fun, "nmax")) n else 0L
 
-      # ---- call C++ core -----------------------------------------------------
+      # ---- Call C++ core -----------------------------------------------------
       res <- .Call(
             `_analogs_find_analogs_core`,
             focal_mm$climate, ref_mm$climate,
             focal_mm$coords,  ref_mm$coords,
-            NA_character_,             # mode (reserved)
+            NA_character_,             # mode (reserved for future use)
             as.integer(k),
             climate_band,
             as.numeric(radius_km),
             geo_mode,
-            FALSE                      # compact_bins (reserved)
+            FALSE                      # compact_bins (reserved for future use)
       )
 
-      # res is list of integer vectors (1-based analog indices per focal)
+      # Capture diagnostic attributes from C++ before post-processing
+      cpp_attrs <- attributes(res)
+      cpp_attrs$names <- NULL  # Remove list element names
+      cpp_attrs$class <- NULL  # Remove class attribute
 
-      # ---- post-process into requested shape --------------------------------
+      # ---- Post-process results ----------------------------------------------
       if (fun %in% c("nmax", "all")) {
-            out <- .emit_pairs(res, focal_mm, ref_mm, report_dist = report_dist, weight = weight, geo_mode = geo_mode)
+            out <- .emit_pairs(res, focal_mm, ref_mm,
+                               report_dist = report_dist,
+                               weight = weight,
+                               geo_mode = geo_mode)
+            # Restore diagnostic attributes from C++
+            for (nm in names(cpp_attrs)) {
+                  attr(out, nm) <- cpp_attrs[[nm]]
+            }
             return(out)
       }
 
       if (fun %in% c("sum", "mean", "count")) {
-            out <- .emit_aggregates(res, focal_mm, ref_mm, fun = fun, weight = weight, geo_mode = geo_mode)
+            out <- .emit_aggregates(res, focal_mm, ref_mm,
+                                    fun = fun,
+                                    weight = weight,
+                                    geo_mode = geo_mode)
+            # Restore diagnostic attributes from C++
+            for (nm in names(cpp_attrs)) {
+                  attr(out, nm) <- cpp_attrs[[nm]]
+            }
             return(out)
       }
 
-      stop("unreachable")
+      stop("Unreachable code - please report this bug")
 }
 
-# ---- helpers --------------------------------------------------------------
+# ---- Internal Helper Functions ---------------------------------------------
 
+#' Detect coordinate system from data ranges
+#' @keywords internal
 .detect_geo <- function(focal_xy, ref_xy) {
-      # rudimentary heuristic: lon/lat if both appear within plausible bounds
-      rng <- range(c(focal_xy[,1], ref_xy[,1], focal_xy[,2], ref_xy[,2]), na.rm = TRUE)
-      # More robust: check both axes separately
-      lon_rng <- range(c(focal_xy[,1], ref_xy[,1]), na.rm = TRUE)
-      lat_rng <- range(c(focal_xy[,2], ref_xy[,2]), na.rm = TRUE)
+      lon_rng <- range(c(focal_xy[, 1], ref_xy[, 1]), na.rm = TRUE)
+      lat_rng <- range(c(focal_xy[, 2], ref_xy[, 2]), na.rm = TRUE)
+
+      # If coordinates fall within plausible lon/lat bounds, assume lonlat
       if (all(is.finite(c(lon_rng, lat_rng))) &&
           lon_rng[1] >= -180 && lon_rng[2] <= 180 &&
           lat_rng[1] >=  -90 && lat_rng[2] <=  90) {
@@ -127,159 +302,207 @@ find_analogs <- function(
       }
 }
 
+#' Compute great-circle distance using Haversine formula
+#' @keywords internal
 .haversine_km <- function(xy1, xy2) {
-      # xy1, xy2 are 2-column matrices; computes pairwise between matching rows
-      R <- 6371.0088
-      to_rad <- pi/180
-      lon1 <- xy1[,1] * to_rad; lat1 <- xy1[,2] * to_rad
-      lon2 <- xy2[,1] * to_rad; lat2 <- xy2[,2] * to_rad
-      dlon <- lon2 - lon1; dlat <- lat2 - lat1
-      sdlat <- sin(0.5*dlat); sdlon <- sin(0.5*dlon)
-      a <- sdlat*sdlat + cos(lat1)*cos(lat2)*sdlon*sdlon
+      R <- 6371.0088  # Earth's mean radius in km
+      to_rad <- pi / 180
+
+      lon1 <- xy1[, 1] * to_rad
+      lat1 <- xy1[, 2] * to_rad
+      lon2 <- xy2[, 1] * to_rad
+      lat2 <- xy2[, 2] * to_rad
+
+      dlon <- lon2 - lon1
+      dlat <- lat2 - lat1
+
+      sdlat <- sin(0.5 * dlat)
+      sdlon <- sin(0.5 * dlon)
+
+      a <- sdlat * sdlat + cos(lat1) * cos(lat2) * sdlon * sdlon
+
       2 * R * asin(pmin(1, sqrt(a)))
 }
 
-# Build long table of focal-analog pairs, with optional distances and weights
+#' Build long table of focal-analog pairs with distances and weights
+#' @keywords internal
 .emit_pairs <- function(res, focal_mm, ref_mm, report_dist, weight, geo_mode) {
       n_f <- nrow(focal_mm$coords)
       rows <- vector("list", n_f)
+
       for (i in seq_len(n_f)) {
             idx <- res[[i]]
-            if (length(idx) == 0L) { rows[[i]] <- NULL; next }
-            fx <- rep(focal_mm$coords[i,1], length(idx))
-            fy <- rep(focal_mm$coords[i,2], length(idx))
-            ax <- ref_mm$coords[idx,1]
-            ay <- ref_mm$coords[idx,2]
+            if (length(idx) == 0L) {
+                  rows[[i]] <- NULL
+                  next
+            }
+
+            # Focal coordinates (repeated)
+            fx <- rep(focal_mm$coords[i, 1], length(idx))
+            fy <- rep(focal_mm$coords[i, 2], length(idx))
+
+            # Analog coordinates
+            ax <- ref_mm$coords[idx, 1]
+            ay <- ref_mm$coords[idx, 2]
 
             df <- data.frame(
                   focal_index  = rep.int(i, length(idx)),
-                  focal_x = fx, focal_y = fy,
+                  focal_x      = fx,
+                  focal_y      = fy,
                   analog_index = idx,
-                  analog_x = ax, analog_y = ay,
+                  analog_x     = ax,
+                  analog_y     = ay,
                   stringsAsFactors = FALSE
             )
 
+            # Compute distances if needed for reporting or weighting
             if (isTRUE(report_dist) || !identical(weight, "uniform")) {
-                  # climate distances
-                  v_i <- matrix(focal_mm$climate[i,], nrow = 1)
-                  v_j <- ref_mm$climate[idx,,drop=FALSE]
+                  # Climate distances (Euclidean in whitened space)
+                  v_i <- matrix(focal_mm$climate[i, ], nrow = 1)
+                  v_j <- ref_mm$climate[idx, , drop = FALSE]
                   clim_d <- sqrt(rowSums((t(t(v_j) - as.numeric(v_i)))^2))
 
-                  # geographic distances
+                  # Geographic distances
                   if (geo_mode == "lonlat") {
                         geog_d <- .haversine_km(cbind(fx, fy), cbind(ax, ay))
                   } else {
                         geog_d <- sqrt((ax - fx)^2 + (ay - fy)^2)
                   }
 
+                  # Add distance columns if requested
                   if (isTRUE(report_dist)) {
                         df$clim_dist <- clim_d
                         df$geog_dist <- geog_d
                   }
 
-                  # weights if requested
-                  if (identical(weight, "inverse_clim")) {
-                        df$weight <- 1/(clim_d + 1e-12)
-                  } else if (identical(weight, "inverse_dist")) {
-                        df$weight <- 1/(geog_d + 1e-12)
-                  } else {
-                        df$weight <- 1.0
-                  }
+                  # Compute weights
+                  df$weight <- switch(weight,
+                                      uniform      = rep(1.0, length(idx)),
+                                      inverse_clim = 1.0 / (clim_d + 1e-12),
+                                      inverse_dist = 1.0 / (geog_d + 1e-12)
+                  )
             }
 
             rows[[i]] <- df
       }
-      if (all(vapply(rows, is.null, logical(1)))) return(utils::head(data.frame(), 0L))
+
+      # Handle case where all focal points have no matches
+      if (all(vapply(rows, is.null, logical(1)))) {
+            return(data.frame(
+                  focal_index = integer(0),
+                  focal_x = numeric(0),
+                  focal_y = numeric(0),
+                  analog_index = integer(0),
+                  analog_x = numeric(0),
+                  analog_y = numeric(0)
+            ))
+      }
+
       do.call(rbind, rows)
 }
 
+#' Aggregate matches per focal location
+#' @keywords internal
 .emit_aggregates <- function(res, focal_mm, ref_mm, fun, weight, geo_mode) {
       n_f <- nrow(focal_mm$coords)
+
       out <- data.frame(
             focal_index = seq_len(n_f),
-            focal_x = focal_mm$coords[,1],
-            focal_y = focal_mm$coords[,2],
-            value = NA_real_,
+            focal_x     = focal_mm$coords[, 1],
+            focal_y     = focal_mm$coords[, 2],
+            value       = NA_real_,
             stringsAsFactors = FALSE
       )
+
       for (i in seq_len(n_f)) {
             idx <- res[[i]]
+
             if (length(idx) == 0L) {
                   out$value[i] <- if (fun == "count") 0 else 0
                   next
             }
-            # distances
-            v_i <- matrix(focal_mm$climate[i,], nrow = 1)
-            v_j <- ref_mm$climate[idx,,drop=FALSE]
+
+            # Compute distances for weighting
+            v_i <- matrix(focal_mm$climate[i, ], nrow = 1)
+            v_j <- ref_mm$climate[idx, , drop = FALSE]
             clim_d <- sqrt(rowSums((t(t(v_j) - as.numeric(v_i)))^2))
+
             if (geo_mode == "lonlat") {
-                  geog_d <- .haversine_km(cbind(rep(focal_mm$coords[i,1], length(idx)), rep(focal_mm$coords[i,2], length(idx))),
-                                          ref_mm$coords[idx,1:2,drop=FALSE])
+                  fx <- rep(focal_mm$coords[i, 1], length(idx))
+                  fy <- rep(focal_mm$coords[i, 2], length(idx))
+                  geog_d <- .haversine_km(
+                        cbind(fx, fy),
+                        ref_mm$coords[idx, 1:2, drop = FALSE]
+                  )
             } else {
-                  fx <- focal_mm$coords[i,1]; fy <- focal_mm$coords[i,2]
-                  ax <- ref_mm$coords[idx,1]; ay <- ref_mm$coords[idx,2]
+                  fx <- focal_mm$coords[i, 1]
+                  fy <- focal_mm$coords[i, 2]
+                  ax <- ref_mm$coords[idx, 1]
+                  ay <- ref_mm$coords[idx, 2]
                   geog_d <- sqrt((ax - fx)^2 + (ay - fy)^2)
             }
 
-            # weights
+            # Compute weights
             w <- switch(weight,
                         uniform      = rep(1, length(idx)),
-                        inverse_clim = 1/(clim_d + 1e-12),
-                        inverse_dist = 1/(geog_d + 1e-12)
+                        inverse_clim = 1.0 / (clim_d + 1e-12),
+                        inverse_dist = 1.0 / (geog_d + 1e-12)
             )
 
-            if (fun == "count") {
-                  out$value[i] <- sum(w*0 + 1)  # count of matches
-            } else if (fun == "sum") {
-                  out$value[i] <- sum(w)
-            } else if (fun == "mean") {
-                  out$value[i] <- mean(w)
-            } else {
-                  stop("unrecognized aggregate fun: ", fun)
-            }
+            # Aggregate
+            out$value[i] <- switch(fun,
+                                   count = length(idx),  # Simple count
+                                   sum   = sum(w),
+                                   mean  = mean(w),
+                                   stop("Unrecognized aggregation function: ", fun)
+            )
       }
+
       out
 }
 
-
-
-# Helper: select x,y by name if present; otherwise use first 2 cols
+#' Extract coordinates and climate data from input
+#' @keywords internal
 .select_xy_climate <- function(obj) {
-  nm <- colnames(obj)
-  if (!is.null(nm) && all(c("x","y") %in% nm[1:max(2, length(nm))])) {
-    x_idx <- match("x", nm)
-    y_idx <- match("y", nm)
-    xy_idx <- c(x_idx, y_idx)
-  } else if (!is.null(nm) && all(c("x","y") %in% nm)) {
-    xy_idx <- match(c("x","y"), nm)
-  } else {
-    xy_idx <- 1:2
-  }
+      nm <- colnames(obj)
 
-  coords  <- as.matrix(obj[, xy_idx, drop = FALSE])
-  climate <- as.matrix(obj[, setdiff(seq_len(ncol(obj)), xy_idx), drop = FALSE])
+      # Try to find x,y columns by name
+      if (!is.null(nm) && all(c("x", "y") %in% nm)) {
+            xy_idx <- match(c("x", "y"), nm)
+      } else {
+            # Default to first two columns
+            xy_idx <- 1:2
+      }
 
-  storage.mode(coords)  <- "double"
-  storage.mode(climate) <- "double"
+      coords  <- as.matrix(obj[, xy_idx, drop = FALSE])
+      climate <- as.matrix(obj[, setdiff(seq_len(ncol(obj)), xy_idx), drop = FALSE])
 
-  if (ncol(coords) != 2L) stop("coords must have exactly 2 columns (x,y).")
-  if (ncol(climate) < 1L) stop("no climate variable columns found after x,y.")
+      storage.mode(coords)  <- "double"
+      storage.mode(climate) <- "double"
 
-  list(coords = coords, climate = climate)
+      if (ncol(coords) != 2L) {
+            stop("Coordinate data must have exactly 2 columns (x, y)")
+      }
+      if (ncol(climate) < 1L) {
+            stop("No climate variable columns found after extracting coordinates")
+      }
+
+      list(coords = coords, climate = climate)
 }
 
-
-#' Normalize input (SpatRaster OR data.frame/matrix) to coords/climate matrices
+#' Normalize input to standard format
 #' @keywords internal
 .format_data <- function(r) {
-  if (inherits(r, "SpatRaster")) {
-    df <- terra::as.data.frame(r, xy = TRUE, na.rm = FALSE)
-    .select_xy_climate(df)
-
-  } else if (is.matrix(r) || is.data.frame(r)) {
-    .select_xy_climate(r)
-
-  } else {
-    stop("Unsupported input type. Provide a data.frame/matrix with columns x,y,... or a SpatRaster.")
-  }
+      if (inherits(r, "SpatRaster")) {
+            # Convert SpatRaster to data.frame
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster inputs")
+            }
+            df <- terra::as.data.frame(r, xy = TRUE, na.rm = FALSE)
+            .select_xy_climate(df)
+      } else if (is.matrix(r) || is.data.frame(r)) {
+            .select_xy_climate(r)
+      } else {
+            stop("Input must be a data.frame, matrix, or SpatRaster")
+      }
 }
