@@ -1,7 +1,7 @@
 #include <Rcpp.h>
 #include "metrics.hpp"
-#include "types.hpp"
 using namespace Rcpp;
+
 
 // [[Rcpp::export]]
 double analogs_euclid_cpp(NumericVector a, NumericVector b) {

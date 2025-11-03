@@ -1,170 +1,279 @@
-#include <Rcpp.h>
-#include "types.hpp"
+// [[Rcpp::depends(RcppParallel)]]
+
 #include "metrics.hpp"
-#include "constraints.hpp"
-#include "lattice_index.hpp"
+#include "types.hpp"
+#include <Rcpp.h>
+#include <queue>
+#include <algorithm>
+#include <cmath>
 
 using namespace Rcpp;
-using analogs::size_tu;
-using analogs::index_t;
+using namespace analogs;
 
-// ---- helpers -------------------------------------------------------------
-static inline analogs::MatrixView as_view_mat(NumericMatrix M) {
-      analogs::MatrixView v;
-      v.data = REAL(M);
-      v.nrow = (size_tu)M.nrow();
-      v.ncol = (size_tu)M.ncol();
-      return v;
+// ---- helper: geo distance -------------------------------------------------
+
+static inline double geo_distance_km(double x1, double y1,
+                                     double x2, double y2,
+                                     bool use_haversine) {
+    if (use_haversine) {
+        double a[2] = { x1, y1 };
+        double b[2] = { x2, y2 };
+        Haversine2D h;
+        return h.dist(a, b, 2);
+    } else {
+        double dx = x1 - x2;
+        double dy = y1 - y2;
+        return std::sqrt(dx * dx + dy * dy);
+    }
 }
 
-static inline bool is_null(SEXP x) {
-      return x == R_NilValue;
-}
+// ---- main core function ---------------------------------------------------
+//
+// focal_mm, ref_mm: numeric matrices with columns [x, y, clim1, clim2, ...].
+// k:   top-k to return per focal (k > 0). If k == 0, return all matches
+//      that satisfy the constraints (used for "all", "sum", "mean", "count").
+// max_clim: scalar (Euclidean radius) or vector (per-variable abs diff).
+// max_dist: max geographic distance in km (Inf = no constraint).
+// geo_mode: "lonlat" (Haversine) or "projected" (Euclidean).
+//
+// Return: list of length n_focal; element i is an integer vector of
+// 1-based indices into ref_mm of matching analogs for focal i.
+//
+ // [[Rcpp::export]]
+List find_analogs_core(const NumericMatrix& focal_mm,
+                       const NumericMatrix& ref_mm,
+                       int k,
+                       const NumericVector& max_clim,
+                       double max_dist,
+                       const std::string& geo_mode) {
 
-static inline analogs::GeoSpace parse_geo_flag(SEXP geo_flag) {
-      if (is_null(geo_flag)) return analogs::GeoSpace::LonLat;
-      if (TYPEOF(geo_flag) == STRSXP && Rf_length(geo_flag) == 1) {
-            SEXP s = STRING_ELT(geo_flag, 0);
-            if (s == NA_STRING) return analogs::GeoSpace::LonLat;
-            std::string g = CHAR(s);
-            if (g=="lonlat"||g=="LonLat"||g=="LL") return analogs::GeoSpace::LonLat;
-            if (g=="projected"||g=="Planar"||g=="XY") return analogs::GeoSpace::Planar;
-      }
-      if (TYPEOF(geo_flag) == INTSXP || TYPEOF(geo_flag) == LGLSXP) {
-            int v = as<int>(geo_flag);
-            return (v==1)? analogs::GeoSpace::Planar : analogs::GeoSpace::LonLat;
-      }
-      return analogs::GeoSpace::LonLat;
-}
+    const int n_focal = focal_mm.nrow();
+    const int n_ref   = ref_mm.nrow();
 
-// ---- core impl -----------------------------------------------------------
-static SEXP find_analogs_core_impl(
-            SEXP focal_clim_, SEXP ref_clim_,
-            SEXP focal_geo_, SEXP ref_geo_,
-            SEXP mode_, SEXP k_,
-            SEXP climate_band_, SEXP radius_km_,
-            SEXP geo_flag_, SEXP compact_bins_) {
+    if (n_focal == 0 || n_ref == 0) {
+        // Return empty list with diagnostics
+        List out(n_focal);
+        out.attr("n_focal") = n_focal;
+        out.attr("n_ref")   = n_ref;
+        out.attr("n_clim")  = 0;
+        out.attr("binning_method") = "none";
+        out.attr("total_bins") = 1;
+        out.attr("avg_bin_occupancy") = n_ref;
+        out.attr("min_bin_occupancy") = n_ref;
+        out.attr("max_bin_occupancy") = n_ref;
+        return out;
+    }
 
-      // Parse matrices
-      NumericMatrix focal_clim(focal_clim_);
-      NumericMatrix ref_clim(ref_clim_);
-      const size_tu n_focal = focal_clim.nrow();
-      const size_tu n_ref = ref_clim.nrow();
-      const size_tu n_vars = ref_clim.ncol();
+    const int ncol_focal = focal_mm.ncol();
+    const int ncol_ref   = ref_mm.ncol();
 
-      if (focal_clim.ncol() != (int)n_vars) {
-            stop("focal_clim and ref_clim must have same number of columns (variables).");
-      }
+    if (ncol_focal != ncol_ref) {
+        stop("focal and ref must have the same number of columns");
+    }
+    if (ncol_focal < 3) {
+        stop("Need at least 2 coordinate columns and 1 climate variable");
+    }
 
-      // Parse geographic data (optional)
-      NumericMatrix focal_geo, ref_geo;
-      bool have_geo = !is_null(focal_geo_) && !is_null(ref_geo_);
-      if (have_geo) {
-            focal_geo = NumericMatrix(focal_geo_);
-            ref_geo = NumericMatrix(ref_geo_);
-            if (focal_geo.ncol()!=2 || ref_geo.ncol()!=2) {
-                  stop("focal_geo and ref_geo must have 2 columns (lon,lat or x,y).");
+    const int n_clim = ncol_focal - 2;
+
+    // Interpret geographic mode
+    const bool use_haversine = (geo_mode == "lonlat");
+
+    // Interpret max_dist (Inf => no filter)
+    const bool use_dist_filter = std::isfinite(max_dist);
+
+    // Interpret max_clim:
+    //
+    //   * length 1: scalar radius in Euclidean climate space
+    //   * length p: per-variable abs difference thresholds
+    //
+    bool use_scalar_clim = false;
+    bool use_pervar_clim = false;
+    double max_clim_scalar = std::numeric_limits<double>::infinity();
+    NumericVector max_clim_pervar;
+
+    if (max_clim.size() == 1) {
+        double v = max_clim[0];
+        if (std::isfinite(v)) {
+            use_scalar_clim = true;
+            max_clim_scalar = v;
+        }
+    } else if (max_clim.size() == n_clim) {
+        max_clim_pervar = clone(max_clim);
+        use_pervar_clim = true;
+    } else if (max_clim.size() > 1) {
+        stop("max_clim must be length 1 or length equal to the number of climate variables");
+    }
+
+    // Climate distance metric (Euclidean in whitened space)
+    Euclidean clim_metric;
+
+    // Output list of index vectors
+    List out(n_focal);
+
+    // Data pointers for a slightly cheaper access pattern
+    const double* focal_ptr = REAL(focal_mm);
+    const double* ref_ptr   = REAL(ref_mm);
+    const int stride_f      = n_focal; // column-major: nrow
+    const int stride_r      = n_ref;
+
+    // For each focal site
+    for (int i = 0; i < n_focal; ++i) {
+        // Coordinates of focal i
+        const double fx = focal_ptr[i];             // col 0
+        const double fy = focal_ptr[i + stride_f];  // col 1
+
+        // Climate pointer for focal i (start of clim columns)
+        const double* f_clim = focal_ptr + i + 2 * stride_f;
+
+        // Storage for matches
+        if (k > 0) {
+            // Top-k by climate distance within constraints
+
+            using Neighbor = std::pair<double, int>; // (clim_dist, ref_index_1based)
+
+            auto cmp = [](const Neighbor& a, const Neighbor& b) {
+                // max-heap by distance: largest distance at top
+                return a.first < b.first;
+            };
+            std::priority_queue<Neighbor,
+                                std::vector<Neighbor>,
+                                decltype(cmp)> pq(cmp);
+
+            for (int j = 0; j < n_ref; ++j) {
+                // Geographic filter
+                if (use_dist_filter) {
+                    const double rx = ref_ptr[j];             // col 0
+                    const double ry = ref_ptr[j + stride_r];  // col 1;
+                    double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                    if (gdist > max_dist) continue;
+                }
+
+                // Climate pointer for ref j
+                const double* r_clim = ref_ptr + j + 2 * stride_r;
+
+                // Climate filters and distance
+                double clim_dist = 0.0;
+
+                if (use_pervar_clim) {
+                    // Per-variable threshold AND Euclidean distance
+                    double sumsq = 0.0;
+                    bool ok = true;
+                    for (int kdim = 0; kdim < n_clim; ++kdim) {
+                        double df = f_clim[kdim * stride_f] - r_clim[kdim * stride_r];
+                        if (std::fabs(df) > max_clim_pervar[kdim]) {
+                            ok = false;
+                            break;
+                        }
+                        sumsq += df * df;
+                    }
+                    if (!ok) continue;
+                    clim_dist = std::sqrt(sumsq);
+                } else {
+                    // Only scalar threshold (if finite) and/or ordering
+                    // Build temporary contiguous arrays for metric convenience
+                    std::vector<double> tmp_f(n_clim);
+                    std::vector<double> tmp_r(n_clim);
+                    for (int kdim = 0; kdim < n_clim; ++kdim) {
+                        tmp_f[kdim] = f_clim[kdim * stride_f];
+                        tmp_r[kdim] = r_clim[kdim * stride_r];
+                    }
+                    clim_dist = clim_metric.dist(tmp_f.data(), tmp_r.data(),
+                                                 static_cast<size_tu>(n_clim));
+                    if (use_scalar_clim && clim_dist > max_clim_scalar) {
+                        continue;
+                    }
+                }
+
+                // Candidate survives all filters; add to top-k structure
+                int ref_index_1based = j + 1;
+
+                if (static_cast<int>(pq.size()) < k) {
+                    pq.emplace(clim_dist, ref_index_1based);
+                } else if (!pq.empty() && clim_dist < pq.top().first) {
+                    pq.pop();
+                    pq.emplace(clim_dist, ref_index_1based);
+                }
             }
-            if (focal_geo.nrow()!=(int)n_focal || ref_geo.nrow()!=(int)n_ref) {
-                  stop("focal_geo/ref_geo row counts must match focal_clim/ref_clim.");
-            }
-      }
 
-      // Parse climate constraint: scalar radius OR per-var band
-      analogs::ClimateConstraint clim;
-      clim.nvars = n_vars;
-      clim.use_scalar = true;
-      clim.radius = R_PosInf;
-      std::vector<double> band_vec;
+            // Extract and sort by increasing climate distance
+            const int m = static_cast<int>(pq.size());
+            IntegerVector idx(m);
+            std::vector<double> dists(m);
 
-      if (!is_null(climate_band_)) {
-            NumericVector v(climate_band_);
-            if ((size_tu)v.size() == 1) {
-                  clim.use_scalar = true;
-                  clim.radius = v[0];
-            } else if ((size_tu)v.size() == n_vars) {
-                  band_vec.assign(v.begin(), v.end());
-                  clim.use_scalar = false;
-                  clim.max_abs_diff = band_vec.data();
-            } else {
-                  stop("`max_clim` must be length 1 (scalar radius) or length ncol(*_clim).");
-            }
-      }
-
-      // Parse radius_km (not fully implemented yet)
-      if (!is_null(radius_km_)) {
-            (void)as<double>(radius_km_);  // parse but don't use yet
-      }
-
-      // Parse k parameter
-      int k = 0;
-      if (!is_null(k_)) k = as<int>(k_);
-
-      // Build lattice index with quantile binning
-      // Note: we're using default target_occupancy of 20
-      analogs::MatrixView ref_clim_v = as_view_mat(ref_clim);
-      analogs::MatrixView ref_geo_v;
-      if (have_geo) ref_geo_v = as_view_mat(ref_geo);
-
-      analogs::LatticeIndex index(ref_clim_v, ref_geo_v, n_vars);
-      index.build();
-
-      // Get diagnostics for reporting
-      size_tu total_bins;
-      double avg_occ, min_occ, max_occ;
-      index.get_diagnostics(total_bins, avg_occ, min_occ, max_occ);
-
-      // Process each focal point
-      List out(n_focal);
-      std::vector<index_t> ids;
-      ids.reserve(n_ref);
-      std::vector<double> focal_buf(n_vars);
-
-      for (size_tu i = 0; i < n_focal; ++i) {
-            // Extract focal climate values
-            for (size_tu kk = 0; kk < n_vars; ++kk) {
-                  focal_buf[kk] = focal_clim(i, kk);
+            for (int pos = m - 1; pos >= 0; --pos) {
+                const Neighbor& nb = pq.top();
+                idx[pos]   = nb.second;
+                dists[pos] = nb.first;
+                pq.pop();
             }
 
-            // Search for analogs
-            if (k > 0) {
-                  index.best_first_search(focal_buf.data(), clim, ids, (index_t)k);
-            } else {
-                  index.hard_filter(focal_buf.data(), clim, ids);
+            // (We don't return distances; R will recompute as needed.)
+            out[i] = idx;
+        } else {
+            // k == 0: return all matches satisfying filters, no ordering
+            std::vector<int> matches;
+            matches.reserve(64); // small default; will grow if needed
+
+            for (int j = 0; j < n_ref; ++j) {
+                // Geographic filter
+                if (use_dist_filter) {
+                    const double rx = ref_ptr[j];
+                    const double ry = ref_ptr[j + stride_r];
+                    double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                    if (gdist > max_dist) continue;
+                }
+
+                // Climate pointer for ref j
+                const double* r_clim = ref_ptr + j + 2 * stride_r;
+
+                // Climate filters (no need for distance unless scalar threshold)
+                if (use_pervar_clim) {
+                    bool ok = true;
+                    for (int kdim = 0; kdim < n_clim; ++kdim) {
+                        double df = f_clim[kdim * stride_f] - r_clim[kdim * stride_r];
+                        if (std::fabs(df) > max_clim_pervar[kdim]) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) continue;
+                } else if (use_scalar_clim) {
+                    std::vector<double> tmp_f(n_clim);
+                    std::vector<double> tmp_r(n_clim);
+                    for (int kdim = 0; kdim < n_clim; ++kdim) {
+                        tmp_f[kdim] = f_clim[kdim * stride_f];
+                        tmp_r[kdim] = r_clim[kdim * stride_r];
+                    }
+                    double clim_dist = clim_metric.dist(tmp_f.data(), tmp_r.data(),
+                                                        static_cast<size_tu>(n_clim));
+                    if (clim_dist > max_clim_scalar) continue;
+                }
+
+                matches.push_back(j + 1); // 1-based for R
             }
 
-            // Convert to 1-based indices for R
-            IntegerVector idx(ids.size());
-            for (size_tu j = 0; j < ids.size(); ++j) {
-                  idx[j] = ids[j] + 1;
+            IntegerVector idx(matches.size());
+            for (std::size_t m = 0; m < matches.size(); ++m) {
+                idx[m] = matches[m];
             }
             out[i] = idx;
-      }
+        }
+    }
 
-      // Add attributes for diagnostics
-      out.attr("n_ref") = (int)n_ref;
-      out.attr("n_vars") = (int)n_vars;
-      out.attr("total_bins") = (int)total_bins;
-      out.attr("avg_bin_occupancy") = avg_occ;
-      out.attr("min_bin_occupancy") = min_occ;
-      out.attr("max_bin_occupancy") = max_occ;
-      out.attr("geo") = "lonlat";  // default for now
-      out.attr("binning_method") = "quantile";
+    // Attach basic diagnostics (index-related fields are placeholders for now)
+    out.attr("n_focal") = n_focal;
+    out.attr("n_ref")   = n_ref;
+    out.attr("n_clim")  = n_clim;
+    out.attr("max_dist") = max_dist;
+    out.attr("max_clim") = max_clim;
+    out.attr("geo_mode") = geo_mode;
 
-      return out;
-}
+    out.attr("binning_method")     = "none";   // lattice not yet used here
+    out.attr("total_bins")         = 1;
+    out.attr("avg_bin_occupancy")  = n_ref;
+    out.attr("min_bin_occupancy")  = n_ref;
+    out.attr("max_bin_occupancy")  = n_ref;
 
-// [[Rcpp::export]]
-SEXP find_analogs_core(
-            SEXP focal_clim_, SEXP ref_clim_,
-            SEXP focal_geo_, SEXP ref_geo_,
-            SEXP mode_, SEXP k_,
-            SEXP climate_band_, SEXP radius_km_,
-            SEXP geo_flag_, SEXP compact_bins_) {
-      return find_analogs_core_impl(
-            focal_clim_, ref_clim_,
-            focal_geo_, ref_geo_,
-            mode_, k_,
-            climate_band_, radius_km_,
-            geo_flag_, compact_bins_);
+    return out;
 }

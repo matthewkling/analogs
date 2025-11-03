@@ -11,22 +11,18 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // find_analogs_core
-SEXP find_analogs_core(SEXP focal_clim_, SEXP ref_clim_, SEXP focal_geo_, SEXP ref_geo_, SEXP mode_, SEXP k_, SEXP climate_band_, SEXP radius_km_, SEXP geo_flag_, SEXP compact_bins_);
-RcppExport SEXP _analogs_find_analogs_core(SEXP focal_clim_SEXP, SEXP ref_clim_SEXP, SEXP focal_geo_SEXP, SEXP ref_geo_SEXP, SEXP mode_SEXP, SEXP k_SEXP, SEXP climate_band_SEXP, SEXP radius_km_SEXP, SEXP geo_flag_SEXP, SEXP compact_bins_SEXP) {
+List find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_dist, const std::string& geo_mode);
+RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_distSEXP, SEXP geo_modeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type focal_clim_(focal_clim_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type ref_clim_(ref_clim_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type focal_geo_(focal_geo_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type ref_geo_(ref_geo_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type mode_(mode_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type k_(k_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type climate_band_(climate_band_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type radius_km_(radius_km_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type geo_flag_(geo_flag_SEXP);
-    Rcpp::traits::input_parameter< SEXP >::type compact_bins_(compact_bins_SEXP);
-    rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_clim_, ref_clim_, focal_geo_, ref_geo_, mode_, k_, climate_band_, radius_km_, geo_flag_, compact_bins_));
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type focal_mm(focal_mmSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
+    Rcpp::traits::input_parameter< int >::type k(kSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
+    Rcpp::traits::input_parameter< double >::type max_dist(max_distSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
+    rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_mm, ref_mm, k, max_clim, max_dist, geo_mode));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -56,7 +52,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 10},
+    {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 6},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
     {NULL, NULL, 0}
