@@ -11,8 +11,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // find_analogs_core
-List find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_dist, const std::string& geo_mode);
-RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_distSEXP, SEXP geo_modeSEXP) {
+SEXP find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, double theta);
+RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -20,9 +20,12 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
     Rcpp::traits::input_parameter< int >::type k(kSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
-    Rcpp::traits::input_parameter< double >::type max_dist(max_distSEXP);
+    Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
     Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
-    rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_mm, ref_mm, k, max_clim, max_dist, geo_mode));
+    Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
+    Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
+    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -52,7 +55,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 6},
+    {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 9},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
     {NULL, NULL, 0}

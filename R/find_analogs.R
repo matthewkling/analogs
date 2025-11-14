@@ -1,15 +1,15 @@
 #' Find Climate Analogs
 #'
-#' Identifies locations in a reference dataset that are climaticallyc similar to
+#' Identifies locations in a reference dataset that are climatically similar to
 #' focal locations, with optional constraints on climate distance and geographic
 #' distance. This function supports multiple use cases including climate velocity
 #' analysis, analog availability mapping, and climate impact assessment.
 #'
-#' The function uses an efficient spatial indexing structure (quantile-binned lattice)
-#' to quickly search through large reference datasets. Climate similarity is measured
+#' The function uses a spatial indexing structure (lattice-based) to quickly
+#' search through large reference datasets. Climate similarity is measured
 #' using Euclidean distance in climate space (ideally pre-whitened; see Details).
-#' Geographic distance can be computed for lat/lon coordinates (great-circle distance)
-#' or projected coordinates (planar distance).
+#' Geographic distance can be computed for lon/lat coordinates (great-circle
+#' distance) or projected coordinates (planar distance).
 #'
 #' @param focal Matrix/data.frame with columns x, y, and climate variables,
 #'   OR SpatRaster with climate variable layers. Each row represents a focal
@@ -19,182 +19,250 @@
 #'   OR SpatRaster with climate variable layers. The reference dataset to search
 #'   for analogs.
 #'
-#' @param max_dist Maximum geographic distance constraint in km (default: NULL =
-#'   no constraint). When specified, only reference locations within this distance
-#'   are considered. Useful for defining "dispersal-constrained" analogs.
+#' @param mode Character string specifying the analog search mode. One of:
+#'   \itemize{
+#'     \item \code{"knn_clim"}: For each focal, return up to \code{k} analogs
+#'       with smallest climate distance, subject to \code{max_clim} and
+#'       \code{max_geog} filters.
+#'     \item \code{"knn_geog"}: For each focal, return up to \code{k} analogs
+#'       with smallest geographic distance, subject to \code{max_clim} and
+#'       \code{max_geog} filters.
+#'     \item \code{"all"}: Return all analogs that satisfy the filters.
+#'     \item \code{"count"}: For each focal, count how many analogs satisfy
+#'       the filters.
+#'     \item \code{"sum"}: For each focal, sum weights of all analogs that
+#'       satisfy the filters (see \code{weight} and \code{theta}).
+#'     \item \code{"mean"}: For each focal, mean of weights of all analogs that
+#'       satisfy the filters.
+#'   }
 #'
-#' @param max_clim Maximum climate distance constraint (default: NULL = no constraint).
-#'   Can be either:
+#' @param max_clim Maximum climate distance constraint (default: NULL = no
+#'   climate constraint). Can be either:
 #'   \itemize{
 #'     \item A scalar: Euclidean radius in climate space (e.g., 0.5)
-#'     \item A vector: Per-variable absolute differences (length must equal number of climate variables)
+#'     \item A vector: Per-variable absolute differences (length must equal
+#'       number of climate variables)
 #'   }
 #'   Only reference locations within this climate distance are considered.
 #'
-#' @param weight Weighting function for matches (default: "inverse_clim"):
+#' @param max_geog Maximum geographic distance constraint in km (default:
+#'   NULL = no geographic constraint). When specified, only reference locations
+#'   within this distance are considered.
+#'
+#' @param k Number of nearest analogs to return per focal location for kNN
+#'   modes. Required when \code{mode} is \code{"knn_geog"} or \code{"knn_clim"};
+#'   must be \code{NULL} for other modes.
+#'
+#' @param weight Weighting function for matches, used only when
+#'   \code{mode} is \code{"sum"} or \code{"mean"}. One of:
 #'   \itemize{
-#'     \item \code{"uniform"}: All matches weighted equally (weight = 1.0)
-#'     \item \code{"inverse_clim"}: Weight = 1 / (climate_distance + small_constant)
-#'     \item \code{"inverse_dist"}: Weight = 1 / (geographic_distance + small_constant)
+#'     \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
+#'     \item \code{"inverse_clim"}: Weight = 1 / (climate_distance + epsilon),
+#'       with epsilon given by \code{theta} (or a small default if \code{theta}
+#'       is \code{NULL}).
+#'     \item \code{"inverse_geog"}: Weight = 1 / (geographic_distance + epsilon),
+#'       with epsilon given by \code{theta} (or a small default if \code{theta}
+#'       is \code{NULL}).
 #'   }
-#'   Used for aggregation functions and optionally reported with matches.
+#'   For \code{mode} in \code{"knn_geog"}, \code{"knn_clim"}, \code{"count"},
+#'   or \code{"all"}, \code{weight} must be \code{NULL}.
 #'
-#' @param fun Aggregation function determining what to return (default: "nmax"):
+#' @param theta Optional numeric parameter used by some weighting kernels
+#'   when \code{mode} is \code{"sum"} or \code{"mean"} and \code{weight} is
+#'   not \code{"uniform"}. Currently interpreted as:
 #'   \itemize{
-#'     \item \code{"nmax"}: Return top n closest matches (requires \code{n} parameter)
-#'     \item \code{"all"}: Return all matches passing constraints
-#'     \item \code{"count"}: Count number of matches per focal location
-#'     \item \code{"sum"}: Sum of weights across all matches
-#'     \item \code{"mean"}: Mean of weights across all matches
+#'     \item For \code{"inverse_clim"}: epsilon added to climate distance.
+#'     \item For \code{"inverse_geog"}: epsilon added to geographic distance.
 #'   }
+#'   If \code{theta} is \code{NULL}, a small default epsilon is used. For
+#'   \code{weight = "uniform"} or for non-aggregating modes, \code{theta}
+#'   must be \code{NULL}.
 #'
-#' @param n Number of analogs to return per focal location. Required when
-#'   \code{fun = "nmax"}, ignored otherwise.
-#'
-#' @param metric Distance metric for climate space (default: "euclidean"). Currently
-#'   only Euclidean distance is supported. Future versions may support additional metrics.
-#'
-#' @param report_dist Logical; if TRUE (default), include distance and weight columns
-#'   in output when \code{fun} is "nmax" or "all". Set to FALSE for more compact output.
+#' @param report_dist Logical; if TRUE (default), include distance columns in
+#'   output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
+#'   \code{"all"}. Set to FALSE for more compact output.
 #'
 #' @param coord_type Coordinate system type (default: "auto"):
 #'   \itemize{
-#'     \item \code{"auto"}: Automatically detect from coordinate ranges
-#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance)
-#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance)
+#'     \item \code{"auto"}: Automatically detect from coordinate ranges.
+#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance).
+#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance).
 #'   }
 #'
 #' @return
-#' The return value depends on the \code{fun} parameter:
+#' The return value depends on the \code{mode} parameter:
 #'
-#' **For fun = "nmax" or "all"**: A data.frame with one row per focal-analog pair:
+#' **For mode = "knn_geog", "knn_clim" or "all"**:
+#' A data.frame with one row per focal-analog pair:
 #' \itemize{
-#'   \item \code{focal_index}: Index of focal location (1-based)
-#'   \item \code{focal_x, focal_y}: Coordinates of focal location
-#'   \item \code{analog_index}: Index of analog location in reference dataset (1-based)
-#'   \item \code{analog_x, analog_y}: Coordinates of analog location
-#'   \item \code{clim_dist}: Climate distance (if \code{report_dist = TRUE})
-#'   \item \code{geog_dist}: Geographic distance in km (if \code{report_dist = TRUE})
-#'   \item \code{weight}: Computed weight value (if \code{report_dist = TRUE})
+#'   \item \code{focal_index}: Index of focal location (1-based).
+#'   \item \code{focal_x, focal_y}: Coordinates of focal location.
+#'   \item \code{analog_index}: Index of analog location in reference dataset (1-based).
+#'   \item \code{analog_x, analog_y}: Coordinates of analog location.
+#'   \item \code{clim_dist}: Climate distance (if \code{report_dist = TRUE}).
+#'   \item \code{geog_dist}: Geographic distance in km (if \code{report_dist = TRUE}).
 #' }
 #'
-#' **For fun = "sum", "mean", or "count"**: A data.frame with one row per focal location:
+#' **For mode = "sum", "mean", or "count"**:
+#' A data.frame with one row per focal location:
 #' \itemize{
-#'   \item \code{focal_index}: Index of focal location (1-based)
-#'   \item \code{focal_x, focal_y}: Coordinates of focal location
-#'   \item \code{value}: Aggregated value (count, sum, or mean of weights)
+#'   \item \code{focal_index}: Index of focal location (1-based).
+#'   \item \code{focal_x, focal_y}: Coordinates of focal location.
+#'   \item \code{value}: Aggregated value (count, sum of weights, or mean of weights).
 #' }
 #'
-#' All outputs include diagnostic attributes:
+#' All outputs include diagnostic attributes propagated from the C++ core,
+#' including:
 #' \itemize{
-#'   \item \code{total_bins}: Number of spatial bins created in index
-#'   \item \code{avg_bin_occupancy}: Average points per bin
-#'   \item \code{min_bin_occupancy, max_bin_occupancy}: Range of bin occupancy
-#'   \item \code{binning_method}: Method used ("quantile")
-#'   \item \code{n_ref, n_vars}: Size of reference dataset
+#'   \item \code{total_bins}: Number of spatial bins in the lattice index.
+#'   \item \code{avg_bin_occupancy}: Average points per bin.
+#'   \item \code{min_bin_occupancy, max_bin_occupancy}: Range of bin occupancy.
+#'   \item \code{binning_method}: Method used ("multi_dim_lattice" or "none").
+#'   \item \code{n_ref, n_clim}: Size of reference dataset and number of climate variables.
 #' }
 #'
 #' @details
 #' **Common Use Cases:**
 #'
 #' \strong{Climate Velocity} (nearest geographic neighbor with similar climate):
-#' \code{find_analogs(focal, ref, max_clim = 0.5, fun = "nmax", n = 1)}
+#' \preformatted{
+#' find_analogs(
+#'   focal   = clim$clim1,
+#'   ref     = clim$clim2,
+#'   mode    = "knn_geog",
+#'   max_clim = 0.5,
+#'   max_geog = NULL,
+#'   k        = 1
+#' )
+#' }
 #'
 #' \strong{Climate Impact} (climatically similar locations within dispersal range):
-#' \code{find_analogs(focal, ref, max_dist = 500, fun = "nmax", n = 10)}
+#' \preformatted{
+#' find_analogs(
+#'   focal   = clim$clim1,
+#'   ref     = clim$clim2,
+#'   mode    = "knn_clim",
+#'   max_clim = 0.5,
+#'   max_geog = 100,
+#'   k        = 20
+#' )
+#' }
 #'
 #' \strong{Analog Availability} (count of suitable locations):
-#' \code{find_analogs(focal, ref, max_clim = 1.0, max_dist = 500, fun = "count")}
-#'
-#' **Climate Whitening:**
-#' For best results, climate variables should be whitened (standardized and decorrelated)
-#' before analysis. This ensures that Euclidean distance properly represents
-#' Mahalanobis distance. Whitening functionality will be added in a future version;
-#' for now, users should pre-process data externally.
-#'
-#' **Performance:**
-#' The function uses quantile-based spatial binning to efficiently search large
-#' reference datasets. Query time scales approximately O(log n) for top-k searches
-#' and O(n^(d-1)/d) for constrained searches, where n is the reference dataset
-#' size and d is the number of climate variables.
-#'
-#' @examples
-#' \dontrun{
-#' # Example 1: Climate velocity analysis
-#' library(terra)
-#' current <- rast("climate_1981_2010.tif")
-#' future <- rast("climate_2071_2100.tif")
-#'
-#' focal <- as.data.frame(current, xy = TRUE)[1:100, ]
-#' ref <- future
-#'
-#' velocity <- find_analogs(
-#'   focal = focal,
-#'   ref = ref,
-#'   max_clim = 0.5,      # climate similarity threshold
-#'   fun = "nmax",
-#'   n = 1                # nearest neighbor
+#' \preformatted{
+#' find_analogs(
+#'   focal   = clim$clim1,
+#'   ref     = clim$clim1,
+#'   mode    = "count",
+#'   max_clim = 0.5,
+#'   max_geog = 100
 #' )
+#' }
 #'
-#' # Example 2: Analog availability (count)
-#' availability <- find_analogs(
-#'   focal = focal,
-#'   ref = ref,
-#'   max_clim = 1.0,
-#'   max_dist = 500,      # within 500 km
-#'   fun = "count"
+#' \strong{Weighted Analog Intensity} (e.g., distance-weighted availability):
+#' \preformatted{
+#' find_analogs(
+#'   focal   = clim$clim1,
+#'   ref     = clim$clim1,
+#'   mode    = "sum",
+#'   max_clim = 0.5,
+#'   max_geog = 100,
+#'   weight   = "inverse_geog",
+#'   theta    = 1e-6
 #' )
-#'
-#' # Example 3: Multiple analogs for impact assessment
-#' analogs <- find_analogs(
-#'   focal = focal,
-#'   ref = ref,
-#'   max_dist = 1000,
-#'   fun = "nmax",
-#'   n = 20
-#' )
-#'
-#' # Check diagnostic information
-#' cat("Index used", attr(analogs, "total_bins"), "bins\n")
-#' cat("Average bin occupancy:", attr(analogs, "avg_bin_occupancy"), "\n")
 #' }
 #'
 #' @export
 find_analogs <- function(
       focal,
       ref,
-      max_dist = NULL,
+      mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
       max_clim = NULL,
-      weight = "inverse_clim",
-      fun = "nmax",
-      n = NULL,
-      metric = "euclidean",
+      max_geog = NULL,
+      k = NULL,
+      weight = NULL,
+      theta = NULL,
       report_dist = TRUE,
       coord_type = c("auto", "lonlat", "projected")
 ) {
       # ---- Input validation --------------------------------------------------
       coord_type <- match.arg(coord_type)
+      mode <- match.arg(mode)
 
-      valid_weights <- c("uniform", "inverse_clim", "inverse_dist")
-      if (!weight %in% valid_weights) {
-            stop(
-                  "weight must be one of: ",
-                  paste(valid_weights, collapse = ", ")
-            )
+      # Validate combination of mode, k, weight, theta
+      if (mode %in% c("knn_clim", "knn_geog")) {
+            # kNN modes: require k, disallow weight/theta
+            if (is.null(k)) {
+                  k <- 1L
+            }
+            k <- as.integer(k)
+            if (length(k) != 1L || k <= 0L) {
+                  stop("For mode '", mode, "', k must be a positive integer.")
+            }
+            if (!is.null(weight)) {
+                  stop("For mode '", mode, "', weight must be NULL.")
+            }
+            if (!is.null(theta)) {
+                  stop("For mode '", mode, "', theta must be NULL.")
+            }
+      } else {
+            # Non-kNN modes: k must be NULL
+            if (!is.null(k)) {
+                  stop("For mode '", mode, "', k must be NULL.")
+            }
+            k <- 0L
       }
 
-      # TODO: Rename "nmax" to "topk" and add "argmin" per roadmap
-      valid_funs <- c("nmax", "sum", "mean", "count", "all")
-      if (!fun %in% valid_funs) {
-            stop("fun must be one of: ", paste(valid_funs, collapse = ", "))
+      if (mode %in% c("all", "count")) {
+            # No weighting allowed
+            if (!is.null(weight)) {
+                  stop("For mode '", mode, "', weight must be NULL.")
+            }
+            if (!is.null(theta)) {
+                  stop("For mode '", mode, "', theta must be NULL.")
+            }
       }
 
-      if (fun == "nmax" && is.null(n)) {
-            stop("n must be specified when fun = 'nmax'")
-      }
-
-      if (!is.null(n)) {
-            n <- as.integer(n)
+      if (mode %in% c("sum", "mean")) {
+            # Aggregation modes: weight is required, theta optional
+            valid_weights <- c("uniform", "inverse_clim", "inverse_geog")
+            if (is.null(weight)) {
+                  weight <- "uniform"
+            }
+            if (!weight %in% valid_weights) {
+                  stop(
+                        "For mode '",
+                        mode,
+                        "', weight must be one of: ",
+                        paste(valid_weights, collapse = ", ")
+                  )
+            }
+            if (identical(weight, "uniform")) {
+                  if (!is.null(theta)) {
+                        stop("For weight = 'uniform', theta must be NULL.")
+                  }
+            } else {
+                  # inverse_*: theta is epsilon; if NULL, we'll use a default in aggregators
+                  if (!is.null(theta)) {
+                        if (
+                              !is.numeric(theta) ||
+                                    length(theta) != 1L ||
+                                    theta <= 0
+                        ) {
+                              stop(
+                                    "theta must be a single positive numeric value, or NULL."
+                              )
+                        }
+                  }
+            }
+      } else {
+            # For non-aggregation modes, weight/theta must be NULL
+            if (!is.null(weight)) {
+                  stop("weight must be NULL when mode is not 'sum' or 'mean'.")
+            }
+            if (!is.null(theta)) {
+                  stop("theta must be NULL when mode is not 'sum' or 'mean'.")
+            }
       }
 
       # ---- Data normalization ------------------------------------------------
@@ -210,71 +278,101 @@ find_analogs <- function(
       )
 
       # Parse constraints
-      max_dist <- if (is.null(max_dist)) Inf else as.numeric(max_dist)[1L]
+      max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
 
-      max_clim <- if (is.null(max_clim)) {
+      max_clim_val <- if (is.null(max_clim)) {
             Inf
       } else {
             max_clim
       }
 
-      # Map user's 'fun' parameter to internal k parameter
-      k <- if (identical(fun, "nmax")) {
-            n
-      } else if (identical(fun, "all")) {
-            nrow(ref_mm[, 3:ncol(ref_mm)]) # Return all reference points
+      # ---- Map mode/weight/theta for C++ -------------------------------------
+      mode_code <- switch(
+            mode,
+            "knn_clim" = 0L,
+            "knn_geog" = 1L,
+            "count"    = 2L,
+            "sum"      = 3L,
+            "mean"     = 4L,
+            "all"      = 5L
+      )
+
+      weight_code <- if (mode %in% c("sum","mean")) {
+            switch(
+                  weight,
+                  "uniform"      = 1L,
+                  "inverse_clim" = 2L,
+                  "inverse_geog" = 3L
+            )
       } else {
             0L
       }
 
-      # ---- Call C++ core -----------------------------------------------------
+      theta_num <- if (is.null(theta)) NA_real_ else as.numeric(theta)[1L]
+
+      # For kNN modes, k_core = k; for others, k_core = 0 to request "all matches"
+      k_core <- if (mode %in% c("knn_clim","knn_geog")) as.integer(k) else 0L
+
+      # ---- Call C++ core ------------------------------------------------------
       res <- .Call(
             `_analogs_find_analogs_core`,
-            focal_mm, # matrix of focal sites, with xy and climate cols
-            ref_mm, # matrix of ref sites, with xy and climate cols
-            as.integer(k), # number of optima (nearest neighbors) to find
-            max_clim, # climate filter bandwidth
-            as.numeric(max_dist), # geographic distance filter bandwidth
-            geo_mode # either "latlon" or "projected"
+            focal_mm,                 # matrix of focal sites (xy + climate)
+            ref_mm,                   # matrix of ref sites  (xy + climate)
+            as.integer(k_core),       # k for kNN, 0 for all/aggregates
+            max_clim_val,             # climate filter bandwidth (scalar or vector or Inf)
+            as.numeric(max_geog_num), # geographic distance filter (km; Inf if NULL)
+            geo_mode,                 # "lonlat" or "projected"
+            as.integer(mode_code),    # new
+            as.integer(weight_code),  # new
+            as.numeric(theta_num)     # new
       )
 
       # Capture diagnostic attributes from C++ before post-processing
       cpp_attrs <- attributes(res)
-      cpp_attrs$names <- NULL # Remove list element names
-      cpp_attrs$class <- NULL # Remove class attribute
+      cpp_attrs$names <- NULL
+      cpp_attrs$class <- NULL
 
       # ---- Post-process results ----------------------------------------------
-      if (fun %in% c("nmax", "all")) {
+      if (mode %in% c("knn_clim", "knn_geog", "all")) {
             out <- .emit_pairs(
                   res,
                   focal_mm,
                   ref_mm,
                   report_dist = report_dist,
-                  weight = weight,
                   geo_mode = geo_mode
             )
-            # Restore diagnostic attributes from C++
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
+            attr(out, "mode") <- mode
             return(out)
       }
 
-      if (fun %in% c("sum", "mean", "count")) {
-            out <- .emit_aggregates(
-                  res,
-                  focal_mm,
-                  ref_mm,
-                  fun = fun,
-                  weight = weight,
-                  geo_mode = geo_mode
+      if (mode %in% c("sum", "mean", "count")) {
+            # C++ now returns a NumericVector of length n_focal with the
+            # aggregated value (count, sum of weights, or mean of weights)
+            values <- as.numeric(res)
+            if (length(values) != nrow(focal_mm)) {
+                  stop("Internal error: aggregate result length does not match number of focals.")
+            }
+
+            out <- data.frame(
+                  focal_index = seq_len(nrow(focal_mm)),
+                  focal_x     = focal_mm[, 1],
+                  focal_y     = focal_mm[, 2],
+                  value       = values,
+                  stringsAsFactors = FALSE
             )
-            # Restore diagnostic attributes from C++
+
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
+            attr(out, "mode")   <- mode
+            attr(out, "weight") <- weight
+            attr(out, "theta")  <- theta
             return(out)
       }
+
 
       stop("Unreachable code - please report this bug")
 }
@@ -287,7 +385,6 @@ find_analogs <- function(
       lon_rng <- range(c(focal_xy[, 1], ref_xy[, 1]), na.rm = TRUE)
       lat_rng <- range(c(focal_xy[, 2], ref_xy[, 2]), na.rm = TRUE)
 
-      # If coordinates fall within plausible lon/lat bounds, assume lonlat
       if (
             all(is.finite(c(lon_rng, lat_rng))) &&
                   lon_rng[1] >= -180 &&
@@ -323,9 +420,9 @@ find_analogs <- function(
       2 * R * asin(pmin(1, sqrt(a)))
 }
 
-#' Build long table of focal-analog pairs with distances and weights
+#' Build long table of focal-analog pairs with distances
 #' @keywords internal
-.emit_pairs <- function(res, focal_mm, ref_mm, report_dist, weight, geo_mode) {
+.emit_pairs <- function(res, focal_mm, ref_mm, report_dist, geo_mode) {
       n_f <- nrow(focal_mm[, 1:2])
       rows <- vector("list", n_f)
 
@@ -354,9 +451,8 @@ find_analogs <- function(
                   stringsAsFactors = FALSE
             )
 
-            # Compute distances if needed for reporting or weighting
-            if (isTRUE(report_dist) || !identical(weight, "uniform")) {
-                  # Climate distances (Euclidean in whitened space)
+            if (isTRUE(report_dist)) {
+                  # Climate distances (Euclidean in climate space)
                   v_i <- matrix(focal_mm[, 3:ncol(focal_mm)][i, ], nrow = 1)
                   v_j <- ref_mm[, 3:ncol(ref_mm)][idx, , drop = FALSE]
                   clim_d <- sqrt(rowSums((t(t(v_j) - as.numeric(v_i)))^2))
@@ -368,19 +464,8 @@ find_analogs <- function(
                         geog_d <- sqrt((ax - fx)^2 + (ay - fy)^2)
                   }
 
-                  # Add distance columns if requested
-                  if (isTRUE(report_dist)) {
-                        df$clim_dist <- clim_d
-                        df$geog_dist <- geog_d
-                  }
-
-                  # Compute weights
-                  df$weight <- switch(
-                        weight,
-                        uniform = rep(1.0, length(idx)),
-                        inverse_clim = 1.0 / (clim_d + 1e-12),
-                        inverse_dist = 1.0 / (geog_d + 1e-12)
-                  )
+                  df$clim_dist <- clim_d
+                  df$geog_dist <- geog_d
             }
 
             rows[[i]] <- df
@@ -401,67 +486,6 @@ find_analogs <- function(
       do.call(rbind, rows)
 }
 
-#' Aggregate matches per focal location
-#' @keywords internal
-.emit_aggregates <- function(res, focal_mm, ref_mm, fun, weight, geo_mode) {
-      n_f <- nrow(focal_mm[, 1:2])
-
-      out <- data.frame(
-            focal_index = seq_len(n_f),
-            focal_x = focal_mm[, 1:2][, 1],
-            focal_y = focal_mm[, 1:2][, 2],
-            value = NA_real_,
-            stringsAsFactors = FALSE
-      )
-
-      for (i in seq_len(n_f)) {
-            idx <- res[[i]]
-
-            if (length(idx) == 0L) {
-                  out$value[i] <- if (fun == "count") 0 else 0
-                  next
-            }
-
-            # Compute distances for weighting
-            v_i <- matrix(focal_mm[, 3:ncol(focal_mm)][i, ], nrow = 1)
-            v_j <- ref_mm[, 3:ncol(ref_mm)][idx, , drop = FALSE]
-            clim_d <- sqrt(rowSums((t(t(v_j) - as.numeric(v_i)))^2))
-
-            if (geo_mode == "lonlat") {
-                  fx <- rep(focal_mm[, 1:2][i, 1], length(idx))
-                  fy <- rep(focal_mm[, 1:2][i, 2], length(idx))
-                  geog_d <- .haversine_km(
-                        cbind(fx, fy),
-                        ref_mm[, 1:2][idx, 1:2, drop = FALSE]
-                  )
-            } else {
-                  fx <- focal_mm[, 1:2][i, 1]
-                  fy <- focal_mm[, 1:2][i, 2]
-                  ax <- ref_mm[, 1:2][idx, 1]
-                  ay <- ref_mm[, 1:2][idx, 2]
-                  geog_d <- sqrt((ax - fx)^2 + (ay - fy)^2)
-            }
-
-            # Compute weights
-            w <- switch(
-                  weight,
-                  uniform = rep(1, length(idx)),
-                  inverse_clim = 1.0 / (clim_d + 1e-12),
-                  inverse_dist = 1.0 / (geog_d + 1e-12)
-            )
-
-            # Aggregate
-            out$value[i] <- switch(
-                  fun,
-                  count = length(idx), # Simple count
-                  sum = sum(w),
-                  mean = mean(w),
-                  stop("Unrecognized aggregation function: ", fun)
-            )
-      }
-
-      out
-}
 
 #' Extract coordinates and climate data from input
 #' @keywords internal

@@ -108,7 +108,6 @@ benchmark_availability <- function(clim) {
             a <- find_analogs(
                   focal = focal,
                   ref = ref,
-                  # max_dist = 50, max_clim = 1,
                   max_dist = 100,
                   max_clim = .5,
                   weight = "uniform",

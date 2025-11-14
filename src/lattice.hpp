@@ -1,335 +1,360 @@
 #pragma once
 
 #include "types.hpp"
-#include "metrics.hpp"
+
 #include <vector>
+#include <unordered_map>
 #include <cmath>
-#include <algorithm>
 #include <limits>
 
 namespace analogs {
 
-// ---- Coordinate System Handling ------------------------------------------
+// Full-dimensional regular lattice over
+//   dims = [x, y, clim1, ..., climP].
 //
-// We support two geographic cases controlled by MetricType:
-//   * MetricType::Haversine : (geo1, geo2) = (lat, lon) in degrees;
-//                              distances are great-circle.
-//   * otherwise             : (geo1, geo2) = projected (x, y) coordinates;
-//                              distances are Euclidean in the projected CRS.
-//
-// In both cases we store simple 2-D bounding boxes for each occupied
-// (geo × clim) lattice cell and use them to cheaply lower-bound the
-// distance from a query point to the cell.
-
-// Axis-aligned bounding box in geographic (lat/lon) space.
-struct AABB {
-    double lat_min, lat_max;
-    double lon_min, lon_max;
-
-    AABB()
-        : lat_min(std::numeric_limits<double>::infinity()),
-          lat_max(-std::numeric_limits<double>::infinity()),
-          lon_min(std::numeric_limits<double>::infinity()),
-          lon_max(-std::numeric_limits<double>::infinity()) {}
-
-    // Lower bound on great-circle distance from query point to any point
-    // in this bin (assuming lat/lon in degrees).
-    double lower_bound_distance(double qlat, double qlon) const {
-        // Clamp to the closest point in the rectangle and compute
-        // great-circle distance to that point.
-        const double closest_lat = std::clamp(qlat, lat_min, lat_max);
-        const double closest_lon = std::clamp(qlon, lon_min, lon_max);
-        return haversine_distance(qlat, qlon, closest_lat, closest_lon);
-    }
-};
-
-// Simple 2-D box for projected / planar coordinates.
-struct PlanarBox {
-    double x_min, x_max;
-    double y_min, y_max;
-
-    PlanarBox()
-        : x_min(std::numeric_limits<double>::infinity()),
-          x_max(-std::numeric_limits<double>::infinity()),
-          y_min(std::numeric_limits<double>::infinity()),
-          y_max(-std::numeric_limits<double>::infinity()) {}
-
-    // Lower bound on Euclidean distance from query point to any point
-    // in this bin (x/y units should match the distance units).
-    double lower_bound_distance(double qx, double qy) const {
-        const double x_dist =
-            std::max(0.0, std::max(x_min - qx, qx - x_max));
-        const double y_dist =
-            std::max(0.0, std::max(y_min - qy, qy - y_max));
-        return std::sqrt(x_dist * x_dist + y_dist * y_dist);
-    }
-};
-
-// ---- Lattice Structure ---------------------------------------------------
-//
-// Sparse (geo × clim) lattice over reference points.  The discrete
-// climate dimension is always treated as exact equality (i.e., we only
-// search a single climate bin per query); geographic bins are pruned
-// using the bounding boxes above.
-
+// - Uses 2 geographic dims (x, y) and all climate dims.
+// - Bins are regular in each dimension.
+// - Cells are stored sparsely in an unordered_map keyed by a flattened index.
+// - Used only for *candidate generation*; all exact geo/clim tests
+//   still happen in core.cpp.
 class Lattice {
 public:
-    // CSR sparse structure over the climate dimension, with rows indexed
-    // by geo_bin.  row_ptr has length n_geo_bins + 1, col_ind and
-    // neighbors have length equal to the number of occupied cells (nnz).
-    std::vector<size_tu> row_ptr;
-    std::vector<size_tu> col_ind;                 // climate bin for each cell
-    std::vector<std::vector<index_t>> neighbors;  // reference indices per cell
-
-    // Bin metadata (only one of these is used, depending on metric_type).
-    std::vector<AABB>      aabbs;   // for Haversine / lon-lat
-    std::vector<PlanarBox> boxes;   // for projected / Euclidean
-
-    // Resolution / domain info
-    size_tu n_geo_bins;
-    size_tu n_clim_bins;
-    double geo_resolution;   // bin width in geo1 units
-    double clim_resolution;  // bin width in climate units
     MetricType metric_type;
 
-    double geo_min, geo_max;
-    double clim_min, clim_max;
+    size_tu n_points;     // number of reference points
+    size_tu n_geo_dims;   // always 2: x, y
+    size_tu n_clim_dims;  // number of climate variables
+    size_tu n_dims;       // = n_geo_dims + n_clim_dims
+
+    // Per-dimension metadata
+    std::vector<double> mins;    // min value per dimension
+    std::vector<double> maxs;    // max value per dimension
+    std::vector<double> res;     // bin width per dimension
+    std::vector<size_tu> n_bins; // number of bins per dimension
+    std::vector<size_tu> strides; // flattening strides per dimension
+
+    // Sparse cells: key (flattened bin index) -> list of reference indices
+    std::unordered_map<size_tu, std::vector<index_t> > cells;
+
+    // Diagnostics
+    size_tu total_bins;   // product of n_bins[d]
+    size_tu min_cell_occ; // min occupancy among occupied cells
+    size_tu max_cell_occ; // max occupancy among occupied cells
 
     Lattice()
-        : n_geo_bins(0),
-          n_clim_bins(0),
-          geo_resolution(0),
-          clim_resolution(0),
-          metric_type(MetricType::Haversine),
-          geo_min(0),
-          geo_max(0),
-          clim_min(0),
-          clim_max(0) {}
+        : metric_type(MetricType::Planar),
+          n_points(0),
+          n_geo_dims(2),
+          n_clim_dims(0),
+          n_dims(2),
+          total_bins(1),
+          min_cell_occ(std::numeric_limits<size_tu>::max()),
+          max_cell_occ(0) {}
 
-    // Build lattice from reference data.
+    // Build lattice over all dims.
     //
-    // ref_geo:  n × 2 matrix, columns = (geo1, geo2)
-    // ref_clim: n × 1 vector/matrix
+    // ref_ptr: pointer to ref matrix (column-major R layout)
+    // n_ref:   number of rows
+    // n_clim:  number of climate columns (total columns = 2 + n_clim)
+    // stride_r: n_ref (for column-major indexing)
+    // metric:   geographic metric type (lon/lat vs planar)
+    // max_dist: geographic threshold (km); may be Inf
+    // use_scalar_clim: whether scalar max_clim is active
+    // max_clim_pervar: per-variable climate thresholds (length n_clim)
+    // max_clim_scalar: scalar Euclidean climate threshold (or Inf)
+    void build(const double* ref_ptr,
+               size_tu n_ref,
+               size_tu n_clim,
+               size_tu stride_r,
+               MetricType metric,
+               double max_dist,
+               bool use_scalar_clim,
+               const std::vector<double>& max_clim_pervar,
+               double max_clim_scalar);
+
+    // Query candidate indices for a focal point.
     //
-    // geo_res:   bin width in geo1 units (e.g., degrees latitude or km)
-    // clim_res:  bin width in climate units
-    void build(const MatrixView& ref_geo,   // n × 2: geo1, geo2
-               const MatrixView& ref_clim,  // n × 1: climate variable
-               double geo_res,
-               double clim_res,
-               MetricType metric);
-
-    // Query interface – return indices into `neighbors` (i.e., occupied
-    // lattice cells) that belong to the same climate bin as `clim_val`
-    // and whose geographic box could contain a point within
-    // `geo_threshold` of (geo1, geo2) under the active metric.
-    std::vector<size_tu> query_bins(double geo1,
-                                    double geo2,
-                                    double clim_val,
-                                    double geo_threshold) const;
-
-    // Collect all reference indices in the specified occupied cells.
-    std::vector<index_t> get_neighbors_in_bins(
-        const std::vector<size_tu>& bin_indices) const;
+    // focal_geo: length-2 array [x, y]
+    // focal_clim: length n_clim array [clim1, ..., climP]
+    // max_dist, use_scalar_clim, max_clim_pervar, max_clim_scalar: same
+    //   semantics as in build().
+    // out_indices: will be filled with 0-based ref indices belonging to
+    //   cells whose binned coordinates are consistent with the thresholds.
+    void query(const double* focal_geo,
+               const double* focal_clim,
+               double max_dist,
+               bool use_scalar_clim,
+               const std::vector<double>& max_clim_pervar,
+               double max_clim_scalar,
+               std::vector<index_t>& out_indices) const;
 
 private:
-    // Bin assignment in 1-D geo1 / climate space.
-    size_tu geo_bin_index(double geo_val) const;
-    size_tu clim_bin_index(double clim_val) const;
-    size_tu joint_bin_index(size_tu geo_idx, size_tu clim_idx) const;
-
-    // Update per-cell geographic bounds.
-    void update_bounds(size_tu bin_idx, double geo1, double geo2);
+    void enumerate_cells(const std::vector<size_tu>& lo,
+                         const std::vector<size_tu>& hi,
+                         std::vector<size_tu>& idx,
+                         size_tu dim,
+                         std::vector<index_t>& out_indices) const;
 };
 
 // ---- Implementation -------------------------------------------------------
 
-inline void Lattice::build(const MatrixView& ref_geo,
-                           const MatrixView& ref_clim,
-                           double geo_res,
-                           double clim_res,
-                           MetricType metric) {
-    metric_type     = metric;
-    geo_resolution  = geo_res;
-    clim_resolution = clim_res;
+inline void Lattice::build(const double* ref_ptr,
+                           size_tu n_ref,
+                           size_tu n_clim,
+                           size_tu stride_r,
+                           MetricType metric,
+                           double max_dist,
+                           bool use_scalar_clim,
+                           const std::vector<double>& max_clim_pervar,
+                           double max_clim_scalar) {
+    metric_type    = metric;
+    n_points       = n_ref;
+    n_geo_dims     = 2;
+    n_clim_dims    = n_clim;
+    n_dims         = n_geo_dims + n_clim_dims;
 
-    const size_tu n = ref_geo.nrow;
-    if (n == 0) {
-        // Fully reset state in case of reuse.
-        n_geo_bins = n_clim_bins = 0;
-        row_ptr.clear();
-        col_ind.clear();
-        neighbors.clear();
-        aabbs.clear();
-        boxes.clear();
+    mins.assign(n_dims, 0.0);
+    maxs.assign(n_dims, 0.0);
+    res.assign(n_dims, 1.0);
+    n_bins.assign(n_dims, 1);
+    strides.assign(n_dims, 1);
+    cells.clear();
+    total_bins    = 1;
+    min_cell_occ  = std::numeric_limits<size_tu>::max();
+    max_cell_occ  = 0;
+
+    if (n_ref == 0) {
         return;
     }
 
-    // Compute 1-D bounds in geo1 and climate.
-    geo_min  = geo_max  = ref_geo.data[0];
-    clim_min = clim_max = ref_clim.data[0];
+    // First pass: compute mins/maxs over all dims.
+    for (size_tu j = 0; j < n_ref; ++j) {
+        // geo dims
+        double x = ref_ptr[j];                // col 0
+        double y = ref_ptr[j + stride_r];     // col 1
 
-    for (size_tu i = 0; i < n; ++i) {
-        const double g1 = ref_geo.data[i];
-        const double c  = ref_clim.data[i];
-
-        geo_min  = std::min(geo_min, g1);
-        geo_max  = std::max(geo_max, g1);
-        clim_min = std::min(clim_min, c);
-        clim_max = std::max(clim_max, c);
-    }
-
-    // Determine number of bins.
-    n_geo_bins  = static_cast<size_tu>(
-        std::ceil((geo_max - geo_min) / geo_res)) + 1;
-    n_clim_bins = static_cast<size_tu>(
-        std::ceil((clim_max - clim_min) / clim_res)) + 1;
-
-    // Temporary structure: map joint bin index to list of point indices.
-    std::vector<std::vector<index_t>> temp_bins(n_geo_bins * n_clim_bins);
-
-    // Assign points to bins.
-    for (size_tu i = 0; i < n; ++i) {
-        const double g1 = ref_geo.data[i];
-        const double c  = ref_clim.data[i];
-
-        const size_tu geo_idx  = geo_bin_index(g1);
-        const size_tu clim_idx = clim_bin_index(c);
-        const size_tu bin      = joint_bin_index(geo_idx, clim_idx);
-
-        temp_bins[bin].push_back(static_cast<index_t>(i));
-    }
-
-    // Build CSR structure.
-    row_ptr.clear();
-    row_ptr.reserve(n_geo_bins + 1);
-    col_ind.clear();
-    neighbors.clear();
-
-    aabbs.clear();
-    boxes.clear();
-
-    for (size_tu geo_idx = 0; geo_idx < n_geo_bins; ++geo_idx) {
-        row_ptr.push_back(col_ind.size());
-
-        for (size_tu clim_idx = 0; clim_idx < n_clim_bins; ++clim_idx) {
-            const size_tu bin = joint_bin_index(geo_idx, clim_idx);
-
-            if (!temp_bins[bin].empty()) {
-                col_ind.push_back(clim_idx);
-                neighbors.push_back(std::move(temp_bins[bin]));
-
-                // Create and populate bounds for this occupied cell.
-                const size_tu cell_idx = neighbors.size() - 1;
-
-                if (metric_type == MetricType::Haversine) {
-                    aabbs.emplace_back();
-                } else {
-                    boxes.emplace_back();
-                }
-
-                for (index_t pt_idx : neighbors[cell_idx]) {
-                    const double g1 = ref_geo.data[pt_idx];
-                    const double g2 = ref_geo.data[pt_idx + n];
-                    update_bounds(cell_idx, g1, g2);
-                }
-            }
+        if (j == 0) {
+            mins[0] = maxs[0] = x;
+            mins[1] = maxs[1] = y;
+        } else {
+            if (x < mins[0]) mins[0] = x;
+            if (x > maxs[0]) maxs[0] = x;
+            if (y < mins[1]) mins[1] = y;
+            if (y > maxs[1]) maxs[1] = y;
         }
-    }
 
-    row_ptr.push_back(col_ind.size());
-}
-
-inline std::vector<size_tu> Lattice::query_bins(double geo1,
-                                                double geo2,
-                                                double clim_val,
-                                                double geo_threshold) const {
-    std::vector<size_tu> result;
-
-    if (n_geo_bins == 0 || n_clim_bins == 0) {
-        return result;
-    }
-
-    const size_tu query_clim_idx = clim_bin_index(clim_val);
-
-    // For now we scan all geo rows and prune only by climate bin and
-    // bounding-box distance. If needed, we can later restrict the
-    // geo_idx loop using geo_threshold and geo_resolution.
-    for (size_tu geo_idx = 0; geo_idx < n_geo_bins; ++geo_idx) {
-        const size_tu row_begin = row_ptr[geo_idx];
-        const size_tu row_end   = row_ptr[geo_idx + 1];
-
-        for (size_tu j = row_begin; j < row_end; ++j) {
-            const size_tu clim_idx = col_ind[j];
-
-            // Only consider the matching climate bin.
-            if (clim_idx != query_clim_idx) {
-                continue;
-            }
-
-            double lb_dist;
-            if (metric_type == MetricType::Haversine) {
-                lb_dist = aabbs[j].lower_bound_distance(geo1, geo2);
+        // climate dims
+        for (size_tu k = 0; k < n_clim; ++k) {
+            double v = ref_ptr[j + (2 + k) * stride_r];
+            size_tu d = 2 + k;
+            if (j == 0) {
+                mins[d] = maxs[d] = v;
             } else {
-                lb_dist = boxes[j].lower_bound_distance(geo1, geo2);
-            }
-
-            if (lb_dist <= geo_threshold) {
-                // j indexes into neighbors / aabbs / boxes.
-                result.push_back(j);
+                if (v < mins[d]) mins[d] = v;
+                if (v > maxs[d]) maxs[d] = v;
             }
         }
     }
 
-    return result;
-}
+    // Choose per-dimension bin widths.
+    for (size_tu d = 0; d < n_dims; ++d) {
+        double span = maxs[d] - mins[d];
+        if (d < n_geo_dims) {
+            // Geographic dims: use max_dist if finite, otherwise 10 bins.
+            if (std::isfinite(max_dist) && max_dist > 0.0) {
+                res[d] = max_dist;
+            } else {
+                res[d] = (span > 0.0) ? (span / 10.0) : 1.0;
+            }
+        } else {
+            // Climate dims: use per-variable or scalar thresholds if finite,
+            // otherwise 10 bins over the range.
+            size_tu k = d - n_geo_dims;
+            double band = std::numeric_limits<double>::infinity();
 
-inline std::vector<index_t> Lattice::get_neighbors_in_bins(
-    const std::vector<size_tu>& bin_indices) const {
-    std::vector<index_t> result;
+            if (k < max_clim_pervar.size() &&
+                std::isfinite(max_clim_pervar[k]) &&
+                max_clim_pervar[k] > 0.0) {
+                band = max_clim_pervar[k];
+            } else if (use_scalar_clim &&
+                       std::isfinite(max_clim_scalar) &&
+                       max_clim_scalar > 0.0) {
+                band = max_clim_scalar;
+            }
 
-    for (size_tu bin_idx : bin_indices) {
-        const auto& bin_neighbors = neighbors[bin_idx];
-        result.insert(result.end(), bin_neighbors.begin(), bin_neighbors.end());
+            if (std::isfinite(band) && band > 0.0) {
+                res[d] = band;
+            } else {
+                res[d] = (span > 0.0) ? (span / 10.0) : 1.0;
+            }
+        }
     }
 
-    return result;
-}
+    // Compute bin counts and strides.
+    total_bins = 1;
+    for (size_tu d = 0; d < n_dims; ++d) {
+        double span = maxs[d] - mins[d];
+        size_tu nb = 1;
+        if (span > 0.0) {
+            nb = static_cast<size_tu>(std::ceil(span / res[d])) + 1;
+        }
+        if (nb == 0) nb = 1;
+        n_bins[d] = nb;
+    }
 
-inline size_tu Lattice::geo_bin_index(double geo_val) const {
-    const size_tu idx =
-        static_cast<size_tu>((geo_val - geo_min) / geo_resolution);
-    return std::min(idx, n_geo_bins - 1);
-}
+    // strides: last dimension has stride 1
+    strides[n_dims - 1] = 1;
+    for (int d = static_cast<int>(n_dims) - 2; d >= 0; --d) {
+        strides[d] = strides[d + 1] * n_bins[d + 1];
+    }
+    total_bins = strides[0] * n_bins[0];
 
-inline size_tu Lattice::clim_bin_index(double clim_val) const {
-    const size_tu idx =
-        static_cast<size_tu>((clim_val - clim_min) / clim_resolution);
-    return std::min(idx, n_clim_bins - 1);
-}
+    // Second pass: assign points to cells.
+    std::vector<size_tu> idx(n_dims);
 
-inline size_tu Lattice::joint_bin_index(size_tu geo_idx,
-                                        size_tu clim_idx) const {
-    return geo_idx * n_clim_bins + clim_idx;
-}
+    for (size_tu j = 0; j < n_ref; ++j) {
+        // dim 0: x
+        double v0 = ref_ptr[j];
+        double pos0 = (v0 - mins[0]) / res[0];
+        if (pos0 < 0.0) pos0 = 0.0;
+        size_tu i0 = static_cast<size_tu>(pos0);
+        if (i0 >= n_bins[0]) i0 = n_bins[0] - 1;
+        idx[0] = i0;
 
-inline void Lattice::update_bounds(size_tu bin_idx,
-                                   double geo1,
-                                   double geo2) {
-    if (metric_type == MetricType::Haversine) {
-        AABB& box = aabbs[bin_idx];
-        box.lat_min = std::min(box.lat_min, geo1);
-        box.lat_max = std::max(box.lat_max, geo1);
-        box.lon_min = std::min(box.lon_min, geo2);
-        box.lon_max = std::max(box.lon_max, geo2);
-    } else {
-        PlanarBox& box = boxes[bin_idx];
-        box.x_min = std::min(box.x_min, geo1);
-        box.x_max = std::max(box.x_max, geo1);
-        box.y_min = std::min(box.y_min, geo2);
-        box.y_max = std::max(box.y_max, geo2);
+        // dim 1: y
+        double v1 = ref_ptr[j + stride_r];
+        double pos1 = (v1 - mins[1]) / res[1];
+        if (pos1 < 0.0) pos1 = 0.0;
+        size_tu i1 = static_cast<size_tu>(pos1);
+        if (i1 >= n_bins[1]) i1 = n_bins[1] - 1;
+        idx[1] = i1;
+
+        // climate dims
+        for (size_tu k = 0; k < n_clim; ++k) {
+            size_tu d = 2 + k;
+            double v = ref_ptr[j + (2 + k) * stride_r];
+            double pos = (v - mins[d]) / res[d];
+            if (pos < 0.0) pos = 0.0;
+            size_tu ib = static_cast<size_tu>(pos);
+            if (ib >= n_bins[d]) ib = n_bins[d] - 1;
+            idx[d] = ib;
+        }
+
+        // Flatten multi-index to key.
+        size_tu key = 0;
+        for (size_tu d = 0; d < n_dims; ++d) {
+            key += idx[d] * strides[d];
+        }
+
+        std::vector<index_t>& cell = cells[key];
+        cell.push_back(static_cast<index_t>(j));
+
+        size_tu occ = cell.size();
+        if (occ > max_cell_occ) max_cell_occ = occ;
+        if (occ < min_cell_occ) min_cell_occ = occ;
+    }
+
+    if (cells.empty()) {
+        min_cell_occ = 0;
+        max_cell_occ = 0;
     }
 }
 
-}  // namespace analogs
-w
+inline void Lattice::enumerate_cells(const std::vector<size_tu>& lo,
+                                     const std::vector<size_tu>& hi,
+                                     std::vector<size_tu>& idx,
+                                     size_tu dim,
+                                     std::vector<index_t>& out_indices) const {
+    if (dim == n_dims) {
+        size_tu key = 0;
+        for (size_tu d = 0; d < n_dims; ++d) {
+            key += idx[d] * strides[d];
+        }
+        typename std::unordered_map<size_tu, std::vector<index_t> >::const_iterator it =
+            cells.find(key);
+        if (it != cells.end()) {
+            const std::vector<index_t>& cell = it->second;
+            out_indices.insert(out_indices.end(), cell.begin(), cell.end());
+        }
+        return;
+    }
+
+    for (size_tu v = lo[dim]; v <= hi[dim]; ++v) {
+        idx[dim] = v;
+        enumerate_cells(lo, hi, idx, dim + 1, out_indices);
+    }
+}
+
+inline void Lattice::query(const double* focal_geo,
+                           const double* focal_clim,
+                           double max_dist,
+                           bool use_scalar_clim,
+                           const std::vector<double>& max_clim_pervar,
+                           double max_clim_scalar,
+                           std::vector<index_t>& out_indices) const {
+    out_indices.clear();
+    if (n_points == 0 || n_dims == 0) return;
+
+    std::vector<size_tu> lo(n_dims);
+    std::vector<size_tu> hi(n_dims);
+    std::vector<size_tu> idx(n_dims);
+
+    // Per-dimension allowed bin index ranges.
+    for (size_tu d = 0; d < n_dims; ++d) {
+        double minv = mins[d];
+        double maxv = maxs[d];
+
+        if (d < n_geo_dims) {
+            // Geo dims: bound by max_dist if finite.
+            if (std::isfinite(max_dist) && max_dist > 0.0) {
+                double q = focal_geo[d];
+                minv = q - max_dist;
+                maxv = q + max_dist;
+            }
+        } else {
+            // Climate dims: bound by per-var or scalar climate thresholds.
+            size_tu k = d - n_geo_dims;
+            double band = std::numeric_limits<double>::infinity();
+
+            if (k < max_clim_pervar.size() &&
+                std::isfinite(max_clim_pervar[k]) &&
+                max_clim_pervar[k] > 0.0) {
+                band = max_clim_pervar[k];
+            } else if (use_scalar_clim &&
+                       std::isfinite(max_clim_scalar) &&
+                       max_clim_scalar > 0.0) {
+                band = max_clim_scalar;
+            }
+
+            if (std::isfinite(band) && band > 0.0) {
+                double q = focal_clim[k];
+                minv = q - band;
+                maxv = q + band;
+            }
+        }
+
+        // Convert value range to bin index range.
+        double pos_lo = (minv - mins[d]) / res[d];
+        double pos_hi = (maxv - mins[d]) / res[d];
+        if (pos_lo < 0.0) pos_lo = 0.0;
+        if (pos_hi < 0.0) pos_hi = 0.0;
+
+        size_tu ilo = static_cast<size_tu>(pos_lo);
+        size_tu ihi = static_cast<size_tu>(pos_hi);
+
+        if (ilo >= n_bins[d]) ilo = n_bins[d] - 1;
+        if (ihi >= n_bins[d]) ihi = n_bins[d] - 1;
+        if (ilo > ihi) {
+            size_tu tmp = ilo;
+            ilo = ihi;
+            ihi = tmp;
+        }
+        lo[d] = ilo;
+        hi[d] = ihi;
+    }
+
+    // Enumerate all cells within the bin ranges and collect their points.
+    enumerate_cells(lo, hi, idx, 0, out_indices);
+}
+
+} // namespace analogs

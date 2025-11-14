@@ -2,41 +2,193 @@
 % Please edit documentation in R/find_analogs.R
 \name{find_analogs}
 \alias{find_analogs}
-\title{Find climate analogs}
+\title{Find Climate Analogs}
 \usage{
 find_analogs(
   focal,
   ref,
-  max_dist = NULL,
+  mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
   max_clim = NULL,
-  weight = "inverse_clim",
-  fun = "nmax",
-  n = NULL
+  max_geog = NULL,
+  k = NULL,
+  weight = NULL,
+  theta = NULL,
+  report_dist = TRUE,
+  coord_type = c("auto", "lonlat", "projected")
 )
 }
 \arguments{
 \item{focal}{Matrix/data.frame with columns x, y, and climate variables,
-OR SpatRaster with climate variable layers}
+OR SpatRaster with climate variable layers. Each row represents a focal
+location for which analogs will be found.}
 
 \item{ref}{Matrix/data.frame with columns x, y, and climate variables,
-OR SpatRaster with climate variable layers}
+OR SpatRaster with climate variable layers. The reference dataset to search
+for analogs.}
 
-\item{max_dist}{Maximum geographic distance constraint in km (NULL = no constraint)}
+\item{mode}{Character string specifying the analog search mode. One of:
+\itemize{
+  \item \code{"knn_clim"}: For each focal, return up to \code{k} analogs
+    with smallest climate distance, subject to \code{max_clim} and
+    \code{max_geog} filters.
+  \item \code{"knn_geog"}: For each focal, return up to \code{k} analogs
+    with smallest geographic distance, subject to \code{max_clim} and
+    \code{max_geog} filters.
+  \item \code{"all"}: Return all analogs that satisfy the filters.
+  \item \code{"count"}: For each focal, count how many analogs satisfy
+    the filters.
+  \item \code{"sum"}: For each focal, sum weights of all analogs that
+    satisfy the filters (see \code{weight} and \code{theta}).
+  \item \code{"mean"}: For each focal, mean of weights of all analogs that
+    satisfy the filters.
+}}
 
-\item{max_clim}{Maximum climate distance constraint (NULL = no constraint)}
+\item{max_clim}{Maximum climate distance constraint (default: NULL = no
+climate constraint). Can be either:
+\itemize{
+  \item A scalar: Euclidean radius in climate space (e.g., 0.5)
+  \item A vector: Per-variable absolute differences (length must equal
+    number of climate variables)
+}
+Only reference locations within this climate distance are considered.}
 
-\item{weight}{Weighting function: "uniform", "inverse_clim", or "inverse_dist"}
+\item{max_geog}{Maximum geographic distance constraint in km (default:
+NULL = no geographic constraint). When specified, only reference locations
+within this distance are considered.}
 
-\item{fun}{Aggregation function: "nmax", "sum", "mean", "count", or "all"}
+\item{k}{Number of nearest analogs to return per focal location for kNN
+modes. Required when \code{mode} is \code{"knn_geog"} or \code{"knn_clim"};
+must be \code{NULL} for other modes.}
 
-\item{n}{Number of analogs to return (required if fun = "nmax")}
+\item{weight}{Weighting function for matches, used only when
+\code{mode} is \code{"sum"} or \code{"mean"}. One of:
+\itemize{
+  \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
+  \item \code{"inverse_clim"}: Weight = 1 / (climate_distance + epsilon),
+    with epsilon given by \code{theta} (or a small default if \code{theta}
+    is \code{NULL}).
+  \item \code{"inverse_geog"}: Weight = 1 / (geographic_distance + epsilon),
+    with epsilon given by \code{theta} (or a small default if \code{theta}
+    is \code{NULL}).
+}
+For \code{mode} in \code{"knn_geog"}, \code{"knn_clim"}, \code{"count"},
+or \code{"all"}, \code{weight} must be \code{NULL}.}
+
+\item{theta}{Optional numeric parameter used by some weighting kernels
+when \code{mode} is \code{"sum"} or \code{"mean"} and \code{weight} is
+not \code{"uniform"}. Currently interpreted as:
+\itemize{
+  \item For \code{"inverse_clim"}: epsilon added to climate distance.
+  \item For \code{"inverse_geog"}: epsilon added to geographic distance.
+}
+If \code{theta} is \code{NULL}, a small default epsilon is used. For
+\code{weight = "uniform"} or for non-aggregating modes, \code{theta}
+must be \code{NULL}.}
+
+\item{report_dist}{Logical; if TRUE (default), include distance columns in
+output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
+\code{"all"}. Set to FALSE for more compact output.}
+
+\item{coord_type}{Coordinate system type (default: "auto"):
+\itemize{
+  \item \code{"auto"}: Automatically detect from coordinate ranges.
+  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance).
+  \item \code{"projected"}: Projected XY coordinates (uses planar distance).
+}}
 }
 \value{
-Data frame with columns depending on fun parameter:
-  - fun = "nmax" or "all": focal_index, focal_x, focal_y, analog_index,
-    analog_x, analog_y, clim_dist, geog_dist, weight
-  - fun = "sum", "mean", "count": focal_index, focal_x, focal_y, value
+The return value depends on the \code{mode} parameter:
+
+**For mode = "knn_geog", "knn_clim" or "all"**:
+A data.frame with one row per focal-analog pair:
+\itemize{
+  \item \code{focal_index}: Index of focal location (1-based).
+  \item \code{focal_x, focal_y}: Coordinates of focal location.
+  \item \code{analog_index}: Index of analog location in reference dataset (1-based).
+  \item \code{analog_x, analog_y}: Coordinates of analog location.
+  \item \code{clim_dist}: Climate distance (if \code{report_dist = TRUE}).
+  \item \code{geog_dist}: Geographic distance in km (if \code{report_dist = TRUE}).
+}
+
+**For mode = "sum", "mean", or "count"**:
+A data.frame with one row per focal location:
+\itemize{
+  \item \code{focal_index}: Index of focal location (1-based).
+  \item \code{focal_x, focal_y}: Coordinates of focal location.
+  \item \code{value}: Aggregated value (count, sum of weights, or mean of weights).
+}
+
+All outputs include diagnostic attributes propagated from the C++ core,
+including:
+\itemize{
+  \item \code{total_bins}: Number of spatial bins in the lattice index.
+  \item \code{avg_bin_occupancy}: Average points per bin.
+  \item \code{min_bin_occupancy, max_bin_occupancy}: Range of bin occupancy.
+  \item \code{binning_method}: Method used ("multi_dim_lattice" or "none").
+  \item \code{n_ref, n_clim}: Size of reference dataset and number of climate variables.
+}
 }
 \description{
-Find climate analogs
+Identifies locations in a reference dataset that are climatically similar to
+focal locations, with optional constraints on climate distance and geographic
+distance. This function supports multiple use cases including climate velocity
+analysis, analog availability mapping, and climate impact assessment.
+}
+\details{
+The function uses a spatial indexing structure (lattice-based) to quickly
+search through large reference datasets. Climate similarity is measured
+using Euclidean distance in climate space (ideally pre-whitened; see Details).
+Geographic distance can be computed for lon/lat coordinates (great-circle
+distance) or projected coordinates (planar distance).
+
+
+**Common Use Cases:**
+
+\strong{Climate Velocity} (nearest geographic neighbor with similar climate):
+\preformatted{
+find_analogs(
+  focal   = clim$clim1,
+  ref     = clim$clim2,
+  mode    = "knn_geog",
+  max_clim = 0.5,
+  max_geog = NULL,
+  k        = 1
+)
+}
+
+\strong{Climate Impact} (climatically similar locations within dispersal range):
+\preformatted{
+find_analogs(
+  focal   = clim$clim1,
+  ref     = clim$clim2,
+  mode    = "knn_clim",
+  max_clim = 0.5,
+  max_geog = 100,
+  k        = 20
+)
+}
+
+\strong{Analog Availability} (count of suitable locations):
+\preformatted{
+find_analogs(
+  focal   = clim$clim1,
+  ref     = clim$clim1,
+  mode    = "count",
+  max_clim = 0.5,
+  max_geog = 100
+)
+}
+
+\strong{Weighted Analog Intensity} (e.g., distance-weighted availability):
+\preformatted{
+find_analogs(
+  focal   = clim$clim1,
+  ref     = clim$clim1,
+  mode    = "sum",
+  max_clim = 0.5,
+  max_geog = 100,
+  weight   = "inverse_geog",
+  theta    = 1e-6
+)
+}
 }
