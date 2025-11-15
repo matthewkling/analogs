@@ -13,8 +13,10 @@ simulate_climate_rasters <- function(d = 500) {
       clim2[[1]] <- clim2[[1]] + .5
       clim2[[2]] <- clim2[[2]] * .5
 
-      focal <- as.data.frame(clim1, xy = TRUE) %>% sample_n(100)
-      colnames(focal) <- c("x", "y", "t", "p")
+      list(clim1 = clim1, clim2 = clim2)
+
+      # focal <- as.data.frame(clim1, xy = TRUE) %>% sample_n(100)
+      # colnames(focal) <- c("x", "y", "t", "p")
 }
 
 
@@ -64,81 +66,82 @@ load_climate_rasters <- function() {
 
 # benchmarks ----------------------------------------
 
-benchmark_velocity <- function(clim) {
+benchmark_velocity <- function(clim, n_focal = 100) {
       # climate velocity: few focals, many refs
-      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(100)
+      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
       st <- system.time({
-            a <- find_analogs(
-                  focal = focal,
-                  ref = ref,
-                  max_dist = NULL,
-                  max_clim = .5,
-                  n = 1,
-                  weight = "inverse_dist",
-                  fun = "nmax"
-            )
+            a <- analog_velocity(focal, ref, max_clim = .5, k = 1)
       })
-      cat("velocity: ", st[["elapsed"]], "\n")
+      return(st[["elapsed"]])
+      # cat("velocity: ", st[["elapsed"]], "\n")
 }
 
-benchmark_impact <- function(clim) {
+benchmark_impact <- function(clim, n_focal = 100) {
       # analog impact: dist and geo constraints; few focals, many refs
-      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(100)
+      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
       st <- system.time({
-            a <- find_analogs(
-                  focal = focal,
-                  ref = ref,
-                  max_dist = 100,
-                  max_clim = .5,
-                  n = 20,
-                  weight = "inverse_clim",
-                  fun = "nmax"
-            )
+            a <- analog_impact(focal, ref, max_clim = NULL, max_geog = 3, k = 20)
       })
-      cat("impact: ", st[["elapsed"]], "\n")
+      return(st[["elapsed"]])
+      # cat("impact: ", st[["elapsed"]], "\n")
 }
 
-benchmark_availability <- function(clim) {
+benchmark_availability <- function(clim, n_focal = 100) {
       # single-era analog availability: few focals, many refs
-      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(100)
+      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim1
       st <- system.time({
-            a <- find_analogs(
-                  focal = focal,
-                  ref = ref,
-                  max_dist = 100,
-                  max_clim = .5,
-                  weight = "uniform",
-                  fun = "count"
-            )
+            a <- analog_availability(focal, ref, max_geog = 3, max_clim = .5)
       })
-      cat("availability: ", st[["elapsed"]], "\n")
+      return(st[["elapsed"]])
+      # cat("availability: ", st[["elapsed"]], "\n")
 }
 
-benchmark_dissimlarity <- function(clim) {
-      # wall-to-wall climate dissimilarity for a single focal site
-      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(1)
+benchmark_intensity <- function(clim, n_focal = 100) {
+      # analog intensity: few focals, many refs
+      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
       st <- system.time({
-            a <- find_analogs(
-                  focal = focal,
-                  ref = ref,
-                  max_dist = NULL,
-                  max_clim = NULL,
-                  weight = "inverse_clim",
-                  fun = "all"
-            )
+            a <- analog_intensity(focal, ref, max_geog = 3, max_clim = .5, weight = "inverse_clim")
       })
-      cat("dissimilarity: ", st[["elapsed"]], "\n")
+      return(st[["elapsed"]])
+      # cat("intensity: ", st[["elapsed"]], "\n")
 }
 
+# benchmark_dissimlarity <- function(clim) {
+#       # wall-to-wall climate dissimilarity for a single focal site
+#       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(1)
+#       ref <- clim$clim2
+#       st <- system.time({
+#             a <- find_analogs(
+#                   focal = focal,
+#                   ref = ref,
+#                   max_dist = NULL,
+#                   max_clim = NULL,
+#                   weight = "inverse_clim",
+#                   fun = "all"
+#             )
+#       })
+#       cat("dissimilarity: ", st[["elapsed"]], "\n")
+# }
+
 run_benchmarks <- function(
-      clim # e.g. from load_climate_rasters()
+            clim = simulate_climate_rasters(1000)
 ) {
-      benchmark_velocity(clim)
-      benchmark_impact(clim)
-      benchmark_availability(clim)
-      benchmark_dissimlarity(clim)
+
+      n_focal <- c(100, 300, 1000, 3000)
+
+      bm <- function(n){
+            data.frame(
+                  n = n,
+                  velocity = benchmark_velocity(clim, n),
+                  impact = benchmark_impact(clim, n),
+                  availability = benchmark_availability(clim, n),
+                  intensity = benchmark_intensity(clim, n)
+            )
+      }
+
+      do.call(rbind, lapply(n_focal, bm))
 }
