@@ -9,7 +9,8 @@ analog_availability(
   ref,
   max_clim = NULL,
   max_geog = NULL,
-  coord_type = "auto"
+  coord_type = "auto",
+  n_threads = NULL
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ analog_availability(
 \item{max_geog}{Maximum geographic distance in km, or NULL.}
 
 \item{coord_type}{"auto", "lonlat", or "projected".}
+
+\item{n_threads}{Number of parallel compute threads to use.}
 }
 \value{
 A data.frame with columns:

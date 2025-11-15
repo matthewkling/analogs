@@ -11,7 +11,8 @@ analog_impact(
   k = 20,
   max_clim = NULL,
   coord_type = "auto",
-  report_dist = TRUE
+  report_dist = TRUE,
+  n_threads = NULL
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ Useful for restricting comparisons to very similar climate neighborhoods.}
 
 \item{report_dist}{Logical; if TRUE (default), include climate and geographic
 distance columns in the output.}
+
+\item{n_threads}{Number of parallel compute threads to use.}
 }
 \value{
 A data.frame with one row per focal–analog pair, including:

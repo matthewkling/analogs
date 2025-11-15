@@ -3,6 +3,7 @@
 # simulate reasonably realistic data with spatiotemporal structure -------------
 
 simulate_climate_rasters <- function(d = 500) {
+      set.seed(123)
       v1 <- matrix(rep(1:d, each = d), d) %>% "/"(40) %>% sin()
       v1 <- matrix(rep(1:d, d), d) %>% "/"(20) %>% cos() %>% "+"(v1) %>% rast()
       v2 <- matrix(rep(1:d, d), d) %>% rast()
@@ -110,36 +111,22 @@ benchmark_intensity <- function(clim, n_focal = 100) {
       # cat("intensity: ", st[["elapsed"]], "\n")
 }
 
-# benchmark_dissimlarity <- function(clim) {
-#       # wall-to-wall climate dissimilarity for a single focal site
-#       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(1)
-#       ref <- clim$clim2
-#       st <- system.time({
-#             a <- find_analogs(
-#                   focal = focal,
-#                   ref = ref,
-#                   max_dist = NULL,
-#                   max_clim = NULL,
-#                   weight = "inverse_clim",
-#                   fun = "all"
-#             )
-#       })
-#       cat("dissimilarity: ", st[["elapsed"]], "\n")
-# }
-
 run_benchmarks <- function(
-            clim = simulate_climate_rasters(1000)
+            clim = simulate_climate_rasters(1000),
+            n_threads = 8
 ) {
 
-      n_focal <- c(100, 300, 1000, 3000)
+      RcppParallel::setThreadOptions(numThreads = as.integer(n_threads))
+
+      n_focal <- c(100, 1000, 10000)
 
       bm <- function(n){
             data.frame(
-                  n = n,
-                  velocity = benchmark_velocity(clim, n),
-                  impact = benchmark_impact(clim, n),
-                  availability = benchmark_availability(clim, n),
-                  intensity = benchmark_intensity(clim, n)
+                  n_focal = n,
+                  velocity = benchmark_velocity(clim, n)#,
+                  # impact = benchmark_impact(clim, n),
+                  # availability = benchmark_availability(clim, n),
+                  # intensity = benchmark_intensity(clim, n)
             )
       }
 

@@ -22,6 +22,7 @@
 #' @param theta Optional numeric hyperparameter for the weighting kernel
 #'   (epsilon term for inverse kernels). See \code{weight} description.
 #' @param coord_type "auto", "lonlat", or "projected".
+#' @param n_threads Number of parallel compute threads to use.
 #'
 #' @return A data.frame with one row per focal location:
 #'   \itemize{
@@ -38,7 +39,8 @@ analog_intensity <- function(
             max_geog   = NULL,
             weight     = c("uniform", "inverse_clim", "inverse_geog"),
             theta      = NULL,
-            coord_type = "auto"
+            coord_type = "auto",
+            n_threads = NULL
 ) {
       weight <- match.arg(weight)
 
@@ -52,6 +54,7 @@ analog_intensity <- function(
             weight     = weight,
             theta      = theta,
             coord_type = coord_type,
-            report_dist = FALSE       # no pairwise distances needed for sums
+            report_dist = FALSE,       # no pairwise distances needed for sums
+            n_threads = n_threads
       )
 }

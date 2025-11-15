@@ -11,7 +11,8 @@ analog_velocity(
   k = 1,
   max_geog = NULL,
   coord_type = "auto",
-  report_dist = TRUE
+  report_dist = TRUE,
+  n_threads = NULL
 )
 }
 \arguments{
@@ -41,6 +42,8 @@ If provided, analogs must be within \code{max_geog} km of the focal.}
 
 \item{report_dist}{Logical; if TRUE (default), include climate and geographic
 distance columns in the output.}
+
+\item{n_threads}{Number of parallel compute threads to use.}
 }
 \value{
 A data.frame with one row per focal–analog pair, including:

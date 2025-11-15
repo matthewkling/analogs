@@ -8,10 +8,8 @@
 #'
 #' @param focal Data.frame, matrix, or SpatRaster containing focal locations.
 #'   Must include columns \code{x}, \code{y}, and one or more climate variables.
-#'
 #' @param ref Data.frame, matrix, or SpatRaster containing reference locations.
 #'   Must be structured like \code{focal}.
-#'
 #' @param max_clim Maximum allowable climate distance between a focal and an
 #'   analog. May be:
 #'   \itemize{
@@ -19,19 +17,16 @@
 #'     \item a vector: per-variable absolute differences.
 #'   }
 #'   Only reference locations within this climate envelope are considered.
-#'
 #' @param k Number of nearest geographic analogs to return for each focal
 #'   (default = 1).
-#'
 #' @param max_geog Optional additional geographic constraint in kilometers.
 #'   If provided, analogs must be within \code{max_geog} km of the focal.
-#'
 #' @param coord_type One of \code{"auto"}, \code{"lonlat"}, or
 #'   \code{"projected"}, indicating how geographic distance should be computed.
 #'   \code{"auto"} attempts to infer this from coordinate ranges.
-#'
 #' @param report_dist Logical; if TRUE (default), include climate and geographic
 #'   distance columns in the output.
+#' @param n_threads Number of parallel compute threads to use.
 #'
 #' @details
 #' For each focal point, this function:
@@ -73,7 +68,8 @@ analog_velocity <- function(
             k = 1,
             max_geog = NULL,
             coord_type = "auto",
-            report_dist = TRUE
+            report_dist = TRUE,
+            n_threads = NULL
 ) {
       find_analogs(
             focal      = focal,
@@ -85,6 +81,7 @@ analog_velocity <- function(
             weight     = NULL,
             theta      = NULL,
             coord_type = coord_type,
-            report_dist = report_dist
+            report_dist = report_dist,
+            n_threads   = n_threads
       )
 }

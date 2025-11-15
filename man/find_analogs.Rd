@@ -14,7 +14,8 @@ find_analogs(
   weight = NULL,
   theta = NULL,
   report_dist = TRUE,
-  coord_type = c("auto", "lonlat", "projected")
+  coord_type = c("auto", "lonlat", "projected"),
+  n_threads = NULL
 )
 }
 \arguments{
@@ -95,6 +96,10 @@ output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
   \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance).
   \item \code{"projected"}: Projected XY coordinates (uses planar distance).
 }}
+
+\item{n_threads}{Optional integer number of threads to use for the
+computation. If \code{NULL} (default), the global RcppParallel setting
+is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
 The return value depends on the \code{mode} parameter:

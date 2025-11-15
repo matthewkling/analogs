@@ -11,7 +11,8 @@ analog_intensity(
   max_geog = NULL,
   weight = c("uniform", "inverse_clim", "inverse_geog"),
   theta = NULL,
-  coord_type = "auto"
+  coord_type = "auto",
+  n_threads = NULL
 )
 }
 \arguments{
@@ -38,6 +39,8 @@ constraint.}
 (epsilon term for inverse kernels). See \code{weight} description.}
 
 \item{coord_type}{"auto", "lonlat", or "projected".}
+
+\item{n_threads}{Number of parallel compute threads to use.}
 }
 \value{
 A data.frame with one row per focal location:

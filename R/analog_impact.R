@@ -10,23 +10,18 @@
 #'
 #' @param focal Data.frame, matrix, or SpatRaster containing focal locations
 #'   with columns \code{x}, \code{y}, and climate variables.
-#'
 #' @param ref Data.frame, matrix, or SpatRaster containing reference locations.
-#'
 #' @param max_geog Maximum allowable geographic distance in kilometers. Only
 #'   reference locations within \code{max_geog} km are considered.
-#'
 #' @param k Number of nearest climate analogs to return for each focal
 #'   (default = 20).
-#'
 #' @param max_clim Optional additional climate constraint (scalar or vector).
 #'   Useful for restricting comparisons to very similar climate neighborhoods.
-#'
 #' @param coord_type One of \code{"auto"}, \code{"lonlat"}, or
 #'   \code{"projected"}. \code{"auto"} attempts to detect the appropriate mode.
-#'
 #' @param report_dist Logical; if TRUE (default), include climate and geographic
 #'   distance columns in the output.
+#' @param n_threads Number of parallel compute threads to use.
 #'
 #' @details
 #' For each focal location, \code{impact()}:
@@ -66,7 +61,8 @@ analog_impact <- function(
             k = 20,
             max_clim = NULL,
             coord_type = "auto",
-            report_dist = TRUE
+            report_dist = TRUE,
+            n_threads = NULL
 ) {
       find_analogs(
             focal      = focal,
@@ -78,6 +74,7 @@ analog_impact <- function(
             weight     = NULL,
             theta      = NULL,
             coord_type = coord_type,
-            report_dist = report_dist
+            report_dist = report_dist,
+            n_threads = n_threads
       )
 }

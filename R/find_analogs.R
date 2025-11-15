@@ -89,6 +89,10 @@
 #'     \item \code{"projected"}: Projected XY coordinates (uses planar distance).
 #'   }
 #'
+#' @param n_threads Optional integer number of threads to use for the
+#'   computation. If \code{NULL} (default), the global RcppParallel setting
+#'   is used (see \code{RcppParallel::setThreadOptions}).
+#'
 #' @return
 #' The return value depends on the \code{mode} parameter:
 #'
@@ -183,7 +187,8 @@ find_analogs <- function(
       weight = NULL,
       theta = NULL,
       report_dist = TRUE,
-      coord_type = c("auto", "lonlat", "projected")
+      coord_type = c("auto", "lonlat", "projected"),
+      n_threads = NULL
 ) {
       # ---- Input validation --------------------------------------------------
       coord_type <- match.arg(coord_type)
@@ -314,6 +319,17 @@ find_analogs <- function(
       k_core <- if (mode %in% c("knn_clim","knn_geog")) as.integer(k) else 0L
 
       # ---- Call C++ core ------------------------------------------------------
+
+      # Optional per-call thread control
+      if (!is.null(n_threads)) {
+            if (!requireNamespace("RcppParallel", quietly = TRUE)) {
+                  stop("Package 'RcppParallel' is required to control 'n_threads'. ",
+                       "Install it with install.packages('RcppParallel').",
+                       call. = FALSE)
+            }
+            RcppParallel::setThreadOptions(numThreads = as.integer(n_threads)[1L])
+      }
+
       res <- .Call(
             `_analogs_find_analogs_core`,
             focal_mm,                 # matrix of focal sites (xy + climate)
@@ -322,9 +338,9 @@ find_analogs <- function(
             max_clim_val,             # climate filter bandwidth (scalar or vector or Inf)
             as.numeric(max_geog_num), # geographic distance filter (km; Inf if NULL)
             geo_mode,                 # "lonlat" or "projected"
-            as.integer(mode_code),    # new
-            as.integer(weight_code),  # new
-            as.numeric(theta_num)     # new
+            as.integer(mode_code),    # mode
+            as.integer(weight_code),  # weight
+            as.numeric(theta_num)    # theta
       )
 
       # Capture diagnostic attributes from C++ before post-processing

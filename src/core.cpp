@@ -1,10 +1,11 @@
 // [[Rcpp::depends(RcppParallel)]]
+#include <Rcpp.h>
+#include <RcppParallel.h>
 
 #include "lattice.hpp"
 #include "metrics.hpp"
 #include "types.hpp"
 
-#include <Rcpp.h>
 #include <queue>
 #include <algorithm>
 #include <cmath>
@@ -13,6 +14,7 @@
 
 using namespace Rcpp;
 using namespace analogs;
+using namespace RcppParallel;
 
 namespace {
 
@@ -108,16 +110,321 @@ inline double weight_from_codes(WeightCode wc,
       }
 }
 
+// -------------------------------------------------------------------------
+// Worker for pair-returning modes: knn_clim, knn_geog, all
+// Writes into out_indices[i] a vector<int> of 1-based ref indices.
+// -------------------------------------------------------------------------
+struct PairWorker : public Worker {
+      const double* focal_ptr;
+      const double* ref_ptr;
+      int n_focal;
+      int n_ref;
+      int n_clim;
+      int stride_f;
+      int stride_r;
+
+      bool use_lattice;
+      bool use_geog_filter;
+      bool use_haversine;
+      bool use_scalar_clim;
+      bool use_pervar_clim;
+
+      double max_clim_scalar;
+      double max_geog;
+      std::vector<double> max_clim_pervar;
+
+      ModeCode mcode;
+      int k;                    // k for kNN modes (>=1), ignored for ALL
+      Lattice* lattice_ptr;     // may be nullptr if !use_lattice
+
+      std::vector< std::vector<int> >& out_indices;
+
+      PairWorker(const NumericMatrix& focal_mm,
+                 const NumericMatrix& ref_mm,
+                 bool use_lattice_,
+                 bool use_geog_filter_,
+                 bool use_haversine_,
+                 bool use_scalar_clim_,
+                 bool use_pervar_clim_,
+                 double max_clim_scalar_,
+                 double max_geog_,
+                 const std::vector<double>& max_clim_pervar_,
+                 ModeCode mcode_,
+                 int k_,
+                 Lattice* lattice_ptr_,
+                 std::vector< std::vector<int> >& out_indices_)
+            : focal_ptr(REAL(focal_mm)),
+              ref_ptr(REAL(ref_mm)),
+              n_focal(focal_mm.nrow()),
+              n_ref(ref_mm.nrow()),
+              n_clim(focal_mm.ncol() - 2),
+              stride_f(focal_mm.nrow()),
+              stride_r(ref_mm.nrow()),
+              use_lattice(use_lattice_),
+              use_geog_filter(use_geog_filter_),
+              use_haversine(use_haversine_),
+              use_scalar_clim(use_scalar_clim_),
+              use_pervar_clim(use_pervar_clim_),
+              max_clim_scalar(max_clim_scalar_),
+              max_geog(max_geog_),
+              max_clim_pervar(max_clim_pervar_),
+              mcode(mcode_),
+              k(k_),
+              lattice_ptr(lattice_ptr_),
+              out_indices(out_indices_)
+      {}
+
+      void operator()(std::size_t begin, std::size_t end) {
+            const bool rank_by_clim = (mcode == ModeCode::KNN_CLIM);
+
+            for (std::size_t i = begin; i < end; ++i) {
+                  const double fx = focal_ptr[i];
+                  const double fy = focal_ptr[i + stride_f];
+                  const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+
+                  std::vector<index_t> cand;
+                  if (use_lattice && lattice_ptr != nullptr) {
+                        cand.reserve(128);
+                        double q_geo[2] = { fx, fy };
+                        std::vector<double> q_clim(n_clim);
+                        for (int kdim = 0; kdim < n_clim; ++kdim) {
+                              q_clim[kdim] = f_clim_col[kdim * stride_f];
+                        }
+                        lattice_ptr->query(q_geo,
+                                           q_clim.data(),
+                                           max_geog,
+                                           use_scalar_clim,
+                                           max_clim_pervar,
+                                           use_scalar_clim ? max_clim_scalar : std::numeric_limits<double>::infinity(),
+                                           cand);
+                  } else {
+                        cand.reserve(n_ref);
+                        for (int j = 0; j < n_ref; ++j) cand.push_back(static_cast<index_t>(j));
+                  }
+
+                  // ALL mode: keep all matches passing filters
+                  if (mcode == ModeCode::ALL) {
+                        std::vector<int> keep;
+                        keep.reserve(cand.size());
+
+                        for (size_t t = 0; t < cand.size(); ++t) {
+                              const int j = static_cast<int>(cand[t]);
+                              const double rx = ref_ptr[j];
+                              const double ry = ref_ptr[j + stride_r];
+
+                              // Geog filter
+                              if (use_geog_filter) {
+                                    const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                                    if (gdist > max_geog) continue;
+                              }
+
+                              // Climate checks
+                              const double* r_clim_col = ref_ptr + j + 2 * stride_r;
+                              const auto okd = clim_ok_and_dist(
+                                    f_clim_col, r_clim_col,
+                                    n_clim, stride_f, stride_r,
+                                    use_pervar_clim, max_clim_pervar,
+                                    use_scalar_clim, max_clim_scalar
+                              );
+                              if (!okd.first) continue;
+
+                              keep.push_back(j + 1); // 1-based
+                        }
+
+                        out_indices[i] = std::move(keep);
+                        continue;
+                  }
+
+                  // kNN modes (Climate or Geog)
+                  using Neighbor = std::pair<double, int>; // (key_dist, ref_index_1based)
+                  auto cmp = [](const Neighbor& a, const Neighbor& b) {
+                        return a.first < b.first; // max-heap: top has largest distance
+                  };
+                  std::priority_queue<Neighbor, std::vector<Neighbor>, decltype(cmp)> pq(cmp);
+
+                  for (size_t t = 0; t < cand.size(); ++t) {
+                        const int j = static_cast<int>(cand[t]);
+                        const double rx = ref_ptr[j];
+                        const double ry = ref_ptr[j + stride_r];
+
+                        // Geog distance & filter
+                        const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                        if (use_geog_filter && gdist > max_geog) continue;
+
+                        // Climate checks & distance
+                        const double* r_clim_col = ref_ptr + j + 2 * stride_r;
+                        const auto okd = clim_ok_and_dist(
+                              f_clim_col, r_clim_col,
+                              n_clim, stride_f, stride_r,
+                              use_pervar_clim, max_clim_pervar,
+                              use_scalar_clim, max_clim_scalar
+                        );
+                        if (!okd.first) continue;
+                        const double clim_dist = okd.second;
+
+                        const double key = rank_by_clim ? clim_dist : gdist;
+                        const int ref_index_1based = j + 1;
+
+                        if (static_cast<int>(pq.size()) < k) {
+                              pq.emplace(key, ref_index_1based);
+                        } else if (!pq.empty() && key < pq.top().first) {
+                              pq.pop();
+                              pq.emplace(key, ref_index_1based);
+                        }
+                  }
+
+                  const int m = static_cast<int>(pq.size());
+                  std::vector<int> idx_vec(m);
+                  for (int pos = m - 1; pos >= 0; --pos) {
+                        const Neighbor& nb = pq.top();
+                        idx_vec[pos] = nb.second;
+                        pq.pop();
+                  }
+                  out_indices[i] = std::move(idx_vec);
+            }
+      }
+};
+
+// -------------------------------------------------------------------------
+// Worker for aggregate modes: COUNT / SUM / MEAN
+// Writes into agg[i] the scalar aggregate for focal i.
+// -------------------------------------------------------------------------
+struct AggWorker : public Worker {
+      const double* focal_ptr;
+      const double* ref_ptr;
+      int n_focal;
+      int n_ref;
+      int n_clim;
+      int stride_f;
+      int stride_r;
+
+      bool use_lattice;
+      bool use_geog_filter;
+      bool use_haversine;
+      bool use_scalar_clim;
+      bool use_pervar_clim;
+
+      double max_clim_scalar;
+      double max_geog;
+      std::vector<double> max_clim_pervar;
+
+      ModeCode mcode;
+      WeightCode wcode;
+      double theta;
+
+      Lattice* lattice_ptr;    // may be nullptr if !use_lattice
+
+      std::vector<double>& agg; // output
+
+      AggWorker(const NumericMatrix& focal_mm,
+                const NumericMatrix& ref_mm,
+                bool use_lattice_,
+                bool use_geog_filter_,
+                bool use_haversine_,
+                bool use_scalar_clim_,
+                bool use_pervar_clim_,
+                double max_clim_scalar_,
+                double max_geog_,
+                const std::vector<double>& max_clim_pervar_,
+                ModeCode mcode_,
+                WeightCode wcode_,
+                double theta_,
+                Lattice* lattice_ptr_,
+                std::vector<double>& agg_)
+            : focal_ptr(REAL(focal_mm)),
+              ref_ptr(REAL(ref_mm)),
+              n_focal(focal_mm.nrow()),
+              n_ref(ref_mm.nrow()),
+              n_clim(focal_mm.ncol() - 2),
+              stride_f(focal_mm.nrow()),
+              stride_r(ref_mm.nrow()),
+              use_lattice(use_lattice_),
+              use_geog_filter(use_geog_filter_),
+              use_haversine(use_haversine_),
+              use_scalar_clim(use_scalar_clim_),
+              use_pervar_clim(use_pervar_clim_),
+              max_clim_scalar(max_clim_scalar_),
+              max_geog(max_geog_),
+              max_clim_pervar(max_clim_pervar_),
+              mcode(mcode_),
+              wcode(wcode_),
+              theta(theta_),
+              lattice_ptr(lattice_ptr_),
+              agg(agg_)
+      {}
+
+      void operator()(std::size_t begin, std::size_t end) {
+            for (std::size_t i = begin; i < end; ++i) {
+                  const double fx = focal_ptr[i];
+                  const double fy = focal_ptr[i + stride_f];
+                  const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+
+                  std::vector<index_t> cand;
+                  if (use_lattice && lattice_ptr != nullptr) {
+                        cand.reserve(128);
+                        double q_geo[2] = { fx, fy };
+                        std::vector<double> q_clim(n_clim);
+                        for (int kdim = 0; kdim < n_clim; ++kdim) {
+                              q_clim[kdim] = f_clim_col[kdim * stride_f];
+                        }
+                        lattice_ptr->query(q_geo,
+                                           q_clim.data(),
+                                           max_geog,
+                                           use_scalar_clim,
+                                           max_clim_pervar,
+                                           use_scalar_clim ? max_clim_scalar : std::numeric_limits<double>::infinity(),
+                                           cand);
+                  } else {
+                        cand.reserve(n_ref);
+                        for (int j = 0; j < n_ref; ++j) cand.push_back(static_cast<index_t>(j));
+                  }
+
+                  double count = 0.0;
+                  double sum_w = 0.0;
+
+                  for (size_t t = 0; t < cand.size(); ++t) {
+                        const int j = static_cast<int>(cand[t]);
+                        const double rx = ref_ptr[j];
+                        const double ry = ref_ptr[j + stride_r];
+
+                        // Geog filter
+                        const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                        if (use_geog_filter && gdist > max_geog) continue;
+
+                        // Climate checks & distance
+                        const double* r_clim_col = ref_ptr + j + 2 * stride_r;
+                        const auto okd = clim_ok_and_dist(
+                              f_clim_col, r_clim_col,
+                              n_clim, stride_f, stride_r,
+                              use_pervar_clim, max_clim_pervar,
+                              use_scalar_clim, max_clim_scalar
+                        );
+                        if (!okd.first) continue;
+                        const double clim_dist = okd.second;
+
+                        ++count;
+
+                        if (mcode == ModeCode::SUM || mcode == ModeCode::MEAN) {
+                              const double w = weight_from_codes(wcode, clim_dist, gdist, theta);
+                              sum_w += w;
+                        }
+                  }
+
+                  if (mcode == ModeCode::COUNT) {
+                        agg[i] = count;
+                  } else if (mcode == ModeCode::SUM) {
+                        agg[i] = sum_w;
+                  } else { // MEAN
+                        agg[i] = (count > 0.0) ? (sum_w / count) : 0.0;
+                  }
+            }
+      }
+};
+
 } // anonymous namespace
 
 
 // -------------------------------------------------------------------------
-// NOTE: signature updated to accept mode_code, weight_code, theta.
-// mode_code:   0=knn_clim, 1=knn_geog, 2=count, 3=sum, 4=mean, 5=all
-// weight_code: 0=none (unused), 1=uniform, 2=inverse_clim, 3=inverse_geog
-// theta:       numeric hyperparameter for weights (epsilon), ignored if not used
-// -------------------------------------------------------------------------
-
 // [[Rcpp::export]]
 SEXP find_analogs_core(const NumericMatrix& focal_mm,
                        const NumericMatrix& ref_mm,
@@ -171,12 +478,6 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       // Geographic threshold
       const bool use_geog_filter = std::isfinite(max_geog);
 
-      // Pointers / strides (R column-major)
-      const double* focal_ptr = REAL(focal_mm);
-      const double* ref_ptr   = REAL(ref_mm);
-      const int stride_f      = n_focal;
-      const int stride_r      = n_ref;
-
       // Decide whether to use lattice index
       const bool use_lattice = (use_geog_filter || use_scalar_clim || use_pervar_clim);
 
@@ -191,10 +492,10 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       if (use_lattice) {
             MetricType metric = use_haversine ? MetricType::Haversine
             : MetricType::Planar;
-            lattice.build(ref_ptr,
+            lattice.build(REAL(ref_mm),
                           static_cast<size_tu>(n_ref),
                           static_cast<size_tu>(n_clim),
-                          static_cast<size_tu>(stride_r),
+                          static_cast<size_tu>(n_ref), // stride_r
                           metric,
                           max_geog,
                           use_scalar_clim,
@@ -220,122 +521,42 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       const ModeCode   mcode = static_cast<ModeCode>(mode_code);
       const WeightCode wcode = static_cast<WeightCode>(weight_code);
 
-      // ---------- Branch by output family: pairs vs aggregates ---------------
-
       const bool return_pairs =
             (mcode == ModeCode::KNN_CLIM ||
             mcode == ModeCode::KNN_GEOG ||
             mcode == ModeCode::ALL);
 
       if (return_pairs) {
+            // Use k as provided for kNN, ignore for ALL (we treat ALL separately)
+            const int k_knn = (mcode == ModeCode::ALL ? 0 : k);
 
-            // Return List<IntegerVector> (indices per focal)
+            // Parallel: compute neighbor indices per focal into std::vector-of-vectors
+            std::vector< std::vector<int> > out_indices(n_focal);
+
+            PairWorker worker(focal_mm,
+                              ref_mm,
+                              use_lattice,
+                              use_geog_filter,
+                              use_haversine,
+                              use_scalar_clim,
+                              use_pervar_clim,
+                              max_clim_scalar,
+                              max_geog,
+                              max_clim_pervar_std,
+                              mcode,
+                              k_knn,
+                              use_lattice ? &lattice : nullptr,
+                              out_indices);
+
+            parallelFor(0, static_cast<std::size_t>(n_focal), worker);
+
+            // Convert to List<IntegerVector>
             List out(n_focal);
-
             for (int i = 0; i < n_focal; ++i) {
-                  const double fx = focal_ptr[i];
-                  const double fy = focal_ptr[i + stride_f];
-                  const double* f_clim_col = focal_ptr + i + 2 * stride_f;
-
-                  // Candidate set
-                  std::vector<index_t> cand;
-                  cand.reserve(use_lattice ? 128 : n_ref);
-
-                  if (use_lattice) {
-                        double q_geo[2] = { fx, fy };
-                        std::vector<double> q_clim(n_clim);
-                        for (int kdim = 0; kdim < n_clim; ++kdim) {
-                              q_clim[kdim] = f_clim_col[kdim * stride_f];
-                        }
-                        lattice.query(q_geo,
-                                      q_clim.data(),
-                                      max_geog,
-                                      use_scalar_clim,
-                                      max_clim_pervar_std,
-                                      use_scalar_clim ? max_clim_scalar : std::numeric_limits<double>::infinity(),
-                                      cand);
-                  } else {
-                        cand.reserve(n_ref);
-                        for (int j = 0; j < n_ref; ++j) cand.push_back(static_cast<index_t>(j));
-                  }
-
-                  if (mcode == ModeCode::ALL) {
-                        // Collect all matches passing filters
-                        std::vector<int> keep;
-                        keep.reserve(cand.size());
-
-                        for (size_t t = 0; t < cand.size(); ++t) {
-                              const int j = static_cast<int>(cand[t]);
-                              const double rx = ref_ptr[j];
-                              const double ry = ref_ptr[j + stride_r];
-
-                              // Geog filter
-                              if (use_geog_filter) {
-                                    const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                                    if (gdist > max_geog) continue;
-                              }
-
-                              // Climate checks (and distance)
-                              const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                              const auto okd = clim_ok_and_dist(f_clim_col, r_clim_col,
-                                                                n_clim, stride_f, stride_r,
-                                                                use_pervar_clim, max_clim_pervar_std,
-                                                                use_scalar_clim, max_clim_scalar);
-                              if (!okd.first) continue;
-
-                              keep.push_back(j + 1); // 1-based
-                        }
-
-                        IntegerVector idx_vec(keep.size());
-                        for (size_t u = 0; u < keep.size(); ++u) idx_vec[u] = keep[u];
-                        out[i] = idx_vec;
-                        continue;
-                  }
-
-                  // kNN modes (Climate or Geog)
-                  const bool rank_by_clim = (mcode == ModeCode::KNN_CLIM);
-                  using Neighbor = std::pair<double, int>; // (key_dist, ref_index_1based)
-
-                  auto cmp = [](const Neighbor& a, const Neighbor& b) {
-                        return a.first < b.first; // max-heap
-                  };
-                  std::priority_queue<Neighbor, std::vector<Neighbor>, decltype(cmp)> pq(cmp);
-
-                  for (size_t t = 0; t < cand.size(); ++t) {
-                        const int j = static_cast<int>(cand[t]);
-                        const double rx = ref_ptr[j];
-                        const double ry = ref_ptr[j + stride_r];
-
-                        // Geog distance & filter
-                        const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                        if (use_geog_filter && gdist > max_geog) continue;
-
-                        // Climate checks & distance
-                        const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                        const auto okd = clim_ok_and_dist(f_clim_col, r_clim_col,
-                                                          n_clim, stride_f, stride_r,
-                                                          use_pervar_clim, max_clim_pervar_std,
-                                                          use_scalar_clim, max_clim_scalar);
-                        if (!okd.first) continue;
-                        const double clim_dist = okd.second;
-
-                        const double key = rank_by_clim ? clim_dist : gdist;
-                        const int ref_index_1based = j + 1;
-
-                        if (static_cast<int>(pq.size()) < k) {
-                              pq.emplace(key, ref_index_1based);
-                        } else if (!pq.empty() && key < pq.top().first) {
-                              pq.pop();
-                              pq.emplace(key, ref_index_1based);
-                        }
-                  }
-
-                  const int m = static_cast<int>(pq.size());
-                  IntegerVector idx_vec(m);
-                  for (int pos = m - 1; pos >= 0; --pos) {
-                        const Neighbor& nb = pq.top();
-                        idx_vec[pos] = nb.second;
-                        pq.pop();
+                  const std::vector<int>& v = out_indices[i];
+                  IntegerVector idx_vec(v.size());
+                  for (std::size_t j = 0; j < v.size(); ++j) {
+                        idx_vec[j] = v[j];
                   }
                   out[i] = idx_vec;
             }
@@ -344,7 +565,7 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
             out.attr("n_focal") = n_focal;
             out.attr("n_ref")   = n_ref;
             out.attr("n_clim")  = n_clim;
-            out.attr("max_dist") = max_geog;    // keep legacy attr name for now
+            out.attr("max_dist") = max_geog;    // keep legacy attr name
             out.attr("max_clim") = max_clim;
             out.attr("geo_mode") = geo_mode;
             out.attr("binning_method")    = binning_method;
@@ -356,77 +577,32 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
             return out;
       }
 
-      // ----------------- Aggregate modes: COUNT / SUM / MEAN -----------------
+      // Aggregate modes: COUNT / SUM / MEAN
+      std::vector<double> agg_vals(n_focal, NA_REAL);
 
-      NumericVector agg(n_focal, NA_REAL);
+      AggWorker aworker(focal_mm,
+                        ref_mm,
+                        use_lattice,
+                        use_geog_filter,
+                        use_haversine,
+                        use_scalar_clim,
+                        use_pervar_clim,
+                        max_clim_scalar,
+                        max_geog,
+                        max_clim_pervar_std,
+                        mcode,
+                        wcode,
+                        theta,
+                        use_lattice ? &lattice : nullptr,
+                        agg_vals);
 
+      parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
+
+      NumericVector agg(n_focal);
       for (int i = 0; i < n_focal; ++i) {
-            const double fx = focal_ptr[i];
-            const double fy = focal_ptr[i + stride_f];
-            const double* f_clim_col = focal_ptr + i + 2 * stride_f;
-
-            std::vector<index_t> cand;
-            cand.reserve(use_lattice ? 128 : n_ref);
-
-            if (use_lattice) {
-                  double q_geo[2] = { fx, fy };
-                  std::vector<double> q_clim(n_clim);
-                  for (int kdim = 0; kdim < n_clim; ++kdim) {
-                        q_clim[kdim] = f_clim_col[kdim * stride_f];
-                  }
-                  lattice.query(q_geo,
-                                q_clim.data(),
-                                max_geog,
-                                use_scalar_clim,
-                                max_clim_pervar_std,
-                                use_scalar_clim ? max_clim_scalar : std::numeric_limits<double>::infinity(),
-                                cand);
-            } else {
-                  cand.reserve(n_ref);
-                  for (int j = 0; j < n_ref; ++j) cand.push_back(static_cast<index_t>(j));
-            }
-
-            // Streaming aggregation
-            double count = 0.0;
-            double sum_w = 0.0;
-
-            for (size_t t = 0; t < cand.size(); ++t) {
-                  const int j = static_cast<int>(cand[t]);
-                  const double rx = ref_ptr[j];
-                  const double ry = ref_ptr[j + stride_r];
-
-                  // Geog filter
-                  const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                  if (use_geog_filter && gdist > max_geog) continue;
-
-                  // Climate checks & distance
-                  const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                  const auto okd = clim_ok_and_dist(f_clim_col, r_clim_col,
-                                                    n_clim, stride_f, stride_r,
-                                                    use_pervar_clim, max_clim_pervar_std,
-                                                    use_scalar_clim, max_clim_scalar);
-                  if (!okd.first) continue;
-                  const double clim_dist = okd.second;
-
-                  // Update aggregates
-                  ++count;
-
-                  if (mcode == ModeCode::SUM || mcode == ModeCode::MEAN) {
-                        const double w = weight_from_codes(wcode, clim_dist, gdist, theta);
-                        sum_w += w;
-                  }
-            }
-
-            if (mcode == ModeCode::COUNT) {
-                  agg[i] = count;
-            } else if (mcode == ModeCode::SUM) {
-                  agg[i] = sum_w;
-            } else { // MEAN
-                  agg[i] = (count > 0.0) ? (sum_w / count) : 0.0;
-            }
+            agg[i] = agg_vals[i];
       }
 
-      // Attach diagnostics to vector
       agg.attr("n_focal") = n_focal;
       agg.attr("n_ref")   = n_ref;
       agg.attr("n_clim")  = n_clim;

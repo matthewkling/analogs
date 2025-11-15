@@ -9,6 +9,7 @@
 #' @param max_clim Maximum climate distance (scalar or vector), or NULL.
 #' @param max_geog Maximum geographic distance in km, or NULL.
 #' @param coord_type "auto", "lonlat", or "projected".
+#' @param n_threads Number of parallel compute threads to use.
 #'
 #' @return A data.frame with columns:
 #'   - focal_index
@@ -21,7 +22,8 @@ analog_availability <- function(
             ref,
             max_clim = NULL,
             max_geog = NULL,
-            coord_type = "auto"
+            coord_type = "auto",
+            n_threads = NULL
 ) {
       find_analogs(
             focal      = focal,
@@ -33,6 +35,7 @@ analog_availability <- function(
             weight     = NULL,   # required to be NULL
             theta      = NULL,   # required to be NULL
             coord_type = coord_type,
-            report_dist = FALSE  # no pair distances in aggregate mode
+            report_dist = FALSE,  # no pair distances in aggregate mode
+            n_threads = n_threads
       )
 }
