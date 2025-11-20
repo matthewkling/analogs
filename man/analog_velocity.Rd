@@ -12,7 +12,7 @@ analog_velocity(
   max_geog = NULL,
   coord_type = "auto",
   report_dist = TRUE,
-  lattice_res = NULL,
+  lattice_res = "auto",
   n_threads = NULL
 )
 }

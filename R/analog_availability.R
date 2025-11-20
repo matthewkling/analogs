@@ -23,7 +23,7 @@ analog_availability <- function(
             max_clim = NULL,
             max_geog = NULL,
             coord_type = "auto",
-            lattice_res = NULL,
+            lattice_res = "auto",
             n_threads = NULL
 ) {
       find_analogs(

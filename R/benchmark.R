@@ -68,61 +68,39 @@ load_climate_rasters <- function() {
 
 # benchmarks ----------------------------------------
 
-benchmark_velocity <- function(clim, n_focal = 100, ...) {
-      # climate velocity: few focals, many refs
+time <- function(expr) system.time({ expr })[["elapsed"]]
+
+prof <- function(expr){
+      Rprof("out", line.profiling = TRUE)
+      expr
+      Rprof(NULL)
+      summaryRprof("out")$by.total
+}
+
+
+benchmark <- function(clim, fun = time, n_focal = 1e5, ...){
+
+      set.seed(123)
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
-      st <- system.time({
-            a <- analog_velocity(focal, ref, max_clim = .5, k = 1, ...)
-      })
-      return(st[["elapsed"]])
+
+      list(
+            velocity = fun(analog_velocity(
+                  focal, ref,
+                  max_clim = .5, k = 1,
+                  ...)),
+            impact = fun(analog_impact(
+                  focal, ref,
+                  max_clim = NULL, max_geog = 3, k = 20,
+                  ...)),
+            availability = fun(analog_availability(
+                  focal, ref,
+                  max_geog = 3, max_clim = .5,
+                  ...)),
+            intensity = fun(analog_intensity(
+                  focal, ref,
+                  max_geog = 3, max_clim = .5, weight = "inverse_clim",
+                  ...))
+      )
 }
 
-benchmark_impact <- function(clim, n_focal = 100, ...) {
-      # analog impact: dist and geo constraints; few focals, many refs
-      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
-      ref <- clim$clim2
-      st <- system.time({
-            a <- analog_impact(focal, ref, max_clim = NULL, max_geog = 3, k = 20, ...)
-      })
-      return(st[["elapsed"]])
-}
-
-benchmark_availability <- function(clim, n_focal = 100, ...) {
-      # single-era analog availability: few focals, many refs
-      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
-      ref <- clim$clim1
-      st <- system.time({
-            a <- analog_availability(focal, ref, max_geog = 3, max_clim = .5, ...)
-      })
-      return(st[["elapsed"]])
-}
-
-benchmark_intensity <- function(clim, n_focal = 100, ...) {
-      # analog intensity: few focals, many refs
-      focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
-      ref <- clim$clim2
-      st <- system.time({
-            a <- analog_intensity(focal, ref, max_geog = 3, max_clim = .5, weight = "inverse_clim", ...)
-      })
-      return(st[["elapsed"]])
-}
-
-run_benchmarks <- function(
-            clim = simulate_climate_rasters(1000),
-            n_focal = c(1e2, 1e3, 1e4, 1e5),
-            n_threads = 8,
-            lattice_res = 10
-) {
-
-      RcppParallel::setThreadOptions(numThreads = as.integer(n_threads))
-
-      bm <- function(n){
-            data.frame(
-                  n_focal = n,
-                  velocity = benchmark_velocity(clim, n, coord_type = "projected", lattice_res = lattice_res)
-            )
-      }
-
-      do.call(rbind, lapply(n_focal, bm))
-}

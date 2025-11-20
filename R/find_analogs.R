@@ -89,9 +89,16 @@
 #'     \item \code{"projected"}: Projected XY coordinates (uses planar distance).
 #'   }
 #'
-#' @param lattice_res Integer parameter giving the number of bins per dimension
-#'   of the internally-used lattice search index. Can be used to tune computation time.
-#'   Default is 10.
+#' @param lattice_res Tuning parameter giving the number of bins per dimension
+#'   of the internally-used lattice search index. Either:
+#'   \itemize{
+#'     \item A positive integer.
+#'     \item \code{"auto"} (the default): Automatically tune the lattice resolution
+#'       by optimizing compute time on a subsample of focal points. If focal has
+#'       relatively few rows, auto-tuning is skipped and a default resolution of
+#'       16 is used.
+#'   }
+#'   If "auto" and if there are more than 2000
 #'
 #' @param n_threads Optional integer number of threads to use for the
 #'   computation. If \code{NULL} (default), the global RcppParallel setting
@@ -182,21 +189,22 @@
 #'
 #' @export
 find_analogs <- function(
-      focal,
-      ref,
-      mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
-      max_clim = NULL,
-      max_geog = NULL,
-      k = NULL,
-      weight = c("uniform",
-                 "gaussian_clim", "gaussian_geog", "gaussian_joint",
-                 "inverse_clim", "inverse_geog", "inverse_joint"),
-      theta = NULL,
-      report_dist = TRUE,
-      coord_type = c("auto", "lonlat", "projected"),
-      lattice_res = NULL,
-      n_threads = NULL
+            focal,
+            ref,
+            mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
+            max_clim = NULL,
+            max_geog = NULL,
+            k = NULL,
+            weight = c("uniform",
+                       "gaussian_clim", "gaussian_geog", "gaussian_joint",
+                       "inverse_clim", "inverse_geog", "inverse_joint"),
+            theta = NULL,
+            report_dist = TRUE,
+            coord_type = c("auto", "lonlat", "projected"),
+            lattice_res = "auto",
+            n_threads = NULL
 ) {
+
       # ---- Input validation --------------------------------------------------
       coord_type <- match.arg(coord_type)
       mode <- match.arg(mode)
@@ -261,8 +269,8 @@ find_analogs <- function(
                   if (!is.null(theta)) {
                         if (
                               !is.numeric(theta) ||
-                                    length(theta) != 1L ||
-                                    theta <= 0
+                              length(theta) != 1L ||
+                              theta <= 0
                         ) {
                               stop(
                                     "theta must be a single positive numeric value, or NULL."
@@ -280,17 +288,9 @@ find_analogs <- function(
             }
       }
 
-      if (!is.null(lattice_res)) {
-            if (!is.numeric(lattice_res) ||
-                length(lattice_res) != 1L ||
-                lattice_res <= 0) {
-                  stop("lattice_res must be a single positive numeric value or NULL.")
-            }
-      }
-      lattice_res_int <- if (is.null(lattice_res)) NA_integer_ else as.integer(lattice_res)[1L]
-
 
       # ---- Data normalization ------------------------------------------------
+
       focal_mm <- .format_data(focal)
       ref_mm <- .format_data(ref)
 
@@ -338,6 +338,7 @@ find_analogs <- function(
       # For kNN modes, k_core = k; for others, k_core = 0 to request "all matches"
       k_core <- if (mode %in% c("knn_clim","knn_geog")) as.integer(k) else 0L
 
+
       # ---- Call C++ core ------------------------------------------------------
 
       # Optional per-call thread control
@@ -350,38 +351,55 @@ find_analogs <- function(
             RcppParallel::setThreadOptions(numThreads = as.integer(n_threads)[1L])
       }
 
-      res <- .Call(
-            `_analogs_find_analogs_core`,
-            focal_mm,                 # matrix of focal sites (xy + climate)
-            ref_mm,                   # matrix of ref sites  (xy + climate)
-            as.integer(k_core),       # k for kNN, 0 for all/aggregates
-            max_clim_val,             # climate filter bandwidth (scalar or vector or Inf)
-            as.numeric(max_geog_num), # geographic distance filter (km; Inf if NULL)
-            geo_mode,                 # "lonlat" or "projected"
-            as.integer(mode_code),    # mode
-            as.integer(weight_code),  # weight
-            as.numeric(theta_num),    # theta
-            as.integer(lattice_res_int) # lattice resolution
+      # Internal wrapper so we can reuse it for tuning and the full call
+      call_analogs_core <- function(focal_mm_sub, lattice_res_int) {
+            .Call(
+                  `_analogs_find_analogs_core`,
+                  focal_mm_sub,               # matrix of focal sites (xy + climate)
+                  ref_mm,                     # matrix of ref sites  (xy + climate)
+                  as.integer(k_core),         # k for kNN, 0 for all/aggregates
+                  max_clim_val,               # climate filter bandwidth (scalar, vector, or Inf)
+                  as.numeric(max_geog_num),   # geographic distance filter (km; Inf if NULL)
+                  geo_mode,                   # "lonlat" or "projected"
+                  as.integer(mode_code),      # mode
+                  as.integer(weight_code),    # weight
+                  as.numeric(theta_num),      # theta
+                  as.integer(lattice_res_int) # lattice resolution (integer)
+            )
+      }
+
+      lattice_res_int <- .tune_lattice_res(
+            focal_mm       = focal_mm,
+            lattice_res    = lattice_res,
+            call_analogs_core = call_analogs_core,
+            k_core         = k_core,
+            default_res    = 16L
       )
+
+      res <- call_analogs_core(focal_mm, lattice_res_int)
 
       # Capture diagnostic attributes from C++ before post-processing
       cpp_attrs <- attributes(res)
       cpp_attrs$names <- NULL
       cpp_attrs$class <- NULL
 
+
       # ---- Post-process results ----------------------------------------------
+
       if (mode %in% c("knn_clim", "knn_geog", "all")) {
             out <- .emit_pairs_cpp(
                   res,
                   focal_mm,
                   ref_mm,
                   report_dist = report_dist,
-                  geo_mode = geo_mode
+                  geo_mode    = geo_mode
             )
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
-            attr(out, "mode") <- mode
+            attr(out, "mode")   <- mode
+            attr(out, "weight") <- weight
+            attr(out, "theta")  <- theta
             return(out)
       }
 
@@ -410,9 +428,10 @@ find_analogs <- function(
             return(out)
       }
 
-
       stop("Unreachable code - please report this bug")
 }
+
+
 
 # ---- Internal Helper Functions ---------------------------------------------
 
@@ -424,10 +443,10 @@ find_analogs <- function(
 
       if (
             all(is.finite(c(lon_rng, lat_rng))) &&
-                  lon_rng[1] >= -180 &&
-                  lon_rng[2] <= 180 &&
-                  lat_rng[1] >= -90 &&
-                  lat_rng[2] <= 90
+            lon_rng[1] >= -180 &&
+            lon_rng[2] <= 180 &&
+            lat_rng[1] >= -90 &&
+            lat_rng[2] <= 90
       ) {
             "lonlat"
       } else {
@@ -476,8 +495,8 @@ find_analogs <- function(
 
       coords <- as.matrix(obj[, xy_idx, drop = FALSE])
       climate <- as.matrix(obj[,
-            setdiff(seq_len(ncol(obj)), xy_idx),
-            drop = FALSE
+                               setdiff(seq_len(ncol(obj)), xy_idx),
+                               drop = FALSE
       ])
 
       storage.mode(coords) <- "double"
@@ -511,3 +530,113 @@ find_analogs <- function(
             stop("Input must be a data.frame, matrix, or SpatRaster")
       }
 }
+
+# Internal: auto-tune lattice_res, or resolve user/default value
+.tune_lattice_res <- function(focal_mm,
+                             lattice_res,
+                             call_analogs_core,
+                             k_core,
+                             default_res = 16L,
+                             verbose = FALSE) {
+
+      # Helper: detect monotonic timings with a tolerance
+      is_strict_monotonic <- function(x, tol = 0.15) {
+            if (length(x) < 3L) return(FALSE)
+            dx <- diff(x)
+            # strictly decreasing or increasing, with relative tolerance
+            all(dx <= -tol * abs(x[-length(x)])) ||
+                  all(dx >=  tol * abs(x[-length(x)]))
+      }
+
+      # If user supplied a numeric value, just honor it
+      if (is.numeric(lattice_res)) {
+            return(as.integer(lattice_res))
+      }
+
+      # NULL: simple fallback to default
+      if (is.null(lattice_res)) {
+            return(as.integer(default_res))
+      }
+
+      # Only special-case we support is "auto"
+      if (!(is.character(lattice_res) && identical(lattice_res, "auto"))) {
+            stop("Unsupported value for lattice_res: ", lattice_res)
+      }
+
+      ## --- "auto" path below ---
+
+      n_focal <- nrow(focal_mm)
+
+      # Only tune for non-trivial problem sizes
+      if (n_focal <= 2000L) {
+            return(as.integer(default_res))
+      }
+
+      # Subsample focal sites
+      n_samp <- min(1000L, max(100L, as.integer(n_focal * 0.01)))
+      idx    <- sample.int(n_focal, n_samp)
+      focal_mm_samp <- focal_mm[idx, , drop = FALSE]
+
+      # Helper to evaluate timing for a given lattice_res
+      eval_time <- function(r) {
+            r <- as.integer(max(1L, r))  # ensure valid
+            st <- system.time(invisible(call_analogs_core(focal_mm_samp, r)))
+            st[["elapsed"]]
+      }
+
+      # Start from heuristic center
+      r0 <- as.integer(default_res)
+      r_vals <- c(r0 %/% 2L, r0, r0 * 2L)
+      r_vals <- unique(r_vals[r_vals > 0L])
+
+      # Evaluate initial bracket
+      times <- vapply(r_vals, eval_time, numeric(1))
+
+      # One-step adaptive refinement
+      best_idx <- which.min(times)
+      best_r   <- r_vals[best_idx]
+
+      if (best_idx == 1L && length(r_vals) > 1L) {
+            # best is smallest → try halving again
+            r_try <- max(1L, best_r %/% 2L)
+            t_try <- eval_time(r_try)
+            r_vals <- c(r_try, r_vals)
+            times  <- c(t_try, times)
+
+      } else if (best_idx == length(r_vals) && length(r_vals) > 1L) {
+            # best is largest → try doubling again
+            r_try <- best_r * 2L
+            t_try <- eval_time(r_try)
+            r_vals <- c(r_vals, r_try)
+            times  <- c(times, t_try)
+      }
+
+      # Recompute best after any refinement
+      best_idx <- which.min(times)
+      best_r   <- r_vals[best_idx]
+
+      # Sort evaluated points by r for monotonicity check
+      o      <- order(r_vals)
+      r_eval <- r_vals[o]
+      t_eval <- times[o]
+
+      # Optional: warn if timings are monotonic in a meaningful regime
+      if (length(t_eval) >= 4L &&
+          n_samp >= 300L &&
+          !(is.numeric(k_core) && k_core == 1L) &&
+          is_strict_monotonic(t_eval)) {
+
+            warning(
+                  "Auto-tuning of lattice_res did not detect an interior minimum; ",
+                  "elapsed times were monotonic across tested values {",
+                  paste(r_eval, collapse = ", "),
+                  "}. The optimal lattice_res may lie outside this range. ",
+                  "Consider manually specifying lattice_res."
+            )
+      }
+
+      r <- as.integer(best_r)
+      if(verbose) message("Auto-tuning selected lattice resolution of ", r, ".")
+      r
+}
+

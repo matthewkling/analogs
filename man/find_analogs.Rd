@@ -16,7 +16,7 @@ find_analogs(
   theta = NULL,
   report_dist = TRUE,
   coord_type = c("auto", "lonlat", "projected"),
-  lattice_res = NULL,
+  lattice_res = "auto",
   n_threads = NULL
 )
 }
@@ -99,9 +99,16 @@ output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
   \item \code{"projected"}: Projected XY coordinates (uses planar distance).
 }}
 
-\item{lattice_res}{Integer parameter giving the number of bins per dimension
-of the internally-used lattice search index. Can be used to tune computation time.
-Default is 10.}
+\item{lattice_res}{Tuning parameter giving the number of bins per dimension
+of the internally-used lattice search index. Either:
+\itemize{
+  \item A positive integer.
+  \item \code{"auto"} (the default): Automatically tune the lattice resolution
+    by optimizing compute time on a subsample of focal points. If focal has
+    relatively few rows, auto-tuning is skipped and a default resolution of
+    16 is used.
+}
+If "auto" and if there are more than 2000}
 
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
