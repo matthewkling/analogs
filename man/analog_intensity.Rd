@@ -12,6 +12,7 @@ analog_intensity(
   weight = c("uniform", "inverse_clim", "inverse_geog"),
   theta = NULL,
   coord_type = "auto",
+  lattice_res = NULL,
   n_threads = NULL
 )
 }

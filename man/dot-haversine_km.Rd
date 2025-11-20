@@ -7,6 +7,6 @@
 .haversine_km(xy1, xy2)
 }
 \description{
-Compute great-circle distance using Haversine formula
+NOT CURRENTLY USED
 }
 \keyword{internal}

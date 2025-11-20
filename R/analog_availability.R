@@ -23,6 +23,7 @@ analog_availability <- function(
             max_clim = NULL,
             max_geog = NULL,
             coord_type = "auto",
+            lattice_res = NULL,
             n_threads = NULL
 ) {
       find_analogs(
@@ -36,6 +37,7 @@ analog_availability <- function(
             theta      = NULL,   # required to be NULL
             coord_type = coord_type,
             report_dist = FALSE,  # no pair distances in aggregate mode
+            lattice_res = lattice_res,
             n_threads = n_threads
       )
 }

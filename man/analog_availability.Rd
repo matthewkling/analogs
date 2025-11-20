@@ -10,6 +10,7 @@ analog_availability(
   max_clim = NULL,
   max_geog = NULL,
   coord_type = "auto",
+  lattice_res = NULL,
   n_threads = NULL
 )
 }

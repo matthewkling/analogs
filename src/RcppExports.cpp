@@ -11,8 +11,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // find_analogs_core
-SEXP find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, double theta);
-RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP) {
+SEXP find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, double theta, int lattice_res);
+RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP lattice_resSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -25,7 +25,55 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
     Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
     Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
-    rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta));
+    Rcpp::traits::input_parameter< int >::type lattice_res(lattice_resSEXP);
+    rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res));
+    return rcpp_result_gen;
+END_RCPP
+}
+// bench_knn_core
+Rcpp::List bench_knn_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code);
+RcppExport SEXP _analogs_bench_knn_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type focal_mm(focal_mmSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
+    Rcpp::traits::input_parameter< int >::type k(kSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
+    Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
+    Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
+    rcpp_result_gen = Rcpp::wrap(bench_knn_core(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code));
+    return rcpp_result_gen;
+END_RCPP
+}
+// bench_lattice_core
+Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, const NumericVector& max_clim, double max_geog, const std::string& geo_mode);
+RcppExport SEXP _analogs_bench_lattice_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type focal_mm(focal_mmSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
+    Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
+    rcpp_result_gen = Rcpp::wrap(bench_lattice_core(focal_mm, ref_mm, max_clim, max_geog, geo_mode));
+    return rcpp_result_gen;
+END_RCPP
+}
+// emit_pairs_cpp
+SEXP emit_pairs_cpp(List res, NumericMatrix focal_mm, NumericMatrix ref_mm, bool report_dist, std::string geo_mode);
+RcppExport SEXP _analogs_emit_pairs_cpp(SEXP resSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP report_distSEXP, SEXP geo_modeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< List >::type res(resSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type focal_mm(focal_mmSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type ref_mm(ref_mmSEXP);
+    Rcpp::traits::input_parameter< bool >::type report_dist(report_distSEXP);
+    Rcpp::traits::input_parameter< std::string >::type geo_mode(geo_modeSEXP);
+    rcpp_result_gen = Rcpp::wrap(emit_pairs_cpp(res, focal_mm, ref_mm, report_dist, geo_mode));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -55,7 +103,10 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 9},
+    {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 10},
+    {"_analogs_bench_knn_core", (DL_FUNC) &_analogs_bench_knn_core, 7},
+    {"_analogs_bench_lattice_core", (DL_FUNC) &_analogs_bench_lattice_core, 5},
+    {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 5},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
     {NULL, NULL, 0}

@@ -11,10 +11,12 @@ find_analogs(
   max_clim = NULL,
   max_geog = NULL,
   k = NULL,
-  weight = NULL,
+  weight = c("uniform", "gaussian_clim", "gaussian_geog", "gaussian_joint",
+    "inverse_clim", "inverse_geog", "inverse_joint"),
   theta = NULL,
   report_dist = TRUE,
   coord_type = c("auto", "lonlat", "projected"),
+  lattice_res = NULL,
   n_threads = NULL
 )
 }
@@ -96,6 +98,10 @@ output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
   \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance).
   \item \code{"projected"}: Projected XY coordinates (uses planar distance).
 }}
+
+\item{lattice_res}{Integer parameter giving the number of bins per dimension
+of the internally-used lattice search index. Can be used to tune computation time.
+Default is 10.}
 
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting

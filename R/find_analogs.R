@@ -89,6 +89,10 @@
 #'     \item \code{"projected"}: Projected XY coordinates (uses planar distance).
 #'   }
 #'
+#' @param lattice_res Integer parameter giving the number of bins per dimension
+#'   of the internally-used lattice search index. Can be used to tune computation time.
+#'   Default is 10.
+#'
 #' @param n_threads Optional integer number of threads to use for the
 #'   computation. If \code{NULL} (default), the global RcppParallel setting
 #'   is used (see \code{RcppParallel::setThreadOptions}).
@@ -184,15 +188,21 @@ find_analogs <- function(
       max_clim = NULL,
       max_geog = NULL,
       k = NULL,
-      weight = NULL,
+      weight = c("uniform",
+                 "gaussian_clim", "gaussian_geog", "gaussian_joint",
+                 "inverse_clim", "inverse_geog", "inverse_joint"),
       theta = NULL,
       report_dist = TRUE,
       coord_type = c("auto", "lonlat", "projected"),
+      lattice_res = NULL,
       n_threads = NULL
 ) {
       # ---- Input validation --------------------------------------------------
       coord_type <- match.arg(coord_type)
       mode <- match.arg(mode)
+
+      weight <- match.arg(weight)
+      if(!weight %in% c("inverse_clim", "inverse_geog")) weight <- NULL
 
       # Validate combination of mode, k, weight, theta
       if (mode %in% c("knn_clim", "knn_geog")) {
@@ -270,6 +280,16 @@ find_analogs <- function(
             }
       }
 
+      if (!is.null(lattice_res)) {
+            if (!is.numeric(lattice_res) ||
+                length(lattice_res) != 1L ||
+                lattice_res <= 0) {
+                  stop("lattice_res must be a single positive numeric value or NULL.")
+            }
+      }
+      lattice_res_int <- if (is.null(lattice_res)) NA_integer_ else as.integer(lattice_res)[1L]
+
+
       # ---- Data normalization ------------------------------------------------
       focal_mm <- .format_data(focal)
       ref_mm <- .format_data(ref)
@@ -340,7 +360,8 @@ find_analogs <- function(
             geo_mode,                 # "lonlat" or "projected"
             as.integer(mode_code),    # mode
             as.integer(weight_code),  # weight
-            as.numeric(theta_num)    # theta
+            as.numeric(theta_num),    # theta
+            as.integer(lattice_res_int) # lattice resolution
       )
 
       # Capture diagnostic attributes from C++ before post-processing
@@ -350,7 +371,7 @@ find_analogs <- function(
 
       # ---- Post-process results ----------------------------------------------
       if (mode %in% c("knn_clim", "knn_geog", "all")) {
-            out <- .emit_pairs(
+            out <- .emit_pairs_cpp(
                   res,
                   focal_mm,
                   ref_mm,
@@ -415,6 +436,9 @@ find_analogs <- function(
 }
 
 #' Compute great-circle distance using Haversine formula
+#'
+#' NOT CURRENTLY USED
+#'
 #' @keywords internal
 .haversine_km <- function(xy1, xy2) {
       R <- 6371.0088 # Earth's mean radius in km
@@ -434,72 +458,6 @@ find_analogs <- function(
       a <- sdlat * sdlat + cos(lat1) * cos(lat2) * sdlon * sdlon
 
       2 * R * asin(pmin(1, sqrt(a)))
-}
-
-#' Build long table of focal-analog pairs with distances
-#' @keywords internal
-.emit_pairs <- function(res, focal_mm, ref_mm, report_dist, geo_mode) {
-      n_f <- nrow(focal_mm[, 1:2])
-      rows <- vector("list", n_f)
-
-      for (i in seq_len(n_f)) {
-            idx <- res[[i]]
-            if (length(idx) == 0L) {
-                  rows[[i]] <- NULL
-                  next
-            }
-
-            # Focal coordinates (repeated)
-            fx <- rep(focal_mm[, 1:2][i, 1], length(idx))
-            fy <- rep(focal_mm[, 1:2][i, 2], length(idx))
-
-            # Analog coordinates
-            ax <- ref_mm[, 1:2][idx, 1]
-            ay <- ref_mm[, 1:2][idx, 2]
-
-            df <- data.frame(
-                  focal_index = rep.int(i, length(idx)),
-                  focal_x = fx,
-                  focal_y = fy,
-                  analog_index = idx,
-                  analog_x = ax,
-                  analog_y = ay,
-                  stringsAsFactors = FALSE
-            )
-
-            if (isTRUE(report_dist)) {
-                  # Climate distances (Euclidean in climate space)
-                  v_i <- matrix(focal_mm[, 3:ncol(focal_mm)][i, ], nrow = 1)
-                  v_j <- ref_mm[, 3:ncol(ref_mm)][idx, , drop = FALSE]
-                  clim_d <- sqrt(rowSums((t(t(v_j) - as.numeric(v_i)))^2))
-
-                  # Geographic distances
-                  if (geo_mode == "lonlat") {
-                        geog_d <- .haversine_km(cbind(fx, fy), cbind(ax, ay))
-                  } else {
-                        geog_d <- sqrt((ax - fx)^2 + (ay - fy)^2)
-                  }
-
-                  df$clim_dist <- clim_d
-                  df$geog_dist <- geog_d
-            }
-
-            rows[[i]] <- df
-      }
-
-      # Handle case where all focal points have no matches
-      if (all(vapply(rows, is.null, logical(1)))) {
-            return(data.frame(
-                  focal_index = integer(0),
-                  focal_x = numeric(0),
-                  focal_y = numeric(0),
-                  analog_index = integer(0),
-                  analog_x = numeric(0),
-                  analog_y = numeric(0)
-            ))
-      }
-
-      do.call(rbind, rows)
 }
 
 

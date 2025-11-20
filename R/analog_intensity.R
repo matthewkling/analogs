@@ -40,6 +40,7 @@ analog_intensity <- function(
             weight     = c("uniform", "inverse_clim", "inverse_geog"),
             theta      = NULL,
             coord_type = "auto",
+            lattice_res = NULL,
             n_threads = NULL
 ) {
       weight <- match.arg(weight)
@@ -55,6 +56,7 @@ analog_intensity <- function(
             theta      = theta,
             coord_type = coord_type,
             report_dist = FALSE,       # no pairwise distances needed for sums
+            lattice_res = lattice_res,
             n_threads = n_threads
       )
 }

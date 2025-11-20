@@ -47,19 +47,20 @@ load_climate_rasters <- function() {
             terra::mean()
       t <- c(t1, t2) %>% scale_rast()
 
-      p1 <- rast(
-            "/Volumes/T7/CHELSA/v2/raw/CHELSA_bio12_1981-2010_V.2.1.tif"
-      ) %>%
+      p1 <- rast("/Volumes/T7/CHELSA/v2/raw/CHELSA_bio12_1981-2010_V.2.1.tif") %>%
             crop(bb)
       p2 <- list.files("/Volumes/T7/CHELSA/v2/cmip/", full.names = T)
       p2 <- p2[grepl("2071", p2) & grepl("126_pr_", p2)] %>%
             rast() %>%
             crop(bb) %>%
-            terra::mean()
+            terra::mean() %>% # average across months and GCMs
+            "*"(12) # convert monthly to annual to match baseline
       p <- c(p1, p2) %>% log() %>% scale_rast()
 
       clim1 <- c(t[[1]], p[[1]])
       clim2 <- c(t[[2]], p[[2]])
+
+      names(clim1) <- names(clim2) <- c("t", "p")
 
       return(list(clim1 = clim1, clim2 = clim2))
 }
@@ -67,66 +68,59 @@ load_climate_rasters <- function() {
 
 # benchmarks ----------------------------------------
 
-benchmark_velocity <- function(clim, n_focal = 100) {
+benchmark_velocity <- function(clim, n_focal = 100, ...) {
       # climate velocity: few focals, many refs
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
       st <- system.time({
-            a <- analog_velocity(focal, ref, max_clim = .5, k = 1)
+            a <- analog_velocity(focal, ref, max_clim = .5, k = 1, ...)
       })
       return(st[["elapsed"]])
-      # cat("velocity: ", st[["elapsed"]], "\n")
 }
 
-benchmark_impact <- function(clim, n_focal = 100) {
+benchmark_impact <- function(clim, n_focal = 100, ...) {
       # analog impact: dist and geo constraints; few focals, many refs
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
       st <- system.time({
-            a <- analog_impact(focal, ref, max_clim = NULL, max_geog = 3, k = 20)
+            a <- analog_impact(focal, ref, max_clim = NULL, max_geog = 3, k = 20, ...)
       })
       return(st[["elapsed"]])
-      # cat("impact: ", st[["elapsed"]], "\n")
 }
 
-benchmark_availability <- function(clim, n_focal = 100) {
+benchmark_availability <- function(clim, n_focal = 100, ...) {
       # single-era analog availability: few focals, many refs
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim1
       st <- system.time({
-            a <- analog_availability(focal, ref, max_geog = 3, max_clim = .5)
+            a <- analog_availability(focal, ref, max_geog = 3, max_clim = .5, ...)
       })
       return(st[["elapsed"]])
-      # cat("availability: ", st[["elapsed"]], "\n")
 }
 
-benchmark_intensity <- function(clim, n_focal = 100) {
+benchmark_intensity <- function(clim, n_focal = 100, ...) {
       # analog intensity: few focals, many refs
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
       st <- system.time({
-            a <- analog_intensity(focal, ref, max_geog = 3, max_clim = .5, weight = "inverse_clim")
+            a <- analog_intensity(focal, ref, max_geog = 3, max_clim = .5, weight = "inverse_clim", ...)
       })
       return(st[["elapsed"]])
-      # cat("intensity: ", st[["elapsed"]], "\n")
 }
 
 run_benchmarks <- function(
             clim = simulate_climate_rasters(1000),
-            n_threads = 8
+            n_focal = c(1e2, 1e3, 1e4, 1e5),
+            n_threads = 8,
+            lattice_res = 10
 ) {
 
       RcppParallel::setThreadOptions(numThreads = as.integer(n_threads))
 
-      n_focal <- c(100, 1000, 10000)
-
       bm <- function(n){
             data.frame(
                   n_focal = n,
-                  velocity = benchmark_velocity(clim, n)#,
-                  # impact = benchmark_impact(clim, n),
-                  # availability = benchmark_availability(clim, n),
-                  # intensity = benchmark_intensity(clim, n)
+                  velocity = benchmark_velocity(clim, n, coord_type = "projected", lattice_res = lattice_res)
             )
       }
 

@@ -11,6 +11,7 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include <chrono>
 
 using namespace Rcpp;
 using namespace analogs;
@@ -175,14 +176,60 @@ struct PairWorker : public Worker {
       {}
 
       void operator()(std::size_t begin, std::size_t end) {
-            const bool rank_by_clim = (mcode == ModeCode::KNN_CLIM);
+            const bool knn_mode      = (mcode == ModeCode::KNN_CLIM || mcode == ModeCode::KNN_GEOG);
+            const bool rank_by_clim  = (mcode == ModeCode::KNN_CLIM);
+            const bool rank_by_geog  = (mcode == ModeCode::KNN_GEOG);
 
             for (std::size_t i = begin; i < end; ++i) {
                   const double fx = focal_ptr[i];
                   const double fy = focal_ptr[i + stride_f];
                   const double* f_clim_col = focal_ptr + i + 2 * stride_f;
 
+                  // -----------------------------------------------------------------
+                  // Fast path: KNN modes + lattice + projected coordinates
+                  // Use Lattice::knn_query with expanding search over cells.
+                  // -----------------------------------------------------------------
+                  if (knn_mode &&
+                      use_lattice &&
+                      lattice_ptr != nullptr &&
+                      !use_haversine) {  // planar only for expanding-search v1
+
+                      double fgeo[2] = { fx, fy };
+                        std::vector<double> fclim_vec(n_clim);
+                        for (int kdim = 0; kdim < n_clim; ++kdim) {
+                              fclim_vec[kdim] = f_clim_col[kdim * stride_f];
+                        }
+
+                        std::vector<index_t> cand0;
+                        lattice_ptr->knn_query(
+                                    fgeo,
+                                    fclim_vec.data(),
+                                    ref_ptr,
+                                    static_cast<size_tu>(stride_r),
+                                    static_cast<size_tu>(n_clim),
+                                    /*rank_by_geog*/ rank_by_geog,
+                                    max_geog,
+                                    use_scalar_clim,
+                                    max_clim_pervar,
+                                    max_clim_scalar,
+                                    k,
+                                    cand0
+                        );
+
+                        // Convert 0-based indices to 1-based for R
+                        std::vector<int> keep(cand0.size());
+                        for (std::size_t t = 0; t < cand0.size(); ++t) {
+                              keep[t] = static_cast<int>(cand0[t]) + 1;
+                        }
+                        out_indices[i] = std::move(keep);
+                        continue;
+                  }
+
+                  // -----------------------------------------------------------------
+                  // Otherwise: use existing candidate generation (lattice query or brute)
+                  // -----------------------------------------------------------------
                   std::vector<index_t> cand;
+
                   if (use_lattice && lattice_ptr != nullptr) {
                         cand.reserve(128);
                         double q_geo[2] = { fx, fy };
@@ -195,11 +242,14 @@ struct PairWorker : public Worker {
                                            max_geog,
                                            use_scalar_clim,
                                            max_clim_pervar,
-                                           use_scalar_clim ? max_clim_scalar : std::numeric_limits<double>::infinity(),
-                                           cand);
+                                           use_scalar_clim ? max_clim_scalar
+                                                 : std::numeric_limits<double>::infinity(),
+                                                   cand);
                   } else {
                         cand.reserve(n_ref);
-                        for (int j = 0; j < n_ref; ++j) cand.push_back(static_cast<index_t>(j));
+                        for (int j = 0; j < n_ref; ++j) {
+                              cand.push_back(static_cast<index_t>(j));
+                        }
                   }
 
                   // ALL mode: keep all matches passing filters
@@ -235,7 +285,7 @@ struct PairWorker : public Worker {
                         continue;
                   }
 
-                  // kNN modes (Climate or Geog)
+                  // kNN modes (Climate or Geog) without expanding-search lattice path
                   using Neighbor = std::pair<double, int>; // (key_dist, ref_index_1based)
                   auto cmp = [](const Neighbor& a, const Neighbor& b) {
                         return a.first < b.first; // max-heap: top has largest distance
@@ -434,7 +484,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                        const std::string& geo_mode,
                        int mode_code,
                        int weight_code,
-                       double theta)
+                       double theta,
+                       int lattice_res)
 {
       const int n_focal = focal_mm.nrow();
       const int n_ref   = ref_mm.nrow();
@@ -480,6 +531,24 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
 
       // Decide whether to use lattice index
       const bool use_lattice = (use_geog_filter || use_scalar_clim || use_pervar_clim);
+      const ModeCode   mcode = static_cast<ModeCode>(mode_code);
+      const WeightCode wcode = static_cast<WeightCode>(weight_code);
+
+      // Dimension roles
+      const bool geo_filter  = use_geog_filter;
+      const bool clim_filter = (use_scalar_clim || use_pervar_clim);
+      const bool geo_sort    = (mcode == ModeCode::KNN_GEOG);
+      const bool clim_sort   = (mcode == ModeCode::KNN_CLIM);
+
+      // Which dims participate in the lattice
+      const bool use_geo_lattice  = (geo_filter  || geo_sort);
+      const bool use_clim_lattice = (clim_filter || clim_sort);
+
+      // Lattice resolution (bins per active dimension)
+      int bins_per_dim = lattice_res;
+      if (bins_per_dim <= 0) {
+            bins_per_dim = 10; // simple default; will later be replaced by choose_res
+      }
 
       // Build lattice if useful
       Lattice lattice;
@@ -487,6 +556,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       double  avg_bin_occupancy = static_cast<double>(n_ref);
       double  min_bin_occupancy = static_cast<double>(n_ref);
       double  max_bin_occupancy = static_cast<double>(n_ref);
+      double  n_bins_nonempty = 1.0;
+      double  avg_nonempty_bin_occupancy = static_cast<double>(n_ref);
       std::string binning_method = "none";
 
       if (use_lattice) {
@@ -500,7 +571,11 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                           max_geog,
                           use_scalar_clim,
                           max_clim_pervar_std,
-                          use_scalar_clim ? max_clim_scalar : std::numeric_limits<double>::infinity());
+                          use_scalar_clim ? max_clim_scalar
+                                : std::numeric_limits<double>::infinity(),
+                                  bins_per_dim,
+                                  use_geo_lattice,
+                                  use_clim_lattice);
 
             total_bins = static_cast<double>(lattice.total_bins);
             if (lattice.total_bins > 0) {
@@ -508,6 +583,16 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                         static_cast<double>(lattice.n_points) /
                               static_cast<double>(lattice.total_bins);
             }
+
+            n_bins_nonempty = static_cast<double>(lattice.n_cells_nonempty);
+            if (lattice.n_cells_nonempty > 0) {
+                  avg_nonempty_bin_occupancy =
+                        static_cast<double>(lattice.n_points) /
+                              static_cast<double>(lattice.n_cells_nonempty);
+            } else {
+                  avg_nonempty_bin_occupancy = 0.0;
+            }
+
             if (lattice.min_cell_occ == std::numeric_limits<size_tu>::max()) {
                   min_bin_occupancy = 0.0;
                   max_bin_occupancy = 0.0;
@@ -516,10 +601,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                   max_bin_occupancy = static_cast<double>(lattice.max_cell_occ);
             }
             binning_method = "multi_dim_lattice";
-      }
 
-      const ModeCode   mcode = static_cast<ModeCode>(mode_code);
-      const WeightCode wcode = static_cast<WeightCode>(weight_code);
+      }
 
       const bool return_pairs =
             (mcode == ModeCode::KNN_CLIM ||
@@ -573,6 +656,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
             out.attr("avg_bin_occupancy") = avg_bin_occupancy;
             out.attr("min_bin_occupancy") = min_bin_occupancy;
             out.attr("max_bin_occupancy") = max_bin_occupancy;
+            out.attr("n_bins_nonempty")               = n_bins_nonempty;
+            out.attr("avg_nonempty_bin_occupancy")    = avg_nonempty_bin_occupancy;
 
             return out;
       }
@@ -614,6 +699,452 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       agg.attr("avg_bin_occupancy") = avg_bin_occupancy;
       agg.attr("min_bin_occupancy") = min_bin_occupancy;
       agg.attr("max_bin_occupancy") = max_bin_occupancy;
+      agg.attr("n_bins_nonempty")               = n_bins_nonempty;
+      agg.attr("avg_nonempty_bin_occupancy")    = avg_nonempty_bin_occupancy;
 
       return agg;
+}
+
+
+
+// -------------------------------------------------------------------------
+// KNN lattice benchmark helper
+//
+// - Builds Lattice with the same logic as find_analogs_core
+// - Requires geo_mode = "projected" so !use_haversine and KNN lattice path
+// - For each focal, calls Lattice::knn_query, measures total KNN time
+// - Returns lattice diagnostics and neighbor count summaries
+// -------------------------------------------------------------------------
+// [[Rcpp::export]]
+Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
+                          const NumericMatrix& ref_mm,
+                          int k,
+                          const NumericVector& max_clim,
+                          double max_geog,
+                          const std::string& geo_mode,
+                          int mode_code)
+{
+      const int n_focal = focal_mm.nrow();
+      const int n_ref   = ref_mm.nrow();
+
+      const int ncol_focal = focal_mm.ncol();
+      const int ncol_ref   = ref_mm.ncol();
+      if (ncol_focal != ncol_ref) {
+            stop("focal and ref must have the same number of columns");
+      }
+      if (ncol_focal < 3) {
+            stop("Need at least 2 coordinate columns and 1 climate variable");
+      }
+
+      if (k <= 0) {
+            stop("k must be positive for bench_knn_core");
+      }
+
+      // Parse geometry mode
+      const bool use_haversine = (geo_mode == "lonlat");
+      if (use_haversine) {
+            stop("bench_knn_core currently supports only geo_mode = 'projected' (planar) for KNN lattice benchmarking");
+      }
+
+      // Climate dims
+      const int n_clim = ncol_focal - 2;
+
+      // Interpret max_clim exactly as in find_analogs_core
+      bool   use_scalar_clim = false;
+      bool   use_pervar_clim = false;
+      double max_clim_scalar = std::numeric_limits<double>::infinity();
+      std::vector<double> max_clim_pervar_std(
+                  n_clim, std::numeric_limits<double>::infinity()
+      );
+
+      if (max_clim.size() == 1) {
+            double v = max_clim[0];
+            if (std::isfinite(v)) {
+                  use_scalar_clim = true;
+                  max_clim_scalar = v;
+            }
+      } else if (max_clim.size() == n_clim) {
+            for (int i = 0; i < n_clim; ++i) {
+                  max_clim_pervar_std[i] = max_clim[i];
+            }
+            use_pervar_clim = true;
+      } else if (max_clim.size() > 1) {
+            stop("max_clim must be length 1 or equal to the number of climate variables");
+      }
+
+      const bool use_geog_filter = std::isfinite(max_geog);
+      const bool use_lattice     = (use_geog_filter || use_scalar_clim || use_pervar_clim);
+
+      if (!use_lattice) {
+            stop("bench_knn_core: lattice will not be used (no finite max_geog or max_clim); nothing to benchmark");
+      }
+
+      // Mode (must be one of the KNN modes)
+      ModeCode mcode = static_cast<ModeCode>(mode_code);
+      const bool knn_mode     = (mcode == ModeCode::KNN_CLIM || mcode == ModeCode::KNN_GEOG);
+      const bool rank_by_geog = (mcode == ModeCode::KNN_GEOG);
+
+      if (!knn_mode) {
+            stop("bench_knn_core: mode_code must correspond to KNN_CLIM or KNN_GEOG");
+      }
+
+      const bool geo_filter  = use_geog_filter;
+      const bool clim_filter = (use_scalar_clim || use_pervar_clim);
+      const bool geo_sort    = (mcode == ModeCode::KNN_GEOG);
+      const bool clim_sort   = (mcode == ModeCode::KNN_CLIM);
+
+      const bool use_geo_lattice  = (geo_filter  || geo_sort);
+      const bool use_clim_lattice = (clim_filter || clim_sort);
+
+      int bins_per_dim = 10; // hard-coded for now; can be tuned later
+
+
+      // Build lattice (planar metric)
+      Lattice lattice;
+      double  total_bins         = 1.0;
+      double  avg_bin_occupancy  = static_cast<double>(n_ref);
+      double  min_bin_occupancy  = static_cast<double>(n_ref);
+      double  max_bin_occupancy  = static_cast<double>(n_ref);
+      double  build_time_ms      = 0.0;
+      double  knn_time_ms        = 0.0;
+
+      {
+            MetricType metric = MetricType::Planar;
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+            lattice.build(REAL(ref_mm),
+                          static_cast<size_tu>(n_ref),
+                          static_cast<size_tu>(n_clim),
+                          static_cast<size_tu>(n_ref), // stride_r
+                          metric,
+                          max_geog,
+                          use_scalar_clim,
+                          max_clim_pervar_std,
+                          use_scalar_clim ? max_clim_scalar
+                                : std::numeric_limits<double>::infinity(),
+                                  bins_per_dim,
+                                  use_geo_lattice,
+                                  use_clim_lattice);
+            auto t1 = std::chrono::high_resolution_clock::now();
+            build_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+            total_bins = static_cast<double>(lattice.total_bins);
+            if (lattice.total_bins > 0) {
+                  avg_bin_occupancy =
+                        static_cast<double>(lattice.n_points) /
+                              static_cast<double>(lattice.total_bins);
+            }
+            if (lattice.min_cell_occ == std::numeric_limits<size_tu>::max()) {
+                  min_bin_occupancy = 0.0;
+                  max_bin_occupancy = 0.0;
+            } else {
+                  min_bin_occupancy = static_cast<double>(lattice.min_cell_occ);
+                  max_bin_occupancy = static_cast<double>(lattice.max_cell_occ);
+            }
+      }
+
+      // KNN over focal points (mirrors PairWorker fast path, but sequential)
+      const double* focal_ptr = REAL(focal_mm);
+      const double* ref_ptr   = REAL(ref_mm);
+      const int     stride_f  = n_focal;
+      const int     stride_r  = n_ref;
+
+      std::vector<double> neighbor_counts(n_focal, 0.0);
+
+      auto tq0 = std::chrono::high_resolution_clock::now();
+
+      std::vector<index_t> cand0;
+      cand0.reserve(static_cast<std::size_t>(k));
+
+      for (int i = 0; i < n_focal; ++i) {
+            const double fx = focal_ptr[i];
+            const double fy = focal_ptr[i + stride_f];
+            const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+
+            double fgeo[2] = { fx, fy };
+            std::vector<double> fclim_vec(n_clim);
+            for (int kdim = 0; kdim < n_clim; ++kdim) {
+                  fclim_vec[kdim] = f_clim_col[kdim * stride_f];
+            }
+
+            cand0.clear();
+            lattice.knn_query(
+                  fgeo,
+                  fclim_vec.data(),
+                  ref_ptr,
+                  static_cast<size_tu>(stride_r),
+                  static_cast<size_tu>(n_clim),
+                  /*rank_by_geog*/ rank_by_geog,
+                  max_geog,
+                  use_scalar_clim,
+                  max_clim_pervar_std,
+                  max_clim_scalar,
+                  k,
+                  cand0
+            );
+
+            neighbor_counts[i] = static_cast<double>(cand0.size());
+      }
+
+      auto tq1 = std::chrono::high_resolution_clock::now();
+      knn_time_ms = std::chrono::duration<double, std::milli>(tq1 - tq0).count();
+
+      // Summaries of neighbor counts (normally <= k)
+      double mean_neighbors = 0.0;
+      double p95_neighbors  = 0.0;
+      double min_neighbors  = 0.0;
+      double max_neighbors  = 0.0;
+
+      if (n_focal > 0) {
+            std::vector<double> tmp = neighbor_counts;
+            double sum = 0.0;
+            min_neighbors = neighbor_counts[0];
+            max_neighbors = neighbor_counts[0];
+
+            for (int i = 0; i < n_focal; ++i) {
+                  const double v = neighbor_counts[i];
+                  sum += v;
+                  if (v < min_neighbors) min_neighbors = v;
+                  if (v > max_neighbors) max_neighbors = v;
+            }
+            mean_neighbors = sum / static_cast<double>(n_focal);
+
+            std::sort(tmp.begin(), tmp.end());
+            std::size_t idx95 = static_cast<std::size_t>(
+                  std::floor(0.95 * (static_cast<double>(n_focal) - 1.0))
+            );
+            p95_neighbors = tmp[idx95];
+      }
+
+      return Rcpp::List::create(
+            Rcpp::Named("n_focal")            = n_focal,
+            Rcpp::Named("n_ref")              = n_ref,
+            Rcpp::Named("n_clim")             = n_clim,
+            Rcpp::Named("k")                  = k,
+            Rcpp::Named("geo_mode")           = geo_mode,
+            Rcpp::Named("mode_code")          = mode_code,
+            Rcpp::Named("use_lattice")        = use_lattice,
+            Rcpp::Named("build_time_ms")      = build_time_ms,
+            Rcpp::Named("knn_time_ms")        = knn_time_ms,
+            Rcpp::Named("total_bins")         = total_bins,
+            Rcpp::Named("avg_bin_occupancy")  = avg_bin_occupancy,
+            Rcpp::Named("min_bin_occupancy")  = min_bin_occupancy,
+            Rcpp::Named("max_bin_occupancy")  = max_bin_occupancy,
+            Rcpp::Named("neighbor_counts")    = neighbor_counts,
+            Rcpp::Named("mean_neighbors")     = mean_neighbors,
+            Rcpp::Named("p95_neighbors")      = p95_neighbors,
+            Rcpp::Named("min_neighbors")      = min_neighbors,
+            Rcpp::Named("max_neighbors")      = max_neighbors
+      );
+}
+
+
+// -------------------------------------------------------------------------
+// Internal lattice benchmark helper
+//
+// - Builds lattice with same logic as find_analogs_core.
+// - For each focal, calls lattice.query() and records candidate count
+//   *before* the expensive distance checks.
+// - Returns timing and sparsity diagnostics.
+// -------------------------------------------------------------------------
+// [[Rcpp::export]]
+Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
+                              const NumericMatrix& ref_mm,
+                              const NumericVector& max_clim,
+                              double max_geog,
+                              const std::string& geo_mode)
+{
+      const int n_focal = focal_mm.nrow();
+      const int n_ref   = ref_mm.nrow();
+
+      const int ncol_focal = focal_mm.ncol();
+      const int ncol_ref   = ref_mm.ncol();
+      if (ncol_focal != ncol_ref) {
+            Rcpp::stop("focal and ref must have the same number of columns");
+      }
+      if (ncol_focal < 3) {
+            Rcpp::stop("Need at least 2 coordinate columns and 1 climate variable");
+      }
+
+      const bool use_haversine = (geo_mode == "lonlat");
+      const int  n_clim        = ncol_focal - 2;
+
+      // Interpret max_clim (same logic as find_analogs_core)
+      bool   use_scalar_clim = false;
+      bool   use_pervar_clim = false;
+      double max_clim_scalar = std::numeric_limits<double>::infinity();
+      std::vector<double> max_clim_pervar_std(
+                  n_clim, std::numeric_limits<double>::infinity()
+      );
+
+      if (max_clim.size() == 1) {
+            double v = max_clim[0];
+            if (std::isfinite(v)) {
+                  use_scalar_clim = true;
+                  max_clim_scalar = v;
+            }
+      } else if (max_clim.size() == n_clim) {
+            for (int i = 0; i < n_clim; ++i) {
+                  max_clim_pervar_std[i] = max_clim[i];
+            }
+            use_pervar_clim = true;
+      } else if (max_clim.size() > 1) {
+            Rcpp::stop("max_clim must be length 1 or equal to the number of climate variables");
+      }
+
+      const bool use_geog_filter = std::isfinite(max_geog);
+      const bool use_lattice     = (use_geog_filter || use_scalar_clim || use_pervar_clim);
+
+      Lattice lattice;
+      const bool geo_filter  = use_geog_filter;
+      const bool clim_filter = (use_scalar_clim || use_pervar_clim);
+      const bool use_geo_lattice  = geo_filter;
+      const bool use_clim_lattice = clim_filter;
+
+      int bins_per_dim = 10; // hard-coded dev default
+
+      double  total_bins = 1.0;
+      double  avg_bin_occupancy = static_cast<double>(n_ref);
+      double  min_bin_occupancy = static_cast<double>(n_ref);
+      double  max_bin_occupancy = static_cast<double>(n_ref);
+      double  n_bins_nonempty   = 1.0;
+      double  avg_nonempty_bin_occupancy = static_cast<double>(n_ref);
+
+      double build_time_ms = 0.0;
+      double query_time_ms = 0.0;
+
+      if (use_lattice) {
+            MetricType metric = use_haversine ? MetricType::Haversine
+            : MetricType::Planar;
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+            lattice.build(REAL(ref_mm),
+                          static_cast<size_tu>(n_ref),
+                          static_cast<size_tu>(n_clim),
+                          static_cast<size_tu>(n_ref), // stride_r
+                          metric,
+                          max_geog,
+                          use_scalar_clim,
+                          max_clim_pervar_std,
+                          use_scalar_clim ? max_clim_scalar
+                                : std::numeric_limits<double>::infinity(),
+                                  bins_per_dim,
+                                  use_geo_lattice,
+                                  use_clim_lattice);
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            build_time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+            total_bins = static_cast<double>(lattice.total_bins);
+            if (lattice.total_bins > 0) {
+                  avg_bin_occupancy =
+                        static_cast<double>(lattice.n_points) /
+                              static_cast<double>(lattice.total_bins);
+            }
+
+            n_bins_nonempty = static_cast<double>(lattice.n_cells_nonempty);
+            if (lattice.n_cells_nonempty > 0) {
+                  avg_nonempty_bin_occupancy =
+                        static_cast<double>(lattice.n_points) /
+                              static_cast<double>(lattice.n_cells_nonempty);
+            } else {
+                  avg_nonempty_bin_occupancy = 0.0;
+            }
+
+            if (lattice.min_cell_occ == std::numeric_limits<size_tu>::max()) {
+                  min_bin_occupancy = 0.0;
+                  max_bin_occupancy = 0.0;
+            } else {
+                  min_bin_occupancy = static_cast<double>(lattice.min_cell_occ);
+                  max_bin_occupancy = static_cast<double>(lattice.max_cell_occ);
+            }
+      }
+
+      // Per-focal candidate counts from lattice.query()
+      std::vector<double> cand_counts(n_focal, 0.0);
+
+      if (use_lattice) {
+            auto tq0 = std::chrono::high_resolution_clock::now();
+
+            const double* focal_ptr = REAL(focal_mm);
+            const int     stride_f  = n_focal;
+
+            std::vector<index_t> cand;
+            cand.reserve(128);
+
+            for (int i = 0; i < n_focal; ++i) {
+                  const double fx = focal_ptr[i];
+                  const double fy = focal_ptr[i + stride_f];
+                  const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+
+                  double q_geo[2] = { fx, fy };
+                  std::vector<double> q_clim(n_clim);
+                  for (int kdim = 0; kdim < n_clim; ++kdim) {
+                        q_clim[kdim] = f_clim_col[kdim * stride_f];
+                  }
+
+                  cand.clear();
+                  lattice.query(q_geo,
+                                q_clim.data(),
+                                max_geog,
+                                use_scalar_clim,
+                                max_clim_pervar_std,
+                                use_scalar_clim ? max_clim_scalar
+                                      : std::numeric_limits<double>::infinity(),
+                                        cand);
+
+                  cand_counts[i] = static_cast<double>(cand.size());
+            }
+
+            auto tq1 = std::chrono::high_resolution_clock::now();
+            query_time_ms = std::chrono::duration<double, std::milli>(tq1 - tq0).count();
+      } else {
+            // No lattice: all refs are candidates
+            for (int i = 0; i < n_focal; ++i) {
+                  cand_counts[i] = static_cast<double>(n_ref);
+            }
+      }
+
+      // Summaries of candidate counts
+      double mean_candidates = 0.0;
+      double p95_candidates  = 0.0;
+      double max_candidates  = 0.0;
+
+      if (n_focal > 0) {
+            double sum = 0.0;
+            for (int i = 0; i < n_focal; ++i) {
+                  sum += cand_counts[i];
+                  if (cand_counts[i] > max_candidates) {
+                        max_candidates = cand_counts[i];
+                  }
+            }
+            mean_candidates = sum / static_cast<double>(n_focal);
+
+            std::vector<double> tmp = cand_counts;
+            std::sort(tmp.begin(), tmp.end());
+            std::size_t idx95 = static_cast<std::size_t>(
+                  std::floor(0.95 * (static_cast<double>(n_focal) - 1.0))
+            );
+            p95_candidates = tmp[idx95];
+      }
+
+      return Rcpp::List::create(
+            Rcpp::Named("n_focal")                     = n_focal,
+            Rcpp::Named("n_ref")                       = n_ref,
+            Rcpp::Named("n_clim")                      = n_clim,
+            Rcpp::Named("geo_mode")                    = geo_mode,
+            Rcpp::Named("use_lattice")                 = use_lattice,
+            Rcpp::Named("build_time_ms")               = build_time_ms,
+            Rcpp::Named("query_time_ms")               = query_time_ms,
+            Rcpp::Named("total_bins")                  = total_bins,
+            Rcpp::Named("n_bins_nonempty")             = n_bins_nonempty,
+            Rcpp::Named("avg_bin_occupancy")           = avg_bin_occupancy,
+            Rcpp::Named("avg_nonempty_bin_occupancy")  = avg_nonempty_bin_occupancy,
+            Rcpp::Named("min_bin_occupancy")           = min_bin_occupancy,
+            Rcpp::Named("max_bin_occupancy")           = max_bin_occupancy,
+            Rcpp::Named("cand_counts")                 = cand_counts,
+            Rcpp::Named("mean_candidates")             = mean_candidates,
+            Rcpp::Named("p95_candidates")              = p95_candidates,
+            Rcpp::Named("max_candidates")              = max_candidates
+      );
 }

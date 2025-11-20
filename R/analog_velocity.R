@@ -69,6 +69,7 @@ analog_velocity <- function(
             max_geog = NULL,
             coord_type = "auto",
             report_dist = TRUE,
+            lattice_res = NULL,
             n_threads = NULL
 ) {
       find_analogs(
@@ -82,6 +83,7 @@ analog_velocity <- function(
             theta      = NULL,
             coord_type = coord_type,
             report_dist = report_dist,
+            lattice_res = lattice_res,
             n_threads   = n_threads
       )
 }
