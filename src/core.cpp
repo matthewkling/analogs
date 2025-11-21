@@ -102,6 +102,14 @@ inline void lonlat_to_ecef(double lon_deg, double lat_deg, double R,
       Z = R * std::sin(lat);
 }
 
+// Convert geographic distance threshold (km) to ECEF chord distance (km)
+inline double km_to_chord(double km_dist, double R) {
+      // arc_distance = km_dist
+      // central_angle = arc_distance / R (radians)
+      // chord_distance = 2 * R * sin(central_angle / 2)
+      const double central_angle = km_dist / R;
+      return 2.0 * R * std::sin(0.5 * central_angle);
+}
 
 inline double weight_from_codes(WeightCode wc,
                                 double clim_dist,
@@ -145,17 +153,18 @@ struct PairWorker : public Worker {
       bool use_haversine;
       bool use_scalar_clim;
       bool use_pervar_clim;
-      bool ecef_knn_mode;           // lon/lat + knn_geog => ECEF chord search
+      bool use_ecef;                // NEW: true when lonlat + geog filtering → use ECEF
 
       double max_clim_scalar;
       double max_geog;
+      double max_geog_chord;        // NEW: chord distance threshold for ECEF mode
       std::vector<double> max_clim_pervar;
 
       ModeCode mcode;
       int k;                        // k for kNN modes (>=1), ignored for ALL
       Lattice* lattice_ptr;         // may be nullptr if !use_lattice
 
-      double R_earth;               // Earth radius (km), used only if ecef_knn_mode
+      double R_earth;               // Earth radius (km)
 
       std::vector< std::vector<int> >& out_indices;
 
@@ -170,11 +179,12 @@ struct PairWorker : public Worker {
                  bool use_pervar_clim_,
                  double max_clim_scalar_,
                  double max_geog_,
+                 double max_geog_chord_,
                  const std::vector<double>& max_clim_pervar_,
                  ModeCode mcode_,
                  int k_,
                  Lattice* lattice_ptr_,
-                 bool ecef_knn_mode_,
+                 bool use_ecef_,
                  double R_earth_,
                  std::vector< std::vector<int> >& out_indices_)
             : focal_ptr(REAL(focal_mm)),
@@ -191,9 +201,10 @@ struct PairWorker : public Worker {
               use_haversine(use_haversine_),
               use_scalar_clim(use_scalar_clim_),
               use_pervar_clim(use_pervar_clim_),
-              ecef_knn_mode(ecef_knn_mode_),
+              use_ecef(use_ecef_),
               max_clim_scalar(max_clim_scalar_),
               max_geog(max_geog_),
+              max_geog_chord(max_geog_chord_),
               max_clim_pervar(max_clim_pervar_),
               mcode(mcode_),
               k(k_),
@@ -213,19 +224,17 @@ struct PairWorker : public Worker {
                   const double* f_clim_col = focal_ptr + i + 2 * stride_f;
 
                   // -----------------------------------------------------------------
-                  // Fast path: KNN modes + lattice
-                  //   - Planar projected: 2D Euclidean
-                  //   - Lon/lat + knn_geog: 3D ECEF chord
+                  // Fast path: KNN modes + lattice + (planar OR ECEF)
                   // -----------------------------------------------------------------
                   if (knn_mode &&
                       use_lattice &&
                       lattice_ptr != nullptr &&
-                      (!use_haversine || ecef_knn_mode)) {
+                      (!use_haversine || use_ecef)) {
 
                         const size_tu n_geo = lattice_ptr->n_geo_dims;
                         std::vector<double> fgeo_vec(n_geo);
 
-                        if (ecef_knn_mode) {
+                        if (use_ecef) {
                               // Convert lon/lat (degrees) to ECEF (km)
                               double X, Y, Z;
                               lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
@@ -243,6 +252,9 @@ struct PairWorker : public Worker {
                               fclim_vec[kdim] = f_clim_col[kdim * stride_f];
                         }
 
+                        // Use chord distance threshold for ECEF, regular for planar
+                        const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
+
                         std::vector<index_t> cand0;
                         lattice_ptr->knn_query(
                                     fgeo_vec.data(),
@@ -251,7 +263,7 @@ struct PairWorker : public Worker {
                                     static_cast<size_tu>(stride_latt_r),
                                     static_cast<size_tu>(n_clim),
                                     /*rank_by_geog*/ rank_by_geog,
-                                    max_geog,
+                                    geog_thresh,
                                     use_scalar_clim,
                                     max_clim_pervar,
                                     max_clim_scalar,
@@ -275,14 +287,30 @@ struct PairWorker : public Worker {
 
                   if (use_lattice && lattice_ptr != nullptr) {
                         cand.reserve(128);
-                        double q_geo[2] = { fx, fy };
+
+                        // Query lattice - use ECEF coords if applicable
+                        double q_geo[3]; // max 3 for ECEF
+                        if (use_ecef) {
+                              double X, Y, Z;
+                              lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
+                              q_geo[0] = X;
+                              q_geo[1] = Y;
+                              q_geo[2] = Z;
+                        } else {
+                              q_geo[0] = fx;
+                              q_geo[1] = fy;
+                        }
+
                         std::vector<double> q_clim(n_clim);
                         for (int kdim = 0; kdim < n_clim; ++kdim) {
                               q_clim[kdim] = f_clim_col[kdim * stride_f];
                         }
+
+                        const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
+
                         lattice_ptr->query(q_geo,
                                            q_clim.data(),
-                                           max_geog,
+                                           geog_thresh,
                                            use_scalar_clim,
                                            max_clim_pervar,
                                            use_scalar_clim ? max_clim_scalar
@@ -300,6 +328,12 @@ struct PairWorker : public Worker {
                         std::vector<int> keep;
                         keep.reserve(cand.size());
 
+                        // ECEF focal coords (if needed)
+                        double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
+                        if (use_ecef) {
+                              lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
+                        }
+
                         for (size_t t = 0; t < cand.size(); ++t) {
                               const int j = static_cast<int>(cand[t]);
                               const double rx = ref_ptr[j];
@@ -307,8 +341,21 @@ struct PairWorker : public Worker {
 
                               // Geog filter
                               if (use_geog_filter) {
-                                    const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                                    if (gdist > max_geog) continue;
+                                    double gdist;
+                                    if (use_ecef) {
+                                          // Use ECEF chord distance
+                                          const double rx_ecef = ref_latt_ptr[j];
+                                          const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
+                                          const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
+                                          const double dx = fx_ecef - rx_ecef;
+                                          const double dy = fy_ecef - ry_ecef;
+                                          const double dz = fz_ecef - rz_ecef;
+                                          gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
+                                          if (gdist > max_geog_chord) continue;
+                                    } else {
+                                          gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                                          if (gdist > max_geog) continue;
+                                    }
                               }
 
                               // Climate checks
@@ -335,14 +382,33 @@ struct PairWorker : public Worker {
                   };
                   std::priority_queue<Neighbor, std::vector<Neighbor>, decltype(cmp)> pq(cmp);
 
+                  // ECEF focal coords (if needed)
+                  double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
+                  if (use_ecef) {
+                        lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
+                  }
+
                   for (size_t t = 0; t < cand.size(); ++t) {
                         const int j = static_cast<int>(cand[t]);
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
                         // Geog distance & filter
-                        const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                        if (use_geog_filter && gdist > max_geog) continue;
+                        double gdist;
+                        if (use_ecef) {
+                              // Use ECEF chord distance
+                              const double rx_ecef = ref_latt_ptr[j];
+                              const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
+                              const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
+                              const double dx = fx_ecef - rx_ecef;
+                              const double dy = fy_ecef - ry_ecef;
+                              const double dz = fz_ecef - rz_ecef;
+                              gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
+                              if (use_geog_filter && gdist > max_geog_chord) continue;
+                        } else {
+                              gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                              if (use_geog_filter && gdist > max_geog) continue;
+                        }
 
                         // Climate checks & distance
                         const double* r_clim_col = ref_ptr + j + 2 * stride_r;
@@ -386,36 +452,39 @@ struct PairWorker : public Worker {
 struct AggWorker : public Worker {
       const double* focal_ptr;
       const double* ref_ptr;
+      const double* ref_latt_ptr;   // ECEF+clim matrix if use_ecef, else ref_ptr
       int n_focal;
       int n_ref;
       int n_clim;
       int stride_f;
       int stride_r;
+      int stride_latt_r;
 
       bool use_lattice;
       bool use_geog_filter;
       bool use_haversine;
       bool use_scalar_clim;
       bool use_pervar_clim;
+      bool use_ecef;                // NEW: use ECEF for geog filtering
 
       double max_clim_scalar;
       double max_geog;
+      double max_geog_chord;        // NEW: chord threshold for ECEF
       std::vector<double> max_clim_pervar;
 
       ModeCode mcode;
       WeightCode wcode;
       double theta;
 
-      Lattice* lattice_ptr;    // may be nullptr if !use_lattice
-
-      // ECEF / lonlat settings
-      bool   ecef_knn_mode;    // lon/lat + kNN-geog => lattice is in ECEF
-      double R_earth;          // km
+      Lattice* lattice_ptr;
+      double R_earth;
 
       std::vector<double>& agg; // output
 
       AggWorker(const NumericMatrix& focal_mm,
                 const NumericMatrix& ref_mm,
+                const double* ref_latt_ptr_,
+                int stride_latt_r_,
                 bool use_lattice_,
                 bool use_geog_filter_,
                 bool use_haversine_,
@@ -423,34 +492,38 @@ struct AggWorker : public Worker {
                 bool use_pervar_clim_,
                 double max_clim_scalar_,
                 double max_geog_,
+                double max_geog_chord_,
                 const std::vector<double>& max_clim_pervar_,
                 ModeCode mcode_,
                 WeightCode wcode_,
                 double theta_,
                 Lattice* lattice_ptr_,
-                bool ecef_knn_mode_,
+                bool use_ecef_,
                 double R_earth_,
                 std::vector<double>& agg_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
+              ref_latt_ptr(ref_latt_ptr_),
               n_focal(focal_mm.nrow()),
               n_ref(ref_mm.nrow()),
               n_clim(focal_mm.ncol() - 2),
               stride_f(focal_mm.nrow()),
               stride_r(ref_mm.nrow()),
+              stride_latt_r(stride_latt_r_),
               use_lattice(use_lattice_),
               use_geog_filter(use_geog_filter_),
               use_haversine(use_haversine_),
               use_scalar_clim(use_scalar_clim_),
               use_pervar_clim(use_pervar_clim_),
+              use_ecef(use_ecef_),
               max_clim_scalar(max_clim_scalar_),
               max_geog(max_geog_),
+              max_geog_chord(max_geog_chord_),
               max_clim_pervar(max_clim_pervar_),
               mcode(mcode_),
               wcode(wcode_),
               theta(theta_),
               lattice_ptr(lattice_ptr_),
-              ecef_knn_mode(ecef_knn_mode_),
               R_earth(R_earth_),
               agg(agg_)
       {}
@@ -466,11 +539,10 @@ struct AggWorker : public Worker {
                   if (use_lattice && lattice_ptr != nullptr) {
                         cand.reserve(128);
 
-                        // Use the lattice's geo dimension count.
                         const size_tu n_geo = lattice_ptr->n_geo_dims;
                         std::vector<double> q_geo(n_geo);
 
-                        if (ecef_knn_mode && n_geo == 3) {
+                        if (use_ecef && n_geo == 3) {
                               // Lattice was built in ECEF; query in ECEF.
                               double X, Y, Z;
                               lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
@@ -488,10 +560,12 @@ struct AggWorker : public Worker {
                               q_clim[kdim] = f_clim_col[kdim * stride_f];
                         }
 
+                        const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
+
                         lattice_ptr->query(
                                     q_geo.data(),
                                     q_clim.data(),
-                                    max_geog,
+                                    geog_thresh,
                                     use_scalar_clim,
                                     max_clim_pervar,
                                     use_scalar_clim
@@ -511,14 +585,33 @@ struct AggWorker : public Worker {
                   double sum_w = 0.0;
                   int    count = 0;
 
+                  // ECEF focal coords (if needed)
+                  double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
+                  if (use_ecef) {
+                        lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
+                  }
+
                   for (size_t t = 0; t < cand.size(); ++t) {
                         const int j = static_cast<int>(cand[t]);
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
-                        // Geog filter (in original space: planar or Haversine)
-                        const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                        if (use_geog_filter && gdist > max_geog) continue;
+                        // Geog filter (in original space: planar, Haversine, or ECEF)
+                        double gdist;
+                        if (use_ecef) {
+                              // Use ECEF chord distance
+                              const double rx_ecef = ref_latt_ptr[j];
+                              const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
+                              const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
+                              const double dx = fx_ecef - rx_ecef;
+                              const double dy = fy_ecef - ry_ecef;
+                              const double dz = fz_ecef - rz_ecef;
+                              gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
+                              if (use_geog_filter && gdist > max_geog_chord) continue;
+                        } else {
+                              gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                              if (use_geog_filter && gdist > max_geog) continue;
+                        }
 
                         // Climate checks & distance
                         const double* r_clim_col = ref_ptr + j + 2 * stride_r;
@@ -534,7 +627,6 @@ struct AggWorker : public Worker {
                         ++count;
 
                         if (mcode == ModeCode::SUM || mcode == ModeCode::MEAN) {
-                              // Use existing helper to map WeightCode -> weight
                               double w = weight_from_codes(wcode, clim_dist, gdist, theta);
                               sum   += w * 1.0;
                               sum_w += w;
@@ -637,8 +729,12 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       // Lattice resolution (bins per active dimension)
       int bins_per_dim = lattice_res;
       if (bins_per_dim <= 0) {
-            bins_per_dim = 10; // simple default; will later be replaced by choose_res
+            bins_per_dim = 10;
       }
+
+      // Decide if we should use ECEF
+      // Use ECEF whenever we have lonlat coords AND geographic filtering
+      const bool use_ecef = (use_haversine && (geo_sort || use_geog_filter));
 
       // Lattice and diagnostics
       Lattice lattice;
@@ -651,22 +747,22 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       std::string binning_method = "none";
 
       // Pointer and storage for coordinates used by the lattice.
-      // For planar / non-ECEF cases, this is just REAL(ref_mm).
-      // For lon/lat + knn_geog, this is an ECEF+climate matrix.
       const double* ref_latt_ptr = REAL(ref_mm);
       int stride_latt_r = n_ref;
       std::vector<double> ref_latt_storage;
 
-      const bool knn_mode     = (mcode == ModeCode::KNN_CLIM || mcode == ModeCode::KNN_GEOG);
-      const bool rank_by_geog = (mcode == ModeCode::KNN_GEOG);
       const double R_earth = 6371.0088; // km
-      const bool ecef_knn_mode = (use_haversine && knn_mode && rank_by_geog);
+
+      // Convert km threshold to chord distance
+      const double max_geog_chord = (use_ecef && std::isfinite(max_geog))
+            ? km_to_chord(max_geog, R_earth)
+                  : max_geog;
 
       if (use_lattice) {
             MetricType metric = MetricType::Planar;
 
-            if (ecef_knn_mode) {
-                  // Build ECEF (X,Y,Z in km) + climate lattice for lon/lat + knn_geog
+            if (use_ecef) {
+                  // Build ECEF (X,Y,Z in km) + climate lattice
                   const size_tu n_geo = 3;
                   const size_tu stride_e = static_cast<size_tu>(n_ref);
                   const size_tu n_cols = n_geo + static_cast<size_tu>(n_clim);
@@ -687,7 +783,7 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                         ref_latt_storage[j + 2 * stride_e] = Z;
                   }
 
-                  // Copy climate variables (columns 2..2+n_clim-1 from ref_mm)
+                  // Copy climate variables
                   for (size_tu k = 0; k < static_cast<size_tu>(n_clim); ++k) {
                         const double* src_col = REAL(ref_mm) + (2 + k) * stride_e;
                         double* dst_col = ref_latt_storage.data() + (3 + k) * stride_e;
@@ -701,7 +797,7 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                                 static_cast<size_tu>(n_clim),
                                 stride_e,
                                 metric,
-                                max_geog,
+                                max_geog_chord,  // Use chord threshold
                                 use_scalar_clim,
                                 max_clim_pervar_std,
                                 use_scalar_clim ? max_clim_scalar
@@ -715,13 +811,13 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                   binning_method = "lattice_ecef";
 
             } else {
-                  // Normal (2D projected or lonlat) lattice path
-                  metric = use_haversine ? MetricType::Haversine : MetricType::Planar;
+                  // Normal (2D projected) lattice path
+                  metric = MetricType::Planar;
                   lattice.build(REAL(ref_mm),
                                 static_cast<size_tu>(n_ref),
-                                static_cast<size_tu>(2),       // n_geo = 2
+                                static_cast<size_tu>(2),
                                 static_cast<size_tu>(n_clim),
-                                static_cast<size_tu>(n_ref),   // stride_r
+                                static_cast<size_tu>(n_ref),
                                 metric,
                                 max_geog,
                                 use_scalar_clim,
@@ -763,18 +859,14 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
             binning_method = "none";
       }
 
-
-
       const bool return_pairs =
             (mcode == ModeCode::KNN_CLIM ||
             mcode == ModeCode::KNN_GEOG ||
             mcode == ModeCode::ALL);
 
       if (return_pairs) {
-            // Use k as provided for kNN, ignore for ALL (we treat ALL separately)
             const int k_knn = (mcode == ModeCode::ALL ? 0 : k);
 
-            // Parallel: compute neighbor indices per focal into std::vector-of-vectors
             std::vector< std::vector<int> > out_indices(n_focal);
 
             PairWorker worker(focal_mm,
@@ -788,11 +880,12 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                               use_pervar_clim,
                               max_clim_scalar,
                               max_geog,
+                              max_geog_chord,
                               max_clim_pervar_std,
                               mcode,
                               k_knn,
                               use_lattice ? &lattice : nullptr,
-                              ecef_knn_mode,
+                              use_ecef,
                               R_earth,
                               out_indices);
 
@@ -813,7 +906,7 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
             out.attr("n_focal") = n_focal;
             out.attr("n_ref")   = n_ref;
             out.attr("n_clim")  = n_clim;
-            out.attr("max_dist") = max_geog;    // keep legacy attr name
+            out.attr("max_dist") = max_geog;
             out.attr("max_clim") = max_clim;
             out.attr("geo_mode") = geo_mode;
             out.attr("binning_method")    = binning_method;
@@ -832,6 +925,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
 
       AggWorker aworker(focal_mm,
                         ref_mm,
+                        ref_latt_ptr,
+                        stride_latt_r,
                         use_lattice,
                         use_geog_filter,
                         use_haversine,
@@ -839,15 +934,15 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                         use_pervar_clim,
                         max_clim_scalar,
                         max_geog,
+                        max_geog_chord,
                         max_clim_pervar_std,
                         mcode,
                         wcode,
                         theta,
                         use_lattice ? &lattice : nullptr,
-                        ecef_knn_mode,
+                        use_ecef,
                         R_earth,
                         agg_vals);
-
 
       parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
 
@@ -877,11 +972,6 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
 
 // -------------------------------------------------------------------------
 // KNN lattice benchmark helper
-//
-// - Builds Lattice with the same logic as find_analogs_core
-// - Requires geo_mode = "projected" so !use_haversine and KNN lattice path
-// - For each focal, calls Lattice::knn_query, measures total KNN time
-// - Returns lattice diagnostics and neighbor count summaries
 // -------------------------------------------------------------------------
 // [[Rcpp::export]]
 Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
@@ -908,16 +998,13 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
             stop("k must be positive for bench_knn_core");
       }
 
-      // Parse geometry mode
       const bool use_haversine = (geo_mode == "lonlat");
       if (use_haversine) {
             stop("bench_knn_core currently supports only geo_mode = 'projected' (planar) for KNN lattice benchmarking");
       }
 
-      // Climate dims
       const int n_clim = ncol_focal - 2;
 
-      // Interpret max_clim exactly as in find_analogs_core
       bool   use_scalar_clim = false;
       bool   use_pervar_clim = false;
       double max_clim_scalar = std::numeric_limits<double>::infinity();
@@ -947,7 +1034,6 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
             stop("bench_knn_core: lattice will not be used (no finite max_geog or max_clim); nothing to benchmark");
       }
 
-      // Mode (must be one of the KNN modes)
       ModeCode mcode = static_cast<ModeCode>(mode_code);
       const bool knn_mode     = (mcode == ModeCode::KNN_CLIM || mcode == ModeCode::KNN_GEOG);
       const bool rank_by_geog = (mcode == ModeCode::KNN_GEOG);
@@ -964,10 +1050,8 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
       const bool use_geo_lattice  = (geo_filter  || geo_sort);
       const bool use_clim_lattice = (clim_filter || clim_sort);
 
-      int bins_per_dim = 10; // hard-coded for now; can be tuned later
+      int bins_per_dim = 10;
 
-
-      // Build lattice (planar metric)
       Lattice lattice;
       double  total_bins         = 1.0;
       double  avg_bin_occupancy  = static_cast<double>(n_ref);
@@ -982,9 +1066,9 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
             auto t0 = std::chrono::high_resolution_clock::now();
             lattice.build(REAL(ref_mm),
                           static_cast<size_tu>(n_ref),
-                          static_cast<size_tu>(2),      // n_geo (x, y)
+                          static_cast<size_tu>(2),
                           static_cast<size_tu>(n_clim),
-                          static_cast<size_tu>(n_ref), // stride_r
+                          static_cast<size_tu>(n_ref),
                           metric,
                           max_geog,
                           use_scalar_clim,
@@ -1012,7 +1096,6 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
             }
       }
 
-      // KNN over focal points (mirrors PairWorker fast path, but sequential)
       const double* focal_ptr = REAL(focal_mm);
       const double* ref_ptr   = REAL(ref_mm);
       const int     stride_f  = n_focal;
@@ -1043,7 +1126,7 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
                   ref_ptr,
                   static_cast<size_tu>(stride_r),
                   static_cast<size_tu>(n_clim),
-                  /*rank_by_geog*/ rank_by_geog,
+                  rank_by_geog,
                   max_geog,
                   use_scalar_clim,
                   max_clim_pervar_std,
@@ -1058,7 +1141,6 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
       auto tq1 = std::chrono::high_resolution_clock::now();
       knn_time_ms = std::chrono::duration<double, std::milli>(tq1 - tq0).count();
 
-      // Summaries of neighbor counts (normally <= k)
       double mean_neighbors = 0.0;
       double p95_neighbors  = 0.0;
       double min_neighbors  = 0.0;
@@ -1110,11 +1192,6 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
 
 // -------------------------------------------------------------------------
 // Internal lattice benchmark helper
-//
-// - Builds lattice with same logic as find_analogs_core.
-// - For each focal, calls lattice.query() and records candidate count
-//   *before* the expensive distance checks.
-// - Returns timing and sparsity diagnostics.
 // -------------------------------------------------------------------------
 // [[Rcpp::export]]
 Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
@@ -1138,7 +1215,6 @@ Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
       const bool use_haversine = (geo_mode == "lonlat");
       const int  n_clim        = ncol_focal - 2;
 
-      // Interpret max_clim (same logic as find_analogs_core)
       bool   use_scalar_clim = false;
       bool   use_pervar_clim = false;
       double max_clim_scalar = std::numeric_limits<double>::infinity();
@@ -1170,7 +1246,7 @@ Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
       const bool use_geo_lattice  = geo_filter;
       const bool use_clim_lattice = clim_filter;
 
-      int bins_per_dim = 10; // hard-coded dev default
+      int bins_per_dim = 10;
 
       double  total_bins = 1.0;
       double  avg_bin_occupancy = static_cast<double>(n_ref);
@@ -1189,9 +1265,9 @@ Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
             auto t0 = std::chrono::high_resolution_clock::now();
             lattice.build(REAL(ref_mm),
                           static_cast<size_tu>(n_ref),
-                          static_cast<size_tu>(2),      // n_geo (x, y)
+                          static_cast<size_tu>(2),
                           static_cast<size_tu>(n_clim),
-                          static_cast<size_tu>(n_ref), // stride_r
+                          static_cast<size_tu>(n_ref),
                           metric,
                           max_geog,
                           use_scalar_clim,
@@ -1230,7 +1306,6 @@ Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
             }
       }
 
-      // Per-focal candidate counts from lattice.query()
       std::vector<double> cand_counts(n_focal, 0.0);
 
       if (use_lattice) {
@@ -1269,13 +1344,11 @@ Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
             auto tq1 = std::chrono::high_resolution_clock::now();
             query_time_ms = std::chrono::duration<double, std::milli>(tq1 - tq0).count();
       } else {
-            // No lattice: all refs are candidates
             for (int i = 0; i < n_focal; ++i) {
                   cand_counts[i] = static_cast<double>(n_ref);
             }
       }
 
-      // Summaries of candidate counts
       double mean_candidates = 0.0;
       double p95_candidates  = 0.0;
       double max_candidates  = 0.0;

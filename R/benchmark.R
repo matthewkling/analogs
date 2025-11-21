@@ -77,13 +77,14 @@ prof <- function(expr){
       summaryRprof("out")$by.total
 }
 
-benchmark <- function(clim, fun = time, n_focal = 1e5, ...){
+benchmark <- function(clim, fun = time, n_focal = 1e5,
+                      max_geog = 3, # degrees
+                      ...){
 
       set.seed(123)
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
 
-      max_geog <- 3 # degrees
       dots <- list(...)
       if("coord_type" %in% names(dots) && dots$coord_type == "lonlat") max_geog <- max_geog * 100 # km
 
@@ -92,17 +93,20 @@ benchmark <- function(clim, fun = time, n_focal = 1e5, ...){
                   focal, ref,
                   max_clim = .5, k = 1,
                   ...)),
+
             impact = fun(analog_impact(
                   focal, ref,
-                  max_clim = NULL, max_geog = 3, k = 20,
+                  max_clim = NULL, max_geog = max_geog, k = 20,
                   ...)),
+
             availability = fun(analog_availability(
                   focal, ref,
-                  max_geog = 3, max_clim = .5,
+                  max_geog = max_geog, max_clim = .5,
                   ...)),
+
             intensity = fun(analog_intensity(
                   focal, ref,
-                  max_geog = 3, max_clim = .5, weight = "inverse_clim",
+                  max_geog = max_geog, max_clim = .5, weight = "inverse_clim",
                   ...))
       )
 }
