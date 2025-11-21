@@ -5,12 +5,8 @@ find_analogs_core <- function(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode,
     .Call(`_analogs_find_analogs_core`, focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res)
 }
 
-bench_knn_core <- function(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code) {
-    .Call(`_analogs_bench_knn_core`, focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code)
-}
-
-bench_lattice_core <- function(focal_mm, ref_mm, max_clim, max_geog, geo_mode) {
-    .Call(`_analogs_bench_lattice_core`, focal_mm, ref_mm, max_clim, max_geog, geo_mode)
+profile_find_analogs <- function(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res, enable_profiling) {
+    .Call(`_analogs_profile_find_analogs`, focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res, enable_profiling)
 }
 
 .emit_pairs_cpp <- function(res, focal_mm, ref_mm, report_dist, geo_mode) {

@@ -85,8 +85,9 @@ benchmark <- function(clim, fun = time, n_focal = 1e5,
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
 
+      # approx deg -> km conversion if applicable (for comparable projected vs lonlat benchmarks)
       dots <- list(...)
-      if("coord_type" %in% names(dots) && dots$coord_type == "lonlat") max_geog <- max_geog * 100 # km
+      if("coord_type" %in% names(dots) && dots$coord_type == "lonlat") max_geog <- max_geog * 100
 
       list(
             velocity = fun(analog_velocity(
