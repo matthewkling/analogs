@@ -90,6 +90,19 @@ inline std::pair<bool,double>
             }
       }
 
+inline void lonlat_to_ecef(double lon_deg, double lat_deg, double R,
+                           double &X, double &Y, double &Z) {
+      const double lon = lon_deg * (M_PI / 180.0);
+      const double lat = lat_deg * (M_PI / 180.0);
+
+      const double cos_lat = std::cos(lat);
+
+      X = R * cos_lat * std::cos(lon);
+      Y = R * cos_lat * std::sin(lon);
+      Z = R * std::sin(lat);
+}
+
+
 inline double weight_from_codes(WeightCode wc,
                                 double clim_dist,
                                 double geog_dist,
@@ -111,37 +124,45 @@ inline double weight_from_codes(WeightCode wc,
       }
 }
 
+
 // -------------------------------------------------------------------------
 // Worker for pair-returning modes: knn_clim, knn_geog, all
 // Writes into out_indices[i] a vector<int> of 1-based ref indices.
 // -------------------------------------------------------------------------
 struct PairWorker : public Worker {
-      const double* focal_ptr;
-      const double* ref_ptr;
+      const double* focal_ptr;      // focal matrix (original coords + clim)
+      const double* ref_ptr;        // reference matrix (original coords + clim)
+      const double* ref_latt_ptr;   // matrix used by lattice (may be ref_ptr or ECEF+clim)
       int n_focal;
       int n_ref;
       int n_clim;
       int stride_f;
-      int stride_r;
+      int stride_r;                 // stride for ref_ptr (n_ref)
+      int stride_latt_r;            // stride for ref_latt_ptr
 
       bool use_lattice;
       bool use_geog_filter;
       bool use_haversine;
       bool use_scalar_clim;
       bool use_pervar_clim;
+      bool ecef_knn_mode;           // lon/lat + knn_geog => ECEF chord search
 
       double max_clim_scalar;
       double max_geog;
       std::vector<double> max_clim_pervar;
 
       ModeCode mcode;
-      int k;                    // k for kNN modes (>=1), ignored for ALL
-      Lattice* lattice_ptr;     // may be nullptr if !use_lattice
+      int k;                        // k for kNN modes (>=1), ignored for ALL
+      Lattice* lattice_ptr;         // may be nullptr if !use_lattice
+
+      double R_earth;               // Earth radius (km), used only if ecef_knn_mode
 
       std::vector< std::vector<int> >& out_indices;
 
       PairWorker(const NumericMatrix& focal_mm,
                  const NumericMatrix& ref_mm,
+                 const double* ref_latt_ptr_,
+                 int stride_latt_r_,
                  bool use_lattice_,
                  bool use_geog_filter_,
                  bool use_haversine_,
@@ -153,25 +174,31 @@ struct PairWorker : public Worker {
                  ModeCode mcode_,
                  int k_,
                  Lattice* lattice_ptr_,
+                 bool ecef_knn_mode_,
+                 double R_earth_,
                  std::vector< std::vector<int> >& out_indices_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
+              ref_latt_ptr(ref_latt_ptr_),
               n_focal(focal_mm.nrow()),
               n_ref(ref_mm.nrow()),
               n_clim(focal_mm.ncol() - 2),
               stride_f(focal_mm.nrow()),
               stride_r(ref_mm.nrow()),
+              stride_latt_r(stride_latt_r_),
               use_lattice(use_lattice_),
               use_geog_filter(use_geog_filter_),
               use_haversine(use_haversine_),
               use_scalar_clim(use_scalar_clim_),
               use_pervar_clim(use_pervar_clim_),
+              ecef_knn_mode(ecef_knn_mode_),
               max_clim_scalar(max_clim_scalar_),
               max_geog(max_geog_),
               max_clim_pervar(max_clim_pervar_),
               mcode(mcode_),
               k(k_),
               lattice_ptr(lattice_ptr_),
+              R_earth(R_earth_),
               out_indices(out_indices_)
       {}
 
@@ -186,15 +213,31 @@ struct PairWorker : public Worker {
                   const double* f_clim_col = focal_ptr + i + 2 * stride_f;
 
                   // -----------------------------------------------------------------
-                  // Fast path: KNN modes + lattice + projected coordinates
-                  // Use Lattice::knn_query with expanding search over cells.
+                  // Fast path: KNN modes + lattice
+                  //   - Planar projected: 2D Euclidean
+                  //   - Lon/lat + knn_geog: 3D ECEF chord
                   // -----------------------------------------------------------------
                   if (knn_mode &&
                       use_lattice &&
                       lattice_ptr != nullptr &&
-                      !use_haversine) {  // planar only for expanding-search v1
+                      (!use_haversine || ecef_knn_mode)) {
 
-                      double fgeo[2] = { fx, fy };
+                        const size_tu n_geo = lattice_ptr->n_geo_dims;
+                        std::vector<double> fgeo_vec(n_geo);
+
+                        if (ecef_knn_mode) {
+                              // Convert lon/lat (degrees) to ECEF (km)
+                              double X, Y, Z;
+                              lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
+                              fgeo_vec[0] = X;
+                              if (n_geo > 1) fgeo_vec[1] = Y;
+                              if (n_geo > 2) fgeo_vec[2] = Z;
+                        } else {
+                              // Planar projected
+                              fgeo_vec[0] = fx;
+                              if (n_geo > 1) fgeo_vec[1] = fy;
+                        }
+
                         std::vector<double> fclim_vec(n_clim);
                         for (int kdim = 0; kdim < n_clim; ++kdim) {
                               fclim_vec[kdim] = f_clim_col[kdim * stride_f];
@@ -202,10 +245,10 @@ struct PairWorker : public Worker {
 
                         std::vector<index_t> cand0;
                         lattice_ptr->knn_query(
-                                    fgeo,
+                                    fgeo_vec.data(),
                                     fclim_vec.data(),
-                                    ref_ptr,
-                                    static_cast<size_tu>(stride_r),
+                                    ref_latt_ptr,
+                                    static_cast<size_tu>(stride_latt_r),
                                     static_cast<size_tu>(n_clim),
                                     /*rank_by_geog*/ rank_by_geog,
                                     max_geog,
@@ -335,6 +378,7 @@ struct PairWorker : public Worker {
       }
 };
 
+
 // -------------------------------------------------------------------------
 // Worker for aggregate modes: COUNT / SUM / MEAN
 // Writes into agg[i] the scalar aggregate for focal i.
@@ -364,6 +408,10 @@ struct AggWorker : public Worker {
 
       Lattice* lattice_ptr;    // may be nullptr if !use_lattice
 
+      // ECEF / lonlat settings
+      bool   ecef_knn_mode;    // lon/lat + kNN-geog => lattice is in ECEF
+      double R_earth;          // km
+
       std::vector<double>& agg; // output
 
       AggWorker(const NumericMatrix& focal_mm,
@@ -380,6 +428,8 @@ struct AggWorker : public Worker {
                 WeightCode wcode_,
                 double theta_,
                 Lattice* lattice_ptr_,
+                bool ecef_knn_mode_,
+                double R_earth_,
                 std::vector<double>& agg_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
@@ -400,6 +450,8 @@ struct AggWorker : public Worker {
               wcode(wcode_),
               theta(theta_),
               lattice_ptr(lattice_ptr_),
+              ecef_knn_mode(ecef_knn_mode_),
+              R_earth(R_earth_),
               agg(agg_)
       {}
 
@@ -410,34 +462,61 @@ struct AggWorker : public Worker {
                   const double* f_clim_col = focal_ptr + i + 2 * stride_f;
 
                   std::vector<index_t> cand;
+
                   if (use_lattice && lattice_ptr != nullptr) {
                         cand.reserve(128);
-                        double q_geo[2] = { fx, fy };
+
+                        // Use the lattice's geo dimension count.
+                        const size_tu n_geo = lattice_ptr->n_geo_dims;
+                        std::vector<double> q_geo(n_geo);
+
+                        if (ecef_knn_mode && n_geo == 3) {
+                              // Lattice was built in ECEF; query in ECEF.
+                              double X, Y, Z;
+                              lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
+                              q_geo[0] = X;
+                              q_geo[1] = Y;
+                              q_geo[2] = Z;
+                        } else {
+                              // Planar / non-ECEF lattice: use raw x,y.
+                              q_geo[0] = fx;
+                              if (n_geo > 1) q_geo[1] = fy;
+                        }
+
                         std::vector<double> q_clim(n_clim);
                         for (int kdim = 0; kdim < n_clim; ++kdim) {
                               q_clim[kdim] = f_clim_col[kdim * stride_f];
                         }
-                        lattice_ptr->query(q_geo,
-                                           q_clim.data(),
-                                           max_geog,
-                                           use_scalar_clim,
-                                           max_clim_pervar,
-                                           use_scalar_clim ? max_clim_scalar : std::numeric_limits<double>::infinity(),
-                                           cand);
+
+                        lattice_ptr->query(
+                                    q_geo.data(),
+                                    q_clim.data(),
+                                    max_geog,
+                                    use_scalar_clim,
+                                    max_clim_pervar,
+                                    use_scalar_clim
+                                    ? max_clim_scalar
+                        : std::numeric_limits<double>::infinity(),
+                          cand
+                        );
                   } else {
                         cand.reserve(n_ref);
-                        for (int j = 0; j < n_ref; ++j) cand.push_back(static_cast<index_t>(j));
+                        for (int j = 0; j < n_ref; ++j) {
+                              cand.push_back(static_cast<index_t>(j));
+                        }
                   }
 
-                  double count = 0.0;
+                  // Aggregate over candidates
+                  double sum = 0.0;
                   double sum_w = 0.0;
+                  int    count = 0;
 
                   for (size_t t = 0; t < cand.size(); ++t) {
                         const int j = static_cast<int>(cand[t]);
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
-                        // Geog filter
+                        // Geog filter (in original space: planar or Haversine)
                         const double gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
                         if (use_geog_filter && gdist > max_geog) continue;
 
@@ -455,21 +534,32 @@ struct AggWorker : public Worker {
                         ++count;
 
                         if (mcode == ModeCode::SUM || mcode == ModeCode::MEAN) {
-                              const double w = weight_from_codes(wcode, clim_dist, gdist, theta);
+                              // Use existing helper to map WeightCode -> weight
+                              double w = weight_from_codes(wcode, clim_dist, gdist, theta);
+                              sum   += w * 1.0;
                               sum_w += w;
+                        }
+
+                  }
+
+                  double val = NA_REAL;
+                  if (mcode == ModeCode::COUNT) {
+                        val = static_cast<double>(count);
+                  } else if ((mcode == ModeCode::SUM || mcode == ModeCode::MEAN) &&
+                        sum_w > 0.0) {
+                        double mu = sum / sum_w;
+                        if (mcode == ModeCode::SUM) {
+                              val = sum;
+                        } else { // MEAN
+                              val = mu;
                         }
                   }
 
-                  if (mcode == ModeCode::COUNT) {
-                        agg[i] = count;
-                  } else if (mcode == ModeCode::SUM) {
-                        agg[i] = sum_w;
-                  } else { // MEAN
-                        agg[i] = (count > 0.0) ? (sum_w / count) : 0.0;
-                  }
+                  agg[i] = val;
             }
       }
 };
+
 
 } // anonymous namespace
 
@@ -550,7 +640,7 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
             bins_per_dim = 10; // simple default; will later be replaced by choose_res
       }
 
-      // Build lattice if useful
+      // Lattice and diagnostics
       Lattice lattice;
       double  total_bins = 1.0;
       double  avg_bin_occupancy = static_cast<double>(n_ref);
@@ -560,30 +650,99 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       double  avg_nonempty_bin_occupancy = static_cast<double>(n_ref);
       std::string binning_method = "none";
 
-      if (use_lattice) {
-            MetricType metric = use_haversine ? MetricType::Haversine
-            : MetricType::Planar;
-            lattice.build(REAL(ref_mm),
-                          static_cast<size_tu>(n_ref),
-                          static_cast<size_tu>(n_clim),
-                          static_cast<size_tu>(n_ref), // stride_r
-                          metric,
-                          max_geog,
-                          use_scalar_clim,
-                          max_clim_pervar_std,
-                          use_scalar_clim ? max_clim_scalar
-                                : std::numeric_limits<double>::infinity(),
-                                  bins_per_dim,
-                                  use_geo_lattice,
-                                  use_clim_lattice);
+      // Pointer and storage for coordinates used by the lattice.
+      // For planar / non-ECEF cases, this is just REAL(ref_mm).
+      // For lon/lat + knn_geog, this is an ECEF+climate matrix.
+      const double* ref_latt_ptr = REAL(ref_mm);
+      int stride_latt_r = n_ref;
+      std::vector<double> ref_latt_storage;
 
+      const bool knn_mode     = (mcode == ModeCode::KNN_CLIM || mcode == ModeCode::KNN_GEOG);
+      const bool rank_by_geog = (mcode == ModeCode::KNN_GEOG);
+      const double R_earth = 6371.0088; // km
+      const bool ecef_knn_mode = (use_haversine && knn_mode && rank_by_geog);
+
+      if (use_lattice) {
+            MetricType metric = MetricType::Planar;
+
+            if (ecef_knn_mode) {
+                  // Build ECEF (X,Y,Z in km) + climate lattice for lon/lat + knn_geog
+                  const size_tu n_geo = 3;
+                  const size_tu stride_e = static_cast<size_tu>(n_ref);
+                  const size_tu n_cols = n_geo + static_cast<size_tu>(n_clim);
+
+                  ref_latt_storage.assign(static_cast<std::size_t>(n_cols * n_ref), 0.0);
+
+                  const double* ref_ptr = REAL(ref_mm);
+
+                  for (size_tu j = 0; j < static_cast<size_tu>(n_ref); ++j) {
+                        const double lon = ref_ptr[j];
+                        const double lat = ref_ptr[j + stride_e];
+
+                        double X, Y, Z;
+                        lonlat_to_ecef(lon, lat, R_earth, X, Y, Z);
+
+                        ref_latt_storage[j]                = X;
+                        ref_latt_storage[j + stride_e]     = Y;
+                        ref_latt_storage[j + 2 * stride_e] = Z;
+                  }
+
+                  // Copy climate variables (columns 2..2+n_clim-1 from ref_mm)
+                  for (size_tu k = 0; k < static_cast<size_tu>(n_clim); ++k) {
+                        const double* src_col = REAL(ref_mm) + (2 + k) * stride_e;
+                        double* dst_col = ref_latt_storage.data() + (3 + k) * stride_e;
+                        std::copy(src_col, src_col + n_ref, dst_col);
+                  }
+
+                  metric = MetricType::Chord3D;
+                  lattice.build(ref_latt_storage.data(),
+                                static_cast<size_tu>(n_ref),
+                                static_cast<size_tu>(3),       // n_geo = 3
+                                static_cast<size_tu>(n_clim),
+                                stride_e,
+                                metric,
+                                max_geog,
+                                use_scalar_clim,
+                                max_clim_pervar_std,
+                                use_scalar_clim ? max_clim_scalar
+                                      : std::numeric_limits<double>::infinity(),
+                                        bins_per_dim,
+                                        use_geo_lattice,
+                                        use_clim_lattice);
+
+                  ref_latt_ptr  = ref_latt_storage.data();
+                  stride_latt_r = n_ref;
+                  binning_method = "lattice_ecef";
+
+            } else {
+                  // Normal (2D projected or lonlat) lattice path
+                  metric = use_haversine ? MetricType::Haversine : MetricType::Planar;
+                  lattice.build(REAL(ref_mm),
+                                static_cast<size_tu>(n_ref),
+                                static_cast<size_tu>(2),       // n_geo = 2
+                                static_cast<size_tu>(n_clim),
+                                static_cast<size_tu>(n_ref),   // stride_r
+                                metric,
+                                max_geog,
+                                use_scalar_clim,
+                                max_clim_pervar_std,
+                                use_scalar_clim ? max_clim_scalar
+                                      : std::numeric_limits<double>::infinity(),
+                                        bins_per_dim,
+                                        use_geo_lattice,
+                                        use_clim_lattice);
+                  ref_latt_ptr  = REAL(ref_mm);
+                  stride_latt_r = n_ref;
+                  binning_method = "lattice";
+            }
+
+            // Diagnostics from lattice
             total_bins = static_cast<double>(lattice.total_bins);
             if (lattice.total_bins > 0) {
                   avg_bin_occupancy =
                         static_cast<double>(lattice.n_points) /
                               static_cast<double>(lattice.total_bins);
             }
-
             n_bins_nonempty = static_cast<double>(lattice.n_cells_nonempty);
             if (lattice.n_cells_nonempty > 0) {
                   avg_nonempty_bin_occupancy =
@@ -600,9 +759,11 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                   min_bin_occupancy = static_cast<double>(lattice.min_cell_occ);
                   max_bin_occupancy = static_cast<double>(lattice.max_cell_occ);
             }
-            binning_method = "multi_dim_lattice";
-
+      } else {
+            binning_method = "none";
       }
+
+
 
       const bool return_pairs =
             (mcode == ModeCode::KNN_CLIM ||
@@ -618,6 +779,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
 
             PairWorker worker(focal_mm,
                               ref_mm,
+                              ref_latt_ptr,
+                              stride_latt_r,
                               use_lattice,
                               use_geog_filter,
                               use_haversine,
@@ -629,6 +792,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                               mcode,
                               k_knn,
                               use_lattice ? &lattice : nullptr,
+                              ecef_knn_mode,
+                              R_earth,
                               out_indices);
 
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
@@ -679,7 +844,10 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                         wcode,
                         theta,
                         use_lattice ? &lattice : nullptr,
+                        ecef_knn_mode,
+                        R_earth,
                         agg_vals);
+
 
       parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
 
@@ -814,6 +982,7 @@ Rcpp::List bench_knn_core(const NumericMatrix& focal_mm,
             auto t0 = std::chrono::high_resolution_clock::now();
             lattice.build(REAL(ref_mm),
                           static_cast<size_tu>(n_ref),
+                          static_cast<size_tu>(2),      // n_geo (x, y)
                           static_cast<size_tu>(n_clim),
                           static_cast<size_tu>(n_ref), // stride_r
                           metric,
@@ -1020,6 +1189,7 @@ Rcpp::List bench_lattice_core(const NumericMatrix& focal_mm,
             auto t0 = std::chrono::high_resolution_clock::now();
             lattice.build(REAL(ref_mm),
                           static_cast<size_tu>(n_ref),
+                          static_cast<size_tu>(2),      // n_geo (x, y)
                           static_cast<size_tu>(n_clim),
                           static_cast<size_tu>(n_ref), // stride_r
                           metric,

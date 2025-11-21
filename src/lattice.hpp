@@ -26,7 +26,7 @@ public:
       MetricType metric_type;
 
       size_tu n_points;     // number of reference points
-      size_tu n_geo_dims;   // always 2: x, y
+      size_tu n_geo_dims;   // number of geographic variables (2 for planar; 2 or 3 in general)
       size_tu n_clim_dims;  // number of climate variables
       size_tu n_dims;       // = n_geo_dims + n_clim_dims
 
@@ -70,6 +70,7 @@ public:
       // max_clim_scalar: scalar Euclidean climate threshold (or Inf)
       void build(const double* ref_ptr,
                  size_tu n_ref,
+                 size_tu n_geo,
                  size_tu n_clim,
                  size_tu stride_r,
                  MetricType metric,
@@ -147,6 +148,7 @@ private:
 
 inline void Lattice::build(const double* ref_ptr,
                            size_tu n_ref,
+                           size_tu n_geo,
                            size_tu n_clim,
                            size_tu stride_r,
                            MetricType metric,
@@ -159,7 +161,7 @@ inline void Lattice::build(const double* ref_ptr,
                            bool   use_clim_lattice) {
       metric_type    = metric;
       n_points       = n_ref;
-      n_geo_dims     = 2;
+      n_geo_dims     = n_geo;
       n_clim_dims    = n_clim;
       n_dims         = n_geo_dims + n_clim_dims;
 
@@ -181,23 +183,20 @@ inline void Lattice::build(const double* ref_ptr,
       // First pass: compute mins/maxs over all dims.
       for (size_tu j = 0; j < n_ref; ++j) {
             // geo dims
-            double x = ref_ptr[j];                // col 0
-            double y = ref_ptr[j + stride_r];     // col 1
-
-            if (j == 0) {
-                  mins[0] = maxs[0] = x;
-                  mins[1] = maxs[1] = y;
-            } else {
-                  if (x < mins[0]) mins[0] = x;
-                  if (x > maxs[0]) maxs[0] = x;
-                  if (y < mins[1]) mins[1] = y;
-                  if (y > maxs[1]) maxs[1] = y;
+            for (size_tu g = 0; g < n_geo_dims; ++g) {
+                  double v = ref_ptr[j + g * stride_r];
+                  if (j == 0) {
+                        mins[g] = maxs[g] = v;
+                  } else {
+                        if (v < mins[g]) mins[g] = v;
+                        if (v > maxs[g]) maxs[g] = v;
+                  }
             }
 
             // climate dims
-            for (size_tu k = 0; k < n_clim; ++k) {
-                  double v = ref_ptr[j + (2 + k) * stride_r];
-                  size_tu d = 2 + k;
+            for (size_tu k = 0; k < n_clim_dims; ++k) {
+                  size_tu d = n_geo_dims + k;
+                  double v = ref_ptr[j + d * stride_r];
                   if (j == 0) {
                         mins[d] = maxs[d] = v;
                   } else {
@@ -255,26 +254,20 @@ inline void Lattice::build(const double* ref_ptr,
       std::vector<size_tu> idx(n_dims);
 
       for (size_tu j = 0; j < n_ref; ++j) {
-            // dim 0: x
-            double v0 = ref_ptr[j];
-            double pos0 = (v0 - mins[0]) / res[0];
-            if (pos0 < 0.0) pos0 = 0.0;
-            size_tu i0 = static_cast<size_tu>(pos0);
-            if (i0 >= n_bins[0]) i0 = n_bins[0] - 1;
-            idx[0] = i0;
-
-            // dim 1: y
-            double v1 = ref_ptr[j + stride_r];
-            double pos1 = (v1 - mins[1]) / res[1];
-            if (pos1 < 0.0) pos1 = 0.0;
-            size_tu i1 = static_cast<size_tu>(pos1);
-            if (i1 >= n_bins[1]) i1 = n_bins[1] - 1;
-            idx[1] = i1;
+            // geo dims
+            for (size_tu g = 0; g < n_geo_dims; ++g) {
+                  double v = ref_ptr[j + g * stride_r];
+                  double pos = (v - mins[g]) / res[g];
+                  if (pos < 0.0) pos = 0.0;
+                  size_tu ib = static_cast<size_tu>(pos);
+                  if (ib >= n_bins[g]) ib = n_bins[g] - 1;
+                  idx[g] = ib;
+            }
 
             // climate dims
-            for (size_tu k = 0; k < n_clim; ++k) {
-                  size_tu d = 2 + k;
-                  double v = ref_ptr[j + (2 + k) * stride_r];
+            for (size_tu k = 0; k < n_clim_dims; ++k) {
+                  size_tu d = n_geo_dims + k;
+                  double v = ref_ptr[j + d * stride_r];
                   double pos = (v - mins[d]) / res[d];
                   if (pos < 0.0) pos = 0.0;
                   size_tu ib = static_cast<size_tu>(pos);
@@ -401,10 +394,14 @@ inline void Lattice::query(const double* focal_geo,
       enumerate_cells(lo, hi, idx, 0, out_indices);
 }
 
-// Forward declarations for helpers used by knn_query
+// Helpers used by knn_query
 inline double lb_geo_projected(const Lattice& lat,
                                const std::array<size_tu, 8>& idx,
                                const double* focal_geo);
+
+inline double lb_geo_chord3d(const Lattice& lat,
+                             const std::array<size_tu, 8>& idx,
+                             const double* focal_geo);
 
 inline double lb_clim(const Lattice& lat,
                       const std::array<size_tu, 8>& idx,
@@ -419,6 +416,7 @@ inline bool clim_ok_and_dist_knn(const double* focal_clim,
                                  double max_clim_scalar,
                                  double& clim_dist_out,
                                  bool compute_dist);
+
 
 
 inline void Lattice::knn_query(const double* focal_geo,
@@ -436,21 +434,21 @@ inline void Lattice::knn_query(const double* focal_geo,
       out_indices.clear();
       if (k <= 0 || n_points == 0 || n_dims == 0) return;
 
-      // For now, only implement expanding search for projected geo (planar).
-      if (metric_type != MetricType::Planar && rank_by_geog) {
-            // Caller should fall back to old path for non-planar metrics.
-            // We just bail here.
+      // For now, only implement expanding search when the geo part is
+      // Euclidean (Planar or Chord3D). Non-Euclidean metrics should fall back.
+      if (rank_by_geog &&
+          !(metric_type == MetricType::Planar ||
+          metric_type == MetricType::Chord3D)) {
             return;
       }
 
       // Sanity: n_clim argument should match lattice's climate dims.
       if (n_clim != n_clim_dims) {
-            // You could throw or assert here; for now we just bail.
             return;
       }
 
-      const size_tu D = n_dims;
-      const size_tu n_geo = n_geo_dims; // 2
+      const size_tu D     = n_dims;
+      const size_tu n_geo = n_geo_dims;
 
       // 1. Compute per-dimension bin ranges [lo[d], hi[d]] based on thresholds
       std::vector<size_tu> lo(D), hi(D);
@@ -531,7 +529,13 @@ inline void Lattice::knn_query(const double* focal_geo,
 
       auto cell_lb = [&](const std::array<size_tu, 8>& idx) -> double {
             if (rank_by_geog) {
-                  return lb_geo_projected(*this, idx, focal_geo);
+                  if (metric_type == MetricType::Planar) {
+                        return lb_geo_projected(*this, idx, focal_geo);
+                  } else if (metric_type == MetricType::Chord3D) {
+                        return lb_geo_chord3d(*this, idx, focal_geo);
+                  } else {
+                        return 0.0;
+                  }
             } else {
                   return lb_clim(*this, idx, focal_clim);
             }
@@ -544,8 +548,7 @@ inline void Lattice::knn_query(const double* focal_geo,
 
       struct CellCmp {
             bool operator()(const CellState& a, const CellState& b) const {
-                  // min-heap by lb: top has smallest lb
-                  return a.lb > b.lb;
+                  return a.lb > b.lb; // min-heap: top has smallest lb
             }
       };
 
@@ -576,39 +579,34 @@ inline void Lattice::knn_query(const double* focal_geo,
       double d_k = std::numeric_limits<double>::infinity();
 
       // 3. Expanding search over cells
-      std::array<size_tu, 8> idx;
 
       while (!pq.empty()) {
-            CellState cell = pq.top();
+            CellState current = pq.top();
             pq.pop();
 
-            // Early exit: no unvisited cell can improve on current k-th neighbor
-            if (!knn.empty() && static_cast<int>(knn.size()) >= k && cell.lb > d_k) {
+            const double lb = current.lb;
+            if (!knn.empty() && lb > d_k) {
                   break;
             }
 
-            idx = cell.idx;
-            const size_tu key = flatten_idx(idx);
+            const size_tu key = flatten_idx(current.idx);
+            auto it_cell = cells.find(key);
+            if (it_cell != cells.end()) {
+                  const auto& vec = it_cell->second;
+                  for (size_tu t = 0; t < vec.size(); ++t) {
+                        const size_tu j = static_cast<size_tu>(vec[t]);
 
-            // Look up refs in this cell
-            auto it = cells.find(key);
-            if (it != cells.end()) {
-                  const std::vector<index_t>& refs = it->second;
-
-                  for (size_tu t = 0; t < refs.size(); ++t) {
-                        const int j = static_cast<int>(refs[t]); // 0-based row index
-
-                        const double rx = ref_ptr[j];
-                        const double ry = ref_ptr[j + stride_r];
-                        const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-
-                        // Geographic distance (planar)
+                        // Geo distance and filter
                         double gdist2 = 0.0;
-                        double gdist = 0.0;
+                        double gdist  = 0.0;
                         if (rank_by_geog || use_geo_constraint) {
-                              const double dx = focal_geo[0] - rx;
-                              const double dy = focal_geo[1] - ry;
-                              gdist2 = dx * dx + dy * dy;
+                              double sumsq = 0.0;
+                              for (size_tu g = 0; g < n_geo; ++g) {
+                                    const double rg = ref_ptr[j + g * stride_r];
+                                    const double dg = focal_geo[g] - rg;
+                                    sumsq += dg * dg;
+                              }
+                              gdist2 = sumsq;
                               gdist  = std::sqrt(gdist2);
                         }
 
@@ -620,7 +618,8 @@ inline void Lattice::knn_query(const double* focal_geo,
                         double clim_dist = 0.0;
                         const bool compute_clim_dist = !rank_by_geog; // need it for knn_clim
                         if (!clim_ok_and_dist_knn(
-                                    focal_clim, r_clim_col,
+                                    focal_clim,
+                                    ref_ptr + j + n_geo * stride_r,
                                     n_clim, stride_r,
                                     use_scalar_clim, max_clim_pervar, max_clim_scalar,
                                     clim_dist, compute_clim_dist)) {
@@ -636,41 +635,43 @@ inline void Lattice::knn_query(const double* focal_geo,
                         }
 
                         if (static_cast<int>(knn.size()) < k) {
-                              knn.emplace(key_dist, j);
+                              knn.emplace(key_dist, static_cast<int>(j));
                         } else if (!knn.empty() && key_dist < knn.top().first) {
                               knn.pop();
-                              knn.emplace(key_dist, j);
+                              knn.emplace(key_dist, static_cast<int>(j));
                         }
 
                         if (static_cast<int>(knn.size()) == k) {
                               d_k = knn.top().first;
+                              // (optional) could tighten bound further here if desired
                         }
                   }
             }
 
-            // Expand neighbors in Chebyshev shells: +/-1 in each dimension
+            // Expand to neighboring cells in Chebyshev shell
+            std::array<size_tu, 8> base = current.idx;
             for (size_tu d = 0; d < D; ++d) {
-                  // -1
-                  if (idx[d] > lo[d]) {
-                        std::array<size_tu, 8> nb_idx = idx;
-                        nb_idx[d] = idx[d] - 1;
-                        const size_tu nb_key = flatten_idx(nb_idx);
-                        if (visited.insert(nb_key).second) {
-                              CellState nb;
-                              nb.idx = nb_idx;
-                              nb.lb = cell_lb(nb_idx);
-                              pq.push(nb);
+                  for (int offset = -1; offset <= 1; ++offset) {
+                        if (offset == 0) continue;
+                        std::array<size_tu, 8> nb_idx = base;
+                        size_tu id = nb_idx[d];
+                        if (offset < 0) {
+                              if (id == 0 || id <= lo[d]) continue;
+                              --id;
+                        } else {
+                              if (id + 1 >= n_bins[d] || id >= hi[d]) continue;
+                              ++id;
                         }
-                  }
-                  // +1
-                  if (idx[d] + 1 <= hi[d]) {
-                        std::array<size_tu, 8> nb_idx = idx;
-                        nb_idx[d] = idx[d] + 1;
+                        nb_idx[d] = id;
+
                         const size_tu nb_key = flatten_idx(nb_idx);
-                        if (visited.insert(nb_key).second) {
-                              CellState nb;
-                              nb.idx = nb_idx;
-                              nb.lb = cell_lb(nb_idx);
+                        if (visited.find(nb_key) != visited.end()) continue;
+                        visited.insert(nb_key);
+
+                        CellState nb;
+                        nb.idx = nb_idx;
+                        nb.lb  = cell_lb(nb_idx);
+                        if (nb.lb <= d_k) {
                               pq.push(nb);
                         }
                   }
@@ -687,6 +688,7 @@ inline void Lattice::knn_query(const double* focal_geo,
             knn.pop();
       }
 }
+
 
 
 // Lower bound on geographic distance (projected) from focal to a cell.
@@ -712,6 +714,30 @@ inline double lb_geo_projected(const Lattice& lat,
 
       return std::sqrt(dx * dx + dy * dy);
 }
+
+// Lower bound on 3D geographic distance (lonlat) from focal to a cell.
+inline double lb_geo_chord3d(const Lattice& lat,
+                             const std::array<size_tu, 8>& idx,
+                             const double* focal_geo) {
+      // Generic n_geo-dimensional Euclidean lower bound, used for 3D ECEF chord.
+      const size_tu n_geo = lat.n_geo_dims; // will be 3 in Chord3D mode
+      double sumsq = 0.0;
+
+      for (size_tu g = 0; g < n_geo; ++g) {
+            const double fg = focal_geo[g];
+            const double g_min = lat.mins[g] + static_cast<double>(idx[g]) * lat.res[g];
+            const double g_max = g_min + lat.res[g];
+
+            double dg = 0.0;
+            if (fg < g_min) dg = g_min - fg;
+            else if (fg > g_max) dg = fg - g_max;
+
+            sumsq += dg * dg;
+      }
+
+      return std::sqrt(sumsq);
+}
+
 
 // Lower bound on climate distance (Euclidean) from focal to a cell.
 inline double lb_clim(const Lattice& lat,

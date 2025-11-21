@@ -77,12 +77,15 @@ prof <- function(expr){
       summaryRprof("out")$by.total
 }
 
-
 benchmark <- function(clim, fun = time, n_focal = 1e5, ...){
 
       set.seed(123)
       focal <- as.data.frame(clim$clim1, xy = TRUE) %>% sample_n(n_focal)
       ref <- clim$clim2
+
+      max_geog <- 3 # degrees
+      dots <- list(...)
+      if("coord_type" %in% names(dots) && dots$coord_type == "lonlat") max_geog <- max_geog * 100 # km
 
       list(
             velocity = fun(analog_velocity(

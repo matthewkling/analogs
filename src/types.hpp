@@ -8,9 +8,10 @@ namespace analogs {
 
     enum class MetricType {
         Haversine,  // lon/lat on sphere
-        Planar      // projected / Euclidean geometry
+        Planar,     // projected / Euclidean geometry
+        Chord3D     // 3D Euclidean chord distance (for ECEF)
     };
-    
+
     struct MatrixView {
         const double* data;
         size_tu nrow;

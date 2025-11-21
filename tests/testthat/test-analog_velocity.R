@@ -1,6 +1,6 @@
-test_that("`analog_velocity` result matches manual calculation", {
+test_that("`analog_velocity` result matches manual calculation for planar coords", {
 
-      d <- sim_test_data()
+      d <- sim_test_data(lonlat = TRUE)
       max_clim <- 1
 
       # velocity
@@ -15,4 +15,36 @@ test_that("`analog_velocity` result matches manual calculation", {
 
       expect_equal(nn$analog_index, nn_idx)
       expect_equal(nn$geog_dist, nn_dst)
+})
+
+
+test_that("`analog_velocity` result matches manual calculation for LON/LAT coords", {
+
+      d <- sim_test_data(lonlat = TRUE)
+      max_clim <- 1
+
+      # velocity (ECEF chord-space internal; output arc-length km)
+      nn <- analog_velocity(d$focal, d$ref,
+                            max_clim = max_clim,
+                            k = 1,
+                            coord_type = "lonlat")
+
+      # --- manual lon/lat nearest-analog calculation ---
+
+      # (1) compute climatic distance matrix (Euclidean)
+      dclim <- xdist(d$focal, d$ref, "clim")
+
+      # (2) compute true great-circle geog distances (km)
+      dgeog <- xdist(d$focal, d$ref, "lonlat")
+
+      # (3) apply climatic filter
+      dgeog[dclim > max_clim] <- Inf
+
+      # (4) find nearest analog index + distance
+      nn_idx <- apply(dgeog, 1, which.min)
+      nn_dst <- apply(dgeog, 1, min)
+
+      # ---- expectations ----
+      expect_equal(nn$analog_index, nn_idx)
+      expect_equal(nn$geog_dist, nn_dst, tolerance = 1e-8)
 })

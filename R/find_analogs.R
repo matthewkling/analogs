@@ -71,6 +71,10 @@
 #'   when \code{mode} is \code{"sum"} or \code{"mean"} and \code{weight} is
 #'   not \code{"uniform"}. Currently interpreted as:
 #'   \itemize{
+#'     \item For \code{"gaussian_clim"}: sigma bandwidth for climate distance.
+#'     \item For \code{"gaussian_geog"}: sigma bandwidth for geographic distance.
+#'     \item For \code{"gaussian_joint"}: length-two vector of sigma bandwidths
+#'       for climate and geographic distances, respectively.
 #'     \item For \code{"inverse_clim"}: epsilon added to climate distance.
 #'     \item For \code{"inverse_geog"}: epsilon added to geographic distance.
 #'   }
