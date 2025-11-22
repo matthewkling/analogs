@@ -1,4 +1,6 @@
-.onLoad <- function(lib, pkg) {
-      # Rcpp attributes handle registration
-      invisible()
+.onLoad <- function(libname, pkgname) {
+      # Load RcppParallel to make its symbols available
+      if (!isNamespaceLoaded("RcppParallel")) {
+            requireNamespace("RcppParallel", quietly = TRUE)
+      }
 }
