@@ -301,7 +301,8 @@ find_analogs <- function(
       # Detect geographic coordinate system
       geo_mode <- switch(
             coord_type,
-            auto = .detect_geo(focal_mm[, 1:2], ref_mm[, 1:2]),
+            auto = .detect_geo(focal_mm[, 1:2, drop = FALSE],
+                               ref_mm[, 1:2, drop = FALSE]),
             lonlat = "lonlat",
             projected = "projected"
       )
