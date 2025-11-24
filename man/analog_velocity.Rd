@@ -5,46 +5,76 @@
 \title{Climate velocity: nearest geographic analogs within a climate envelope}
 \usage{
 analog_velocity(
-  focal,
-  ref,
+  x,
+  pool,
   max_clim,
   k = 1,
   max_geog = NULL,
   coord_type = "auto",
   report_dist = TRUE,
-  lattice_res = "auto",
+  index_res = "auto",
   n_threads = NULL
 )
 }
 \arguments{
-\item{focal}{Data.frame, matrix, or SpatRaster containing focal locations.
-Must include columns \code{x}, \code{y}, and one or more climate variables.}
+\item{x}{Focal locations for which analogs will be found. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a
+SpatRaster with climate variable layers.}
 
-\item{ref}{Data.frame, matrix, or SpatRaster containing reference locations.
-Must be structured like \code{focal}.}
-
-\item{max_clim}{Maximum allowable climate distance between a focal and an
-analog. May be:
+\item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-  \item a scalar: an Euclidean radius in climate space, or
-  \item a vector: per-variable absolute differences.
+  \item Matrix/data.frame with columns x, y, and climate variables,
+    or SpatRaster with climate variable layers, OR
+  \item An \code{\link{analog_index}} object created by
+    \code{\link{build_analog_index}} (for repeated queries).
+}}
+
+\item{max_clim}{Maximum climate distance constraint (default: NULL = no
+climate constraint). Can be either:
+\itemize{
+  \item A scalar: Euclidean radius in climate space (e.g., 0.5)
+  \item A vector: Per-variable absolute differences (length must equal
+    number of climate variables)
 }
-Only reference locations within this climate envelope are considered.}
+Only reference locations within this climate distance are considered.}
 
-\item{k}{Number of nearest geographic analogs to return for each focal
-(default = 1).}
+\item{k}{Number of nearest analogs to return per focal location for kNN
+modes. Required when \code{mode} is \code{"knn_geog"} or \code{"knn_clim"};
+must be \code{NULL} for other modes.}
 
-\item{max_geog}{Optional additional geographic constraint in kilometers.
-If provided, analogs must be within \code{max_geog} km of the focal.}
+\item{max_geog}{Maximum geographic distance constraint (default:
+NULL = no geographic constraint). When specified, only reference locations
+within this distance are considered. Radius units should be specified in
+kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
+if \code{coord_type = "projected"}.}
 
-\item{coord_type}{One of \code{"auto"}, \code{"lonlat"}, or
-\code{"projected"}, indicating how geographic distance should be computed.
-\code{"auto"} attempts to infer this from coordinate ranges.}
+\item{coord_type}{Coordinate system type (default: "auto"):
+\itemize{
+  \item \code{"auto"}: Automatically detect from coordinate ranges.
+  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+    assumes \code{max_geog} is in km).
+  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
+    assumes \code{max_geog} is in projection units).
+}}
 
-\item{report_dist}{Logical; if TRUE (default), include climate and geographic
-distance columns in the output.}
+\item{report_dist}{Logical; if TRUE (default), include distance columns in
+output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
+\code{"all"}. Set to FALSE for more compact output.}
 
-\item{n_threads}{Number of parallel compute threads to use.}
+\item{index_res}{Tuning parameter giving the number of bins per dimension
+of the internally-used lattice search index. Either:
+\itemize{
+  \item A positive integer.
+  \item \code{"auto"} (the default): Automatically tune the intex resolution
+    by optimizing compute time on a subsample of focal points. If focal has
+    relatively few rows, auto-tuning is skipped and a default resolution of
+    16 is used.
+}
+Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
+
+\item{n_threads}{Optional integer number of threads to use for the
+computation. If \code{NULL} (default), the global RcppParallel setting
+is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
 A data.frame with one row per focal–analog pair, including:
@@ -78,12 +108,18 @@ climatic conditions under temporal change.
 }
 \examples{
 \dontrun{
-v <- velocity(
-  focal = clim$clim1,
-  ref   = clim$clim2,
+# One-shot query
+v <- analog_velocity(
+  x = clim$clim1,
+  pool = clim$clim2,
   max_clim = 0.5,
   k = 1
 )
+
+# With pre-built index (for repeated queries)
+index <- build_analog_index(clim$clim2)
+v1 <- analog_velocity(x = sites1, pool = index, max_clim = 0.5, k = 1)
+v2 <- analog_velocity(x = sites2, pool = index, max_clim = 0.3, k = 1)
 }
 
 }

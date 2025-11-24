@@ -8,30 +8,17 @@
 #' change: e.g., how climate conditions at a site compare to those available
 #' within a species' dispersal range.
 #'
-#' @param focal Data.frame, matrix, or SpatRaster containing focal locations
-#'   with columns \code{x}, \code{y}, and climate variables.
-#' @param ref Data.frame, matrix, or SpatRaster containing reference locations.
-#' @param max_geog Maximum allowable geographic distance in kilometers. Only
-#'   reference locations within \code{max_geog} km are considered.
-#' @param k Number of nearest climate analogs to return for each focal
-#'   (default = 20).
-#' @param max_clim Optional additional climate constraint (scalar or vector).
-#'   Useful for restricting comparisons to very similar climate neighborhoods.
-#' @param coord_type One of \code{"auto"}, \code{"lonlat"}, or
-#'   \code{"projected"}. \code{"auto"} attempts to detect the appropriate mode.
-#' @param report_dist Logical; if TRUE (default), include climate and geographic
-#'   distance columns in the output.
-#' @param n_threads Number of parallel compute threads to use.
+#' @inheritParams find_analogs
 #'
 #' @details
-#' For each focal location, \code{impact()}:
+#' For each focal location, \code{analog_impact()}:
 #' \enumerate{
 #'   \item Identifies all reference points within \code{max_geog} km (and
 #'         optional climate filter).
 #'   \item Selects the \code{k} closest in \emph{climate} distance.
 #' }
 #'
-#' This is the natural “inverse” of \code{\link{velocity}}: instead of finding
+#' This is the natural "inverse" of \code{\link{analog_velocity}}: instead of finding
 #' where the focal climate moves geographically, it finds the closest climatically
 #' similar conditions that are geographically reachable.
 #'
@@ -45,29 +32,35 @@
 #'
 #' @examples
 #' \dontrun{
-#' im <- impact(
-#'   focal = clim$clim1,
-#'   ref   = clim$clim2,
+#' # One-shot query
+#' im <- analog_impact(
+#'   x = clim$clim1,
+#'   pool = clim$clim2,
 #'   max_geog = 100,
 #'   k = 20
 #' )
+#'
+#' # With pre-built index (for repeated queries)
+#' index <- build_analog_index(clim$clim2)
+#' i1 <- analog_impact(x = sites1, pool = index, max_geog = 100, k = 20)
+#' i2 <- analog_impact(x = sites2, pool = index, max_geog = 50, k = 10)
 #' }
 #'
 #' @export
 analog_impact <- function(
-            focal,
-            ref,
+            x,
+            pool,
             max_geog,
             k = 20,
             max_clim = NULL,
             coord_type = "auto",
             report_dist = TRUE,
-            lattice_res = "auto",
+            index_res = "auto",
             n_threads = NULL
 ) {
       find_analogs(
-            focal      = focal,
-            ref        = ref,
+            x          = x,
+            pool       = pool,
             mode       = "knn_clim",
             max_clim   = max_clim,
             max_geog   = max_geog,
@@ -76,7 +69,7 @@ analog_impact <- function(
             theta      = NULL,
             coord_type = coord_type,
             report_dist = report_dist,
-            lattice_res = lattice_res,
-            n_threads = n_threads
+            index_res  = index_res,
+            n_threads  = n_threads
       )
 }

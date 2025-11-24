@@ -6,27 +6,7 @@
 #' most commonly used for estimating climate velocity (the rate and direction
 #' at which organisms would have to move to track constant climate conditions).
 #'
-#' @param focal Data.frame, matrix, or SpatRaster containing focal locations.
-#'   Must include columns \code{x}, \code{y}, and one or more climate variables.
-#' @param ref Data.frame, matrix, or SpatRaster containing reference locations.
-#'   Must be structured like \code{focal}.
-#' @param max_clim Maximum allowable climate distance between a focal and an
-#'   analog. May be:
-#'   \itemize{
-#'     \item a scalar: an Euclidean radius in climate space, or
-#'     \item a vector: per-variable absolute differences.
-#'   }
-#'   Only reference locations within this climate envelope are considered.
-#' @param k Number of nearest geographic analogs to return for each focal
-#'   (default = 1).
-#' @param max_geog Optional additional geographic constraint in kilometers.
-#'   If provided, analogs must be within \code{max_geog} km of the focal.
-#' @param coord_type One of \code{"auto"}, \code{"lonlat"}, or
-#'   \code{"projected"}, indicating how geographic distance should be computed.
-#'   \code{"auto"} attempts to infer this from coordinate ranges.
-#' @param report_dist Logical; if TRUE (default), include climate and geographic
-#'   distance columns in the output.
-#' @param n_threads Number of parallel compute threads to use.
+#' @inheritParams find_analogs
 #'
 #' @details
 #' For each focal point, this function:
@@ -52,29 +32,35 @@
 #'
 #' @examples
 #' \dontrun{
-#' v <- velocity(
-#'   focal = clim$clim1,
-#'   ref   = clim$clim2,
+#' # One-shot query
+#' v <- analog_velocity(
+#'   x = clim$clim1,
+#'   pool = clim$clim2,
 #'   max_clim = 0.5,
 #'   k = 1
 #' )
+#'
+#' # With pre-built index (for repeated queries)
+#' index <- build_analog_index(clim$clim2)
+#' v1 <- analog_velocity(x = sites1, pool = index, max_clim = 0.5, k = 1)
+#' v2 <- analog_velocity(x = sites2, pool = index, max_clim = 0.3, k = 1)
 #' }
 #'
 #' @export
 analog_velocity <- function(
-            focal,
-            ref,
+            x,
+            pool,
             max_clim,
             k = 1,
             max_geog = NULL,
             coord_type = "auto",
             report_dist = TRUE,
-            lattice_res = "auto",
+            index_res = "auto",
             n_threads = NULL
 ) {
       find_analogs(
-            focal      = focal,
-            ref        = ref,
+            x          = x,
+            pool       = pool,
             mode       = "knn_geog",
             max_clim   = max_clim,
             max_geog   = max_geog,
@@ -83,7 +69,7 @@ analog_velocity <- function(
             theta      = NULL,
             coord_type = coord_type,
             report_dist = report_dist,
-            lattice_res = lattice_res,
-            n_threads   = n_threads
+            index_res  = index_res,
+            n_threads  = n_threads
       )
 }

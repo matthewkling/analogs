@@ -5,8 +5,8 @@
 \title{Find Climate Analogs}
 \usage{
 find_analogs(
-  focal,
-  ref,
+  x,
+  pool,
   mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
   max_clim = NULL,
   max_geog = NULL,
@@ -16,18 +16,25 @@ find_analogs(
   theta = NULL,
   report_dist = TRUE,
   coord_type = c("auto", "lonlat", "projected"),
-  lattice_res = "auto",
+  index_res = "auto",
+  resolutions = NULL,
+  n_sample = NULL,
+  n_reps = NULL,
   n_threads = NULL
 )
 }
 \arguments{
-\item{focal}{Matrix/data.frame with columns x, y, and climate variables,
-OR SpatRaster with climate variable layers. Each row represents a focal
-location for which analogs will be found.}
+\item{x}{Focal locations for which analogs will be found. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a
+SpatRaster with climate variable layers.}
 
-\item{ref}{Matrix/data.frame with columns x, y, and climate variables,
-OR SpatRaster with climate variable layers. The reference dataset to search
-for analogs.}
+\item{pool}{The reference dataset to search for analogs. Either:
+\itemize{
+  \item Matrix/data.frame with columns x, y, and climate variables,
+    or SpatRaster with climate variable layers, OR
+  \item An \code{\link{analog_index}} object created by
+    \code{\link{build_analog_index}} (for repeated queries).
+}}
 
 \item{mode}{Character string specifying the analog search mode. One of:
 \itemize{
@@ -55,9 +62,11 @@ climate constraint). Can be either:
 }
 Only reference locations within this climate distance are considered.}
 
-\item{max_geog}{Maximum geographic distance constraint in km (default:
+\item{max_geog}{Maximum geographic distance constraint (default:
 NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered.}
+within this distance are considered. Radius units should be specified in
+kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
+if \code{coord_type = "projected"}.}
 
 \item{k}{Number of nearest analogs to return per focal location for kNN
 modes. Required when \code{mode} is \code{"knn_geog"} or \code{"knn_clim"};
@@ -99,24 +108,30 @@ output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
 \item{coord_type}{Coordinate system type (default: "auto"):
 \itemize{
   \item \code{"auto"}: Automatically detect from coordinate ranges.
-  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance).
-  \item \code{"projected"}: Projected XY coordinates (uses planar distance).
+  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+    assumes \code{max_geog} is in km).
+  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
+    assumes \code{max_geog} is in projection units).
 }}
 
-\item{lattice_res}{Tuning parameter giving the number of bins per dimension
+\item{index_res}{Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:
 \itemize{
   \item A positive integer.
-  \item \code{"auto"} (the default): Automatically tune the lattice resolution
+  \item \code{"auto"} (the default): Automatically tune the intex resolution
     by optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution of
     16 is used.
 }
-If "auto" and if there are more than 2000}
+Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
+
+\item{resolution, n_sample, n_reps}{Parameters passed to \code{tune_index_res()}.
+Ignored if \code{pool} is an \code{analog_index} or if \code{index_res} isn't
+\code{"auto"}.}
 }
 \value{
 The return value depends on the \code{mode} parameter:
@@ -169,9 +184,9 @@ distance) or projected coordinates (planar distance).
 \strong{Climate Velocity} (nearest geographic neighbor with similar climate):
 \preformatted{
 find_analogs(
-  focal   = clim$clim1,
-  ref     = clim$clim2,
-  mode    = "knn_geog",
+  x        = clim$clim1,
+  pool     = clim$clim2,
+  mode     = "knn_geog",
   max_clim = 0.5,
   max_geog = NULL,
   k        = 1
@@ -181,9 +196,9 @@ find_analogs(
 \strong{Climate Impact} (climatically similar locations within dispersal range):
 \preformatted{
 find_analogs(
-  focal   = clim$clim1,
-  ref     = clim$clim2,
-  mode    = "knn_clim",
+  x        = clim$clim1,
+  pool     = clim$clim2,
+  mode     = "knn_clim",
   max_clim = 0.5,
   max_geog = 100,
   k        = 20
@@ -193,9 +208,9 @@ find_analogs(
 \strong{Analog Availability} (count of suitable locations):
 \preformatted{
 find_analogs(
-  focal   = clim$clim1,
-  ref     = clim$clim1,
-  mode    = "count",
+  x        = clim$clim1,
+  pool     = clim$clim1,
+  mode     = "count",
   max_clim = 0.5,
   max_geog = 100
 )
@@ -204,13 +219,23 @@ find_analogs(
 \strong{Weighted Analog Intensity} (e.g., distance-weighted availability):
 \preformatted{
 find_analogs(
-  focal   = clim$clim1,
-  ref     = clim$clim1,
-  mode    = "sum",
+  x        = clim$clim1,
+  pool     = clim$clim1,
+  mode     = "sum",
   max_clim = 0.5,
   max_geog = 100,
   weight   = "inverse_geog",
   theta    = 1e-6
 )
+}
+
+\strong{Using a Pre-built Index} (for repeated queries):
+\preformatted{
+# Build index once
+index <- build_analog_index(clim$clim2, index_res = 16)
+
+# Query multiple times
+v1 <- find_analogs(x = sites1, pool = index, mode = "knn_geog", max_clim = 0.5, k = 1)
+v2 <- find_analogs(x = sites2, pool = index, mode = "knn_geog", max_clim = 0.3, k = 1)
 }
 }

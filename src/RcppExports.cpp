@@ -10,6 +10,38 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// build_analog_index_cpp
+SEXP build_analog_index_cpp(const NumericMatrix& ref_mm, const std::string& coord_type, int index_res);
+RcppExport SEXP _analogs_build_analog_index_cpp(SEXP ref_mmSEXP, SEXP coord_typeSEXP, SEXP index_resSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type coord_type(coord_typeSEXP);
+    Rcpp::traits::input_parameter< int >::type index_res(index_resSEXP);
+    rcpp_result_gen = Rcpp::wrap(build_analog_index_cpp(ref_mm, coord_type, index_res));
+    return rcpp_result_gen;
+END_RCPP
+}
+// query_analog_index_cpp
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int mode_code, int weight_code, double theta);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type index_list(index_listSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type focal_mm(focal_mmSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
+    Rcpp::traits::input_parameter< int >::type k(kSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
+    Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
+    Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
+    Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
+    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, mode_code, weight_code, theta));
+    return rcpp_result_gen;
+END_RCPP
+}
 // find_analogs_core
 SEXP find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, double theta, int lattice_res);
 RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP lattice_resSEXP) {
@@ -92,6 +124,8 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 3},
+    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 9},
     {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 10},
     {"_analogs_profile_find_analogs", (DL_FUNC) &_analogs_profile_find_analogs, 11},
     {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 5},

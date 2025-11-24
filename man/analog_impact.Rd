@@ -5,39 +5,76 @@
 \title{Climate impact: nearest climate analogs within a geographic envelope}
 \usage{
 analog_impact(
-  focal,
-  ref,
+  x,
+  pool,
   max_geog,
   k = 20,
   max_clim = NULL,
   coord_type = "auto",
   report_dist = TRUE,
-  lattice_res = "auto",
+  index_res = "auto",
   n_threads = NULL
 )
 }
 \arguments{
-\item{focal}{Data.frame, matrix, or SpatRaster containing focal locations
-with columns \code{x}, \code{y}, and climate variables.}
+\item{x}{Focal locations for which analogs will be found. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a
+SpatRaster with climate variable layers.}
 
-\item{ref}{Data.frame, matrix, or SpatRaster containing reference locations.}
+\item{pool}{The reference dataset to search for analogs. Either:
+\itemize{
+  \item Matrix/data.frame with columns x, y, and climate variables,
+    or SpatRaster with climate variable layers, OR
+  \item An \code{\link{analog_index}} object created by
+    \code{\link{build_analog_index}} (for repeated queries).
+}}
 
-\item{max_geog}{Maximum allowable geographic distance in kilometers. Only
-reference locations within \code{max_geog} km are considered.}
+\item{max_geog}{Maximum geographic distance constraint (default:
+NULL = no geographic constraint). When specified, only reference locations
+within this distance are considered. Radius units should be specified in
+kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
+if \code{coord_type = "projected"}.}
 
-\item{k}{Number of nearest climate analogs to return for each focal
-(default = 20).}
+\item{k}{Number of nearest analogs to return per focal location for kNN
+modes. Required when \code{mode} is \code{"knn_geog"} or \code{"knn_clim"};
+must be \code{NULL} for other modes.}
 
-\item{max_clim}{Optional additional climate constraint (scalar or vector).
-Useful for restricting comparisons to very similar climate neighborhoods.}
+\item{max_clim}{Maximum climate distance constraint (default: NULL = no
+climate constraint). Can be either:
+\itemize{
+  \item A scalar: Euclidean radius in climate space (e.g., 0.5)
+  \item A vector: Per-variable absolute differences (length must equal
+    number of climate variables)
+}
+Only reference locations within this climate distance are considered.}
 
-\item{coord_type}{One of \code{"auto"}, \code{"lonlat"}, or
-\code{"projected"}. \code{"auto"} attempts to detect the appropriate mode.}
+\item{coord_type}{Coordinate system type (default: "auto"):
+\itemize{
+  \item \code{"auto"}: Automatically detect from coordinate ranges.
+  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+    assumes \code{max_geog} is in km).
+  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
+    assumes \code{max_geog} is in projection units).
+}}
 
-\item{report_dist}{Logical; if TRUE (default), include climate and geographic
-distance columns in the output.}
+\item{report_dist}{Logical; if TRUE (default), include distance columns in
+output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
+\code{"all"}. Set to FALSE for more compact output.}
 
-\item{n_threads}{Number of parallel compute threads to use.}
+\item{index_res}{Tuning parameter giving the number of bins per dimension
+of the internally-used lattice search index. Either:
+\itemize{
+  \item A positive integer.
+  \item \code{"auto"} (the default): Automatically tune the intex resolution
+    by optimizing compute time on a subsample of focal points. If focal has
+    relatively few rows, auto-tuning is skipped and a default resolution of
+    16 is used.
+}
+Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
+
+\item{n_threads}{Optional integer number of threads to use for the
+computation. If \code{NULL} (default), the global RcppParallel setting
+is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
 A data.frame with one row per focal–analog pair, including:
@@ -59,25 +96,31 @@ change: e.g., how climate conditions at a site compare to those available
 within a species' dispersal range.
 
 
-For each focal location, \code{impact()}:
+For each focal location, \code{analog_impact()}:
 \enumerate{
   \item Identifies all reference points within \code{max_geog} km (and
         optional climate filter).
   \item Selects the \code{k} closest in \emph{climate} distance.
 }
 
-This is the natural “inverse” of \code{\link{velocity}}: instead of finding
+This is the natural "inverse" of \code{\link{analog_velocity}}: instead of finding
 where the focal climate moves geographically, it finds the closest climatically
 similar conditions that are geographically reachable.
 }
 \examples{
 \dontrun{
-im <- impact(
-  focal = clim$clim1,
-  ref   = clim$clim2,
+# One-shot query
+im <- analog_impact(
+  x = clim$clim1,
+  pool = clim$clim2,
   max_geog = 100,
   k = 20
 )
+
+# With pre-built index (for repeated queries)
+index <- build_analog_index(clim$clim2)
+i1 <- analog_impact(x = sites1, pool = index, max_geog = 100, k = 20)
+i2 <- analog_impact(x = sites2, pool = index, max_geog = 50, k = 10)
 }
 
 }

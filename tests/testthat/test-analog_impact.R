@@ -48,3 +48,44 @@ test_that("`analog_impact` result matches manual calculation for LON/LAT coords"
       expect_equal(nn$analog_index, nn_idx)
       expect_equal(nn$clim_dist, nn_dst, tolerance = 1e-8)
 })
+
+test_that("analog_impact works with x/pool parameter names", {
+
+      d <- sim_test_data()
+
+      # Test with raw data
+      i <- analog_impact(
+            x = d$focal,
+            pool = d$ref,
+            max_geog = 2,
+            k = 3,
+            coord_type = "projected",
+            index_res = 10
+      )
+
+      expect_s3_class(i, "data.frame")
+      expect_true(nrow(i) <= nrow(d$focal) * 3)
+      expect_true(all(c("focal_index", "analog_index", "clim_dist") %in% names(i)))
+})
+
+
+test_that("analog_impact works with analog_index", {
+
+      d <- sim_test_data()
+
+      # Build index
+      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+
+      # Query with index
+      i <- analog_impact(
+            x = d$focal,
+            pool = index,
+            max_geog = 2,
+            k = 3
+      )
+
+      expect_s3_class(i, "data.frame")
+      expect_true(nrow(i) <= nrow(d$focal) * 3)
+      expect_true(all(c("focal_index", "analog_index", "clim_dist") %in% names(i)))
+})
+

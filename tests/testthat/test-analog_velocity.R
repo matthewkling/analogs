@@ -48,3 +48,43 @@ test_that("`analog_velocity` result matches manual calculation for LON/LAT coord
       expect_equal(nn$analog_index, nn_idx)
       expect_equal(nn$geog_dist, nn_dst, tolerance = 1e-8)
 })
+
+test_that("analog_velocity works with x/pool parameter names", {
+
+      d <- sim_test_data()
+
+      # Test with raw data (pool)
+      v <- analog_velocity(
+            x = d$focal,
+            pool = d$ref,
+            max_clim = 1,
+            k = 1,
+            coord_type = "projected",
+            index_res = 10
+      )
+
+      expect_s3_class(v, "data.frame")
+      expect_equal(nrow(v), nrow(d$focal))
+      expect_true(all(c("focal_index", "analog_index", "geog_dist") %in% names(v)))
+})
+
+
+test_that("analog_velocity works with analog_index", {
+
+      d <- sim_test_data()
+
+      # Build index
+      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+
+      # Query with index
+      v <- analog_velocity(
+            x = d$focal,
+            pool = index,
+            max_clim = 1,
+            k = 1
+      )
+
+      expect_s3_class(v, "data.frame")
+      expect_equal(nrow(v), nrow(d$focal))
+      expect_true(all(c("focal_index", "analog_index", "geog_dist") %in% names(v)))
+})

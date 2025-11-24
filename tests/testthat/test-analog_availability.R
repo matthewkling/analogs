@@ -1,4 +1,3 @@
-
 test_that("`analog_availability` result matches manual calculation for planar coords", {
 
       d <- sim_test_data()
@@ -38,4 +37,47 @@ test_that("`analog_availability` result matches manual calculation for LON/LAT c
       avail <- as.vector(rowSums(dclim < max_clim & dgeog < max_geog))
 
       expect_equal(nn$value, avail)
+})
+
+
+test_that("analog_availability works with x/pool parameter names", {
+
+      d <- sim_test_data()
+
+      # Test with raw data
+      a <- analog_availability(
+            x = d$focal,
+            pool = d$ref,
+            max_clim = 1,
+            max_geog = 2,
+            coord_type = "projected",
+            index_res = 10
+      )
+
+      expect_s3_class(a, "data.frame")
+      expect_equal(nrow(a), nrow(d$focal))
+      expect_true("value" %in% names(a))
+      expect_true(all(is.numeric(a$value)))
+})
+
+
+test_that("analog_availability works with analog_index", {
+
+      d <- sim_test_data()
+
+      # Build index
+      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+
+      # Query with index
+      a <- analog_availability(
+            x = d$focal,
+            pool = index,
+            max_clim = 1,
+            max_geog = 2
+      )
+
+      expect_s3_class(a, "data.frame")
+      expect_equal(nrow(a), nrow(d$focal))
+      expect_true("value" %in% names(a))
+      expect_true(all(is.numeric(a$value)))
 })

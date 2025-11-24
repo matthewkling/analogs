@@ -5,27 +5,66 @@
 \title{Analog availability: count of all analogs within climate/geographic limits}
 \usage{
 analog_availability(
-  focal,
-  ref,
+  x,
+  pool,
   max_clim = NULL,
   max_geog = NULL,
   coord_type = "auto",
-  lattice_res = "auto",
+  index_res = "auto",
   n_threads = NULL
 )
 }
 \arguments{
-\item{focal}{Data.frame/matrix/SpatRaster of focal points.}
+\item{x}{Focal locations for which analogs will be found. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a
+SpatRaster with climate variable layers.}
 
-\item{ref}{Data.frame/matrix/SpatRaster of reference points.}
+\item{pool}{The reference dataset to search for analogs. Either:
+\itemize{
+  \item Matrix/data.frame with columns x, y, and climate variables,
+    or SpatRaster with climate variable layers, OR
+  \item An \code{\link{analog_index}} object created by
+    \code{\link{build_analog_index}} (for repeated queries).
+}}
 
-\item{max_clim}{Maximum climate distance (scalar or vector), or NULL.}
+\item{max_clim}{Maximum climate distance constraint (default: NULL = no
+climate constraint). Can be either:
+\itemize{
+  \item A scalar: Euclidean radius in climate space (e.g., 0.5)
+  \item A vector: Per-variable absolute differences (length must equal
+    number of climate variables)
+}
+Only reference locations within this climate distance are considered.}
 
-\item{max_geog}{Maximum geographic distance in km, or NULL.}
+\item{max_geog}{Maximum geographic distance constraint (default:
+NULL = no geographic constraint). When specified, only reference locations
+within this distance are considered. Radius units should be specified in
+kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
+if \code{coord_type = "projected"}.}
 
-\item{coord_type}{"auto", "lonlat", or "projected".}
+\item{coord_type}{Coordinate system type (default: "auto"):
+\itemize{
+  \item \code{"auto"}: Automatically detect from coordinate ranges.
+  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+    assumes \code{max_geog} is in km).
+  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
+    assumes \code{max_geog} is in projection units).
+}}
 
-\item{n_threads}{Number of parallel compute threads to use.}
+\item{index_res}{Tuning parameter giving the number of bins per dimension
+of the internally-used lattice search index. Either:
+\itemize{
+  \item A positive integer.
+  \item \code{"auto"} (the default): Automatically tune the intex resolution
+    by optimizing compute time on a subsample of focal points. If focal has
+    relatively few rows, auto-tuning is skipped and a default resolution of
+    16 is used.
+}
+Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
+
+\item{n_threads}{Optional integer number of threads to use for the
+computation. If \code{NULL} (default), the global RcppParallel setting
+is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
 A data.frame with columns:
@@ -37,4 +76,21 @@ A data.frame with columns:
 Computes, for each focal location, how many reference locations satisfy
 the supplied climate and geographic constraints. This is useful for
 mapping analog "availability" or environmental similarity density.
+}
+\examples{
+\dontrun{
+# One-shot query
+avail <- analog_availability(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100
+)
+
+# With pre-built index (for repeated queries)
+index <- build_analog_index(climate_data)
+a1 <- analog_availability(x = sites1, pool = index, max_clim = 0.5, max_geog = 100)
+a2 <- analog_availability(x = sites2, pool = index, max_clim = 0.3, max_geog = 50)
+}
+
 }

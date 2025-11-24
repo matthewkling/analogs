@@ -5,24 +5,7 @@
 #' controlled by the \code{weight} and \code{theta} arguments and are applied
 #' after filtering.
 #'
-#' @param focal Data.frame/matrix/SpatRaster of focal points.
-#' @param ref   Data.frame/matrix/SpatRaster of reference points.
-#' @param max_clim Maximum climate distance (scalar or vector), or NULL for no
-#'   climate constraint.
-#' @param max_geog Maximum geographic distance in km, or NULL for no geographic
-#'   constraint.
-#' @param weight Weighting kernel, one of:
-#'   \itemize{
-#'     \item \code{"uniform"}: weight = 1 for all matches.
-#'     \item \code{"inverse_clim"}: weight = 1 / (climate_distance + theta),
-#'       with \code{theta} as epsilon (if NULL, a small default is used).
-#'     \item \code{"inverse_geog"}: weight = 1 / (geographic_distance + theta),
-#'       with \code{theta} as epsilon (if NULL, a small default is used).
-#'   }
-#' @param theta Optional numeric hyperparameter for the weighting kernel
-#'   (epsilon term for inverse kernels). See \code{weight} description.
-#' @param coord_type "auto", "lonlat", or "projected".
-#' @param n_threads Number of parallel compute threads to use.
+#' @inheritParams find_analogs
 #'
 #' @return A data.frame with one row per focal location:
 #'   \itemize{
@@ -31,23 +14,42 @@
 #'     \item \code{value}: weighted sum over all analogs
 #'   }
 #'
+#' @examples
+#' \dontrun{
+#' # One-shot query
+#' intens <- analog_intensity(
+#'   x = sites,
+#'   pool = climate_data,
+#'   max_clim = 0.5,
+#'   max_geog = 100,
+#'   weight = "inverse_clim"
+#' )
+#'
+#' # With pre-built index (for repeated queries)
+#' index <- build_analog_index(climate_data)
+#' i1 <- analog_intensity(x = sites1, pool = index, max_clim = 0.5,
+#'                        weight = "inverse_clim")
+#' i2 <- analog_intensity(x = sites2, pool = index, max_geog = 100,
+#'                        weight = "inverse_geog")
+#' }
+#'
 #' @export
 analog_intensity <- function(
-            focal,
-            ref,
+            x,
+            pool,
             max_clim   = NULL,
             max_geog   = NULL,
             weight     = c("uniform", "inverse_clim", "inverse_geog"),
             theta      = NULL,
             coord_type = "auto",
-            lattice_res = "auto",
+            index_res = "auto",
             n_threads = NULL
 ) {
       weight <- match.arg(weight)
 
       find_analogs(
-            focal      = focal,
-            ref        = ref,
+            x          = x,
+            pool       = pool,
             mode       = "sum",
             max_clim   = max_clim,
             max_geog   = max_geog,
@@ -56,7 +58,7 @@ analog_intensity <- function(
             theta      = theta,
             coord_type = coord_type,
             report_dist = FALSE,       # no pairwise distances needed for sums
-            lattice_res = lattice_res,
-            n_threads = n_threads
+            index_res  = index_res,
+            n_threads  = n_threads
       )
 }

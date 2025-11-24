@@ -5,43 +5,97 @@
 \title{Analog intensity: weighted sum of analogs within climate/geographic limits}
 \usage{
 analog_intensity(
-  focal,
-  ref,
+  x,
+  pool,
   max_clim = NULL,
   max_geog = NULL,
   weight = c("uniform", "inverse_clim", "inverse_geog"),
   theta = NULL,
   coord_type = "auto",
-  lattice_res = "auto",
+  index_res = "auto",
   n_threads = NULL
 )
 }
 \arguments{
-\item{focal}{Data.frame/matrix/SpatRaster of focal points.}
+\item{x}{Focal locations for which analogs will be found. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a
+SpatRaster with climate variable layers.}
 
-\item{ref}{Data.frame/matrix/SpatRaster of reference points.}
-
-\item{max_clim}{Maximum climate distance (scalar or vector), or NULL for no
-climate constraint.}
-
-\item{max_geog}{Maximum geographic distance in km, or NULL for no geographic
-constraint.}
-
-\item{weight}{Weighting kernel, one of:
+\item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-  \item \code{"uniform"}: weight = 1 for all matches.
-  \item \code{"inverse_clim"}: weight = 1 / (climate_distance + theta),
-    with \code{theta} as epsilon (if NULL, a small default is used).
-  \item \code{"inverse_geog"}: weight = 1 / (geographic_distance + theta),
-    with \code{theta} as epsilon (if NULL, a small default is used).
+  \item Matrix/data.frame with columns x, y, and climate variables,
+    or SpatRaster with climate variable layers, OR
+  \item An \code{\link{analog_index}} object created by
+    \code{\link{build_analog_index}} (for repeated queries).
 }}
 
-\item{theta}{Optional numeric hyperparameter for the weighting kernel
-(epsilon term for inverse kernels). See \code{weight} description.}
+\item{max_clim}{Maximum climate distance constraint (default: NULL = no
+climate constraint). Can be either:
+\itemize{
+  \item A scalar: Euclidean radius in climate space (e.g., 0.5)
+  \item A vector: Per-variable absolute differences (length must equal
+    number of climate variables)
+}
+Only reference locations within this climate distance are considered.}
 
-\item{coord_type}{"auto", "lonlat", or "projected".}
+\item{max_geog}{Maximum geographic distance constraint (default:
+NULL = no geographic constraint). When specified, only reference locations
+within this distance are considered. Radius units should be specified in
+kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
+if \code{coord_type = "projected"}.}
 
-\item{n_threads}{Number of parallel compute threads to use.}
+\item{weight}{Weighting function for matches, used only when
+\code{mode} is \code{"sum"} or \code{"mean"}. One of:
+\itemize{
+  \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
+  \item \code{"inverse_clim"}: Weight = 1 / (climate_distance + epsilon),
+    with epsilon given by \code{theta} (or a small default if \code{theta}
+    is \code{NULL}).
+  \item \code{"inverse_geog"}: Weight = 1 / (geographic_distance + epsilon),
+    with epsilon given by \code{theta} (or a small default if \code{theta}
+    is \code{NULL}).
+}
+For \code{mode} in \code{"knn_geog"}, \code{"knn_clim"}, \code{"count"},
+or \code{"all"}, \code{weight} must be \code{NULL}.}
+
+\item{theta}{Optional numeric parameter used by some weighting kernels
+when \code{mode} is \code{"sum"} or \code{"mean"} and \code{weight} is
+not \code{"uniform"}. Currently interpreted as:
+\itemize{
+  \item For \code{"gaussian_clim"}: sigma bandwidth for climate distance.
+  \item For \code{"gaussian_geog"}: sigma bandwidth for geographic distance.
+  \item For \code{"gaussian_joint"}: length-two vector of sigma bandwidths
+    for climate and geographic distances, respectively.
+  \item For \code{"inverse_clim"}: epsilon added to climate distance.
+  \item For \code{"inverse_geog"}: epsilon added to geographic distance.
+}
+If \code{theta} is \code{NULL}, a small default epsilon is used. For
+\code{weight = "uniform"} or for non-aggregating modes, \code{theta}
+must be \code{NULL}.}
+
+\item{coord_type}{Coordinate system type (default: "auto"):
+\itemize{
+  \item \code{"auto"}: Automatically detect from coordinate ranges.
+  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+    assumes \code{max_geog} is in km).
+  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
+    assumes \code{max_geog} is in projection units).
+}}
+
+\item{index_res}{Tuning parameter giving the number of bins per dimension
+of the internally-used lattice search index. Either:
+\itemize{
+  \item A positive integer.
+  \item \code{"auto"} (the default): Automatically tune the intex resolution
+    by optimizing compute time on a subsample of focal points. If focal has
+    relatively few rows, auto-tuning is skipped and a default resolution of
+    16 is used.
+}
+Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
+
+\item{n_threads}{Optional integer number of threads to use for the
+computation. If \code{NULL} (default), the global RcppParallel setting
+is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
 A data.frame with one row per focal location:
@@ -56,4 +110,24 @@ Computes, for each focal location, the weighted sum of all reference locations
 that satisfy the supplied climate and geographic constraints. The weights are
 controlled by the \code{weight} and \code{theta} arguments and are applied
 after filtering.
+}
+\examples{
+\dontrun{
+# One-shot query
+intens <- analog_intensity(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100,
+  weight = "inverse_clim"
+)
+
+# With pre-built index (for repeated queries)
+index <- build_analog_index(climate_data)
+i1 <- analog_intensity(x = sites1, pool = index, max_clim = 0.5,
+                       weight = "inverse_clim")
+i2 <- analog_intensity(x = sites2, pool = index, max_geog = 100,
+                       weight = "inverse_geog")
+}
+
 }

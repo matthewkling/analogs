@@ -4,31 +4,42 @@
 #' the supplied climate and geographic constraints. This is useful for
 #' mapping analog "availability" or environmental similarity density.
 #'
-#' @param focal Data.frame/matrix/SpatRaster of focal points.
-#' @param ref   Data.frame/matrix/SpatRaster of reference points.
-#' @param max_clim Maximum climate distance (scalar or vector), or NULL.
-#' @param max_geog Maximum geographic distance in km, or NULL.
-#' @param coord_type "auto", "lonlat", or "projected".
-#' @param n_threads Number of parallel compute threads to use.
+#' @inheritParams find_analogs
 #'
 #' @return A data.frame with columns:
 #'   - focal_index
 #'   - focal_x, focal_y
 #'   - value (the count of analogs)
 #'
+#' @examples
+#' \dontrun{
+#' # One-shot query
+#' avail <- analog_availability(
+#'   x = sites,
+#'   pool = climate_data,
+#'   max_clim = 0.5,
+#'   max_geog = 100
+#' )
+#'
+#' # With pre-built index (for repeated queries)
+#' index <- build_analog_index(climate_data)
+#' a1 <- analog_availability(x = sites1, pool = index, max_clim = 0.5, max_geog = 100)
+#' a2 <- analog_availability(x = sites2, pool = index, max_clim = 0.3, max_geog = 50)
+#' }
+#'
 #' @export
 analog_availability <- function(
-            focal,
-            ref,
+            x,
+            pool,
             max_clim = NULL,
             max_geog = NULL,
             coord_type = "auto",
-            lattice_res = "auto",
+            index_res = "auto",
             n_threads = NULL
 ) {
       find_analogs(
-            focal      = focal,
-            ref        = ref,
+            x          = x,
+            pool       = pool,
             mode       = "count",
             max_clim   = max_clim,
             max_geog   = max_geog,
@@ -37,7 +48,7 @@ analog_availability <- function(
             theta      = NULL,   # required to be NULL
             coord_type = coord_type,
             report_dist = FALSE,  # no pair distances in aggregate mode
-            lattice_res = lattice_res,
-            n_threads = n_threads
+            index_res  = index_res,
+            n_threads  = n_threads
       )
 }
