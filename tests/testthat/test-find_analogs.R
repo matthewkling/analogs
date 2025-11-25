@@ -1,4 +1,4 @@
-test_that("find_analogs uses new build+query architecture correctly", {
+test_that("find_analogs uses build+query architecture correctly", {
 
       d <- sim_test_data()
 

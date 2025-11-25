@@ -2,7 +2,7 @@ test_that("tune_index_res returns valid resolution", {
 
       d <- sim_test_data()
 
-      # Basic tuning with minimal reps for speed
+      # Basic tuning
       res <- tune_index_res(
             x = d$focal,
             pool = d$ref,
@@ -10,14 +10,12 @@ test_that("tune_index_res returns valid resolution", {
             max_clim = 1,
             k = 1,
             coord_type = "projected",
-            resolutions = c(8, 12, 16),
-            n_reps = 2,
             verbose = FALSE
       )
 
       expect_type(res, "integer")
       expect_length(res, 1)
-      expect_true(res %in% c(8, 12, 16))
+      expect_true(res > 0)  # Should return a positive integer
 })
 
 
@@ -33,11 +31,10 @@ test_that("tune_index_res works with different modes", {
             max_geog = 2,
             k = 3,
             coord_type = "projected",
-            resolutions = c(6, 10),
-            n_reps = 1,
             verbose = FALSE
       )
-      expect_true(res1 %in% c(6, 10))
+      expect_type(res1, "integer")
+      expect_true(res1 > 0)
 
       # count
       res2 <- tune_index_res(
@@ -47,11 +44,10 @@ test_that("tune_index_res works with different modes", {
             max_clim = 1,
             max_geog = 2,
             coord_type = "projected",
-            resolutions = c(6, 10),
-            n_reps = 1,
             verbose = FALSE
       )
-      expect_true(res2 %in% c(6, 10))
+      expect_type(res2, "integer")
+      expect_true(res2 > 0)
 
       # sum
       res3 <- tune_index_res(
@@ -62,85 +58,73 @@ test_that("tune_index_res works with different modes", {
             max_geog = 2,
             weight = "uniform",
             coord_type = "projected",
-            resolutions = c(6, 10),
-            n_reps = 1,
             verbose = FALSE
       )
-      expect_true(res3 %in% c(6, 10))
+      expect_type(res3, "integer")
+      expect_true(res3 > 0)
 })
 
 
-test_that("tune_index_res samples large focal datasets", {
+test_that("tune_index_res uses subsampling for large datasets", {
 
-      # Create larger dataset
+      # Create larger dataset that triggers tuning
       set.seed(123)
-      large_focal <- matrix(rnorm(1000 * 4), ncol = 4)
-      ref_data <- matrix(rnorm(200 * 4), ncol = 4)
+      large_focal <- matrix(rnorm(3000 * 4), ncol = 4)
+      ref_data <- matrix(rnorm(500 * 4), ncol = 4)
 
-      # Should sample down to n_sample
+      # Should perform tuning (n > 2000)
       res <- tune_index_res(
             x = large_focal,
             pool = ref_data,
             mode = "count",
             max_clim = 1,
             coord_type = "projected",
-            resolutions = c(8, 12),
-            n_sample = 50,
-            n_reps = 1,
             verbose = FALSE
       )
 
       expect_type(res, "integer")
-      expect_true(res %in% c(8, 12))
+      expect_true(res > 0)
 })
 
 
-test_that("tune_index_res returns detailed results invisibly", {
+test_that("tune_index_res returns default for small datasets", {
 
+      # Small dataset (< 2000 rows)
       d <- sim_test_data()
 
-      results <- tune_index_res(
+      res <- tune_index_res(
             x = d$focal,
             pool = d$ref,
             mode = "knn_geog",
             max_clim = 1,
             k = 1,
             coord_type = "projected",
-            resolutions = c(8, 12, 16),
-            n_reps = 2,
+            default_res = 20L,
             verbose = FALSE
       )
 
-      # Invisible return should be a data.frame
-      expect_s3_class(results, "data.frame")
-      expect_true(all(c("resolution", "mean_time_ms", "sd_time_ms") %in% names(results)))
-      expect_equal(nrow(results), 3)  # 3 resolutions tested
-      expect_equal(results$resolution, c(8, 12, 16))
-      expect_true(all(results$mean_time_ms > 0))
+      # Should return default_res since dataset is small
+      expect_equal(res, 20L)
 })
 
 
-test_that("tune_index_res validates inputs", {
+test_that("tune_index_res respects custom default_res", {
 
       d <- sim_test_data()
 
-      # Invalid resolutions
-      expect_error(
-            tune_index_res(d$focal, d$ref, mode = "count", resolutions = c(-1, 10)),
-            "positive integers"
+      # Custom default
+      res <- tune_index_res(
+            x = d$focal,
+            pool = d$ref,
+            mode = "count",
+            max_clim = 1,
+            coord_type = "projected",
+            default_res = 24L,
+            verbose = FALSE
       )
 
-      # Invalid n_sample
-      expect_error(
-            tune_index_res(d$focal, d$ref, mode = "count", n_sample = -5),
-            "positive integer"
-      )
-
-      # Invalid n_reps
-      expect_error(
-            tune_index_res(d$focal, d$ref, mode = "count", n_reps = 0),
-            "positive integer"
-      )
+      # Small dataset should return the custom default
+      expect_equal(res, 24L)
 })
 
 
@@ -154,11 +138,10 @@ test_that("tune_index_res works with auto coord detection", {
             mode = "count",
             max_clim = 1,
             coord_type = "auto",
-            resolutions = c(8, 12),
-            n_reps = 1,
             verbose = FALSE
       )
-      expect_true(res_proj %in% c(8, 12))
+      expect_type(res_proj, "integer")
+      expect_true(res_proj > 0)
 
       # Lon/lat data
       d_lonlat <- sim_test_data(lonlat = TRUE)
@@ -168,66 +151,66 @@ test_that("tune_index_res works with auto coord detection", {
             mode = "count",
             max_clim = 1,
             coord_type = "auto",
-            resolutions = c(8, 12),
-            n_reps = 1,
             verbose = FALSE
       )
-      expect_true(res_lonlat %in% c(8, 12))
+      expect_type(res_lonlat, "integer")
+      expect_true(res_lonlat > 0)
 })
 
 
-test_that("tune_index_res produces reasonable recommendations", {
+test_that("tune_index_res adaptive bracketing works", {
 
-      d <- sim_test_data()
+      # Create dataset large enough to trigger tuning
+      set.seed(456)
+      large_focal <- matrix(rnorm(2500 * 4), ncol = 4)
+      ref_data <- matrix(rnorm(500 * 4), ncol = 4)
 
-      # Test a wider range
+      # Should use adaptive bracketing (3-5 evaluations)
       res <- tune_index_res(
-            x = d$focal,
-            pool = d$ref,
+            x = large_focal,
+            pool = ref_data,
             mode = "knn_geog",
             max_clim = 1,
             k = 1,
             coord_type = "projected",
-            resolutions = c(4, 8, 16, 32),
-            n_reps = 2,
+            default_res = 16L,
             verbose = FALSE
       )
 
-      # Should pick something in the middle range (4 and 32 are extremes)
-      # This is probabilistic but should generally hold
+      # Result should be reasonable (between 4 and 32 given default of 16)
+      expect_type(res, "integer")
       expect_true(res >= 4 && res <= 32)
 })
 
 
 test_that("tune_index_res verbose output works", {
 
-      d <- sim_test_data()
+      # Create dataset large enough to trigger tuning
+      set.seed(789)
+      large_focal <- matrix(rnorm(2500 * 4), ncol = 4)
+      ref_data <- matrix(rnorm(500 * 4), ncol = 4)
 
       # Should produce output
-      expect_output(
+      expect_message(
             tune_index_res(
-                  x = d$focal,
-                  pool = d$ref,
+                  x = large_focal,
+                  pool = ref_data,
                   mode = "count",
                   max_clim = 1,
                   coord_type = "projected",
-                  resolutions = c(8, 12),
-                  n_reps = 1,
                   verbose = TRUE
             ),
-            "Optimal resolution"
+            "Selected resolution"
       )
 
-      # Should not produce output when verbose = FALSE
+      # Should not produce messages when verbose = FALSE
       expect_silent(
             tune_index_res(
-                  x = d$focal,
-                  pool = d$ref,
+                  x = large_focal,
+                  pool = ref_data,
                   mode = "count",
                   max_clim = 1,
                   coord_type = "projected",
-                  resolutions = c(8, 12),
-                  n_reps = 1,
                   verbose = FALSE
             )
       )
@@ -236,7 +219,7 @@ test_that("tune_index_res verbose output works", {
 
 test_that("tune_index_res handles edge cases", {
 
-      # Very small dataset
+      # Very small dataset - should return default immediately
       small_focal <- matrix(rnorm(5 * 3), ncol = 3)
       small_ref <- matrix(rnorm(10 * 3), ncol = 3)
 
@@ -246,11 +229,75 @@ test_that("tune_index_res handles edge cases", {
             mode = "count",
             max_clim = 1,
             coord_type = "projected",
-            resolutions = c(4, 8),
-            n_reps = 1,
+            default_res = 12L,
             verbose = FALSE
       )
 
       expect_type(res, "integer")
-      expect_true(res %in% c(4, 8))
+      expect_equal(res, 12L)  # Should return default for small dataset
+})
+
+
+test_that("tune_index_res works with all weight options", {
+
+      # Create dataset large enough to trigger tuning
+      set.seed(999)
+      large_focal <- matrix(rnorm(2500 * 4), ncol = 4)
+      ref_data <- matrix(rnorm(500 * 4), ncol = 4)
+
+      # Test with inverse_clim weight
+      res1 <- tune_index_res(
+            x = large_focal,
+            pool = ref_data,
+            mode = "sum",
+            max_clim = 1,
+            max_geog = 2,
+            weight = "inverse_clim",
+            coord_type = "projected",
+            verbose = FALSE
+      )
+      expect_type(res1, "integer")
+      expect_true(res1 > 0)
+
+      # Test with inverse_geog weight
+      res2 <- tune_index_res(
+            x = large_focal,
+            pool = ref_data,
+            mode = "sum",
+            max_clim = 1,
+            max_geog = 2,
+            weight = "inverse_geog",
+            coord_type = "projected",
+            verbose = FALSE
+      )
+      expect_type(res2, "integer")
+      expect_true(res2 > 0)
+})
+
+
+test_that("tune_index_res works with lonlat coordinates", {
+
+      # Create lon/lat dataset large enough to trigger tuning
+      set.seed(111)
+      large_focal <- matrix(nrow = 2500, ncol = 4)
+      large_focal[, 1] <- runif(2500, -180, 180)  # lon
+      large_focal[, 2] <- runif(2500, -90, 90)    # lat
+      large_focal[, 3:4] <- rnorm(2500 * 2)
+
+      ref_data <- matrix(nrow = 500, ncol = 4)
+      ref_data[, 1] <- runif(500, -180, 180)
+      ref_data[, 2] <- runif(500, -90, 90)
+      ref_data[, 3:4] <- rnorm(500 * 2)
+
+      res <- tune_index_res(
+            x = large_focal,
+            pool = ref_data,
+            mode = "count",
+            max_clim = 1,
+            coord_type = "lonlat",
+            verbose = FALSE
+      )
+
+      expect_type(res, "integer")
+      expect_true(res > 0)
 })

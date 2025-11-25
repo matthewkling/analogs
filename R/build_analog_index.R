@@ -57,8 +57,7 @@ build_analog_index <- function(pool,
 
       # Detect coordinate system if auto
       if (coord_type == "auto") {
-            coord_type <- .detect_geo(ref_mm[, 1:2, drop = FALSE],
-                                      ref_mm[, 1:2, drop = FALSE])
+            coord_type <- .detect_geo(ref_mm[, 1:2, drop = FALSE])
       }
 
       # Call C++ to build index
@@ -250,9 +249,9 @@ is_analog_index <- function(x) {
 
 #' Detect coordinate system from data ranges
 #' @keywords internal
-.detect_geo <- function(focal_xy, ref_xy) {
-      lon_rng <- range(c(focal_xy[, 1], ref_xy[, 1]), na.rm = TRUE)
-      lat_rng <- range(c(focal_xy[, 2], ref_xy[, 2]), na.rm = TRUE)
+.detect_geo <- function(xy) {
+      lon_rng <- range(xy[, 1], na.rm = TRUE)
+      lat_rng <- range(xy[, 2], na.rm = TRUE)
 
       if (
             all(is.finite(c(lon_rng, lat_rng))) &&

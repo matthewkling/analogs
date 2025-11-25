@@ -112,10 +112,6 @@
 #'   }
 #'   Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).
 #'
-#' @param resolution,n_sample,n_reps Parameters passed to \code{tune_index_res()}.
-#'   Ignored if \code{pool} is an \code{analog_index} or if \code{index_res} isn't
-#'   \code{"auto"}.
-#'
 #' @param n_threads Optional integer number of threads to use for the
 #'   computation. If \code{NULL} (default), the global RcppParallel setting
 #'   is used (see \code{RcppParallel::setThreadOptions}).
@@ -221,9 +217,7 @@ find_analogs <- function(
             max_clim = NULL,
             max_geog = NULL,
             k = NULL,
-            weight = c("uniform",
-                       "gaussian_clim", "gaussian_geog", "gaussian_joint",
-                       "inverse_clim", "inverse_geog", "inverse_joint"),
+            weight = NULL,
             theta = NULL,
             report_dist = TRUE,
             coord_type = c("auto", "lonlat", "projected"),
@@ -232,20 +226,29 @@ find_analogs <- function(
             n_threads = NULL
 ) {
 
-      # [placeholder: throw warnings if build-specific params and prebuilt index are both supplied]
+      # Validate and normalize query parameters
+      params <- .validate_query_params(mode, k, weight, theta)
+      mode <- params$mode
+      k <- params$k
+      weight <- params$weight
+      theta <- params$theta
 
+      # Validate coord_type
+      coord_type <- match.arg(coord_type)
 
-      # Build index (if needed) --------------------------------------
+      # Check if pool is already an index
+      if (is_analog_index(pool)) {
+            # Pool is pre-built index - use it directly
+            index <- pool
+      } else {
+            # Pool is raw data - need to build index
 
-      if(!is_analog_index(pool)){
-
-            # Tune resolution (if needed) ---------------------------
-
-            if(identical(index_res, "auto")) {
+            # Tune resolution if needed
+            if (identical(index_res, "auto")) {
                   # Use tune_index_res for auto-tuning
                   index_res_int <- tune_index_res(
-                        x = focal_mm,
-                        pool = ref_mm,
+                        x = x,
+                        pool = pool,
                         mode = mode,
                         max_clim = max_clim,
                         max_geog = max_geog,
@@ -253,9 +256,7 @@ find_analogs <- function(
                         weight = weight,
                         theta = theta,
                         coord_type = coord_type,
-                        resolutions = resolutions,
-                        n_sample = n_sample,
-                        n_reps = n_reps,
+                        n_threads = n_threads,
                         verbose = FALSE
                   )
             } else if (is.numeric(index_res)) {
@@ -264,20 +265,18 @@ find_analogs <- function(
                   index_res_int <- 16L  # Default
             }
 
-            # Build index
+            # Build index from raw pool data
             index <- build_analog_index(
-                  pool = ref_mm,
+                  pool = pool,
                   coord_type = coord_type,
                   index_res = index_res_int
             )
       }
 
-
-      # Query index --------------------------------------------------
-
+      # Query the index
       return(query_analog_index(
             x = x,
-            index = pool,
+            index = index,
             mode = mode,
             max_clim = max_clim,
             max_geog = max_geog,
@@ -287,8 +286,4 @@ find_analogs <- function(
             report_dist = report_dist,
             n_threads = n_threads
       ))
-
 }
-
-
-

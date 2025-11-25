@@ -11,8 +11,7 @@ find_analogs(
   max_clim = NULL,
   max_geog = NULL,
   k = NULL,
-  weight = c("uniform", "gaussian_clim", "gaussian_geog", "gaussian_joint",
-    "inverse_clim", "inverse_geog", "inverse_joint"),
+  weight = NULL,
   theta = NULL,
   report_dist = TRUE,
   coord_type = c("auto", "lonlat", "projected"),
@@ -128,10 +127,6 @@ Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
-
-\item{resolution, n_sample, n_reps}{Parameters passed to \code{tune_index_res()}.
-Ignored if \code{pool} is an \code{analog_index} or if \code{index_res} isn't
-\code{"auto"}.}
 }
 \value{
 The return value depends on the \code{mode} parameter:

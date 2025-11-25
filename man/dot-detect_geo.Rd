@@ -4,7 +4,7 @@
 \alias{.detect_geo}
 \title{Detect coordinate system from data ranges}
 \usage{
-.detect_geo(focal_xy, ref_xy)
+.detect_geo(xy)
 }
 \description{
 Detect coordinate system from data ranges

@@ -14,9 +14,8 @@ tune_index_res(
   weight = NULL,
   theta = NULL,
   coord_type = c("auto", "lonlat", "projected"),
-  resolutions = NULL,
-  n_sample = NULL,
-  n_reps = NULL,
+  n_threads = NULL,
+  default_res = 16L,
   verbose = FALSE
 )
 }
@@ -107,46 +106,40 @@ must be \code{NULL}.}
     assumes \code{max_geog} is in projection units).
 }}
 
-\item{resolutions}{Integer vector of resolutions to test. Default tests
-a range from 4 to 32 bins per dimension.}
+\item{n_threads}{Optional integer number of threads to use for the
+computation. If \code{NULL} (default), the global RcppParallel setting
+is used (see \code{RcppParallel::setThreadOptions}).}
 
-\item{n_sample}{Number of focal points to use for benchmarking. If \code{x}
-has more rows than this, a random sample will be taken. Default is 500.}
+\item{default_res}{Default resolution to use as starting point for search.
+Default is 16.}
 
-\item{n_reps}{Number of repetitions for each resolution test. Default is 3.}
-
-\item{verbose}{Logical; if TRUE, print progress and results. Default is FALSE.}
+\item{verbose}{Logical; if TRUE, print the selected resolution. Default is FALSE.}
 }
 \value{
 An integer giving the recommended index resolution (bins per dimension).
-  Invisibly returns a data.frame with detailed benchmark results including
-  columns: \code{resolution}, \code{mean_time_ms}, \code{sd_time_ms}.
 }
 \description{
-Benchmarks different lattice index resolutions to find the optimal setting
-for your data and query pattern. This function runs test queries with various
-resolutions and recommends the one with the best performance.
+Automatically finds the optimal lattice index resolution for your data and
+query pattern using adaptive bracketing search. Runs test queries with
+different resolutions and recommends the one with the fastest compute speed.
 }
 \details{
-The function works by:
+The function uses an adaptive bracketing algorithm:
 \enumerate{
-  \item Taking a sample of focal points (or using all if small dataset)
-  \item Building an index at each test resolution
-  \item Running the specified query multiple times
-  \item Measuring elapsed time for each configuration
-  \item Recommending the resolution with lowest mean time
+  \item Starts with three resolutions: default/2, default, default*2
+  \item Evaluates elapsed time for each
+  \item If minimum is at an edge, expands search in that direction
+  \item Returns resolution with lowest elapsed time
 }
 
-The optimal resolution depends on:
-\itemize{
-  \item Size of reference dataset (larger → higher resolution helpful)
-  \item Dimensionality (more climate variables → consider lower resolution)
-  \item Query selectivity (tight constraints → higher resolution helpful)
-  \item Hardware (memory/cache considerations)
-}
+This typically requires only 3-5 query evaluations total, making it much
+faster than exhaustive grid search.
 
-For most applications, testing resolutions from 8 to 24 is sufficient.
-Very large datasets (>100k points) may benefit from resolutions up to 32.
+The function only performs tuning for non-trivial problem sizes (>2000 focal
+points). For smaller datasets, it returns the default resolution.
+
+A subsample of focal points is used for benchmarking to keep tuning fast
+while still being representative of actual query performance.
 }
 \examples{
 \dontrun{
@@ -161,16 +154,6 @@ optimal_res <- tune_index_res(
 
 # Use the optimized resolution
 index <- build_analog_index(climate_data, index_res = optimal_res)
-
-# Test specific resolutions
-res <- tune_index_res(
-  x = sites,
-  pool = climate_data,
-  mode = "knn_clim",
-  max_geog = 100,
-  k = 20,
-  resolutions = c(8, 12, 16, 20, 24)
-)
 }
 
 }

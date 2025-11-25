@@ -1,4 +1,3 @@
-
 #' Search lattice index for analogs
 #' @keywords internal
 query_analog_index <- function(x,
@@ -15,69 +14,12 @@ query_analog_index <- function(x,
       # Validate index
       .validate_analog_index(index)
 
-      # Input validation (same as main function)
-      mode <- match.arg(mode, c("knn_clim", "knn_geog", "count", "sum", "mean", "all"))
-
-      weight <- match.arg(weight, c("uniform", "gaussian_clim", "gaussian_geog",
-                                    "gaussian_joint", "inverse_clim", "inverse_geog",
-                                    "inverse_joint"))
-      if(!weight %in% c("inverse_clim", "inverse_geog")) weight <- NULL
-
-      # Validate mode/k/weight/theta combinations (same logic as main function)
-      if (mode %in% c("knn_clim", "knn_geog")) {
-            if (is.null(k)) k <- 1L
-            k <- as.integer(k)
-            if (length(k) != 1L || k <= 0L) {
-                  stop("For mode '", mode, "', k must be a positive integer.")
-            }
-            if (!is.null(weight)) {
-                  stop("For mode '", mode, "', weight must be NULL.")
-            }
-            if (!is.null(theta)) {
-                  stop("For mode '", mode, "', theta must be NULL.")
-            }
-      } else {
-            if (!is.null(k)) {
-                  stop("For mode '", mode, "', k must be NULL.")
-            }
-            k <- 0L
-      }
-
-      if (mode %in% c("all", "count")) {
-            if (!is.null(weight)) {
-                  stop("For mode '", mode, "', weight must be NULL.")
-            }
-            if (!is.null(theta)) {
-                  stop("For mode '", mode, "', theta must be NULL.")
-            }
-      }
-
-      if (mode %in% c("sum", "mean")) {
-            valid_weights <- c("uniform", "inverse_clim", "inverse_geog")
-            if (is.null(weight)) weight <- "uniform"
-            if (!weight %in% valid_weights) {
-                  stop("For mode '", mode, "', weight must be one of: ",
-                       paste(valid_weights, collapse = ", "))
-            }
-            if (identical(weight, "uniform")) {
-                  if (!is.null(theta)) {
-                        stop("For weight = 'uniform', theta must be NULL.")
-                  }
-            } else {
-                  if (!is.null(theta)) {
-                        if (!is.numeric(theta) || length(theta) != 1L || theta <= 0) {
-                              stop("theta must be a single positive numeric value, or NULL.")
-                        }
-                  }
-            }
-      } else {
-            if (!is.null(weight)) {
-                  stop("weight must be NULL when mode is not 'sum' or 'mean'.")
-            }
-            if (!is.null(theta)) {
-                  stop("theta must be NULL when mode is not 'sum' or 'mean'.")
-            }
-      }
+      # Validate and normalize query parameters
+      params <- .validate_query_params(mode, k, weight, theta)
+      mode <- params$mode
+      k <- params$k
+      weight <- params$weight
+      theta <- params$theta
 
       # Format focal data
       focal_mm <- .format_data(x)

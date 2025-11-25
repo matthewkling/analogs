@@ -1,42 +1,34 @@
 #' Tune Index Resolution
 #'
-#' Benchmarks different lattice index resolutions to find the optimal setting
-#' for your data and query pattern. This function runs test queries with various
-#' resolutions and recommends the one with the best performance.
+#' Automatically finds the optimal lattice index resolution for your data and
+#' query pattern using adaptive bracketing search. Runs test queries with
+#' different resolutions and recommends the one with the fastest compute speed.
 #'
 #' @inheritParams find_analogs
 #'
-#' @param resolutions Integer vector of resolutions to test. Default tests
-#'   a range from 4 to 32 bins per dimension.
-#' @param n_sample Number of focal points to use for benchmarking. If \code{x}
-#'   has more rows than this, a random sample will be taken. Default is 500.
-#' @param n_reps Number of repetitions for each resolution test. Default is 3.
-#' @param verbose Logical; if TRUE, print progress and results. Default is FALSE.
+#' @param default_res Default resolution to use as starting point for search.
+#'   Default is 16.
+#' @param verbose Logical; if TRUE, print the selected resolution. Default is FALSE.
 #'
 #' @return An integer giving the recommended index resolution (bins per dimension).
-#'   Invisibly returns a data.frame with detailed benchmark results including
-#'   columns: \code{resolution}, \code{mean_time_ms}, \code{sd_time_ms}.
 #'
 #' @details
-#' The function works by:
+#' The function uses an adaptive bracketing algorithm:
 #' \enumerate{
-#'   \item Taking a sample of focal points (or using all if small dataset)
-#'   \item Building an index at each test resolution
-#'   \item Running the specified query multiple times
-#'   \item Measuring elapsed time for each configuration
-#'   \item Recommending the resolution with lowest mean time
+#'   \item Starts with three resolutions: default/2, default, default*2
+#'   \item Evaluates elapsed time for each
+#'   \item If minimum is at an edge, expands search in that direction
+#'   \item Returns resolution with lowest elapsed time
 #' }
 #'
-#' The optimal resolution depends on:
-#' \itemize{
-#'   \item Size of reference dataset (larger → higher resolution helpful)
-#'   \item Dimensionality (more climate variables → consider lower resolution)
-#'   \item Query selectivity (tight constraints → higher resolution helpful)
-#'   \item Hardware (memory/cache considerations)
-#' }
+#' This typically requires only 3-5 query evaluations total, making it much
+#' faster than exhaustive grid search.
 #'
-#' For most applications, testing resolutions from 8 to 24 is sufficient.
-#' Very large datasets (>100k points) may benefit from resolutions up to 32.
+#' The function only performs tuning for non-trivial problem sizes (>2000 focal
+#' points). For smaller datasets, it returns the default resolution.
+#'
+#' A subsample of focal points is used for benchmarking to keep tuning fast
+#' while still being representative of actual query performance.
 #'
 #' @examples
 #' \dontrun{
@@ -51,16 +43,6 @@
 #'
 #' # Use the optimized resolution
 #' index <- build_analog_index(climate_data, index_res = optimal_res)
-#'
-#' # Test specific resolutions
-#' res <- tune_index_res(
-#'   x = sites,
-#'   pool = climate_data,
-#'   mode = "knn_clim",
-#'   max_geog = 100,
-#'   k = 20,
-#'   resolutions = c(8, 12, 16, 20, 24)
-#' )
 #' }
 #'
 #' @export
@@ -73,161 +55,156 @@ tune_index_res <- function(x,
                            weight = NULL,
                            theta = NULL,
                            coord_type = c("auto", "lonlat", "projected"),
-                           resolutions = NULL,
-                           n_sample = NULL,
-                           n_reps = NULL,
+                           n_threads = NULL,
+                           default_res = 16L,
                            verbose = FALSE) {
 
-      # Defaults
-      resolutions <- resolutions %||% c(4, 8, 12, 16, 20, 24, 32)
-      n_sample <- n_sample %||% 500
-      n_reps <- n_reps %||% 3
+      # Helper: detect monotonic timings with a tolerance
+      is_strict_monotonic <- function(x, tol = 0.15) {
+            if (length(x) < 3L) return(FALSE)
+            dx <- diff(x)
+            # strictly decreasing or increasing, with relative tolerance
+            all(dx <= -tol * abs(x[-length(x)])) ||
+                  all(dx >=  tol * abs(x[-length(x)]))
+      }
 
-      # Validate inputs
+      # Validate and normalize query parameters
+      params <- .validate_query_params(mode, k, weight, theta)
+      mode <- params$mode
+      k <- params$k
+      weight <- params$weight
+      theta <- params$theta
+
+      # Validate coord_type
       coord_type <- match.arg(coord_type)
-      mode <- match.arg(mode)
 
-      if (!is.numeric(resolutions) || any(resolutions <= 0)) {
-            stop("resolutions must be a vector of positive integers")
-      }
-      resolutions <- as.integer(resolutions)
-      resolutions <- sort(unique(resolutions))
+      # Format focal data
+      focal_mm <- .format_data(x)
+      n_focal <- nrow(focal_mm)
 
-      if (!is.numeric(n_sample) || length(n_sample) != 1 || n_sample <= 0) {
-            stop("n_sample must be a positive integer")
-      }
-      n_sample <- as.integer(n_sample)
-
-      if (!is.numeric(n_reps) || length(n_reps) != 1 || n_reps <= 0) {
-            stop("n_reps must be a positive integer")
-      }
-      n_reps <- as.integer(n_reps)
-
-      # Format data
-      x_mm <- .format_data(x)
-      pool_mm <- .format_data(pool)
-
-      # Sample if needed
-      n_x <- nrow(x_mm)
-      if (n_x > n_sample) {
-            idx <- sample.int(n_x, n_sample)
-            x_mm <- x_mm[idx, , drop = FALSE]
+      # Only tune for non-trivial problem sizes
+      if (n_focal <= 2000L) {
             if (verbose) {
-                  message(sprintf("Using %d of %d focal points for benchmarking",
-                                  n_sample, n_x))
+                  message("Dataset too small for tuning (n=", n_focal,
+                          "); using default resolution of ", default_res, ".")
             }
-      } else {
-            if (verbose) {
-                  message(sprintf("Using all %d focal points for benchmarking", n_x))
-            }
+            return(as.integer(default_res))
       }
 
-      if (verbose) {
-            message(sprintf("\nTesting %d resolutions with %d repetitions each...\n",
-                            length(resolutions), n_reps))
-      }
+      # Subsample focal sites for faster benchmarking
+      n_samp <- min(1000L, max(100L, as.integer(n_focal * 0.01)))
+      idx    <- sample.int(n_focal, n_samp)
+      focal_mm_samp <- focal_mm[idx, , drop = FALSE]
 
-      # Storage for results
-      results <- data.frame(
-            resolution = integer(),
-            rep = integer(),
-            time_ms = numeric(),
-            stringsAsFactors = FALSE
-      )
+      # Helper to evaluate timing for a given index_res
+      eval_time <- function(r) {
+            r <- as.integer(max(1L, r))  # ensure valid
 
-      # Benchmark each resolution
-      for (res in resolutions) {
-
-            if (verbose) {
-                  cat(sprintf("  Resolution %2d: ", res))
-            }
-
-            # Build index once for this resolution
-            build_start <- Sys.time()
+            # Build index with this resolution
             index <- build_analog_index(
-                  pool = pool_mm,
+                  pool = pool,
                   coord_type = coord_type,
-                  index_res = res
+                  index_res = r
             )
-            build_time <- as.numeric(difftime(Sys.time(), build_start, units = "secs"))
 
-            # Run query n_reps times
-            times <- numeric(n_reps)
-            for (rep in seq_len(n_reps)) {
-                  query_start <- Sys.time()
-
-                  result <- find_analogs(
-                        x = x_mm,
-                        pool = index,
+            # Time the query
+            st <- system.time({
+                  result <- query_analog_index(
+                        x = focal_mm_samp,
+                        index = index,
                         mode = mode,
                         max_clim = max_clim,
                         max_geog = max_geog,
                         k = k,
                         weight = weight,
                         theta = theta,
-                        report_dist = FALSE  # Faster without distances
+                        report_dist = FALSE,  # Faster without distances
+                        n_threads = n_threads
                   )
+            })
 
-                  query_time <- as.numeric(difftime(Sys.time(), query_start, units = "secs"))
-                  times[rep] <- query_time * 1000  # Convert to ms
-            }
-
-            # Store results
-            for (rep in seq_len(n_reps)) {
-                  results <- rbind(results, data.frame(
-                        resolution = res,
-                        rep = rep,
-                        time_ms = times[rep],
-                        stringsAsFactors = FALSE
-                  ))
-            }
-
-            if (verbose) {
-                  cat(sprintf("build=%.2fs  query=%.1f±%.1f ms\n",
-                              build_time,
-                              mean(times),
-                              sd(times)))
-            }
+            st[["elapsed"]]
       }
 
-      # Summarize by resolution
-      summary_stats <- aggregate(
-            time_ms ~ resolution,
-            data = results,
-            FUN = function(x) c(mean = mean(x), sd = sd(x))
-      )
+      # Start from heuristic center
+      r0 <- as.integer(default_res)
+      r_vals <- c(r0 %/% 2L, r0, r0 * 2L)
+      r_vals <- unique(r_vals[r_vals > 0L])
 
-      summary_df <- data.frame(
-            resolution = summary_stats$resolution,
-            mean_time_ms = summary_stats$time_ms[, "mean"],
-            sd_time_ms = summary_stats$time_ms[, "sd"],
-            stringsAsFactors = FALSE
-      )
-
-      # Find best resolution
-      best_idx <- which.min(summary_df$mean_time_ms)
-      best_res <- summary_df$resolution[best_idx]
-      best_time <- summary_df$mean_time_ms[best_idx]
-
+      # Evaluate initial bracket
       if (verbose) {
-            message("\n--- Summary ---")
-            message(sprintf("Optimal resolution: %d bins per dimension", best_res))
-            message(sprintf("Query time: %.1f ms (mean over %d reps)",
-                            best_time, n_reps))
-
-            # Show relative performance
-            message("\nRelative performance:")
-            for (i in seq_len(nrow(summary_df))) {
-                  rel_perf <- summary_df$mean_time_ms[i] / best_time
-                  marker <- if (i == best_idx) " ← optimal" else ""
-                  message(sprintf("  Resolution %2d: %.2fx slower%s",
-                                  summary_df$resolution[i],
-                                  rel_perf,
-                                  marker))
-            }
+            message("Evaluating initial bracket: {", paste(r_vals, collapse = ", "), "}")
+      }
+      times <- vapply(r_vals, eval_time, numeric(1))
+      if (verbose) {
+            message("  Times: {", paste(sprintf("%.3f", times), collapse = ", "), "} sec")
       }
 
-      # Return recommended resolution
-      invisible(summary_df)
-      return(best_res)
+      # One-step adaptive refinement
+      best_idx <- which.min(times)
+      best_r   <- r_vals[best_idx]
+
+      if (best_idx == 1L && length(r_vals) > 1L) {
+            # best is smallest → try halving again
+            r_try <- max(1L, best_r %/% 2L)
+            if (verbose) {
+                  message("Minimum at lower edge; trying r=", r_try)
+            }
+            t_try <- eval_time(r_try)
+            if (verbose) {
+                  message("  Time: ", sprintf("%.3f", t_try), " sec")
+            }
+            r_vals <- c(r_try, r_vals)
+            times  <- c(t_try, times)
+
+      } else if (best_idx == length(r_vals) && length(r_vals) > 1L) {
+            # best is largest → try doubling again
+            r_try <- best_r * 2L
+            if (verbose) {
+                  message("Minimum at upper edge; trying r=", r_try)
+            }
+            t_try <- eval_time(r_try)
+            if (verbose) {
+                  message("  Time: ", sprintf("%.3f", t_try), " sec")
+            }
+            r_vals <- c(r_vals, r_try)
+            times  <- c(times, t_try)
+      }
+
+      # Recompute best after any refinement
+      best_idx <- which.min(times)
+      best_r   <- r_vals[best_idx]
+
+      # Sort evaluated points by r for monotonicity check
+      o      <- order(r_vals)
+      r_eval <- r_vals[o]
+      t_eval <- times[o]
+
+      # Check if we're in a k=1 velocity scenario (where tuning matters less)
+      is_k1_velocity <- (mode == "knn_geog" &&
+                               !is.null(k) &&
+                               is.numeric(k) &&
+                               k == 1L)
+
+      # Optional: warn if timings are monotonic in a meaningful regime
+      if (length(t_eval) >= 4L &&
+          n_samp >= 300L &&
+          !is_k1_velocity &&
+          is_strict_monotonic(t_eval)) {
+
+            warning(
+                  "Auto-tuning of index_res did not detect an interior minimum; ",
+                  "elapsed times were monotonic across tested values {",
+                  paste(r_eval, collapse = ", "),
+                  "}. The optimal index_res may lie outside this range. ",
+                  "Consider manually specifying index_res."
+            )
+      }
+
+      r <- as.integer(best_r)
+      if (verbose) {
+            message("\nSelected resolution: ", r, " (", sprintf("%.3f", times[best_idx]), " sec)")
+      }
+
+      return(r)
 }
