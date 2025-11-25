@@ -24,7 +24,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int mode_code, int weight_code, double theta);
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int mode_code, int weight_code, const NumericVector& theta);
 RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -37,13 +37,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
     Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
     Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
-    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
     rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, mode_code, weight_code, theta));
     return rcpp_result_gen;
 END_RCPP
 }
 // find_analogs_core
-SEXP find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, double theta, int lattice_res);
+SEXP find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, const NumericVector& theta, int lattice_res);
 RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP lattice_resSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -56,14 +56,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
     Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
     Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
-    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
     Rcpp::traits::input_parameter< int >::type lattice_res(lattice_resSEXP);
     rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res));
     return rcpp_result_gen;
 END_RCPP
 }
 // profile_find_analogs
-Rcpp::List profile_find_analogs(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, double theta, int lattice_res, bool enable_profiling);
+Rcpp::List profile_find_analogs(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, const NumericVector& theta, int lattice_res, bool enable_profiling);
 RcppExport SEXP _analogs_profile_find_analogs(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP lattice_resSEXP, SEXP enable_profilingSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -76,7 +76,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
     Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
     Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
-    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
     Rcpp::traits::input_parameter< int >::type lattice_res(lattice_resSEXP);
     Rcpp::traits::input_parameter< bool >::type enable_profiling(enable_profilingSEXP);
     rcpp_result_gen = Rcpp::wrap(profile_find_analogs(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res, enable_profiling));

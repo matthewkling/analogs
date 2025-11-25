@@ -45,15 +45,27 @@ query_analog_index <- function(x,
       weight_code <- if (mode %in% c("sum","mean")) {
             switch(
                   weight,
-                  "uniform"      = 1L,
-                  "inverse_clim" = 2L,
-                  "inverse_geog" = 3L
+                  "uniform"        = 1L,
+                  "inverse_clim"   = 2L,
+                  "inverse_geog"   = 3L,
+                  "gaussian_clim"  = 4L,
+                  "gaussian_geog"  = 5L,
+                  "gaussian_joint" = 6L,
+                  "inverse_joint"  = 7L
             )
       } else {
             0L
       }
 
-      theta_num <- if (is.null(theta)) NA_real_ else as.numeric(theta)[1L]
+      # Handle theta: convert to numeric vector (length 1 or 2)
+      # For joint weights, theta should already be length 2 from validation
+      # For single weights, theta is length 1 or NULL (becomes NA_real_)
+      theta_vec <- if (is.null(theta)) {
+            NA_real_
+      } else {
+            as.numeric(theta)
+      }
+
       k_core <- if (mode %in% c("knn_clim","knn_geog")) as.integer(k) else 0L
 
       # Thread control
@@ -75,7 +87,7 @@ query_analog_index <- function(x,
             max_geog = max_geog_num,
             mode_code = mode_code,
             weight_code = weight_code,
-            theta = theta_num
+            theta = theta_vec
       )
 
       # Capture diagnostic attributes

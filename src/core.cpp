@@ -33,10 +33,14 @@ enum class ModeCode : int {
 };
 
 enum class WeightCode : int {
-      NONE          = 0, // not used (knn/all/count)
-            UNIFORM       = 1,
-            INVERSE_CLIM  = 2,
-            INVERSE_GEOG  = 3
+      NONE            = 0,
+            UNIFORM         = 1,
+            INVERSE_CLIM    = 2,
+            INVERSE_GEOG    = 3,
+            GAUSSIAN_CLIM   = 4,
+            GAUSSIAN_GEOG   = 5,
+            GAUSSIAN_JOINT  = 6,
+            INVERSE_JOINT   = 7
 };
 
 // Helper: geographic distance (km), lon/lat vs projected.
@@ -114,25 +118,132 @@ inline double km_to_chord(double km_dist, double R) {
       return 2.0 * R * std::sin(0.5 * central_angle);
 }
 
+// Weight calculation from codes with optimized parameters
+// For efficiency, pre-computed parameters are passed in
 inline double weight_from_codes(WeightCode wc,
                                 double clim_dist,
                                 double geog_dist,
-                                double theta)
+                                double param1,
+                                double param2)
 {
       switch (wc) {
       case WeightCode::UNIFORM:
             return 1.0;
+
       case WeightCode::INVERSE_CLIM: {
-            const double eps = (theta > 0.0 && std::isfinite(theta)) ? theta : 1e-12;
-            return 1.0 / (clim_dist + eps);
+            // param1 = epsilon
+            return 1.0 / (clim_dist + param1);
       }
+
       case WeightCode::INVERSE_GEOG: {
-            const double eps = (theta > 0.0 && std::isfinite(theta)) ? theta : 1e-6;
-            return 1.0 / (geog_dist + eps);
+            // param1 = epsilon
+            return 1.0 / (geog_dist + param1);
       }
+
+      case WeightCode::GAUSSIAN_CLIM: {
+            // param1 = -1/(2*sigma^2)
+            const double d2 = clim_dist * clim_dist;
+            return std::exp(param1 * d2);
+      }
+
+      case WeightCode::GAUSSIAN_GEOG: {
+            // param1 = -1/(2*sigma^2)
+            const double d2 = geog_dist * geog_dist;
+            return std::exp(param1 * d2);
+      }
+
+      case WeightCode::GAUSSIAN_JOINT: {
+            // param1 = -1/(2*sigma_clim^2), param2 = -1/(2*sigma_geog^2)
+            const double d2_clim = clim_dist * clim_dist;
+            const double d2_geog = geog_dist * geog_dist;
+            return std::exp(param1 * d2_clim + param2 * d2_geog);
+      }
+
+      case WeightCode::INVERSE_JOINT: {
+            // param1 = eps_clim, param2 = eps_geog
+            const double d_clim_adj = clim_dist + param1;
+            const double d_geog_adj = geog_dist + param2;
+            const double joint_dist = std::sqrt(d_clim_adj * d_clim_adj +
+                                                d_geog_adj * d_geog_adj);
+            return 1.0 / joint_dist;
+      }
+
       default: // NONE or unknown
             return 1.0;
       }
+}
+
+// Pre-compute weight parameters for efficiency
+// Returns (param1, param2) for use in weight_from_codes
+inline std::pair<double, double> precompute_weight_params(WeightCode wc,
+                                                          const NumericVector& theta_vec) {
+      double param1 = 0.0;
+      double param2 = 0.0;
+
+      switch (wc) {
+      case WeightCode::UNIFORM:
+      case WeightCode::NONE:
+            break;
+
+      case WeightCode::INVERSE_CLIM:
+      case WeightCode::INVERSE_GEOG: {
+            // param1 = epsilon
+            if (theta_vec.size() > 0 && std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
+            param1 = theta_vec[0];
+      } else {
+            // Default epsilon
+            param1 = (wc == WeightCode::INVERSE_CLIM) ? 1e-12 : 1e-6;
+      }
+      break;
+      }
+
+      case WeightCode::GAUSSIAN_CLIM:
+      case WeightCode::GAUSSIAN_GEOG: {
+            // param1 = -1/(2*sigma^2)
+            double sigma = 1.0;
+            if (theta_vec.size() > 0 && std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
+                  sigma = theta_vec[0];
+            }
+            param1 = -1.0 / (2.0 * sigma * sigma);
+            break;
+      }
+
+      case WeightCode::GAUSSIAN_JOINT: {
+            // param1 = -1/(2*sigma_clim^2), param2 = -1/(2*sigma_geog^2)
+            double sigma_clim = 1.0;
+            double sigma_geog = 1.0;
+            if (theta_vec.size() >= 2) {
+                  if (std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
+                        sigma_clim = theta_vec[0];
+                  }
+                  if (std::isfinite(theta_vec[1]) && theta_vec[1] > 0.0) {
+                        sigma_geog = theta_vec[1];
+                  }
+            }
+            param1 = -1.0 / (2.0 * sigma_clim * sigma_clim);
+            param2 = -1.0 / (2.0 * sigma_geog * sigma_geog);
+            break;
+      }
+
+      case WeightCode::INVERSE_JOINT: {
+            // param1 = eps_clim, param2 = eps_geog
+            double eps_clim = 1e-12;
+            double eps_geog = 1e-6;
+            if (theta_vec.size() >= 2) {
+                  if (std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
+                        eps_clim = theta_vec[0];
+                  }
+                  if (std::isfinite(theta_vec[1]) && theta_vec[1] > 0.0) {
+                        eps_geog = theta_vec[1];
+                  }
+            }
+            param1 = eps_clim;
+            param2 = eps_geog;
+            break;
+      }
+      }
+
+      return std::make_pair(param1, param2);
 }
 
 
@@ -477,7 +588,8 @@ struct AggWorker : public Worker {
 
       ModeCode mcode;
       WeightCode wcode;
-      double theta;
+      double weight_param1;         // Pre-computed weight parameter 1
+      double weight_param2;         // Pre-computed weight parameter 2
 
       Lattice* lattice_ptr;
       double R_earth;
@@ -499,7 +611,8 @@ struct AggWorker : public Worker {
                 const std::vector<double>& max_clim_pervar_,
                 ModeCode mcode_,
                 WeightCode wcode_,
-                double theta_,
+                double weight_param1_,
+                double weight_param2_,
                 Lattice* lattice_ptr_,
                 bool use_ecef_,
                 double R_earth_,
@@ -525,7 +638,8 @@ struct AggWorker : public Worker {
               max_clim_pervar(max_clim_pervar_),
               mcode(mcode_),
               wcode(wcode_),
-              theta(theta_),
+              weight_param1(weight_param1_),
+              weight_param2(weight_param2_),
               lattice_ptr(lattice_ptr_),
               R_earth(R_earth_),
               agg(agg_)
@@ -630,7 +744,8 @@ struct AggWorker : public Worker {
                         ++count;
 
                         if (mcode == ModeCode::SUM || mcode == ModeCode::MEAN) {
-                              double w = weight_from_codes(wcode, clim_dist, gdist, theta);
+                              double w = weight_from_codes(wcode, clim_dist, gdist,
+                                                           weight_param1, weight_param2);
                               sum   += w * 1.0;
                               sum_w += w;
                         }
@@ -822,7 +937,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             double max_geog,
                             int mode_code,
                             int weight_code,
-                            double theta)
+                            const NumericVector& theta)
 {
       // Extract lattice and metadata from index
       List idx = as<List>(index_list);
@@ -882,6 +997,11 @@ SEXP query_analog_index_cpp(SEXP index_list,
 
       const ModeCode mcode = static_cast<ModeCode>(mode_code);
       const WeightCode wcode = static_cast<WeightCode>(weight_code);
+
+      // Pre-compute weight parameters for efficiency
+      auto weight_params = precompute_weight_params(wcode, theta);
+      double weight_param1 = weight_params.first;
+      double weight_param2 = weight_params.second;
 
       // Get ECEF data pointer if applicable
       const double* ref_latt_ptr;
@@ -993,7 +1113,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                         max_clim_pervar_std,
                         mcode,
                         wcode,
-                        theta,
+                        weight_param1,
+                        weight_param2,
                         lattice_ptr,
                         use_ecef,
                         R_earth,
@@ -1037,7 +1158,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
 
 
 // =========================================================================
-// EXISTING: Original find_analogs_core (unchanged for now)
+// EXISTING: Original find_analogs_core (updated with new weight functions)
 // =========================================================================
 
 // [[Rcpp::export]]
@@ -1049,7 +1170,7 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                        const std::string& geo_mode,
                        int mode_code,
                        int weight_code,
-                       double theta,
+                       const NumericVector& theta,
                        int lattice_res)
 {
       PROFILE_START("TOTAL");
@@ -1100,6 +1221,11 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       const bool use_lattice = (use_geog_filter || use_scalar_clim || use_pervar_clim);
       const ModeCode   mcode = static_cast<ModeCode>(mode_code);
       const WeightCode wcode = static_cast<WeightCode>(weight_code);
+
+      // Pre-compute weight parameters for efficiency
+      auto weight_params = precompute_weight_params(wcode, theta);
+      double weight_param1 = weight_params.first;
+      double weight_param2 = weight_params.second;
 
       // Dimension roles
       const bool geo_filter  = use_geog_filter;
@@ -1402,7 +1528,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                         max_clim_pervar_std,
                         mcode,
                         wcode,
-                        theta,
+                        weight_param1,
+                        weight_param2,
                         use_lattice ? &lattice : nullptr,
                         use_ecef,
                         R_earth,
@@ -1450,7 +1577,7 @@ Rcpp::List profile_find_analogs(const NumericMatrix& focal_mm,
                                 const std::string& geo_mode,
                                 int mode_code,
                                 int weight_code,
-                                double theta,
+                                const NumericVector& theta,
                                 int lattice_res,
                                 bool enable_profiling)
 {

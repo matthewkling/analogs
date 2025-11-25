@@ -16,13 +16,33 @@
 #'
 #' @examples
 #' \dontrun{
-#' # One-shot query
+#' # One-shot query with inverse weighting
 #' intens <- analog_intensity(
 #'   x = sites,
 #'   pool = climate_data,
 #'   max_clim = 0.5,
 #'   max_geog = 100,
 #'   weight = "inverse_clim"
+#' )
+#'
+#' # Gaussian weighting by climate distance
+#' intens_gauss <- analog_intensity(
+#'   x = sites,
+#'   pool = climate_data,
+#'   max_clim = 0.5,
+#'   max_geog = 100,
+#'   weight = "gaussian_clim",
+#'   theta = 0.2  # bandwidth parameter
+#' )
+#'
+#' # Joint Gaussian weighting (both climate and geography)
+#' intens_joint <- analog_intensity(
+#'   x = sites,
+#'   pool = climate_data,
+#'   max_clim = 0.5,
+#'   max_geog = 100,
+#'   weight = "gaussian_joint",
+#'   theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
 #' )
 #'
 #' # With pre-built index (for repeated queries)
@@ -39,7 +59,9 @@ analog_intensity <- function(
             pool,
             max_clim   = NULL,
             max_geog   = NULL,
-            weight     = c("uniform", "inverse_clim", "inverse_geog"),
+            weight     = c("uniform", "inverse_clim", "inverse_geog",
+                           "gaussian_clim", "gaussian_geog",
+                           "gaussian_joint", "inverse_joint"),
             theta      = NULL,
             coord_type = "auto",
             index_res = "auto",

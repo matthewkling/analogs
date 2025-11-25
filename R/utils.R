@@ -18,15 +18,10 @@
       mode <- match.arg(mode, c("knn_clim", "knn_geog", "count", "sum", "mean", "all"))
 
       # Validate and normalize weight
-      # Note: Only inverse_clim and inverse_geog are currently implemented
-      # Other weights in the list are placeholders for future implementation
       if (!is.null(weight)) {
             weight <- match.arg(weight, c("uniform", "gaussian_clim", "gaussian_geog",
                                           "gaussian_joint", "inverse_clim", "inverse_geog",
                                           "inverse_joint"))
-            if (!weight %in% c("uniform", "inverse_clim", "inverse_geog")) {
-                  weight <- NULL
-            }
       }
 
       # Validate mode/k/weight/theta combinations
@@ -64,22 +59,37 @@
             }
             # Leave k as NULL (converted to 0L later in query_analog_index if needed)
 
-            valid_weights <- c("uniform", "inverse_clim", "inverse_geog")
+            valid_weights <- c("uniform", "gaussian_clim", "gaussian_geog",
+                               "gaussian_joint", "inverse_clim", "inverse_geog",
+                               "inverse_joint")
             if (is.null(weight)) weight <- "uniform"
             if (!weight %in% valid_weights) {
                   stop("For mode '", mode, "', weight must be one of: ",
                        paste(valid_weights, collapse = ", "))
             }
 
+            # Validate theta based on weight type
             if (identical(weight, "uniform")) {
                   if (!is.null(theta)) {
                         stop("For weight = 'uniform', theta must be NULL.")
                   }
+            } else if (weight %in% c("gaussian_joint", "inverse_joint")) {
+                  # Joint weights require 2-element theta
+                  if (is.null(theta)) {
+                        stop("For weight = '", weight, "', theta must be a numeric vector of length 2.")
+                  }
+                  if (!is.numeric(theta) || length(theta) != 2L) {
+                        stop("For weight = '", weight, "', theta must be a numeric vector of length 2: ",
+                             "c(theta_clim, theta_geog)")
+                  }
+                  if (any(theta <= 0)) {
+                        stop("For weight = '", weight, "', both theta values must be positive.")
+                  }
             } else {
-                  # inverse_clim or inverse_geog
+                  # Single-dimension weights (gaussian_clim, gaussian_geog, inverse_clim, inverse_geog)
                   if (!is.null(theta)) {
                         if (!is.numeric(theta) || length(theta) != 1L || theta <= 0) {
-                              stop("theta must be a single positive numeric value, or NULL.")
+                              stop("For weight = '", weight, "', theta must be a single positive numeric value, or NULL.")
                         }
                   }
             }

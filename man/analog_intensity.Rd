@@ -9,7 +9,8 @@ analog_intensity(
   pool,
   max_clim = NULL,
   max_geog = NULL,
-  weight = c("uniform", "inverse_clim", "inverse_geog"),
+  weight = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
+    "gaussian_joint", "inverse_joint"),
   theta = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -54,23 +55,37 @@ if \code{coord_type = "projected"}.}
   \item \code{"inverse_geog"}: Weight = 1 / (geographic_distance + epsilon),
     with epsilon given by \code{theta} (or a small default if \code{theta}
     is \code{NULL}).
+  \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
+    weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma (bandwidth)
+    given by \code{theta}.
+  \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
+    weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma (bandwidth)
+    given by \code{theta}.
+  \item \code{"gaussian_joint"}: Bivariate Gaussian kernel (product of
+    independent Gaussians over climate and geographic distances), with
+    bandwidths given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
+  \item \code{"inverse_joint"}: Joint inverse distance,
+    weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
+    with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
 }
 For \code{mode} in \code{"knn_geog"}, \code{"knn_clim"}, \code{"count"},
 or \code{"all"}, \code{weight} must be \code{NULL}.}
 
-\item{theta}{Optional numeric parameter used by some weighting kernels
+\item{theta}{Optional numeric parameter used by weighting functions
 when \code{mode} is \code{"sum"} or \code{"mean"} and \code{weight} is
-not \code{"uniform"}. Currently interpreted as:
+not \code{"uniform"}. Interpretation depends on \code{weight}:
 \itemize{
-  \item For \code{"gaussian_clim"}: sigma bandwidth for climate distance.
-  \item For \code{"gaussian_geog"}: sigma bandwidth for geographic distance.
-  \item For \code{"gaussian_joint"}: length-two vector of sigma bandwidths
-    for climate and geographic distances, respectively.
-  \item For \code{"inverse_clim"}: epsilon added to climate distance.
-  \item For \code{"inverse_geog"}: epsilon added to geographic distance.
+  \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
+    added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
+  \item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
+    parameter (scalar; larger values = slower decay with distance).
+  \item For \code{"gaussian_joint"}: 2-element vector c(sigma_clim, sigma_geog)
+    giving bandwidths for climate and geographic dimensions.
+  \item For \code{"inverse_joint"}: 2-element vector c(eps_clim, eps_geog)
+    giving epsilon values for climate and geographic dimensions.
 }
-If \code{theta} is \code{NULL}, a small default epsilon is used. For
-\code{weight = "uniform"} or for non-aggregating modes, \code{theta}
+If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
+weights. For \code{weight = "uniform"} or for non-aggregating modes, \code{theta}
 must be \code{NULL}.}
 
 \item{coord_type}{Coordinate system type (default: "auto"):
@@ -113,13 +128,33 @@ after filtering.
 }
 \examples{
 \dontrun{
-# One-shot query
+# One-shot query with inverse weighting
 intens <- analog_intensity(
   x = sites,
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
   weight = "inverse_clim"
+)
+
+# Gaussian weighting by climate distance
+intens_gauss <- analog_intensity(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100,
+  weight = "gaussian_clim",
+  theta = 0.2  # bandwidth parameter
+)
+
+# Joint Gaussian weighting (both climate and geography)
+intens_joint <- analog_intensity(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100,
+  weight = "gaussian_joint",
+  theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
 )
 
 # With pre-built index (for repeated queries)
