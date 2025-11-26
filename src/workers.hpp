@@ -1,0 +1,227 @@
+#pragma once
+
+#include <Rcpp.h>
+#include <RcppParallel.h>
+#include "types.hpp"
+#include "lattice.hpp"
+#include "geometry.hpp"
+#include "climate.hpp"
+#include "weights.hpp"
+
+#include <vector>
+#include <queue>
+#include <algorithm>
+
+using namespace RcppParallel;
+
+namespace analogs {
+
+// -------------------------------------------------------------------------
+// Worker for pair-returning modes: knn_clim, knn_geog, all
+// Writes into out_indices[i] a vector<int> of 1-based ref indices.
+// -------------------------------------------------------------------------
+struct PairWorker : public Worker {
+      const double* focal_ptr;      // focal matrix (original coords + clim)
+      const double* ref_ptr;        // reference matrix (original coords + clim)
+      const double* ref_latt_ptr;   // matrix used by lattice (may be ref_ptr or ECEF+clim)
+      int n_focal;
+      int n_ref;
+      int n_clim;
+      int stride_f;
+      int stride_r;                 // stride for ref_ptr (n_ref)
+      int stride_latt_r;            // stride for ref_latt_ptr
+
+      bool use_lattice;
+      bool use_geog_filter;
+      bool use_haversine;
+      bool use_scalar_clim;
+      bool use_pervar_clim;
+      bool use_ecef;                // true when lonlat + geog filtering → use ECEF
+
+      double max_clim_scalar;
+      double max_geog;
+      double max_geog_chord;        // chord distance threshold for ECEF mode
+      std::vector<double> max_clim_pervar;
+
+      ModeCode mcode;
+      int k;                        // k for kNN modes (>=1), ignored for ALL
+      Lattice* lattice_ptr;         // may be nullptr if !use_lattice
+
+      double R_earth;               // Earth radius (km)
+
+      std::vector< std::vector<int> >& out_indices;
+
+      // Thread-local storage for reusable allocations
+      struct ThreadLocalStorage {
+            std::vector<double> fgeo_vec;
+            std::vector<double> fclim_vec;
+            std::vector<double> q_geo;
+            std::vector<double> q_clim;
+            std::vector<index_t> cand;
+
+            ThreadLocalStorage() {
+                  // Pre-allocate with reasonable sizes
+                  fgeo_vec.reserve(3);   // max 3 for ECEF
+                  fclim_vec.reserve(16); // typical climate dims
+                  q_geo.reserve(3);
+                  q_clim.reserve(16);
+                  cand.reserve(256);     // typical candidate count
+            }
+      };
+
+      static thread_local ThreadLocalStorage tls;  // Defined in workers.cpp
+
+      PairWorker(const Rcpp::NumericMatrix& focal_mm,
+                 const Rcpp::NumericMatrix& ref_mm,
+                 const double* ref_latt_ptr_,
+                 int stride_latt_r_,
+                 bool use_lattice_,
+                 bool use_geog_filter_,
+                 bool use_haversine_,
+                 bool use_scalar_clim_,
+                 bool use_pervar_clim_,
+                 double max_clim_scalar_,
+                 double max_geog_,
+                 double max_geog_chord_,
+                 const std::vector<double>& max_clim_pervar_,
+                 ModeCode mcode_,
+                 int k_,
+                 Lattice* lattice_ptr_,
+                 bool use_ecef_,
+                 double R_earth_,
+                 std::vector< std::vector<int> >& out_indices_)
+            : focal_ptr(REAL(focal_mm)),
+              ref_ptr(REAL(ref_mm)),
+              ref_latt_ptr(ref_latt_ptr_),
+              n_focal(focal_mm.nrow()),
+              n_ref(ref_mm.nrow()),
+              n_clim(focal_mm.ncol() - 2),
+              stride_f(focal_mm.nrow()),
+              stride_r(ref_mm.nrow()),
+              stride_latt_r(stride_latt_r_),
+              use_lattice(use_lattice_),
+              use_geog_filter(use_geog_filter_),
+              use_haversine(use_haversine_),
+              use_scalar_clim(use_scalar_clim_),
+              use_pervar_clim(use_pervar_clim_),
+              use_ecef(use_ecef_),
+              max_clim_scalar(max_clim_scalar_),
+              max_geog(max_geog_),
+              max_geog_chord(max_geog_chord_),
+              max_clim_pervar(max_clim_pervar_),
+              mcode(mcode_),
+              k(k_),
+              lattice_ptr(lattice_ptr_),
+              R_earth(R_earth_),
+              out_indices(out_indices_)
+      {}
+
+      void operator()(std::size_t begin, std::size_t end);
+};
+
+
+// -------------------------------------------------------------------------
+// Worker for aggregate modes: COUNT / SUM / MEAN
+// Writes into agg[i] the scalar aggregate for focal i.
+// -------------------------------------------------------------------------
+struct AggWorker : public Worker {
+      const double* focal_ptr;
+      const double* ref_ptr;
+      const double* ref_latt_ptr;   // ECEF+clim matrix if use_ecef, else ref_ptr
+      int n_focal;
+      int n_ref;
+      int n_clim;
+      int stride_f;
+      int stride_r;
+      int stride_latt_r;
+
+      bool use_lattice;
+      bool use_geog_filter;
+      bool use_haversine;
+      bool use_scalar_clim;
+      bool use_pervar_clim;
+      bool use_ecef;                // use ECEF for geog filtering
+
+      double max_clim_scalar;
+      double max_geog;
+      double max_geog_chord;        // chord threshold for ECEF
+      std::vector<double> max_clim_pervar;
+
+      ModeCode mcode;
+      WeightCode wcode;
+      double weight_param1;         // Pre-computed weight parameter 1
+      double weight_param2;         // Pre-computed weight parameter 2
+
+      Lattice* lattice_ptr;
+      double R_earth;
+
+      std::vector<double>& agg; // output
+
+      // Thread-local storage for reusable allocations
+      struct ThreadLocalStorage {
+            std::vector<double> q_geo;
+            std::vector<double> q_clim;
+            std::vector<index_t> cand;
+
+            ThreadLocalStorage() {
+                  q_geo.reserve(3);
+                  q_clim.reserve(16);
+                  cand.reserve(256);
+            }
+      };
+
+      static thread_local ThreadLocalStorage tls;  // Defined in workers.cpp
+
+      AggWorker(const Rcpp::NumericMatrix& focal_mm,
+                const Rcpp::NumericMatrix& ref_mm,
+                const double* ref_latt_ptr_,
+                int stride_latt_r_,
+                bool use_lattice_,
+                bool use_geog_filter_,
+                bool use_haversine_,
+                bool use_scalar_clim_,
+                bool use_pervar_clim_,
+                double max_clim_scalar_,
+                double max_geog_,
+                double max_geog_chord_,
+                const std::vector<double>& max_clim_pervar_,
+                ModeCode mcode_,
+                WeightCode wcode_,
+                double weight_param1_,
+                double weight_param2_,
+                Lattice* lattice_ptr_,
+                bool use_ecef_,
+                double R_earth_,
+                std::vector<double>& agg_)
+            : focal_ptr(REAL(focal_mm)),
+              ref_ptr(REAL(ref_mm)),
+              ref_latt_ptr(ref_latt_ptr_),
+              n_focal(focal_mm.nrow()),
+              n_ref(ref_mm.nrow()),
+              n_clim(focal_mm.ncol() - 2),
+              stride_f(focal_mm.nrow()),
+              stride_r(ref_mm.nrow()),
+              stride_latt_r(stride_latt_r_),
+              use_lattice(use_lattice_),
+              use_geog_filter(use_geog_filter_),
+              use_haversine(use_haversine_),
+              use_scalar_clim(use_scalar_clim_),
+              use_pervar_clim(use_pervar_clim_),
+              use_ecef(use_ecef_),
+              max_clim_scalar(max_clim_scalar_),
+              max_geog(max_geog_),
+              max_geog_chord(max_geog_chord_),
+              max_clim_pervar(max_clim_pervar_),
+              mcode(mcode_),
+              wcode(wcode_),
+              weight_param1(weight_param1_),
+              weight_param2(weight_param2_),
+              lattice_ptr(lattice_ptr_),
+              R_earth(R_earth_),
+              agg(agg_)
+      {}
+
+      void operator()(std::size_t begin, std::size_t end);
+};
+
+} // namespace analogs
