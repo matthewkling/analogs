@@ -19,6 +19,8 @@
   : Find Climate Analogs
 - [`is_analog_index()`](https://matthewkling.github.io/analogs/reference/is_analog_index.md)
   : Check if Object is an Analog Index
+- [`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md)
+  : Transform Climate Data for Global Mahalanobis Distance
 - [`print(`*`<analog_index>`*`)`](https://matthewkling.github.io/analogs/reference/print.analog_index.md)
   : Print Method for Analog Index
 - [`profile_analogs()`](https://matthewkling.github.io/analogs/reference/profile_analogs.md)
