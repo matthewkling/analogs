@@ -1,0 +1,31 @@
+# Package index
+
+## All functions
+
+- [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md)
+  : Analog availability: count of all analogs within climate/geographic
+  limits
+- [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
+  : Climate impact: nearest climate analogs within a geographic envelope
+- [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
+  : Analog intensity: weighted sum of analogs within climate/geographic
+  limits
+- [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md)
+  : Climate velocity: nearest geographic analogs within a climate
+  envelope
+- [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
+  : Build Analog Index
+- [`find_analogs()`](https://matthewkling.github.io/analogs/reference/find_analogs.md)
+  : Find Climate Analogs
+- [`is_analog_index()`](https://matthewkling.github.io/analogs/reference/is_analog_index.md)
+  : Check if Object is an Analog Index
+- [`print(`*`<analog_index>`*`)`](https://matthewkling.github.io/analogs/reference/print.analog_index.md)
+  : Print Method for Analog Index
+- [`profile_analogs()`](https://matthewkling.github.io/analogs/reference/profile_analogs.md)
+  : Profile find_analogs Performance
+- [`profile_compare()`](https://matthewkling.github.io/analogs/reference/profile_compare.md)
+  : Compare Performance Across Configurations
+- [`profile_suite()`](https://matthewkling.github.io/analogs/reference/profile_suite.md)
+  : Run Comprehensive Profiling Suite
+- [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md)
+  : Tune Index Resolution
