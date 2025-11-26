@@ -1,11 +1,10 @@
 Package: analogs
 Type: Package
-Title: Climate Analog Tools
+Title: Climate Analog Search Tools
 Version: 0.0.0.9000
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Matthew Kling
+Maintainer: Matthew Kling <mattkling@berkeley.edu>
+Description: Analyze spatial climate change patterns using fast climate analog queries, including analog velocity, analog availability, analog intensity, and analog impact assessment.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -16,5 +15,5 @@ Imports: Rcpp (>= 1.0.0)
 Suggests: testthat (>= 3.0.0)
 SystemRequirements: C++17
 Config/testthat/edition: 3
-URL: https://github.com/matthewkling/analogs
+URL: https://github.com/matthewkling/analogs, https://matthewkling.github.io/analogs/
 BugReports: https://github.com/matthewkling/analogs/issues

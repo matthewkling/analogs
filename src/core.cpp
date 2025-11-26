@@ -282,6 +282,26 @@ struct PairWorker : public Worker {
 
       std::vector< std::vector<int> >& out_indices;
 
+      // Thread-local storage for reusable allocations
+      struct ThreadLocalStorage {
+            std::vector<double> fgeo_vec;
+            std::vector<double> fclim_vec;
+            std::vector<double> q_geo;
+            std::vector<double> q_clim;
+            std::vector<index_t> cand;
+
+            ThreadLocalStorage() {
+                  // Pre-allocate with reasonable sizes
+                  fgeo_vec.reserve(3);   // max 3 for ECEF
+                  fclim_vec.reserve(16); // typical climate dims
+                  q_geo.reserve(3);
+                  q_clim.reserve(16);
+                  cand.reserve(256);     // typical candidate count
+            }
+      };
+
+      static thread_local ThreadLocalStorage tls;
+
       PairWorker(const NumericMatrix& focal_mm,
                  const NumericMatrix& ref_mm,
                  const double* ref_latt_ptr_,
@@ -332,6 +352,13 @@ struct PairWorker : public Worker {
             const bool rank_by_clim  = (mcode == ModeCode::KNN_CLIM);
             const bool rank_by_geog  = (mcode == ModeCode::KNN_GEOG);
 
+            // Get thread-local storage
+            auto& fgeo_vec = tls.fgeo_vec;
+            auto& fclim_vec = tls.fclim_vec;
+            auto& q_geo = tls.q_geo;
+            auto& q_clim = tls.q_clim;
+            auto& cand = tls.cand;
+
             for (std::size_t i = begin; i < end; ++i) {
                   const double fx = focal_ptr[i];
                   const double fy = focal_ptr[i + stride_f];
@@ -346,7 +373,9 @@ struct PairWorker : public Worker {
                       (!use_haversine || use_ecef)) {
 
                         const size_tu n_geo = lattice_ptr->n_geo_dims;
-                        std::vector<double> fgeo_vec(n_geo);
+
+                        // Reuse fgeo_vec
+                        fgeo_vec.resize(n_geo);
 
                         if (use_ecef) {
                               // Convert lon/lat (degrees) to ECEF (km)
@@ -361,7 +390,8 @@ struct PairWorker : public Worker {
                               if (n_geo > 1) fgeo_vec[1] = fy;
                         }
 
-                        std::vector<double> fclim_vec(n_clim);
+                        // Reuse fclim_vec
+                        fclim_vec.resize(n_clim);
                         for (int kdim = 0; kdim < n_clim; ++kdim) {
                               fclim_vec[kdim] = f_clim_col[kdim * stride_f];
                         }
@@ -369,7 +399,9 @@ struct PairWorker : public Worker {
                         // Use chord distance threshold for ECEF, regular for planar
                         const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
 
-                        std::vector<index_t> cand0;
+                        // Reuse cand vector
+                        cand.clear();
+
                         lattice_ptr->knn_query(
                                     fgeo_vec.data(),
                                     fclim_vec.data(),
@@ -382,13 +414,13 @@ struct PairWorker : public Worker {
                                     max_clim_pervar,
                                     max_clim_scalar,
                                     k,
-                                    cand0
+                                    cand
                         );
 
                         // Convert 0-based indices to 1-based for R
-                        std::vector<int> keep(cand0.size());
-                        for (std::size_t t = 0; t < cand0.size(); ++t) {
-                              keep[t] = static_cast<int>(cand0[t]) + 1;
+                        std::vector<int> keep(cand.size());
+                        for (std::size_t t = 0; t < cand.size(); ++t) {
+                              keep[t] = static_cast<int>(cand[t]) + 1;
                         }
                         out_indices[i] = std::move(keep);
                         continue;
@@ -397,13 +429,11 @@ struct PairWorker : public Worker {
                   // -----------------------------------------------------------------
                   // Otherwise: use existing candidate generation (lattice query or brute)
                   // -----------------------------------------------------------------
-                  std::vector<index_t> cand;
+                  cand.clear();
 
                   if (use_lattice && lattice_ptr != nullptr) {
-                        cand.reserve(128);
-
                         // Query lattice - use ECEF coords if applicable
-                        double q_geo[3]; // max 3 for ECEF
+                        q_geo.resize(3); // max 3 for ECEF
                         if (use_ecef) {
                               double X, Y, Z;
                               lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
@@ -415,14 +445,14 @@ struct PairWorker : public Worker {
                               q_geo[1] = fy;
                         }
 
-                        std::vector<double> q_clim(n_clim);
+                        q_clim.resize(n_clim);
                         for (int kdim = 0; kdim < n_clim; ++kdim) {
                               q_clim[kdim] = f_clim_col[kdim * stride_f];
                         }
 
                         const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
 
-                        lattice_ptr->query(q_geo,
+                        lattice_ptr->query(q_geo.data(),
                                            q_clim.data(),
                                            geog_thresh,
                                            use_scalar_clim,
@@ -449,7 +479,7 @@ struct PairWorker : public Worker {
                         }
 
                         for (size_t t = 0; t < cand.size(); ++t) {
-                              const int j = static_cast<int>(cand[t]);
+                              const index_t j = cand[t];
                               const double rx = ref_ptr[j];
                               const double ry = ref_ptr[j + stride_r];
 
@@ -490,7 +520,6 @@ struct PairWorker : public Worker {
                   }
 
                   // kNN modes (Climate or Geog) without expanding-search lattice path
-                  using Neighbor = std::pair<double, int>; // (key_dist, ref_index_1based)
                   auto cmp = [](const Neighbor& a, const Neighbor& b) {
                         return a.first < b.first; // max-heap: top has largest distance
                   };
@@ -503,7 +532,7 @@ struct PairWorker : public Worker {
                   }
 
                   for (size_t t = 0; t < cand.size(); ++t) {
-                        const int j = static_cast<int>(cand[t]);
+                        const index_t j = cand[t];
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
@@ -536,7 +565,7 @@ struct PairWorker : public Worker {
                         const double clim_dist = okd.second;
 
                         const double key = rank_by_clim ? clim_dist : gdist;
-                        const int ref_index_1based = j + 1;
+                        const index_t ref_index_1based = j + 1;
 
                         if (static_cast<int>(pq.size()) < k) {
                               pq.emplace(key, ref_index_1based);
@@ -557,6 +586,9 @@ struct PairWorker : public Worker {
             }
       }
 };
+
+// Define thread-local storage
+thread_local PairWorker::ThreadLocalStorage PairWorker::tls;
 
 
 // -------------------------------------------------------------------------
@@ -595,6 +627,21 @@ struct AggWorker : public Worker {
       double R_earth;
 
       std::vector<double>& agg; // output
+
+      // Thread-local storage for reusable allocations
+      struct ThreadLocalStorage {
+            std::vector<double> q_geo;
+            std::vector<double> q_clim;
+            std::vector<index_t> cand;
+
+            ThreadLocalStorage() {
+                  q_geo.reserve(3);
+                  q_clim.reserve(16);
+                  cand.reserve(256);
+            }
+      };
+
+      static thread_local ThreadLocalStorage tls;
 
       AggWorker(const NumericMatrix& focal_mm,
                 const NumericMatrix& ref_mm,
@@ -646,18 +693,21 @@ struct AggWorker : public Worker {
       {}
 
       void operator()(std::size_t begin, std::size_t end) {
+            // Get thread-local storage
+            auto& q_geo = tls.q_geo;
+            auto& q_clim = tls.q_clim;
+            auto& cand = tls.cand;
+
             for (std::size_t i = begin; i < end; ++i) {
                   const double fx = focal_ptr[i];
                   const double fy = focal_ptr[i + stride_f];
                   const double* f_clim_col = focal_ptr + i + 2 * stride_f;
 
-                  std::vector<index_t> cand;
+                  cand.clear();
 
                   if (use_lattice && lattice_ptr != nullptr) {
-                        cand.reserve(128);
-
                         const size_tu n_geo = lattice_ptr->n_geo_dims;
-                        std::vector<double> q_geo(n_geo);
+                        q_geo.resize(n_geo);
 
                         if (use_ecef && n_geo == 3) {
                               // Lattice was built in ECEF; query in ECEF.
@@ -672,7 +722,7 @@ struct AggWorker : public Worker {
                               if (n_geo > 1) q_geo[1] = fy;
                         }
 
-                        std::vector<double> q_clim(n_clim);
+                        q_clim.resize(n_clim);
                         for (int kdim = 0; kdim < n_clim; ++kdim) {
                               q_clim[kdim] = f_clim_col[kdim * stride_f];
                         }
@@ -709,7 +759,7 @@ struct AggWorker : public Worker {
                   }
 
                   for (size_t t = 0; t < cand.size(); ++t) {
-                        const int j = static_cast<int>(cand[t]);
+                        const index_t j = cand[t];
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
@@ -770,12 +820,15 @@ struct AggWorker : public Worker {
       }
 };
 
+// Define thread-local storage
+thread_local AggWorker::ThreadLocalStorage AggWorker::tls;
+
 
 } // anonymous namespace
 
 
 // =========================================================================
-// NEW: Build analog index (lattice) and return as Xptr
+// Build analog index (lattice) and return as Xptr
 // =========================================================================
 
 // [[Rcpp::export]]
@@ -922,6 +975,7 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
 
       return result;
 }
+
 
 
 // =========================================================================

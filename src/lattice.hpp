@@ -564,7 +564,6 @@ inline void Lattice::knn_query(const double* focal_geo,
       pq.push(start);
 
       // kNN heap: max-heap by distance (we keep smallest k)
-      using Neighbor = std::pair<double, int>; // (distance, row_index_0based)
       struct NeighborCmp {
             bool operator()(const Neighbor& a, const Neighbor& b) const {
                   return a.first < b.first; // top has largest distance
@@ -594,7 +593,7 @@ inline void Lattice::knn_query(const double* focal_geo,
             if (it_cell != cells.end()) {
                   const auto& vec = it_cell->second;
                   for (size_tu t = 0; t < vec.size(); ++t) {
-                        const size_tu j = static_cast<size_tu>(vec[t]);
+                        const index_t j = vec[t];
 
                         // Geo distance and filter
                         double gdist2 = 0.0;
@@ -635,10 +634,10 @@ inline void Lattice::knn_query(const double* focal_geo,
                         }
 
                         if (static_cast<int>(knn.size()) < k) {
-                              knn.emplace(key_dist, static_cast<int>(j));
+                              knn.emplace(key_dist, j);
                         } else if (!knn.empty() && key_dist < knn.top().first) {
                               knn.pop();
-                              knn.emplace(key_dist, static_cast<int>(j));
+                              knn.emplace(key_dist, j);
                         }
 
                         if (static_cast<int>(knn.size()) == k) {
@@ -684,7 +683,7 @@ inline void Lattice::knn_query(const double* focal_geo,
       // we want smallest distance first, so pop into reverse
       for (int pos = m - 1; pos >= 0; --pos) {
             const Neighbor nb = knn.top();
-            out_indices[pos] = static_cast<index_t>(nb.second); // 0-based row index
+            out_indices[pos] = nb.second; // 0-based row index
             knn.pop();
       }
 }
