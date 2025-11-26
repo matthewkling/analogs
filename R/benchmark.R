@@ -24,45 +24,11 @@ simulate_climate_rasters <- function(d = 500) {
 # load example climate data ---------------------------------
 
 load_climate_rasters <- function() {
+      # data constructed in .sandbox/clim_prep.R
       require(terra)
-      require(tidyverse)
-
-      scale_rast <- function(x) {
-            v <- values(x, mat = FALSE) # Returns a vector, not matrix
-            v <- v[is.finite(v)] # Remove NAs before calculating stats
-            (x - mean(v)) / sd(v)
-      }
-
-      # prep climate data
-      bb <- ext(-114, -108, 43, 49)
-
-      t1 <- rast(
-            "/Volumes/T7/CHELSA/v2/raw/CHELSA_bio1_1981-2010_V.2.1.tif"
-      ) %>%
-            crop(bb)
-      t2 <- list.files("/Volumes/T7/CHELSA/v2/cmip/", full.names = T)
-      t2 <- t2[grepl("2071", t2) & grepl("126_tas_", t2)] %>%
-            rast() %>%
-            crop(bb) %>%
-            terra::mean()
-      t <- c(t1, t2) %>% scale_rast()
-
-      p1 <- rast("/Volumes/T7/CHELSA/v2/raw/CHELSA_bio12_1981-2010_V.2.1.tif") %>%
-            crop(bb)
-      p2 <- list.files("/Volumes/T7/CHELSA/v2/cmip/", full.names = T)
-      p2 <- p2[grepl("2071", p2) & grepl("126_pr_", p2)] %>%
-            rast() %>%
-            crop(bb) %>%
-            terra::mean() %>% # average across months and GCMs
-            "*"(12) # convert monthly to annual to match baseline
-      p <- c(p1, p2) %>% log() %>% scale_rast()
-
-      clim1 <- c(t[[1]], p[[1]])
-      clim2 <- c(t[[2]], p[[2]])
-
-      names(clim1) <- names(clim2) <- c("t", "p")
-
-      return(list(clim1 = clim1, clim2 = clim2))
+      clim <- rast(".sandbox/clim.tif")
+      clim <- list(clim1 = clim[[1:2]], clim2 = clim[[3:4]])
+      clim
 }
 
 
