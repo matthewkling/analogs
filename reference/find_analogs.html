@@ -53,6 +53,7 @@ analysis, analog availability mapping, and climate impact assessment.</p>
 <span>  <span class="va">mode</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  k <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  theta <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -106,7 +107,9 @@ SpatRaster with climate variable layers.</p></dd>
 climate constraint). Can be either:</p><ul><li><p>A scalar: Euclidean radius in climate space (e.g., 0.5)</p></li>
 <li><p>A vector: Per-variable absolute differences (length must equal
     number of climate variables)</p></li>
-</ul><p>Only reference locations within this climate distance are considered.</p></dd>
+</ul><p>Only reference locations within this climate distance are considered.
+When <code>x_cov</code> is provided, scalar thresholds are interpreted in
+Mahalanobis distance units.</p></dd>
 
 
 <dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
@@ -115,6 +118,19 @@ NULL = no geographic constraint). When specified, only reference locations
 within this distance are considered. Radius units should be specified in
 kilometers if <code>coord_type = "lonlat"</code>, or in projected coordinate units
 if <code>coord_type = "projected"</code>.</p></dd>
+
+
+<dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
+<dd><p>Optional focal-specific covariance matrices for Mahalanobis
+distance calculations. Should be a matrix or data.frame with one row per
+focal location and one column per unique covariance component. For n climate
+variables, there are n*(n+1)/2 unique components, ordered as: variances
+first (diagonals), then covariances (upper triangle by row). For example:</p><ul><li><p>2 variables: c(var1, var2, cov12)</p></li>
+<li><p>3 variables: c(var1, var2, var3, cov12, cov13, cov23)</p></li>
+</ul><p>When provided, all climate distances are computed as Mahalanobis distances
+using each focal's covariance structure. For focal-specific variances only
+(no covariance), set off-diagonal covariances to zero. Default is NULL
+(Euclidean climate distance).</p></dd>
 
 
 <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
@@ -272,6 +288,17 @@ distance) or projected coordinates (planar distance).</p>
 <span><span class="co"># Query multiple times</span></span>
 <span><span class="va">v1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/find_analogs.html">find_analogs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">sites1</span>, pool <span class="op">=</span> <span class="va">index</span>, mode <span class="op">=</span> <span class="st">"knn_geog"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">v2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/find_analogs.html">find_analogs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">sites2</span>, pool <span class="op">=</span> <span class="va">index</span>, mode <span class="op">=</span> <span class="st">"knn_geog"</span>, max_clim <span class="op">=</span> <span class="fl">0.3</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
+
+<p><strong>Focal-specific Mahalanobis Distance</strong>:</p><div class="sourceCode"><pre><code><span></span>
+<span><span class="co"># With focal-specific covariance matrices</span></span>
+<span><span class="fu"><a href="../reference/find_analogs.html">find_analogs</a></span><span class="op">(</span></span>
+<span>  x        <span class="op">=</span> <span class="va">clim</span><span class="op">$</span><span class="va">clim1</span>,</span>
+<span>  pool     <span class="op">=</span> <span class="va">clim</span><span class="op">$</span><span class="va">clim2</span>,</span>
+<span>  x_cov    <span class="op">=</span> <span class="va">focal_covariances</span>,  <span class="co"># n_focal x 3 matrix for 2 climate vars</span></span>
+<span>  mode     <span class="op">=</span> <span class="st">"knn_geog"</span>,</span>
+<span>  max_clim <span class="op">=</span> <span class="fl">2</span>,  <span class="co"># In Mahalanobis distance units</span></span>
+<span>  k        <span class="op">=</span> <span class="fl">1</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 
     </div>
 

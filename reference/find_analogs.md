@@ -15,6 +15,7 @@ find_analogs(
   mode,
   max_clim = NULL,
   max_geog = NULL,
+  x_cov = NULL,
   k = NULL,
   weight = NULL,
   theta = NULL,
@@ -79,6 +80,8 @@ find_analogs(
     number of climate variables)
 
   Only reference locations within this climate distance are considered.
+  When `x_cov` is provided, scalar thresholds are interpreted in
+  Mahalanobis distance units.
 
 - max_geog:
 
@@ -87,6 +90,24 @@ find_analogs(
   distance are considered. Radius units should be specified in
   kilometers if `coord_type = "lonlat"`, or in projected coordinate
   units if `coord_type = "projected"`.
+
+- x_cov:
+
+  Optional focal-specific covariance matrices for Mahalanobis distance
+  calculations. Should be a matrix or data.frame with one row per focal
+  location and one column per unique covariance component. For n climate
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
+  For example:
+
+  - 2 variables: c(var1, var2, cov12)
+
+  - 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
+
+  When provided, all climate distances are computed as Mahalanobis
+  distances using each focal's covariance structure. For focal-specific
+  variances only (no covariance), set off-diagonal covariances to zero.
+  Default is NULL (Euclidean climate distance).
 
 - k:
 
@@ -295,3 +316,15 @@ range):
     # Query multiple times
     v1 <- find_analogs(x = sites1, pool = index, mode = "knn_geog", max_clim = 0.5, k = 1)
     v2 <- find_analogs(x = sites2, pool = index, mode = "knn_geog", max_clim = 0.3, k = 1)
+
+**Focal-specific Mahalanobis Distance**:
+
+    # With focal-specific covariance matrices
+    find_analogs(
+      x        = clim$clim1,
+      pool     = clim$clim2,
+      x_cov    = focal_covariances,  # n_focal x 3 matrix for 2 climate vars
+      mode     = "knn_geog",
+      max_clim = 2,  # In Mahalanobis distance units
+      k        = 1
+    )

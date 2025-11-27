@@ -55,6 +55,7 @@ after filtering.</p>
 <span>  weight <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"uniform"</span>, <span class="st">"inverse_clim"</span>, <span class="st">"inverse_geog"</span>, <span class="st">"gaussian_clim"</span>, <span class="st">"gaussian_geog"</span>,</span>
 <span>    <span class="st">"gaussian_joint"</span>, <span class="st">"inverse_joint"</span><span class="op">)</span>,</span>
 <span>  theta <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span></span>
@@ -84,7 +85,9 @@ SpatRaster with climate variable layers.</p></dd>
 climate constraint). Can be either:</p><ul><li><p>A scalar: Euclidean radius in climate space (e.g., 0.5)</p></li>
 <li><p>A vector: Per-variable absolute differences (length must equal
     number of climate variables)</p></li>
-</ul><p>Only reference locations within this climate distance are considered.</p></dd>
+</ul><p>Only reference locations within this climate distance are considered.
+When <code>x_cov</code> is provided, scalar thresholds are interpreted in
+Mahalanobis distance units.</p></dd>
 
 
 <dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
@@ -134,6 +137,19 @@ not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><u
 </ul><p>If <code>theta</code> is <code>NULL</code>, sensible defaults are used for single-parameter
 weights. For <code>weight = "uniform"</code> or for non-aggregating modes, <code>theta</code>
 must be <code>NULL</code>.</p></dd>
+
+
+<dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
+<dd><p>Optional focal-specific covariance matrices for Mahalanobis
+distance calculations. Should be a matrix or data.frame with one row per
+focal location and one column per unique covariance component. For n climate
+variables, there are n*(n+1)/2 unique components, ordered as: variances
+first (diagonals), then covariances (upper triangle by row). For example:</p><ul><li><p>2 variables: c(var1, var2, cov12)</p></li>
+<li><p>3 variables: c(var1, var2, var3, cov12, cov13, cov23)</p></li>
+</ul><p>When provided, all climate distances are computed as Mahalanobis distances
+using each focal's covariance structure. For focal-specific variances only
+(no covariance), set off-diagonal covariances to zero. Default is NULL
+(Euclidean climate distance).</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>

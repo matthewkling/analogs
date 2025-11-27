@@ -17,6 +17,7 @@ tune_index_res(
   k = NULL,
   weight = NULL,
   theta = NULL,
+  x_cov = NULL,
   coord_type = c("auto", "lonlat", "projected"),
   n_threads = NULL,
   default_res = 16L,
@@ -75,6 +76,8 @@ tune_index_res(
     number of climate variables)
 
   Only reference locations within this climate distance are considered.
+  When `x_cov` is provided, scalar thresholds are interpreted in
+  Mahalanobis distance units.
 
 - max_geog:
 
@@ -145,6 +148,24 @@ tune_index_res(
   If `theta` is `NULL`, sensible defaults are used for single-parameter
   weights. For `weight = "uniform"` or for non-aggregating modes,
   `theta` must be `NULL`.
+
+- x_cov:
+
+  Optional focal-specific covariance matrices for Mahalanobis distance
+  calculations. Should be a matrix or data.frame with one row per focal
+  location and one column per unique covariance component. For n climate
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
+  For example:
+
+  - 2 variables: c(var1, var2, cov12)
+
+  - 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
+
+  When provided, all climate distances are computed as Mahalanobis
+  distances using each focal's covariance structure. For focal-specific
+  variances only (no covariance), set off-diagonal covariances to zero.
+  Default is NULL (Euclidean climate distance).
 
 - coord_type:
 
