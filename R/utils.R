@@ -8,11 +8,11 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates mode/k/weight/theta combinations and normalizes values.
+#' Validates mode/k/weight/theta/x_cov combinations and normalizes values.
 #' Returns a list with normalized parameters.
 #'
 #' @keywords internal
-.validate_query_params <- function(mode, k, weight, theta) {
+.validate_query_params <- function(mode, k, weight, theta, x_cov = NULL, focal_mm = NULL) {
 
       # Validate mode
       mode <- match.arg(mode, c("knn_clim", "knn_geog", "count", "sum", "mean", "all"))
@@ -95,13 +95,108 @@
             }
       }
 
+      # Validate and format x_cov if provided
+      x_cov_mat <- NULL
+      if (!is.null(x_cov)) {
+            if (is.null(focal_mm)) {
+                  stop("Internal error: focal_mm required for x_cov validation")
+            }
+            x_cov_mat <- .validate_and_format_x_cov(x_cov, focal_mm)
+      }
+
       # Return normalized parameters
       list(
             mode = mode,
             k = k,
             weight = weight,
-            theta = theta
+            theta = theta,
+            x_cov = x_cov_mat
       )
+}
+
+#' Validate and format x_cov parameter
+#' @keywords internal
+.validate_and_format_x_cov <- function(x_cov, focal_mm) {
+
+      # focal_mm is already formatted matrix with coords + climate
+      n_focal <- nrow(focal_mm)
+      n_clim <- ncol(focal_mm) - 2
+
+      # Expected number of covariance components
+      n_cov_components <- n_clim * (n_clim + 1) / 2
+
+      # Convert to matrix if needed
+      if (inherits(x_cov, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster x_cov", call. = FALSE)
+            }
+            x_cov <- terra::as.matrix(x_cov, wide = TRUE)
+      } else if (is.data.frame(x_cov)) {
+            x_cov <- as.matrix(x_cov)
+      } else if (!is.matrix(x_cov)) {
+            stop("x_cov must be a matrix, data.frame, or SpatRaster")
+      }
+
+      # Validate dimensions
+      if (nrow(x_cov) != n_focal) {
+            stop(sprintf(
+                  "x_cov must have same number of rows as focal data (%d), but has %d rows",
+                  n_focal, nrow(x_cov)
+            ))
+      }
+
+      if (ncol(x_cov) != n_cov_components) {
+            stop(sprintf(
+                  "For %d climate variables, x_cov must have %d columns (n*(n+1)/2), but has %d",
+                  n_clim, n_cov_components, ncol(x_cov)
+            ))
+      }
+
+      # Check for non-finite values
+      if (any(!is.finite(x_cov))) {
+            stop("x_cov contains non-finite values")
+      }
+
+      # Basic positive-definiteness check on first focal's covariance matrix
+      # (full check is expensive, just do sanity check)
+      test_cov <- .reconstruct_cov_matrix(x_cov[1, ], n_clim)
+      test_eig <- eigen(test_cov, symmetric = TRUE, only.values = TRUE)$values
+
+      if (any(test_eig <= 0)) {
+            warning("First focal's covariance matrix is not positive definite. ",
+                    "This may cause issues. Check your covariance matrices.")
+      }
+
+      # Ensure storage mode is double
+      storage.mode(x_cov) <- "double"
+
+      return(x_cov)
+}
+
+
+#' Reconstruct symmetric covariance matrix from lower triangle
+#' @keywords internal
+.reconstruct_cov_matrix <- function(cov_vec, n_clim) {
+      cov_mat <- matrix(0, n_clim, n_clim)
+
+      # Fill diagonal (variances)
+      for (i in seq_len(n_clim)) {
+            cov_mat[i, i] <- cov_vec[i]
+      }
+
+      # Fill off-diagonals (covariances)
+      if (n_clim > 1) {
+            idx <- n_clim + 1
+            for (i in seq_len(n_clim - 1)) {
+                  for (j in (i + 1):n_clim) {
+                        cov_mat[i, j] <- cov_vec[idx]
+                        cov_mat[j, i] <- cov_vec[idx]  # Symmetric
+                        idx <- idx + 1
+                  }
+            }
+      }
+
+      return(cov_mat)
 }
 
 #' Extract coordinates and climate data from input

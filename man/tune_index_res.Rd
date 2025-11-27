@@ -13,6 +13,7 @@ tune_index_res(
   k = NULL,
   weight = NULL,
   theta = NULL,
+  x_cov = NULL,
   coord_type = c("auto", "lonlat", "projected"),
   n_threads = NULL,
   default_res = 16L,
@@ -56,7 +57,9 @@ climate constraint). Can be either:
   \item A vector: Per-variable absolute differences (length must equal
     number of climate variables)
 }
-Only reference locations within this climate distance are considered.}
+Only reference locations within this climate distance are considered.
+When \code{x_cov} is provided, scalar thresholds are interpreted in
+Mahalanobis distance units.}
 
 \item{max_geog}{Maximum geographic distance constraint (default:
 NULL = no geographic constraint). When specified, only reference locations
@@ -110,6 +113,20 @@ not \code{"uniform"}. Interpretation depends on \code{weight}:
 If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
 weights. For \code{weight = "uniform"} or for non-aggregating modes, \code{theta}
 must be \code{NULL}.}
+
+\item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
+distance calculations. Should be a matrix or data.frame with one row per
+focal location and one column per unique covariance component. For n climate
+variables, there are n*(n+1)/2 unique components, ordered as: variances
+first (diagonals), then covariances (upper triangle by row). For example:
+\itemize{
+  \item 2 variables: c(var1, var2, cov12)
+  \item 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
+}
+When provided, all climate distances are computed as Mahalanobis distances
+using each focal's covariance structure. For focal-specific variances only
+(no covariance), set off-diagonal covariances to zero. Default is NULL
+(Euclidean climate distance).}
 
 \item{coord_type}{Coordinate system type (default: "auto"):
 \itemize{

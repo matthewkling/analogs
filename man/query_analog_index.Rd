@@ -10,6 +10,7 @@ query_analog_index(
   mode,
   max_clim,
   max_geog,
+  x_cov,
   k,
   weight,
   theta,

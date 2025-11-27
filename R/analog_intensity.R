@@ -63,6 +63,7 @@ analog_intensity <- function(
                            "gaussian_clim", "gaussian_geog",
                            "gaussian_joint", "inverse_joint"),
             theta      = NULL,
+            x_cov      = NULL,
             coord_type = "auto",
             index_res = "auto",
             n_threads = NULL
@@ -78,6 +79,7 @@ analog_intensity <- function(
             k          = NULL,        # required to be NULL for sum/mean
             weight     = weight,
             theta      = theta,
+            x_cov      = x_cov,
             coord_type = coord_type,
             report_dist = FALSE,       # no pairwise distances needed for sums
             index_res  = index_res,

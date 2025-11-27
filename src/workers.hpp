@@ -7,6 +7,7 @@
 #include "geometry.hpp"
 #include "climate.hpp"
 #include "weights.hpp"
+#include "mahalanobis.hpp"
 
 #include <vector>
 #include <queue>
@@ -49,6 +50,12 @@ struct PairWorker : public Worker {
 
       double R_earth;               // Earth radius (km)
 
+      // Mahalanobis distance support
+      bool use_mahalanobis;                           // true if x_cov provided
+      const double* x_cov_ptr;                        // pointer to x_cov matrix (n_focal × n_cov_components)
+      int x_cov_stride;                               // stride for x_cov
+      int n_cov_components;                           // n_clim * (n_clim + 1) / 2
+
       std::vector< std::vector<int> >& out_indices;
 
       // Thread-local storage for reusable allocations
@@ -89,6 +96,10 @@ struct PairWorker : public Worker {
                  Lattice* lattice_ptr_,
                  bool use_ecef_,
                  double R_earth_,
+                 bool use_mahalanobis_,
+                 const double* x_cov_ptr_,
+                 int x_cov_stride_,
+                 int n_cov_components_,
                  std::vector< std::vector<int> >& out_indices_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
@@ -113,6 +124,10 @@ struct PairWorker : public Worker {
               k(k_),
               lattice_ptr(lattice_ptr_),
               R_earth(R_earth_),
+              use_mahalanobis(use_mahalanobis_),
+              x_cov_ptr(x_cov_ptr_),
+              x_cov_stride(x_cov_stride_),
+              n_cov_components(n_cov_components_),
               out_indices(out_indices_)
       {}
 
@@ -155,6 +170,12 @@ struct AggWorker : public Worker {
       Lattice* lattice_ptr;
       double R_earth;
 
+      // Mahalanobis distance support
+      bool use_mahalanobis;                           // true if x_cov provided
+      const double* x_cov_ptr;                        // pointer to x_cov matrix
+      int x_cov_stride;                               // stride for x_cov
+      int n_cov_components;                           // n_clim * (n_clim + 1) / 2
+
       std::vector<double>& agg; // output
 
       // Thread-local storage for reusable allocations
@@ -192,6 +213,10 @@ struct AggWorker : public Worker {
                 Lattice* lattice_ptr_,
                 bool use_ecef_,
                 double R_earth_,
+                bool use_mahalanobis_,
+                const double* x_cov_ptr_,
+                int x_cov_stride_,
+                int n_cov_components_,
                 std::vector<double>& agg_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
@@ -218,6 +243,10 @@ struct AggWorker : public Worker {
               weight_param2(weight_param2_),
               lattice_ptr(lattice_ptr_),
               R_earth(R_earth_),
+              use_mahalanobis(use_mahalanobis_),
+              x_cov_ptr(x_cov_ptr_),
+              x_cov_stride(x_cov_stride_),
+              n_cov_components(n_cov_components_),
               agg(agg_)
       {}
 

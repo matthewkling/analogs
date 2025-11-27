@@ -5,6 +5,7 @@ query_analog_index <- function(x,
                                mode,
                                max_clim,
                                max_geog,
+                               x_cov,
                                k,
                                weight,
                                theta,
@@ -14,18 +15,19 @@ query_analog_index <- function(x,
       # Validate index
       .validate_analog_index(index)
 
-      # Validate and normalize query parameters
-      params <- .validate_query_params(mode, k, weight, theta)
-      mode <- params$mode
-      k <- params$k
-      weight <- params$weight
-      theta <- params$theta
-
-      # Format focal data
+      # Format focal data (needed for validation)
       focal_mm <- .format_data(x)
 
       # Validate compatibility
       .validate_analog_index(index, focal_mm, validate_ranges = FALSE)
+
+      # Validate and normalize query parameters (including x_cov)
+      params <- .validate_query_params(mode, k, weight, theta, x_cov, focal_mm)
+      mode <- params$mode
+      k <- params$k
+      weight <- params$weight
+      theta <- params$theta
+      x_cov_mat <- params$x_cov
 
       # Parse constraints
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
@@ -78,6 +80,7 @@ query_analog_index <- function(x,
       }
 
       # Call C++ query function
+      # Pass x_cov_mat directly - C++ handles NULL properly
       res <- query_analog_index_cpp(
             index_list = index,
             focal_mm = focal_mm,
@@ -87,7 +90,8 @@ query_analog_index <- function(x,
             max_geog = max_geog_num,
             mode_code = mode_code,
             weight_code = weight_code,
-            theta = theta_vec
+            theta = theta_vec,
+            x_cov = x_cov_mat  # NULL or matrix; C++ handles both
       )
 
       # Capture diagnostic attributes

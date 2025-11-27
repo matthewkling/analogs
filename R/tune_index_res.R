@@ -54,6 +54,7 @@ tune_index_res <- function(x,
                            k = NULL,
                            weight = NULL,
                            theta = NULL,
+                           x_cov = NULL,
                            coord_type = c("auto", "lonlat", "projected"),
                            n_threads = NULL,
                            default_res = 16L,
@@ -69,17 +70,20 @@ tune_index_res <- function(x,
       }
 
       # Validate and normalize query parameters
-      params <- .validate_query_params(mode, k, weight, theta)
+      # Note: We don't have focal_mm yet, but .validate_query_params handles x_cov=NULL gracefully
+      # For x_cov validation, we'll need to format focal data first
+      focal_mm <- .format_data(x)
+
+      params <- .validate_query_params(mode, k, weight, theta, x_cov, focal_mm)
       mode <- params$mode
       k <- params$k
       weight <- params$weight
       theta <- params$theta
+      x_cov_mat <- params$x_cov  # Already validated if provided
 
       # Validate coord_type
       coord_type <- match.arg(coord_type)
 
-      # Format focal data
-      focal_mm <- .format_data(x)
       n_focal <- nrow(focal_mm)
 
       # Only tune for non-trivial problem sizes
@@ -95,6 +99,12 @@ tune_index_res <- function(x,
       n_samp <- min(1000L, max(100L, as.integer(n_focal * 0.01)))
       idx    <- sample.int(n_focal, n_samp)
       focal_mm_samp <- focal_mm[idx, , drop = FALSE]
+
+      # Subsample x_cov if provided
+      x_cov_samp <- NULL
+      if (!is.null(x_cov_mat)) {
+            x_cov_samp <- x_cov_mat[idx, , drop = FALSE]
+      }
 
       # Helper to evaluate timing for a given index_res
       eval_time <- function(r) {
@@ -115,6 +125,7 @@ tune_index_res <- function(x,
                         mode = mode,
                         max_clim = max_clim,
                         max_geog = max_geog,
+                        x_cov = x_cov_samp,
                         k = k,
                         weight = weight,
                         theta = theta,

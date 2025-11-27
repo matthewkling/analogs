@@ -18,6 +18,31 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
 
+      // Pre-compute inverse covariance matrices if using Mahalanobis
+      std::vector< std::vector<double> > inv_cov_matrices;
+      if (use_mahalanobis) {
+            inv_cov_matrices.resize(end - begin);
+
+            for (std::size_t i = begin; i < end; ++i) {
+                  const size_t local_idx = i - begin;
+                  const double* cov_vec = x_cov_ptr + i;  // Column-major access
+
+                  // Reconstruct covariance matrix
+                  std::vector<double> cov_matrix;
+                  reconstruct_cov_matrix(cov_vec, n_clim, cov_matrix);
+
+                  // Invert covariance matrix
+                  std::vector<double>& inv_cov = inv_cov_matrices[local_idx];
+                  if (!invert_cov_matrix(cov_matrix, n_clim, inv_cov)) {
+                        // Matrix not positive definite - use identity (Euclidean)
+                        inv_cov.resize(n_clim * n_clim, 0.0);
+                        for (int k = 0; k < n_clim; ++k) {
+                              inv_cov[k * n_clim + k] = 1.0;
+                        }
+                  }
+            }
+      }
+
       for (std::size_t i = begin; i < end; ++i) {
             const double fx = focal_ptr[i];
             const double fy = focal_ptr[i + stride_f];
@@ -137,6 +162,12 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
                   }
 
+                  // Get inverse covariance matrix for this focal (if using Mahalanobis)
+                  const std::vector<double>* inv_cov_ptr = nullptr;
+                  if (use_mahalanobis) {
+                        inv_cov_ptr = &inv_cov_matrices[i - begin];
+                  }
+
                   for (size_t t = 0; t < cand.size(); ++t) {
                         const index_t j = cand[t];
                         const double rx = ref_ptr[j];
@@ -163,13 +194,29 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
                         // Climate checks
                         const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                        const auto okd = clim_ok_and_dist(
-                              f_clim_col, r_clim_col,
-                              n_clim, stride_f, stride_r,
-                              use_pervar_clim, max_clim_pervar,
-                              use_scalar_clim, max_clim_scalar
-                        );
-                        if (!okd.first) continue;
+                        bool ok;
+
+                        if (use_mahalanobis) {
+                              // Use Mahalanobis distance
+                              auto okd = mahalanobis_ok_and_dist(
+                                    f_clim_col, r_clim_col,
+                                    *inv_cov_ptr,
+                                    n_clim, stride_f, stride_r,
+                                    max_clim_scalar, false
+                              );
+                              ok = okd.first;
+                        } else {
+                              // Use Euclidean distance
+                              auto okd = clim_ok_and_dist(
+                                    f_clim_col, r_clim_col,
+                                    n_clim, stride_f, stride_r,
+                                    use_pervar_clim, max_clim_pervar,
+                                    use_scalar_clim, max_clim_scalar
+                              );
+                              ok = okd.first;
+                        }
+
+                        if (!ok) continue;
 
                         keep.push_back(j + 1); // 1-based
                   }
@@ -188,6 +235,12 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
             if (use_ecef) {
                   lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
+            }
+
+            // Get inverse covariance matrix for this focal (if using Mahalanobis)
+            const std::vector<double>* inv_cov_ptr = nullptr;
+            if (use_mahalanobis) {
+                  inv_cov_ptr = &inv_cov_matrices[i - begin];
             }
 
             for (size_t t = 0; t < cand.size(); ++t) {
@@ -214,14 +267,32 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
                   // Climate checks & distance
                   const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                  const auto okd = clim_ok_and_dist(
-                        f_clim_col, r_clim_col,
-                        n_clim, stride_f, stride_r,
-                        use_pervar_clim, max_clim_pervar,
-                        use_scalar_clim, max_clim_scalar
-                  );
-                  if (!okd.first) continue;
-                  const double clim_dist = okd.second;
+                  double clim_dist;
+                  bool ok;
+
+                  if (use_mahalanobis) {
+                        // Use Mahalanobis distance
+                        auto okd = mahalanobis_ok_and_dist(
+                              f_clim_col, r_clim_col,
+                              *inv_cov_ptr,
+                              n_clim, stride_f, stride_r,
+                              max_clim_scalar, true
+                        );
+                        ok = okd.first;
+                        clim_dist = okd.second;
+                  } else {
+                        // Use Euclidean distance
+                        auto okd = clim_ok_and_dist(
+                              f_clim_col, r_clim_col,
+                              n_clim, stride_f, stride_r,
+                              use_pervar_clim, max_clim_pervar,
+                              use_scalar_clim, max_clim_scalar
+                        );
+                        ok = okd.first;
+                        clim_dist = okd.second;
+                  }
+
+                  if (!ok) continue;
 
                   const double key = rank_by_clim ? clim_dist : gdist;
                   const index_t ref_index_1based = j + 1;
@@ -251,6 +322,31 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_geo = tls.q_geo;
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
+
+      // Pre-compute inverse covariance matrices if using Mahalanobis
+      std::vector< std::vector<double> > inv_cov_matrices;
+      if (use_mahalanobis) {
+            inv_cov_matrices.resize(end - begin);
+
+            for (std::size_t i = begin; i < end; ++i) {
+                  const size_t local_idx = i - begin;
+                  const double* cov_vec = x_cov_ptr + i;  // Column-major access
+
+                  // Reconstruct covariance matrix
+                  std::vector<double> cov_matrix;
+                  reconstruct_cov_matrix(cov_vec, n_clim, cov_matrix);
+
+                  // Invert covariance matrix
+                  std::vector<double>& inv_cov = inv_cov_matrices[local_idx];
+                  if (!invert_cov_matrix(cov_matrix, n_clim, inv_cov)) {
+                        // Matrix not positive definite - use identity (Euclidean)
+                        inv_cov.resize(n_clim * n_clim, 0.0);
+                        for (int k = 0; k < n_clim; ++k) {
+                              inv_cov[k * n_clim + k] = 1.0;
+                        }
+                  }
+            }
+      }
 
       for (std::size_t i = begin; i < end; ++i) {
             const double fx = focal_ptr[i];
@@ -312,6 +408,12 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
             }
 
+            // Get inverse covariance matrix for this focal (if using Mahalanobis)
+            const std::vector<double>* inv_cov_ptr = nullptr;
+            if (use_mahalanobis) {
+                  inv_cov_ptr = &inv_cov_matrices[i - begin];
+            }
+
             for (size_t t = 0; t < cand.size(); ++t) {
                   const index_t j = cand[t];
                   const double rx = ref_ptr[j];
@@ -336,14 +438,32 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                   // Climate checks & distance
                   const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                  const auto okd = clim_ok_and_dist(
-                        f_clim_col, r_clim_col,
-                        n_clim, stride_f, stride_r,
-                        use_pervar_clim, max_clim_pervar,
-                        use_scalar_clim, max_clim_scalar
-                  );
-                  if (!okd.first) continue;
-                  const double clim_dist = okd.second;
+                  double clim_dist;
+                  bool ok;
+
+                  if (use_mahalanobis) {
+                        // Use Mahalanobis distance
+                        auto okd = mahalanobis_ok_and_dist(
+                              f_clim_col, r_clim_col,
+                              *inv_cov_ptr,
+                              n_clim, stride_f, stride_r,
+                              max_clim_scalar, true
+                        );
+                        ok = okd.first;
+                        clim_dist = okd.second;
+                  } else {
+                        // Use Euclidean distance
+                        auto okd = clim_ok_and_dist(
+                              f_clim_col, r_clim_col,
+                              n_clim, stride_f, stride_r,
+                              use_pervar_clim, max_clim_pervar,
+                              use_scalar_clim, max_clim_scalar
+                        );
+                        ok = okd.first;
+                        clim_dist = okd.second;
+                  }
+
+                  if (!ok) continue;
 
                   ++count;
 

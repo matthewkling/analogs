@@ -10,6 +10,7 @@
 #include "climate.hpp"
 #include "weights.hpp"
 #include "workers.hpp"
+#include "mahalanobis.hpp"
 
 #include <vector>
 #include <limits>
@@ -184,7 +185,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             double max_geog,
                             int mode_code,
                             int weight_code,
-                            const NumericVector& theta)
+                            const NumericVector& theta,
+                            SEXP x_cov_sexp)
 {
       // Extract lattice and metadata from index
       List idx = as<List>(index_list);
@@ -250,6 +252,30 @@ SEXP query_analog_index_cpp(SEXP index_list,
       double weight_param1 = weight_params.first;
       double weight_param2 = weight_params.second;
 
+      // Parse x_cov parameter
+      bool use_mahalanobis = false;
+      const double* x_cov_ptr = nullptr;
+      int x_cov_stride = 0;
+      int n_cov_components = 0;
+
+      if (!Rf_isNull(x_cov_sexp) && x_cov_sexp != R_NilValue) {
+            NumericMatrix x_cov_mat = as<NumericMatrix>(x_cov_sexp);
+
+            // Validate dimensions
+            if (x_cov_mat.nrow() != n_focal) {
+                  stop("x_cov must have same number of rows as focal data");
+            }
+
+            n_cov_components = n_clim * (n_clim + 1) / 2;
+            if (x_cov_mat.ncol() != n_cov_components) {
+                  stop("x_cov must have n_clim * (n_clim + 1) / 2 columns");
+            }
+
+            use_mahalanobis = true;
+            x_cov_ptr = REAL(x_cov_mat);
+            x_cov_stride = n_focal;  // Column-major stride
+      }
+
       // Get ECEF data pointer if applicable
       const double* ref_latt_ptr;
       int stride_latt_r;
@@ -297,6 +323,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               lattice_ptr,
                               use_ecef,
                               R_earth,
+                              use_mahalanobis,
+                              x_cov_ptr,
+                              x_cov_stride,
+                              n_cov_components,
                               out_indices);
 
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
@@ -365,6 +395,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
                         lattice_ptr,
                         use_ecef,
                         R_earth,
+                        use_mahalanobis,
+                        x_cov_ptr,
+                        x_cov_stride,
+                        n_cov_components,
                         agg_vals);
 
       parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
@@ -418,7 +452,8 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                        int mode_code,
                        int weight_code,
                        const NumericVector& theta,
-                       int lattice_res)
+                       int lattice_res,
+                       SEXP x_cov_sexp)
 {
       PROFILE_START("TOTAL");
 
@@ -473,6 +508,30 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
       auto weight_params = precompute_weight_params(wcode, theta);
       double weight_param1 = weight_params.first;
       double weight_param2 = weight_params.second;
+
+      // Parse x_cov parameter
+      bool use_mahalanobis = false;
+      const double* x_cov_ptr = nullptr;
+      int x_cov_stride = 0;
+      int n_cov_components = 0;
+
+      if (!Rf_isNull(x_cov_sexp) && x_cov_sexp != R_NilValue) {
+            NumericMatrix x_cov_mat = as<NumericMatrix>(x_cov_sexp);
+
+            // Validate dimensions
+            if (x_cov_mat.nrow() != n_focal) {
+                  stop("x_cov must have same number of rows as focal data");
+            }
+
+            n_cov_components = n_clim * (n_clim + 1) / 2;
+            if (x_cov_mat.ncol() != n_cov_components) {
+                  stop("x_cov must have n_clim * (n_clim + 1) / 2 columns");
+            }
+
+            use_mahalanobis = true;
+            x_cov_ptr = REAL(x_cov_mat);
+            x_cov_stride = n_focal;  // Column-major stride
+      }
 
       // Dimension roles
       const bool geo_filter  = use_geog_filter;
@@ -680,6 +739,10 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                               use_lattice ? &lattice : nullptr,
                               use_ecef,
                               R_earth,
+                              use_mahalanobis,
+                              x_cov_ptr,
+                              x_cov_stride,
+                              n_cov_components,
                               out_indices);
 
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
@@ -779,6 +842,10 @@ SEXP find_analogs_core(const NumericMatrix& focal_mm,
                         use_lattice ? &lattice : nullptr,
                         use_ecef,
                         R_earth,
+                        use_mahalanobis,
+                        x_cov_ptr,
+                        x_cov_stride,
+                        n_cov_components,
                         agg_vals);
 
       parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
@@ -825,6 +892,7 @@ Rcpp::List profile_find_analogs(const NumericMatrix& focal_mm,
                                 int weight_code,
                                 const NumericVector& theta,
                                 int lattice_res,
+                                SEXP x_cov_sexp,
                                 bool enable_profiling)
 {
       if (enable_profiling) {
@@ -832,7 +900,8 @@ Rcpp::List profile_find_analogs(const NumericMatrix& focal_mm,
       }
 
       SEXP result = find_analogs_core(focal_mm, ref_mm, k, max_clim, max_geog,
-                                      geo_mode, mode_code, weight_code, theta, lattice_res);
+                                      geo_mode, mode_code, weight_code, theta,
+                                      lattice_res, x_cov_sexp);
 
       // Collect results
       auto events = analogs::g_profiler.get_events();

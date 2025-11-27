@@ -44,6 +44,15 @@
 #' index <- build_analog_index(clim$clim2)
 #' v1 <- analog_velocity(x = sites1, pool = index, max_clim = 0.5, k = 1)
 #' v2 <- analog_velocity(x = sites2, pool = index, max_clim = 0.3, k = 1)
+#'
+#' # With focal-specific covariance matrices
+#' v_mahal <- analog_velocity(
+#'   x = clim$clim1,
+#'   pool = clim$clim2,
+#'   x_cov = baseline_covariances,
+#'   max_clim = 2,  # In Mahalanobis distance units
+#'   k = 1
+#' )
 #' }
 #'
 #' @export
@@ -53,6 +62,7 @@ analog_velocity <- function(
             max_clim,
             k = 1,
             max_geog = NULL,
+            x_cov = NULL,
             coord_type = "auto",
             report_dist = TRUE,
             index_res = "auto",
@@ -64,6 +74,7 @@ analog_velocity <- function(
             mode       = "knn_geog",
             max_clim   = max_clim,
             max_geog   = max_geog,
+            x_cov      = x_cov,
             k          = k,
             weight     = NULL,
             theta      = NULL,
