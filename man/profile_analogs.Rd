@@ -2,12 +2,12 @@
 % Please edit documentation in R/profile_analogs.R
 \name{profile_analogs}
 \alias{profile_analogs}
-\title{Profile find_analogs Performance}
+\title{Profile analog_search Performance}
 \usage{
 profile_analogs(..., report = TRUE, plot = TRUE)
 }
 \arguments{
-\item{...}{Arguments passed to find_analogs}
+\item{...}{Arguments passed to analog_search}
 
 \item{report}{Logical; if TRUE, print formatted report}
 
@@ -15,11 +15,11 @@ profile_analogs(..., report = TRUE, plot = TRUE)
 }
 \value{
 List containing:
-  - result: the normal find_analogs output
+  - result: the normal analog_search output
   - profile: data.frame with timing details
   - counters: data.frame with operation counts
 }
 \description{
-Runs find_analogs with detailed C++ profiling instrumentation and returns
+Runs analog_search with detailed C++ profiling instrumentation and returns
 timing breakdowns for optimization analysis.
 }

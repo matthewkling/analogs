@@ -5,7 +5,7 @@
 #' controlled by the \code{weight} and \code{theta} arguments and are applied
 #' after filtering.
 #'
-#' @inheritParams find_analogs
+#' @inheritParams analog_search
 #'
 #' @return A data.frame with one row per focal location:
 #'   \itemize{
@@ -70,7 +70,7 @@ analog_intensity <- function(
 ) {
       weight <- match.arg(weight)
 
-      find_analogs(
+      analog_search(
             x          = x,
             pool       = pool,
             mode       = "sum",

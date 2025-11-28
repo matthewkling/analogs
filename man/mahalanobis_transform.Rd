@@ -70,7 +70,7 @@ transformed <- mahalanobis_transform(
 )
 
 # Use transformed data with Euclidean distance (= global Mahalanobis)
-analogs <- find_analogs(
+analogs <- analog_search(
   x = transformed$x,
   pool = transformed$pool,
   mode = "knn_geog",

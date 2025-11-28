@@ -4,7 +4,7 @@
 #' can be queried multiple times with different focal points and parameters,
 #' avoiding the need to rebuild the lattice for each query.
 #'
-#' @inheritParams find_analogs
+#' @inheritParams analog_search
 #'
 #' @return An S3 object of class \code{"analog_index"} containing:
 #'   \itemize{

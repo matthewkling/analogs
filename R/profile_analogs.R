@@ -1,14 +1,14 @@
-#' Profile find_analogs Performance
+#' Profile analog_search Performance
 #'
-#' Runs find_analogs with detailed C++ profiling instrumentation and returns
+#' Runs analog_search with detailed C++ profiling instrumentation and returns
 #' timing breakdowns for optimization analysis.
 #'
-#' @param ... Arguments passed to find_analogs
+#' @param ... Arguments passed to analog_search
 #' @param report Logical; if TRUE, print formatted report
 #' @param plot Logical; if TRUE, create visualization
 #'
 #' @return List containing:
-#'   - result: the normal find_analogs output
+#'   - result: the normal analog_search output
 #'   - profile: data.frame with timing details
 #'   - counters: data.frame with operation counts
 #'
@@ -129,7 +129,7 @@ profile_analogs <- function(..., report = TRUE, plot = TRUE) {
 #'
 #' @param focal Focal dataset
 #' @param ref Reference dataset
-#' @param configs List of configuration lists, each containing find_analogs parameters
+#' @param configs List of configuration lists, each containing analog_search parameters
 #' @param labels Character vector of labels for each config
 #'
 #' @return data.frame comparing performance metrics

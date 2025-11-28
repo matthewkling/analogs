@@ -194,7 +194,7 @@ pareto_paths <- function(pf, x, ref, combine = TRUE){
 temp <- as.data.frame(clim2[[1]], xy = T) %>% rename(z = mean)
 
 # pareto: temperature only
-a1 <- find_analogs(focal = focal[, 1:3, drop = FALSE],
+a1 <- analog_search(focal = focal[, 1:3, drop = FALSE],
                    ref = clim2[[1]],
                    mode = "all")
 p1 <- a1 %>%
@@ -204,7 +204,7 @@ ggsave("../pareto_fronts_tmean.png", p1,
        width = 10, height = 6, units = "in")
 
 # pareto: temp and precip
-a2 <- find_analogs(focal = focal,
+a2 <- analog_search(focal = focal,
                    ref = clim2,
                    mode = "all")
 p2 <- a2 %>%

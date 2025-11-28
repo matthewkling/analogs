@@ -4,7 +4,7 @@
 #' query pattern using adaptive bracketing search. Runs test queries with
 #' different resolutions and recommends the one with the fastest compute speed.
 #'
-#' @inheritParams find_analogs
+#' @inheritParams analog_search
 #'
 #' @param default_res Default resolution to use as starting point for search.
 #'   Default is 16.

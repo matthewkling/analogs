@@ -2,11 +2,11 @@
 #'
 #' Computes, for each focal location, the geographic nearest neighbor(s) in a
 #' reference dataset that satisfy a specified climate distance threshold. This
-#' helper wraps \code{\link{find_analogs}} using \code{mode = "knn_geog"} and is
+#' helper wraps \code{\link{analog_search}} using \code{mode = "knn_geog"} and is
 #' most commonly used for estimating climate velocity (the rate and direction
 #' at which organisms would have to move to track constant climate conditions).
 #'
-#' @inheritParams find_analogs
+#' @inheritParams analog_search
 #'
 #' @details
 #' For each focal point, this function:
@@ -68,7 +68,7 @@ analog_velocity <- function(
             index_res = "auto",
             n_threads = NULL
 ) {
-      find_analogs(
+      analog_search(
             x          = x,
             pool       = pool,
             mode       = "knn_geog",

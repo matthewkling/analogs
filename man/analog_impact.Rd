@@ -105,7 +105,7 @@ Diagnostic attributes from the underlying spatial index are preserved.
 \description{
 Computes, for each focal location, the climate–nearest neighbor(s) in a
 reference dataset that satisfy a specified geographic distance threshold.
-This helper wraps \code{\link{find_analogs}} using \code{mode = "knn_clim"}.
+This helper wraps \code{\link{analog_search}} using \code{mode = "knn_clim"}.
 }
 \details{
 It is useful for estimating the potential ecological impact of local climate

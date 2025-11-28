@@ -183,7 +183,7 @@
 #'
 #' \strong{Climate Velocity} (nearest geographic neighbor with similar climate):
 #' \preformatted{
-#' find_analogs(
+#' analog_search(
 #'   x        = clim$clim1,
 #'   pool     = clim$clim2,
 #'   mode     = "knn_geog",
@@ -195,7 +195,7 @@
 #'
 #' \strong{Climate Impact} (climatically similar locations within dispersal range):
 #' \preformatted{
-#' find_analogs(
+#' analog_search(
 #'   x        = clim$clim1,
 #'   pool     = clim$clim2,
 #'   mode     = "knn_clim",
@@ -207,7 +207,7 @@
 #'
 #' \strong{Analog Availability} (count of suitable locations):
 #' \preformatted{
-#' find_analogs(
+#' analog_search(
 #'   x        = clim$clim1,
 #'   pool     = clim$clim1,
 #'   mode     = "count",
@@ -218,7 +218,7 @@
 #'
 #' \strong{Weighted Analog Intensity} (e.g., distance-weighted availability):
 #' \preformatted{
-#' find_analogs(
+#' analog_search(
 #'   x        = clim$clim1,
 #'   pool     = clim$clim1,
 #'   mode     = "sum",
@@ -235,14 +235,14 @@
 #' index <- build_analog_index(clim$clim2, index_res = 16)
 #'
 #' # Query multiple times
-#' v1 <- find_analogs(x = sites1, pool = index, mode = "knn_geog", max_clim = 0.5, k = 1)
-#' v2 <- find_analogs(x = sites2, pool = index, mode = "knn_geog", max_clim = 0.3, k = 1)
+#' v1 <- analog_search(x = sites1, pool = index, mode = "knn_geog", max_clim = 0.5, k = 1)
+#' v2 <- analog_search(x = sites2, pool = index, mode = "knn_geog", max_clim = 0.3, k = 1)
 #' }
 #'
 #' \strong{Focal-specific Mahalanobis Distance}:
 #' \preformatted{
 #' # With focal-specific covariance matrices
-#' find_analogs(
+#' analog_search(
 #'   x        = clim$clim1,
 #'   pool     = clim$clim2,
 #'   x_cov    = focal_covariances,  # n_focal x 3 matrix for 2 climate vars
@@ -253,7 +253,7 @@
 #' }
 #'
 #' @export
-find_analogs <- function(
+analog_search <- function(
             x,
             pool,
             mode,

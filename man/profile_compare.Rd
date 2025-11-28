@@ -11,7 +11,7 @@ profile_compare(focal, ref, configs, labels = NULL)
 
 \item{ref}{Reference dataset}
 
-\item{configs}{List of configuration lists, each containing find_analogs parameters}
+\item{configs}{List of configuration lists, each containing analog_search parameters}
 
 \item{labels}{Character vector of labels for each config}
 }

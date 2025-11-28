@@ -2,13 +2,13 @@
 #'
 #' Computes, for each focal location, the climate–nearest neighbor(s) in a
 #' reference dataset that satisfy a specified geographic distance threshold.
-#' This helper wraps \code{\link{find_analogs}} using \code{mode = "knn_clim"}.
+#' This helper wraps \code{\link{analog_search}} using \code{mode = "knn_clim"}.
 #'
 #' It is useful for estimating the potential ecological impact of local climate
 #' change: e.g., how climate conditions at a site compare to those available
 #' within a species' dispersal range.
 #'
-#' @inheritParams find_analogs
+#' @inheritParams analog_search
 #'
 #' @details
 #' For each focal location, \code{analog_impact()}:
@@ -59,7 +59,7 @@ analog_impact <- function(
             index_res = "auto",
             n_threads = NULL
 ) {
-      find_analogs(
+      analog_search(
             x          = x,
             pool       = pool,
             mode       = "knn_clim",

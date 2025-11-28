@@ -4,7 +4,7 @@
 #' the supplied climate and geographic constraints. This is useful for
 #' mapping analog "availability" or environmental similarity density.
 #'
-#' @inheritParams find_analogs
+#' @inheritParams analog_search
 #'
 #' @return A data.frame with columns:
 #'   - focal_index
@@ -38,7 +38,7 @@ analog_availability <- function(
             index_res = "auto",
             n_threads = NULL
 ) {
-      find_analogs(
+      analog_search(
             x          = x,
             pool       = pool,
             mode       = "count",
