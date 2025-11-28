@@ -3,7 +3,7 @@
 Computes, for each focal location, the climate–nearest neighbor(s) in a
 reference dataset that satisfy a specified geographic distance
 threshold. This helper wraps
-[`find_analogs`](https://matthewkling.github.io/analogs/reference/find_analogs.md)
+[`analog_search`](https://matthewkling.github.io/analogs/reference/analog_search.md)
 using `mode = "knn_clim"`.
 
 ## Usage

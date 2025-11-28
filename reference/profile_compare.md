@@ -21,7 +21,7 @@ profile_compare(focal, ref, configs, labels = NULL)
 
 - configs:
 
-  List of configuration lists, each containing find_analogs parameters
+  List of configuration lists, each containing analog_search parameters
 
 - labels:
 

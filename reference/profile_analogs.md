@@ -1,6 +1,6 @@
-# Profile find_analogs Performance
+# Profile analog_search Performance
 
-Runs find_analogs with detailed C++ profiling instrumentation and
+Runs analog_search with detailed C++ profiling instrumentation and
 returns timing breakdowns for optimization analysis.
 
 ## Usage
@@ -13,7 +13,7 @@ profile_analogs(..., report = TRUE, plot = TRUE)
 
 - ...:
 
-  Arguments passed to find_analogs
+  Arguments passed to analog_search
 
 - report:
 
@@ -25,6 +25,6 @@ profile_analogs(..., report = TRUE, plot = TRUE)
 
 ## Value
 
-List containing: - result: the normal find_analogs output - profile:
+List containing: - result: the normal analog_search output - profile:
 data.frame with timing details - counters: data.frame with operation
 counts

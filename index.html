@@ -50,14 +50,40 @@
 </h1></div>
 <!-- badges: start -->
 <!-- badges: end -->
-<p>The analogs R package provides flexible, computationally efficient tools for analog-based climate change analyses. Its core function is to search an “analog pool” for data that best match each query site. Matching can be based on a combination climatic similarity and geographic distance, and matches can be processed in a variety of ways. This supports a range of analyses including analog-based climate change velocity, analog impact modeling, analog availability, and analog intensity.</p>
+<p>The <strong>analogs</strong> package provides fast, flexible tools for climate analog analyses. It efficiently searches large reference datasets to find locations that best match query sites based on climate similarity and geographic proximity.</p>
+<div class="section level2">
+<h2 id="core-functions">Core Functions<a class="anchor" aria-label="anchor" href="#core-functions"></a>
+</h2>
+<p>The package supports a range of analyses. For fully customized queries, you can call the core <code><a href="reference/analog_search.html">analog_search()</a></code> function. Common query types are supported via dedicated helper functions:</p>
+<ul>
+<li>
+<code><a href="reference/analog_velocity.html">analog_velocity()</a></code> finds the k nearest geographic analogs under a hard climate constraint</li>
+<li>
+<code><a href="reference/analog_impact.html">analog_impact()</a></code> finds the k nearest climate analogs within a geographic constraint<br>
+</li>
+<li>
+<code><a href="reference/analog_availability.html">analog_availability()</a></code> counts analogs that meet both climate and distance thresholds</li>
+<li>
+<code><a href="reference/analog_intensity.html">analog_intensity()</a></code> computes distance-weighted aggregations of analog properties</li>
+</ul>
+<p>Geographic distance computations support projected coordinates as well as lon-lat coordinates via great circle distances. Multivariate climate distances are Euclidean by default, but you can use <code><a href="reference/mahalanobis_transform.html">mahalanobis_transform()</a></code> to implement Mahalanobis distance based on global spatial covariance, or supply <code>x_cov</code> to any <code>analog_*()</code> function to account for site-specific climate covariance patterns.</p>
+</div>
+<div class="section level2">
+<h2 id="computation">Computation<a class="anchor" aria-label="anchor" href="#computation"></a>
+</h2>
+<p><strong>analogs</strong> uses optimized C++ algorithms and parallel processing to handle computationally intensive pairwise distance calculations across millions of locations. The package is built around a lattice search index. While the above functions are sufficient for many analyses, further optimization is possible by using <code><a href="reference/build_analog_index.html">build_analog_index()</a></code> to pre-build a reusable search index, and by using <code><a href="reference/tune_index_res.html">tune_index_res()</a></code> to find optimal index parameters for your specific data.</p>
+</div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <p>You can install the development version of analogs from <a href="https://github.com/" class="external-link">GitHub</a> with:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"matthewkling/analogs"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"matthewkling/analogs"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
+</h2>
+<p>See the function documentation linked above for detailed usage examples, or browse the <a href="https://matthewkling.github.io/analogs/reference/index.html">full reference documentation</a>.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

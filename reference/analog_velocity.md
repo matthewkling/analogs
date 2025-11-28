@@ -3,7 +3,7 @@
 Computes, for each focal location, the geographic nearest neighbor(s) in
 a reference dataset that satisfy a specified climate distance threshold.
 This helper wraps
-[`find_analogs`](https://matthewkling.github.io/analogs/reference/find_analogs.md)
+[`analog_search`](https://matthewkling.github.io/analogs/reference/analog_search.md)
 using `mode = "knn_geog"` and is most commonly used for estimating
 climate velocity (the rate and direction at which organisms would have
 to move to track constant climate conditions).
