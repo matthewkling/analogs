@@ -17,8 +17,8 @@ profile_find_analogs <- function(focal_mm, ref_mm, k, max_clim, max_geog, geo_mo
     .Call(`_analogs_profile_find_analogs`, focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res, x_cov_sexp, enable_profiling)
 }
 
-.emit_pairs_cpp <- function(res, focal_mm, ref_mm, report_dist, geo_mode) {
-    .Call(`_analogs_emit_pairs_cpp`, res, focal_mm, ref_mm, report_dist, geo_mode)
+.emit_pairs_cpp <- function(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov = NULL) {
+    .Call(`_analogs_emit_pairs_cpp`, res, focal_mm, ref_mm, report_dist, geo_mode, x_cov)
 }
 
 analogs_euclid_cpp <- function(a, b) {

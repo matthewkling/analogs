@@ -1,6 +1,7 @@
 // src/emit_pairs.cpp
 #include <Rcpp.h>
 #include <cmath>
+#include "mahalanobis.hpp"
 
 using namespace Rcpp;
 
@@ -32,7 +33,8 @@ SEXP emit_pairs_cpp(List res,
                     NumericMatrix focal_mm,
                     NumericMatrix ref_mm,
                     bool report_dist,
-                    std::string geo_mode) {
+                    std::string geo_mode,
+                    Nullable<NumericMatrix> x_cov = R_NilValue) {
 
       const int n_f = focal_mm.nrow();
       const int n_ref = ref_mm.nrow();
@@ -101,6 +103,29 @@ SEXP emit_pairs_cpp(List res,
       const int clim_start_col = 2; // 0-based index: col 2 == third column
       const int n_clim = ncol_focal - clim_start_col;
 
+      // Parse x_cov if provided for Mahalanobis distance calculation
+      bool use_mahalanobis = false;
+      const double* x_cov_ptr = nullptr;
+      int x_cov_stride = 0;
+      int n_cov_components = 0;
+
+      if (x_cov.isNotNull()) {
+            NumericMatrix x_cov_mat = x_cov.get();
+
+            if (x_cov_mat.nrow() != n_f) {
+                  stop("Internal error: x_cov must have same number of rows as focal data");
+            }
+
+            n_cov_components = n_clim * (n_clim + 1) / 2;
+            if (x_cov_mat.ncol() != n_cov_components) {
+                  stop("Internal error: x_cov must have n_clim * (n_clim + 1) / 2 columns");
+            }
+
+            use_mahalanobis = true;
+            x_cov_ptr = REAL(x_cov_mat);
+            x_cov_stride = n_f;  // Column-major stride
+      }
+
       std::size_t pos = 0;
 
       for (int i = 0; i < n_f; ++i) {
@@ -117,6 +142,30 @@ SEXP emit_pairs_cpp(List res,
             std::vector<double> f_clim(n_clim);
             for (int k = 0; k < n_clim; ++k) {
                   f_clim[k] = focal_mm(i, clim_start_col + k);
+            }
+
+            // Pre-compute inverse covariance matrix for this focal if using Mahalanobis
+            std::vector<double> inv_cov;
+            if (use_mahalanobis && report_dist) {
+                  // Extract covariance components for focal i from column-major x_cov matrix
+                  // Row i, col j is at: x_cov_ptr[i + j * x_cov_stride]
+                  std::vector<double> cov_vec(n_cov_components);
+                  for (int comp = 0; comp < n_cov_components; ++comp) {
+                        cov_vec[comp] = x_cov_ptr[i + comp * x_cov_stride];
+                  }
+
+                  // Reconstruct covariance matrix
+                  std::vector<double> cov_matrix;
+                  analogs::reconstruct_cov_matrix(cov_vec.data(), n_clim, cov_matrix);
+
+                  // Invert covariance matrix
+                  if (!analogs::invert_cov_matrix(cov_matrix, n_clim, inv_cov)) {
+                        // Matrix not positive definite - use identity (Euclidean)
+                        inv_cov.resize(n_clim * n_clim, 0.0);
+                        for (int k = 0; k < n_clim; ++k) {
+                              inv_cov[k * n_clim + k] = 1.0;
+                        }
+                  }
             }
 
             for (int j = 0; j < m; ++j, ++pos) {
@@ -138,13 +187,33 @@ SEXP emit_pairs_cpp(List res,
                   analog_y[pos]     = ay;
 
                   if (report_dist) {
-                        // Climate distance (Euclidean in climate space)
-                        double sum_sq = 0.0;
-                        for (int k = 0; k < n_clim; ++k) {
-                              const double diff = ref_mm(ref_row, clim_start_col + k) - f_clim[k];
-                              sum_sq += diff * diff;
+                        // Climate distance
+                        if (use_mahalanobis) {
+                              // Compute Mahalanobis distance
+                              std::vector<double> diff(n_clim);
+                              for (int k = 0; k < n_clim; ++k) {
+                                    diff[k] = ref_mm(ref_row, clim_start_col + k) - f_clim[k];
+                              }
+
+                              // d^T * inv_cov * d
+                              double result = 0.0;
+                              for (int ii = 0; ii < n_clim; ++ii) {
+                                    double sum = 0.0;
+                                    for (int jj = 0; jj < n_clim; ++jj) {
+                                          sum += inv_cov[ii * n_clim + jj] * diff[jj];
+                                    }
+                                    result += diff[ii] * sum;
+                              }
+                              clim_dist[pos] = std::sqrt(std::max(0.0, result));
+                        } else {
+                              // Compute Euclidean distance in climate space
+                              double sum_sq = 0.0;
+                              for (int k = 0; k < n_clim; ++k) {
+                                    const double diff = ref_mm(ref_row, clim_start_col + k) - f_clim[k];
+                                    sum_sq += diff * diff;
+                              }
+                              clim_dist[pos] = std::sqrt(sum_sq);
                         }
-                        clim_dist[pos] = std::sqrt(sum_sq);
 
                         // Geographic distance
                         if (use_lonlat) {

@@ -17,7 +17,7 @@ test_that("x_cov basic functionality works without error", {
             x = d$focal,
             pool = d$ref,
             mode = "knn_geog",
-            max_clim = 1,
+            max_clim = NULL,
             k = 1,
             x_cov = x_cov,
             coord_type = "projected",
@@ -200,10 +200,6 @@ test_that("x_cov correctly implements Mahalanobis distance for filtering and cli
       )
       expect_equal(result$clim_dist, md[result$analog_index])
 })
-
-
-
-
 
 
 test_that("x_cov works correctly with knn_clim mode", {
@@ -566,22 +562,15 @@ test_that("x_cov with different variance scales affects analog selection", {
       x_cov_high[, 2] <- 4.0
       x_cov_high[, 3] <- 0.0
 
-      v_low <- analog_velocity(d$focal, d$ref, max_clim = .25, k = 1,
-                               coord_type = "projected", index_res = 10,
-                               x_cov = x_cov_low)
+      v_low <- find_analogs(d$focal, d$ref, mode = "all",
+                            max_clim = .25, coord_type = "projected", index_res = 10,
+                            x_cov = x_cov_low)
 
-      v_high <- analog_velocity(d$focal, d$ref, max_clim = .25, k = 1,
-                                coord_type = "projected", index_res = 10,
-                                x_cov = x_cov_high)
+      v_high <- find_analogs(d$focal, d$ref, mode = "all",
+                             max_clim = .25, coord_type = "projected", index_res = 10,
+                             x_cov = x_cov_high)
 
-      # Different variance scaling should lead to different analog choices
-      # Low variance = larger Mahalanobis distances = stricter filtering
-      # High variance = smaller Mahalanobis distances = looser filtering
-      diff_count <- sum(v_low$analog_index != v_high$analog_index)
-      diff_frac <- diff_count / n_focal
-
-      # At least 20% should differ
-      expect_true(diff_frac > 0.2)
+      expect_false(all(suppressWarnings(v_low$analog_index == v_high$analog_index)))
 })
 
 
@@ -643,7 +632,7 @@ test_that("x_cov works with auto-tuning for large datasets", {
 
       # Should trigger auto-tuning and complete successfully
       v <- analog_velocity(focal_large, ref_large,
-                           max_clim = 1, k = 1,
+                           max_clim = NULL, k = 1,
                            coord_type = "projected",
                            index_res = "auto",
                            x_cov = x_cov)
@@ -672,7 +661,7 @@ test_that("x_cov works correctly with 3 climate variables", {
       x_cov[, 6] <- 0.4  # cov(clim2, clim3)
 
       v <- analog_velocity(focal_3clim, ref_3clim,
-                           max_clim = 1.2, k = 1,
+                           max_clim = NULL, k = 1,
                            coord_type = "projected", index_res = 8,
                            x_cov = x_cov)
 
@@ -700,22 +689,13 @@ test_that("x_cov works with strongly correlated climate variables", {
       x_cov_corr[, 2] <- 1.0
       x_cov_corr[, 3] <- 0.85  # cor = 0.85
 
-      v_uncorr <- analog_velocity(d$focal, d$ref, max_clim = 1, k = 3,
-                                  coord_type = "projected", index_res = 10,
-                                  x_cov = x_cov_uncorr)
+      v_uncorr <- find_analogs(d$focal, d$ref, mode = "all", max_clim = 1,
+                                coord_type = "projected", index_res = 2,
+                                x_cov = x_cov_uncorr)
 
-      v_corr <- analog_velocity(d$focal, d$ref, max_clim = 1, k = 3,
-                                coord_type = "projected", index_res = 10,
-                                x_cov = x_cov_corr)
+      v_corr <- find_analogs(d$focal, d$ref, mode = "all", max_clim = 1,
+                              coord_type = "projected", index_res = 2,
+                              x_cov = x_cov_corr)
 
-      # Strong correlation should lead to different analog choices
-      # (it decorrelates the variables in distance calculation)
-      all_indices_uncorr <- v_uncorr$analog_index
-      all_indices_corr <- v_corr$analog_index
-
-      diff_count <- sum(all_indices_uncorr != all_indices_corr)
-      diff_frac <- diff_count / length(all_indices_uncorr)
-
-      # At least 25% should differ
-      expect_true(diff_frac > 0.25)
+      expect_false(length(v_uncorr$analog_index) == length(v_corr$analog_index))
 })

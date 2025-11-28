@@ -106,7 +106,8 @@ query_analog_index <- function(x,
                   focal_mm,
                   index$ref_data,
                   report_dist = report_dist,
-                  geo_mode = index$coord_type
+                  geo_mode = index$coord_type,
+                  x_cov = x_cov_mat
             )
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]

@@ -1,3 +1,4 @@
+// src/workers.cpp
 #include "workers.hpp"
 
 namespace analogs {
@@ -25,11 +26,18 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             for (std::size_t i = begin; i < end; ++i) {
                   const size_t local_idx = i - begin;
-                  const double* cov_vec = x_cov_ptr + i;  // Column-major access
+
+                  // Extract covariance components for focal i from column-major x_cov matrix
+                  // x_cov is n_focal × n_cov_components stored column-major
+                  // Row i, col j is at: x_cov_ptr[i + j * x_cov_stride]
+                  std::vector<double> cov_vec(n_cov_components);
+                  for (int comp = 0; comp < n_cov_components; ++comp) {
+                        cov_vec[comp] = x_cov_ptr[i + comp * x_cov_stride];
+                  }
 
                   // Reconstruct covariance matrix
                   std::vector<double> cov_matrix;
-                  reconstruct_cov_matrix(cov_vec, n_clim, cov_matrix);
+                  reconstruct_cov_matrix(cov_vec.data(), n_clim, cov_matrix);
 
                   // Invert covariance matrix
                   std::vector<double>& inv_cov = inv_cov_matrices[local_idx];
@@ -50,49 +58,50 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             // -----------------------------------------------------------------
             // Fast path: KNN modes + lattice + (planar OR ECEF)
+            // Note: Mahalanobis doesn't use the fast path because lattice
+            // needs bounding box adjustments. Falls through to regular path.
             // -----------------------------------------------------------------
             if (knn_mode &&
                 use_lattice &&
                 lattice_ptr != nullptr &&
-                (!use_haversine || use_ecef)) {
-
+                !use_haversine &&
+                !use_mahalanobis)  // Mahalanobis uses regular path
+            {
+                  // Use lattice KNN expansion (Euclidean only)
                   const size_tu n_geo = lattice_ptr->n_geo_dims;
-
-                  // Reuse fgeo_vec
                   fgeo_vec.resize(n_geo);
+                  fclim_vec.resize(n_clim);
 
-                  if (use_ecef) {
-                        // Convert lon/lat (degrees) to ECEF (km)
+                  // Geographic coords
+                  if (use_ecef && n_geo == 3) {
                         double X, Y, Z;
                         lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
                         fgeo_vec[0] = X;
-                        if (n_geo > 1) fgeo_vec[1] = Y;
-                        if (n_geo > 2) fgeo_vec[2] = Z;
+                        fgeo_vec[1] = Y;
+                        fgeo_vec[2] = Z;
                   } else {
-                        // Planar projected
                         fgeo_vec[0] = fx;
-                        if (n_geo > 1) fgeo_vec[1] = fy;
+                        fgeo_vec[1] = fy;
                   }
 
-                  // Reuse fclim_vec
-                  fclim_vec.resize(n_clim);
-                  for (int kdim = 0; kdim < n_clim; ++kdim) {
-                        fclim_vec[kdim] = f_clim_col[kdim * stride_f];
+                  // Climate coords
+                  for (int d = 0; d < n_clim; ++d) {
+                        fclim_vec[d] = f_clim_col[d * stride_f];
                   }
 
-                  // Use chord distance threshold for ECEF, regular for planar
-                  const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
-
-                  // Reuse cand vector
+                  // Expanded KNN search (Euclidean)
+                  // Reuse cand vector for results
                   cand.clear();
+
+                  const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
 
                   lattice_ptr->knn_query(
                               fgeo_vec.data(),
                               fclim_vec.data(),
-                              ref_latt_ptr,
-                              static_cast<size_tu>(stride_latt_r),
+                              ref_ptr,
+                              static_cast<size_tu>(stride_r),
                               static_cast<size_tu>(n_clim),
-                              /*rank_by_geog*/ rank_by_geog,
+                              rank_by_geog,
                               geog_thresh,
                               use_scalar_clim,
                               max_clim_pervar,
@@ -111,14 +120,16 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             }
 
             // -----------------------------------------------------------------
-            // Otherwise: use existing candidate generation (lattice query or brute)
+            // Fallback path: gather candidates
+            // (Used for: Haversine, Mahalanobis, or ALL mode)
             // -----------------------------------------------------------------
             cand.clear();
 
             if (use_lattice && lattice_ptr != nullptr) {
-                  // Query lattice - use ECEF coords if applicable
-                  q_geo.resize(3); // max 3 for ECEF
-                  if (use_ecef) {
+                  const size_tu n_geo = lattice_ptr->n_geo_dims;
+                  q_geo.resize(n_geo);
+
+                  if (use_ecef && n_geo == 3) {
                         double X, Y, Z;
                         lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
                         q_geo[0] = X;
@@ -130,33 +141,44 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   }
 
                   q_clim.resize(n_clim);
-                  for (int kdim = 0; kdim < n_clim; ++kdim) {
-                        q_clim[kdim] = f_clim_col[kdim * stride_f];
+                  for (int d = 0; d < n_clim; ++d) {
+                        q_clim[d] = f_clim_col[d * stride_f];
                   }
 
-                  const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
+                  // Adjust climate bounds if using Mahalanobis
+                  double effective_max_clim = max_clim_scalar;
+                  std::vector<double> mahal_bounds;
 
-                  lattice_ptr->query(q_geo.data(),
-                                     q_clim.data(),
-                                     geog_thresh,
-                                     use_scalar_clim,
-                                     max_clim_pervar,
-                                     use_scalar_clim ? max_clim_scalar
-                                           : std::numeric_limits<double>::infinity(),
-                                             cand);
+                  if (use_mahalanobis && std::isfinite(max_clim_scalar)) {
+                        const std::vector<double>& inv_cov = inv_cov_matrices[i - begin];
+                        mahalanobis_bounding_box(q_clim.data(), inv_cov, n_clim,
+                                                 max_clim_scalar, mahal_bounds);
+                        // Note: We could use mahal_bounds to adjust lattice query,
+                        // but for simplicity we just use a conservative max_clim.
+                        // The actual Mahalanobis filtering happens below.
+                  }
+
+                  lattice_ptr->query(
+                              q_geo.data(),
+                              q_clim.data(),
+                              max_geog,
+                              use_scalar_clim,
+                              max_clim_pervar,
+                              effective_max_clim,
+                              cand
+                  );
             } else {
-                  cand.reserve(n_ref);
-                  for (int j = 0; j < n_ref; ++j) {
-                        cand.push_back(static_cast<index_t>(j));
+                  cand.resize(n_ref);
+                  for (size_t j = 0; j < static_cast<size_t>(n_ref); ++j) {
+                        cand[j] = static_cast<index_t>(j);
                   }
             }
 
-            // ALL mode: keep all matches passing filters
+            // Filter and collect results from candidates
             if (mcode == ModeCode::ALL) {
                   std::vector<int> keep;
                   keep.reserve(cand.size());
 
-                  // ECEF focal coords (if needed)
                   double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
                   if (use_ecef) {
                         lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
@@ -173,11 +195,10 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
-                        // Geog filter
+                        // Geog distance & filter
                         if (use_geog_filter) {
                               double gdist;
                               if (use_ecef) {
-                                    // Use ECEF chord distance
                                     const double rx_ecef = ref_latt_ptr[j];
                                     const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
                                     const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
@@ -330,11 +351,18 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
             for (std::size_t i = begin; i < end; ++i) {
                   const size_t local_idx = i - begin;
-                  const double* cov_vec = x_cov_ptr + i;  // Column-major access
+
+                  // Extract covariance components for focal i from column-major x_cov matrix
+                  // x_cov is n_focal × n_cov_components stored column-major
+                  // Row i, col j is at: x_cov_ptr[i + j * x_cov_stride]
+                  std::vector<double> cov_vec(n_cov_components);
+                  for (int comp = 0; comp < n_cov_components; ++comp) {
+                        cov_vec[comp] = x_cov_ptr[i + comp * x_cov_stride];
+                  }
 
                   // Reconstruct covariance matrix
                   std::vector<double> cov_matrix;
-                  reconstruct_cov_matrix(cov_vec, n_clim, cov_matrix);
+                  reconstruct_cov_matrix(cov_vec.data(), n_clim, cov_matrix);
 
                   // Invert covariance matrix
                   std::vector<double>& inv_cov = inv_cov_matrices[local_idx];
@@ -369,40 +397,44 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   } else {
                         // Planar / non-ECEF lattice: use raw x,y.
                         q_geo[0] = fx;
-                        if (n_geo > 1) q_geo[1] = fy;
+                        q_geo[1] = fy;
                   }
 
                   q_clim.resize(n_clim);
-                  for (int kdim = 0; kdim < n_clim; ++kdim) {
-                        q_clim[kdim] = f_clim_col[kdim * stride_f];
+                  for (int d = 0; d < n_clim; ++d) {
+                        q_clim[d] = f_clim_col[d * stride_f];
                   }
 
-                  const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
+                  // Adjust climate bounds if using Mahalanobis
+                  double effective_max_clim = max_clim_scalar;
+                  std::vector<double> mahal_bounds;
+
+                  if (use_mahalanobis && std::isfinite(max_clim_scalar)) {
+                        const std::vector<double>& inv_cov = inv_cov_matrices[i - begin];
+                        mahalanobis_bounding_box(q_clim.data(), inv_cov, n_clim,
+                                                 max_clim_scalar, mahal_bounds);
+                  }
 
                   lattice_ptr->query(
                               q_geo.data(),
                               q_clim.data(),
-                              geog_thresh,
+                              max_geog,
                               use_scalar_clim,
                               max_clim_pervar,
-                              use_scalar_clim
-                              ? max_clim_scalar
-                  : std::numeric_limits<double>::infinity(),
-                    cand
+                              effective_max_clim,
+                              cand
                   );
             } else {
-                  cand.reserve(n_ref);
-                  for (int j = 0; j < n_ref; ++j) {
-                        cand.push_back(static_cast<index_t>(j));
+                  cand.resize(n_ref);
+                  for (size_t j = 0; j < static_cast<size_t>(n_ref); ++j) {
+                        cand[j] = static_cast<index_t>(j);
                   }
             }
 
             // Aggregate over candidates
-            double sum = 0.0;
-            double sum_w = 0.0;
-            int    count = 0;
+            double acc = 0.0;
+            int count = 0;
 
-            // ECEF focal coords (if needed)
             double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
             if (use_ecef) {
                   lonlat_to_ecef(fx, fy, R_earth, fx_ecef, fy_ecef, fz_ecef);
@@ -419,35 +451,38 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   const double rx = ref_ptr[j];
                   const double ry = ref_ptr[j + stride_r];
 
-                  // Geog filter (in original space: planar, Haversine, or ECEF)
-                  double gdist;
-                  if (use_ecef) {
-                        // Use ECEF chord distance
-                        const double rx_ecef = ref_latt_ptr[j];
-                        const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
-                        const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
-                        const double dx = fx_ecef - rx_ecef;
-                        const double dy = fy_ecef - ry_ecef;
-                        const double dz = fz_ecef - rz_ecef;
-                        gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
-                        if (use_geog_filter && gdist > max_geog_chord) continue;
-                  } else {
-                        gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                        if (use_geog_filter && gdist > max_geog) continue;
+                  // Geog distance & filter
+                  double gdist = 0.0;
+                  if (use_geog_filter || wcode != WeightCode::NONE) {
+                        if (use_ecef) {
+                              const double rx_ecef = ref_latt_ptr[j];
+                              const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
+                              const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
+                              const double dx = fx_ecef - rx_ecef;
+                              const double dy = fy_ecef - ry_ecef;
+                              const double dz = fz_ecef - rz_ecef;
+                              gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
+                              if (use_geog_filter && gdist > max_geog_chord) continue;
+                        } else {
+                              gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                              if (use_geog_filter && gdist > max_geog) continue;
+                        }
                   }
 
                   // Climate checks & distance
                   const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                  double clim_dist;
+                  double clim_dist = 0.0;
                   bool ok;
 
                   if (use_mahalanobis) {
                         // Use Mahalanobis distance
+                        const bool need_dist = (wcode != WeightCode::NONE &&
+                                                wcode != WeightCode::UNIFORM);
                         auto okd = mahalanobis_ok_and_dist(
                               f_clim_col, r_clim_col,
                               *inv_cov_ptr,
                               n_clim, stride_f, stride_r,
-                              max_clim_scalar, true
+                              max_clim_scalar, need_dist
                         );
                         ok = okd.first;
                         clim_dist = okd.second;
@@ -465,31 +500,21 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                   if (!ok) continue;
 
-                  ++count;
-
-                  if (mcode == ModeCode::SUM || mcode == ModeCode::MEAN) {
-                        double w = weight_from_codes(wcode, clim_dist, gdist,
+                  // Compute weight
+                  const double w = weight_from_codes(wcode, clim_dist, gdist,
                                                      weight_param1, weight_param2);
-                        sum   += w * 1.0;
-                        sum_w += w;
-                  }
-
+                  acc += w;
+                  count++;
             }
 
-            double val = NA_REAL;
+            // Store result
             if (mcode == ModeCode::COUNT) {
-                  val = static_cast<double>(count);
-            } else if ((mcode == ModeCode::SUM || mcode == ModeCode::MEAN) &&
-                  sum_w > 0.0) {
-                  double mu = sum / sum_w;
-                  if (mcode == ModeCode::SUM) {
-                        val = sum;
-                  } else { // MEAN
-                        val = mu;
-                  }
+                  agg[i] = static_cast<double>(count);
+            } else if (mcode == ModeCode::SUM) {
+                  agg[i] = acc;
+            } else { // MEAN
+                  agg[i] = (count > 0) ? (acc / count) : NA_REAL;
             }
-
-            agg[i] = val;
       }
 }
 
