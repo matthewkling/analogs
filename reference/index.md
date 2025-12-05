@@ -23,11 +23,5 @@
   : Transform Climate Data for Global Mahalanobis Distance
 - [`print(`*`<analog_index>`*`)`](https://matthewkling.github.io/analogs/reference/print.analog_index.md)
   : Print Method for Analog Index
-- [`profile_analogs()`](https://matthewkling.github.io/analogs/reference/profile_analogs.md)
-  : Profile analog_search Performance
-- [`profile_compare()`](https://matthewkling.github.io/analogs/reference/profile_compare.md)
-  : Compare Performance Across Configurations
-- [`profile_suite()`](https://matthewkling.github.io/analogs/reference/profile_suite.md)
-  : Run Comprehensive Profiling Suite
 - [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md)
   : Tune Index Resolution

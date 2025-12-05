@@ -8,7 +8,8 @@ Search lattice index for analogs
 query_analog_index(
   x,
   index,
-  mode,
+  select,
+  aggregate,
   max_clim,
   max_geog,
   x_cov,

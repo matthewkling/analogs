@@ -66,43 +66,43 @@ analog_intensity(
 
 - weight:
 
-  Weighting function for matches, used only when `mode` is `"sum"` or
-  `"mean"`. One of:
+  Weighting function for matches, used only when `aggregate` is
+  `"sum_weights"` or `"mean_weights"`. One of:
 
   - `"uniform"`: All matches weighted equally (weight = 1.0).
 
-  - `"inverse_clim"`: Weight = 1 / (climate_distance + epsilon), with
-    epsilon given by `theta` (or a small default if `theta` is `NULL`).
+  - `"inverse_clim"`: Inverse climate distance, weight = 1 /
+    (climate_distance + eps), with epsilon given by `theta`.
 
-  - `"inverse_geog"`: Weight = 1 / (geographic_distance + epsilon), with
-    epsilon given by `theta` (or a small default if `theta` is `NULL`).
+  - `"inverse_geog"`: Inverse geographic distance, weight = 1 /
+    (geographic_distance + eps), with epsilon given by `theta`.
 
   - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2\*sigma^2)), with sigma (bandwidth)
-    given by `theta`.
+    exp(-climate_distance^2 / (2\*sigma^2)), with sigma given by
+    `theta`.
 
   - `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma (bandwidth)
-    given by `theta`.
+    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma given by
+    `theta`.
 
-  - `"gaussian_joint"`: Bivariate Gaussian kernel (product of
-    independent Gaussians over climate and geographic distances), with
-    bandwidths given by `theta` as a 2-element vector c(sigma_clim,
-    sigma_geog).
+  - `"gaussian_joint"`: Joint Gaussian kernel, weight =
+    exp(-climate_distance^2/(2\*sigma_c^2) -
+    geographic_distance^2/(2\*sigma_g^2)), with sigma values given by
+    `theta` as a 2-element vector c(sigma_clim, sigma_geog).
 
   - `"inverse_joint"`: Joint inverse distance, weight = 1 /
     sqrt((climate_distance + eps_clim)^2 + (geographic_distance +
     eps_geog)^2), with epsilon values given by `theta` as a 2-element
     vector c(eps_clim, eps_geog).
 
-  For `mode` in `"knn_geog"`, `"knn_clim"`, `"count"`, or `"all"`,
-  `weight` must be `NULL`.
+  For `aggregate` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
+  `NULL`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `mode` is
-  `"sum"` or `"mean"` and `weight` is not `"uniform"`. Interpretation
-  depends on `weight`:
+  Optional numeric parameter used by weighting functions when
+  `aggregate` is `"sum_weights"` or `"mean_weights"` and `weight` is not
+  `"uniform"`. Interpretation depends on `weight`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -117,7 +117,7 @@ analog_intensity(
     epsilon values for climate and geographic dimensions.
 
   If `theta` is `NULL`, sensible defaults are used for single-parameter
-  weights. For `weight = "uniform"` or for non-aggregating modes,
+  weights. For `weight = "uniform"` or for non-weighted aggregations,
   `theta` must be `NULL`.
 
 - x_cov:
@@ -127,16 +127,6 @@ analog_intensity(
   location and one column per unique covariance component. For n climate
   variables, there are n\*(n+1)/2 unique components, ordered as:
   variances first (diagonals), then covariances (upper triangle by row).
-  For example:
-
-  - 2 variables: c(var1, var2, cov12)
-
-  - 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-
-  When provided, all climate distances are computed as Mahalanobis
-  distances using each focal's covariance structure. For focal-specific
-  variances only (no covariance), set off-diagonal covariances to zero.
-  Default is NULL (Euclidean climate distance).
 
 - coord_type:
 
@@ -157,7 +147,7 @@ analog_intensity(
 
   - A positive integer.
 
-  - `"auto"` (the default): Automatically tune the intex resolution by
+  - `"auto"` (the default): Automatically tune the index resolution by
     optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution
     of 16 is used.

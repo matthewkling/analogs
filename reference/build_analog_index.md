@@ -45,7 +45,7 @@ build_analog_index(
 
   - A positive integer.
 
-  - `"auto"` (the default): Automatically tune the intex resolution by
+  - `"auto"` (the default): Automatically tune the index resolution by
     optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution
     of 16 is used.

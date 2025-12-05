@@ -67,16 +67,6 @@ analog_availability(
   location and one column per unique covariance component. For n climate
   variables, there are n\*(n+1)/2 unique components, ordered as:
   variances first (diagonals), then covariances (upper triangle by row).
-  For example:
-
-  - 2 variables: c(var1, var2, cov12)
-
-  - 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-
-  When provided, all climate distances are computed as Mahalanobis
-  distances using each focal's covariance structure. For focal-specific
-  variances only (no covariance), set off-diagonal covariances to zero.
-  Default is NULL (Euclidean climate distance).
 
 - coord_type:
 
@@ -97,7 +87,7 @@ analog_availability(
 
   - A positive integer.
 
-  - `"auto"` (the default): Automatically tune the intex resolution by
+  - `"auto"` (the default): Automatically tune the index resolution by
     optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution
     of 16 is used.

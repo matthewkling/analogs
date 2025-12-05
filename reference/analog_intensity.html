@@ -100,33 +100,29 @@ if <code>coord_type = "projected"</code>.</p></dd>
 
 <dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
 <dd><p>Weighting function for matches, used only when
-<code>mode</code> is <code>"sum"</code> or <code>"mean"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
-<li><p><code>"inverse_clim"</code>: Weight = 1 / (climate_distance + epsilon),
-    with epsilon given by <code>theta</code> (or a small default if <code>theta</code>
-    is <code>NULL</code>).</p></li>
-<li><p><code>"inverse_geog"</code>: Weight = 1 / (geographic_distance + epsilon),
-    with epsilon given by <code>theta</code> (or a small default if <code>theta</code>
-    is <code>NULL</code>).</p></li>
+<code>aggregate</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
+<li><p><code>"inverse_clim"</code>: Inverse climate distance,
+    weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
+<li><p><code>"inverse_geog"</code>: Inverse geographic distance,
+    weight = 1 / (geographic_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"gaussian_clim"</code>: Gaussian kernel on climate distance,
-    weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma (bandwidth)
-    given by <code>theta</code>.</p></li>
+    weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma given by <code>theta</code>.</p></li>
 <li><p><code>"gaussian_geog"</code>: Gaussian kernel on geographic distance,
-    weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma (bandwidth)
-    given by <code>theta</code>.</p></li>
-<li><p><code>"gaussian_joint"</code>: Bivariate Gaussian kernel (product of
-    independent Gaussians over climate and geographic distances), with
-    bandwidths given by <code>theta</code> as a 2-element vector c(sigma_clim, sigma_geog).</p></li>
+    weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by <code>theta</code>.</p></li>
+<li><p><code>"gaussian_joint"</code>: Joint Gaussian kernel,
+    weight = exp(-climate_distance^2/(2*sigma_c^2) - geographic_distance^2/(2*sigma_g^2)),
+    with sigma values given by <code>theta</code> as a 2-element vector c(sigma_clim, sigma_geog).</p></li>
 <li><p><code>"inverse_joint"</code>: Joint inverse distance,
     weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
     with epsilon values given by <code>theta</code> as a 2-element vector c(eps_clim, eps_geog).</p></li>
-</ul><p>For <code>mode</code> in <code>"knn_geog"</code>, <code>"knn_clim"</code>, <code>"count"</code>,
-or <code>"all"</code>, <code>weight</code> must be <code>NULL</code>.</p></dd>
+</ul><p>For <code>aggregate</code> in <code>NULL</code>, <code>"pairs"</code>, or <code>"count"</code>,
+<code>weight</code> must be <code>NULL</code>.</p></dd>
 
 
 <dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
 <dd><p>Optional numeric parameter used by weighting functions
-when <code>mode</code> is <code>"sum"</code> or <code>"mean"</code> and <code>weight</code> is
-not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
+when <code>aggregate</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code> and
+<code>weight</code> is not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
     added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
     parameter (scalar; larger values = slower decay with distance).</p></li>
@@ -135,7 +131,7 @@ not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><u
 <li><p>For <code>"inverse_joint"</code>: 2-element vector c(eps_clim, eps_geog)
     giving epsilon values for climate and geographic dimensions.</p></li>
 </ul><p>If <code>theta</code> is <code>NULL</code>, sensible defaults are used for single-parameter
-weights. For <code>weight = "uniform"</code> or for non-aggregating modes, <code>theta</code>
+weights. For <code>weight = "uniform"</code> or for non-weighted aggregations, <code>theta</code>
 must be <code>NULL</code>.</p></dd>
 
 
@@ -144,12 +140,7 @@ must be <code>NULL</code>.</p></dd>
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row). For example:</p><ul><li><p>2 variables: c(var1, var2, cov12)</p></li>
-<li><p>3 variables: c(var1, var2, var3, cov12, cov13, cov23)</p></li>
-</ul><p>When provided, all climate distances are computed as Mahalanobis distances
-using each focal's covariance structure. For focal-specific variances only
-(no covariance), set off-diagonal covariances to zero. Default is NULL
-(Euclidean climate distance).</p></dd>
+first (diagonals), then covariances (upper triangle by row).</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
@@ -164,7 +155,7 @@ using each focal's covariance structure. For focal-specific variances only
 <dt id="arg-index-res">index_res<a class="anchor" aria-label="anchor" href="#arg-index-res"></a></dt>
 <dd><p>Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:</p><ul><li><p>A positive integer.</p></li>
-<li><p><code>"auto"</code> (the default): Automatically tune the intex resolution
+<li><p><code>"auto"</code> (the default): Automatically tune the index resolution
     by optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution of
     16 is used.</p></li>

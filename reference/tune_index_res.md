@@ -11,7 +11,8 @@ compute speed.
 tune_index_res(
   x,
   pool,
-  mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
+  select = "all",
+  aggregate = NULL,
   max_clim = NULL,
   max_geog = NULL,
   k = NULL,
@@ -44,26 +45,33 @@ tune_index_res(
     [`build_analog_index`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
 
-- mode:
+- select:
 
-  Character string specifying the analog search mode. One of:
+  Character string specifying the analog selection strategy. One of:
 
-  - `"knn_clim"`: For each focal, return up to `k` analogs with smallest
-    climate distance, subject to `max_clim` and `max_geog` filters.
+  - `"all"` (default): Select all analogs that satisfy the `max_clim`
+    and `max_geog` constraints.
 
-  - `"knn_geog"`: For each focal, return up to `k` analogs with smallest
-    geographic distance, subject to `max_clim` and `max_geog` filters.
+  - `"knn_clim"`: For each focal, select up to `k` analogs with smallest
+    climate distance, subject to filters.
 
-  - `"all"`: Return all analogs that satisfy the filters.
+  - `"knn_geog"`: For each focal, select up to `k` analogs with smallest
+    geographic distance, subject to filters.
 
-  - `"count"`: For each focal, count how many analogs satisfy the
-    filters.
+- aggregate:
 
-  - `"sum"`: For each focal, sum weights of all analogs that satisfy the
-    filters (see `weight` and `theta`).
+  How to aggregate selected analogs. Either:
 
-  - `"mean"`: For each focal, mean of weights of all analogs that
-    satisfy the filters.
+  - `NULL` or `"pairs"` (default): Return all selected analog pairs as a
+    data.frame.
+
+  - `"count"`: For each focal, count the number of selected analogs.
+
+  - `"sum_weights"`: For each focal, sum the weights of selected analogs
+    (see `weight` and `theta`).
+
+  - `"mean_weights"`: For each focal, mean of weights of selected
+    analogs.
 
 - max_clim:
 
@@ -89,49 +97,49 @@ tune_index_res(
 
 - k:
 
-  Number of nearest analogs to return per focal location for kNN modes.
-  Required when `mode` is `"knn_geog"` or `"knn_clim"`; must be `NULL`
-  for other modes.
+  Number of nearest analogs to return per focal location for kNN
+  selection modes. Required when `select` is `"knn_geog"` or
+  `"knn_clim"`; must be `NULL` for `select = "all"`.
 
 - weight:
 
-  Weighting function for matches, used only when `mode` is `"sum"` or
-  `"mean"`. One of:
+  Weighting function for matches, used only when `aggregate` is
+  `"sum_weights"` or `"mean_weights"`. One of:
 
   - `"uniform"`: All matches weighted equally (weight = 1.0).
 
-  - `"inverse_clim"`: Weight = 1 / (climate_distance + epsilon), with
-    epsilon given by `theta` (or a small default if `theta` is `NULL`).
+  - `"inverse_clim"`: Inverse climate distance, weight = 1 /
+    (climate_distance + eps), with epsilon given by `theta`.
 
-  - `"inverse_geog"`: Weight = 1 / (geographic_distance + epsilon), with
-    epsilon given by `theta` (or a small default if `theta` is `NULL`).
+  - `"inverse_geog"`: Inverse geographic distance, weight = 1 /
+    (geographic_distance + eps), with epsilon given by `theta`.
 
   - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2\*sigma^2)), with sigma (bandwidth)
-    given by `theta`.
+    exp(-climate_distance^2 / (2\*sigma^2)), with sigma given by
+    `theta`.
 
   - `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma (bandwidth)
-    given by `theta`.
+    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma given by
+    `theta`.
 
-  - `"gaussian_joint"`: Bivariate Gaussian kernel (product of
-    independent Gaussians over climate and geographic distances), with
-    bandwidths given by `theta` as a 2-element vector c(sigma_clim,
-    sigma_geog).
+  - `"gaussian_joint"`: Joint Gaussian kernel, weight =
+    exp(-climate_distance^2/(2\*sigma_c^2) -
+    geographic_distance^2/(2\*sigma_g^2)), with sigma values given by
+    `theta` as a 2-element vector c(sigma_clim, sigma_geog).
 
   - `"inverse_joint"`: Joint inverse distance, weight = 1 /
     sqrt((climate_distance + eps_clim)^2 + (geographic_distance +
     eps_geog)^2), with epsilon values given by `theta` as a 2-element
     vector c(eps_clim, eps_geog).
 
-  For `mode` in `"knn_geog"`, `"knn_clim"`, `"count"`, or `"all"`,
-  `weight` must be `NULL`.
+  For `aggregate` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
+  `NULL`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `mode` is
-  `"sum"` or `"mean"` and `weight` is not `"uniform"`. Interpretation
-  depends on `weight`:
+  Optional numeric parameter used by weighting functions when
+  `aggregate` is `"sum_weights"` or `"mean_weights"` and `weight` is not
+  `"uniform"`. Interpretation depends on `weight`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -146,7 +154,7 @@ tune_index_res(
     epsilon values for climate and geographic dimensions.
 
   If `theta` is `NULL`, sensible defaults are used for single-parameter
-  weights. For `weight = "uniform"` or for non-aggregating modes,
+  weights. For `weight = "uniform"` or for non-weighted aggregations,
   `theta` must be `NULL`.
 
 - x_cov:
@@ -156,16 +164,6 @@ tune_index_res(
   location and one column per unique covariance component. For n climate
   variables, there are n\*(n+1)/2 unique components, ordered as:
   variances first (diagonals), then covariances (upper triangle by row).
-  For example:
-
-  - 2 variables: c(var1, var2, cov12)
-
-  - 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-
-  When provided, all climate distances are computed as Mahalanobis
-  distances using each focal's covariance structure. For focal-specific
-  variances only (no covariance), set off-diagonal covariances to zero.
-  Default is NULL (Euclidean climate distance).
 
 - coord_type:
 
@@ -226,7 +224,8 @@ if (FALSE) { # \dontrun{
 optimal_res <- tune_index_res(
   x = sample_sites,
   pool = climate_data,
-  mode = "knn_geog",
+  select = "knn_geog",
+  aggregate = NULL,
   max_clim = 0.5,
   k = 1
 )

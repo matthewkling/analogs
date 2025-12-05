@@ -4,7 +4,7 @@ Computes, for each focal location, the geographic nearest neighbor(s) in
 a reference dataset that satisfy a specified climate distance threshold.
 This helper wraps
 [`analog_search`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-using `mode = "knn_geog"` and is most commonly used for estimating
+using `select = "knn_geog"` and is most commonly used for estimating
 climate velocity (the rate and direction at which organisms would have
 to move to track constant climate conditions).
 
@@ -60,9 +60,9 @@ analog_velocity(
 
 - k:
 
-  Number of nearest analogs to return per focal location for kNN modes.
-  Required when `mode` is `"knn_geog"` or `"knn_clim"`; must be `NULL`
-  for other modes.
+  Number of nearest analogs to return per focal location for kNN
+  selection modes. Required when `select` is `"knn_geog"` or
+  `"knn_clim"`; must be `NULL` for `select = "all"`.
 
 - max_geog:
 
@@ -79,16 +79,6 @@ analog_velocity(
   location and one column per unique covariance component. For n climate
   variables, there are n\*(n+1)/2 unique components, ordered as:
   variances first (diagonals), then covariances (upper triangle by row).
-  For example:
-
-  - 2 variables: c(var1, var2, cov12)
-
-  - 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-
-  When provided, all climate distances are computed as Mahalanobis
-  distances using each focal's covariance structure. For focal-specific
-  variances only (no covariance), set off-diagonal covariances to zero.
-  Default is NULL (Euclidean climate distance).
 
 - coord_type:
 
@@ -105,8 +95,8 @@ analog_velocity(
 - report_dist:
 
   Logical; if TRUE (default), include distance columns in output when
-  `mode` is `"knn_geog"`, `"knn_clim"` or `"all"`. Set to FALSE for more
-  compact output.
+  `aggregate` is `NULL` or `"pairs"`. Set to FALSE for more compact
+  output.
 
 - index_res:
 
@@ -115,7 +105,7 @@ analog_velocity(
 
   - A positive integer.
 
-  - `"auto"` (the default): Automatically tune the intex resolution by
+  - `"auto"` (the default): Automatically tune the index resolution by
     optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution
     of 16 is used.

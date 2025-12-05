@@ -2,9 +2,9 @@
 
 Identifies locations in a reference dataset that are climatically
 similar to focal locations, with optional constraints on climate
-distance and geographic distance. This function supports multiple use
-cases including climate velocity analysis, analog availability mapping,
-and climate impact assessment.
+distance and geographic distance. This function uses a two-stage
+approach: first selecting analogs based on specified criteria, then
+optionally aggregating the results.
 
 ## Usage
 
@@ -12,7 +12,8 @@ and climate impact assessment.
 analog_search(
   x,
   pool,
-  mode,
+  select = "all",
+  aggregate = NULL,
   max_clim = NULL,
   max_geog = NULL,
   x_cov = NULL,
@@ -22,9 +23,6 @@ analog_search(
   report_dist = TRUE,
   coord_type = c("auto", "lonlat", "projected"),
   index_res = "auto",
-  resolutions = NULL,
-  n_sample = NULL,
-  n_reps = NULL,
   n_threads = NULL
 )
 ```
@@ -48,26 +46,33 @@ analog_search(
     [`build_analog_index`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
 
-- mode:
+- select:
 
-  Character string specifying the analog search mode. One of:
+  Character string specifying the analog selection strategy. One of:
 
-  - `"knn_clim"`: For each focal, return up to `k` analogs with smallest
-    climate distance, subject to `max_clim` and `max_geog` filters.
+  - `"all"` (default): Select all analogs that satisfy the `max_clim`
+    and `max_geog` constraints.
 
-  - `"knn_geog"`: For each focal, return up to `k` analogs with smallest
-    geographic distance, subject to `max_clim` and `max_geog` filters.
+  - `"knn_clim"`: For each focal, select up to `k` analogs with smallest
+    climate distance, subject to filters.
 
-  - `"all"`: Return all analogs that satisfy the filters.
+  - `"knn_geog"`: For each focal, select up to `k` analogs with smallest
+    geographic distance, subject to filters.
 
-  - `"count"`: For each focal, count how many analogs satisfy the
-    filters.
+- aggregate:
 
-  - `"sum"`: For each focal, sum weights of all analogs that satisfy the
-    filters (see `weight` and `theta`).
+  How to aggregate selected analogs. Either:
 
-  - `"mean"`: For each focal, mean of weights of all analogs that
-    satisfy the filters.
+  - `NULL` or `"pairs"` (default): Return all selected analog pairs as a
+    data.frame.
+
+  - `"count"`: For each focal, count the number of selected analogs.
+
+  - `"sum_weights"`: For each focal, sum the weights of selected analogs
+    (see `weight` and `theta`).
+
+  - `"mean_weights"`: For each focal, mean of weights of selected
+    analogs.
 
 - max_clim:
 
@@ -98,62 +103,52 @@ analog_search(
   location and one column per unique covariance component. For n climate
   variables, there are n\*(n+1)/2 unique components, ordered as:
   variances first (diagonals), then covariances (upper triangle by row).
-  For example:
-
-  - 2 variables: c(var1, var2, cov12)
-
-  - 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-
-  When provided, all climate distances are computed as Mahalanobis
-  distances using each focal's covariance structure. For focal-specific
-  variances only (no covariance), set off-diagonal covariances to zero.
-  Default is NULL (Euclidean climate distance).
 
 - k:
 
-  Number of nearest analogs to return per focal location for kNN modes.
-  Required when `mode` is `"knn_geog"` or `"knn_clim"`; must be `NULL`
-  for other modes.
+  Number of nearest analogs to return per focal location for kNN
+  selection modes. Required when `select` is `"knn_geog"` or
+  `"knn_clim"`; must be `NULL` for `select = "all"`.
 
 - weight:
 
-  Weighting function for matches, used only when `mode` is `"sum"` or
-  `"mean"`. One of:
+  Weighting function for matches, used only when `aggregate` is
+  `"sum_weights"` or `"mean_weights"`. One of:
 
   - `"uniform"`: All matches weighted equally (weight = 1.0).
 
-  - `"inverse_clim"`: Weight = 1 / (climate_distance + epsilon), with
-    epsilon given by `theta` (or a small default if `theta` is `NULL`).
+  - `"inverse_clim"`: Inverse climate distance, weight = 1 /
+    (climate_distance + eps), with epsilon given by `theta`.
 
-  - `"inverse_geog"`: Weight = 1 / (geographic_distance + epsilon), with
-    epsilon given by `theta` (or a small default if `theta` is `NULL`).
+  - `"inverse_geog"`: Inverse geographic distance, weight = 1 /
+    (geographic_distance + eps), with epsilon given by `theta`.
 
   - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2\*sigma^2)), with sigma (bandwidth)
-    given by `theta`.
+    exp(-climate_distance^2 / (2\*sigma^2)), with sigma given by
+    `theta`.
 
   - `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma (bandwidth)
-    given by `theta`.
+    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma given by
+    `theta`.
 
-  - `"gaussian_joint"`: Bivariate Gaussian kernel (product of
-    independent Gaussians over climate and geographic distances), with
-    bandwidths given by `theta` as a 2-element vector c(sigma_clim,
-    sigma_geog).
+  - `"gaussian_joint"`: Joint Gaussian kernel, weight =
+    exp(-climate_distance^2/(2\*sigma_c^2) -
+    geographic_distance^2/(2\*sigma_g^2)), with sigma values given by
+    `theta` as a 2-element vector c(sigma_clim, sigma_geog).
 
   - `"inverse_joint"`: Joint inverse distance, weight = 1 /
     sqrt((climate_distance + eps_clim)^2 + (geographic_distance +
     eps_geog)^2), with epsilon values given by `theta` as a 2-element
     vector c(eps_clim, eps_geog).
 
-  For `mode` in `"knn_geog"`, `"knn_clim"`, `"count"`, or `"all"`,
-  `weight` must be `NULL`.
+  For `aggregate` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
+  `NULL`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `mode` is
-  `"sum"` or `"mean"` and `weight` is not `"uniform"`. Interpretation
-  depends on `weight`:
+  Optional numeric parameter used by weighting functions when
+  `aggregate` is `"sum_weights"` or `"mean_weights"` and `weight` is not
+  `"uniform"`. Interpretation depends on `weight`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -168,14 +163,14 @@ analog_search(
     epsilon values for climate and geographic dimensions.
 
   If `theta` is `NULL`, sensible defaults are used for single-parameter
-  weights. For `weight = "uniform"` or for non-aggregating modes,
+  weights. For `weight = "uniform"` or for non-weighted aggregations,
   `theta` must be `NULL`.
 
 - report_dist:
 
   Logical; if TRUE (default), include distance columns in output when
-  `mode` is `"knn_geog"`, `"knn_clim"` or `"all"`. Set to FALSE for more
-  compact output.
+  `aggregate` is `NULL` or `"pairs"`. Set to FALSE for more compact
+  output.
 
 - coord_type:
 
@@ -196,7 +191,7 @@ analog_search(
 
   - A positive integer.
 
-  - `"auto"` (the default): Automatically tune the intex resolution by
+  - `"auto"` (the default): Automatically tune the index resolution by
     optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution
     of 16 is used.
@@ -211,10 +206,10 @@ analog_search(
 
 ## Value
 
-The return value depends on the `mode` parameter:
+The return value depends on the `aggregate` parameter:
 
-\*\*For mode = "knn_geog", "knn_clim" or "all"\*\*: A data.frame with
-one row per focal-analog pair:
+\*\*For aggregate = NULL or "pairs"\*\*: A data.frame with one row per
+focal-analog pair:
 
 - `focal_index`: Index of focal location (1-based).
 
@@ -229,8 +224,8 @@ one row per focal-analog pair:
 
 - `geog_dist`: Geographic distance in km (if `report_dist = TRUE`).
 
-\*\*For mode = "sum", "mean", or "count"\*\*: A data.frame with one row
-per focal location:
+\*\*For aggregate = "sum_weights", "mean_weights", or "count"\*\*: A
+data.frame with one row per focal location:
 
 - `focal_index`: Index of focal location (1-based).
 
@@ -238,19 +233,7 @@ per focal location:
 
 - `value`: Aggregated value (count, sum of weights, or mean of weights).
 
-All outputs include diagnostic attributes propagated from the C++ core,
-including:
-
-- `total_bins`: Number of spatial bins in the lattice index.
-
-- `avg_bin_occupancy`: Average points per bin.
-
-- `min_bin_occupancy, max_bin_occupancy`: Range of bin occupancy.
-
-- `binning_method`: Method used ("multi_dim_lattice" or "none").
-
-- `n_ref, n_clim`: Size of reference dataset and number of climate
-  variables.
+All outputs include diagnostic attributes propagated from the C++ core.
 
 ## Details
 
@@ -261,70 +244,22 @@ pre-whitened; see Details). Geographic distance can be computed for
 lon/lat coordinates (great-circle distance) or projected coordinates
 (planar distance).
 
-\*\*Common Use Cases:\*\*
+## Examples
 
-**Climate Velocity** (nearest geographic neighbor with similar climate):
+``` r
+if (FALSE) { # \dontrun{
+# Basic pair queries
+analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
+analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
 
-    analog_search(
-      x        = clim$clim1,
-      pool     = clim$clim2,
-      mode     = "knn_geog",
-      max_clim = 0.5,
-      max_geog = NULL,
-      k        = 1
-    )
+# Aggregated queries
+analog_search(x = focal, pool = ref, select = "all", aggregate = "count", max_clim = 0.5)
+analog_search(x = focal, pool = ref, select = "all", aggregate = "mean_weights",
+              max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
 
-**Climate Impact** (climatically similar locations within dispersal
-range):
-
-    analog_search(
-      x        = clim$clim1,
-      pool     = clim$clim2,
-      mode     = "knn_clim",
-      max_clim = 0.5,
-      max_geog = 100,
-      k        = 20
-    )
-
-**Analog Availability** (count of suitable locations):
-
-    analog_search(
-      x        = clim$clim1,
-      pool     = clim$clim1,
-      mode     = "count",
-      max_clim = 0.5,
-      max_geog = 100
-    )
-
-**Weighted Analog Intensity** (e.g., distance-weighted availability):
-
-    analog_search(
-      x        = clim$clim1,
-      pool     = clim$clim1,
-      mode     = "sum",
-      max_clim = 0.5,
-      max_geog = 100,
-      weight   = "inverse_geog",
-      theta    = 1e-6
-    )
-
-**Using a Pre-built Index** (for repeated queries):
-
-    # Build index once
-    index <- build_analog_index(clim$clim2, index_res = 16)
-
-    # Query multiple times
-    v1 <- analog_search(x = sites1, pool = index, mode = "knn_geog", max_clim = 0.5, k = 1)
-    v2 <- analog_search(x = sites2, pool = index, mode = "knn_geog", max_clim = 0.3, k = 1)
-
-**Focal-specific Mahalanobis Distance**:
-
-    # With focal-specific covariance matrices
-    analog_search(
-      x        = clim$clim1,
-      pool     = clim$clim2,
-      x_cov    = focal_covariances,  # n_focal x 3 matrix for 2 climate vars
-      mode     = "knn_geog",
-      max_clim = 2,  # In Mahalanobis distance units
-      k        = 1
-    )
+# With pre-built index (for repeated queries)
+index <- build_analog_index(ref)
+analog_search(x = focal1, pool = index, select = "knn_geog", max_clim = 0.5, k = 1)
+analog_search(x = focal2, pool = index, select = "all", aggregate = "count", max_clim = 0.3)
+} # }
+```

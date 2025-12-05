@@ -97,12 +97,7 @@ if <code>coord_type = "projected"</code>.</p></dd>
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row). For example:</p><ul><li><p>2 variables: c(var1, var2, cov12)</p></li>
-<li><p>3 variables: c(var1, var2, var3, cov12, cov13, cov23)</p></li>
-</ul><p>When provided, all climate distances are computed as Mahalanobis distances
-using each focal's covariance structure. For focal-specific variances only
-(no covariance), set off-diagonal covariances to zero. Default is NULL
-(Euclidean climate distance).</p></dd>
+first (diagonals), then covariances (upper triangle by row).</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
@@ -117,7 +112,7 @@ using each focal's covariance structure. For focal-specific variances only
 <dt id="arg-index-res">index_res<a class="anchor" aria-label="anchor" href="#arg-index-res"></a></dt>
 <dd><p>Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:</p><ul><li><p>A positive integer.</p></li>
-<li><p><code>"auto"</code> (the default): Automatically tune the intex resolution
+<li><p><code>"auto"</code> (the default): Automatically tune the index resolution
     by optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution of
     16 is used.</p></li>
