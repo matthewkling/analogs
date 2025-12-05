@@ -40,19 +40,11 @@ if \code{coord_type = "projected"}.}
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row). For example:
-\itemize{
-  \item 2 variables: c(var1, var2, cov12)
-  \item 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-}
-When provided, all climate distances are computed as Mahalanobis distances
-using each focal's covariance structure. For focal-specific variances only
-(no covariance), set off-diagonal covariances to zero. Default is NULL
-(Euclidean climate distance).}
+first (diagonals), then covariances (upper triangle by row).}
 
 \item{k}{Number of nearest analogs to return per focal location for kNN
-modes. Required when \code{mode} is \code{"knn_geog"} or \code{"knn_clim"};
-must be \code{NULL} for other modes.}
+selection modes. Required when \code{select} is \code{"knn_geog"} or
+\code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
@@ -75,14 +67,14 @@ Mahalanobis distance units.}
 }}
 
 \item{report_dist}{Logical; if TRUE (default), include distance columns in
-output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
-\code{"all"}. Set to FALSE for more compact output.}
+output when \code{aggregate} is \code{NULL} or \code{"pairs"}. Set to FALSE
+for more compact output.}
 
 \item{index_res}{Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:
 \itemize{
   \item A positive integer.
-  \item \code{"auto"} (the default): Automatically tune the intex resolution
+  \item \code{"auto"} (the default): Automatically tune the index resolution
     by optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution of
     16 is used.
@@ -105,7 +97,7 @@ Diagnostic attributes from the underlying spatial index are preserved.
 \description{
 Computes, for each focal location, the climate–nearest neighbor(s) in a
 reference dataset that satisfy a specified geographic distance threshold.
-This helper wraps \code{\link{analog_search}} using \code{mode = "knn_clim"}.
+This helper wraps \code{\link{analog_search}} using \code{select = "knn_clim"}.
 }
 \details{
 It is useful for estimating the potential ecological impact of local climate

@@ -8,9 +8,9 @@ thread_local PairWorker::ThreadLocalStorage PairWorker::tls;
 thread_local AggWorker::ThreadLocalStorage AggWorker::tls;
 
 void PairWorker::operator()(std::size_t begin, std::size_t end) {
-      const bool knn_mode      = (mcode == ModeCode::KNN_CLIM || mcode == ModeCode::KNN_GEOG);
-      const bool rank_by_clim  = (mcode == ModeCode::KNN_CLIM);
-      const bool rank_by_geog  = (mcode == ModeCode::KNN_GEOG);
+      const bool knn_mode      = (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG);
+      const bool rank_by_clim  = (scode == SelectCode::KNN_CLIM);
+      const bool rank_by_geog  = (scode == SelectCode::KNN_GEOG);
 
       // Get thread-local storage
       auto& fgeo_vec = tls.fgeo_vec;
@@ -175,7 +175,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             }
 
             // Filter and collect results from candidates
-            if (mcode == ModeCode::ALL) {
+            if (scode == SelectCode::ALL) {
                   std::vector<int> keep;
                   keep.reserve(cand.size());
 
@@ -508,11 +508,11 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             }
 
             // Store result
-            if (mcode == ModeCode::COUNT) {
+            if (acode == AggregateCode::COUNT) {
                   agg[i] = static_cast<double>(count);
-            } else if (mcode == ModeCode::SUM) {
+            } else if (acode == AggregateCode::SUM_WEIGHTS) {
                   agg[i] = acc;
-            } else { // MEAN
+            } else { // MEAN_WEIGHTS
                   agg[i] = (count > 0) ? (acc / count) : NA_REAL;
             }
       }

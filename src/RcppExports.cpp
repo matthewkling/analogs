@@ -24,8 +24,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int mode_code, int weight_code, const NumericVector& theta, SEXP x_cov_sexp);
-RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP) {
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, int aggregate_code, int weight_code, const NumericVector& theta, SEXP x_cov_sexp);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -35,54 +35,12 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type k(kSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
     Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
-    Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
+    Rcpp::traits::input_parameter< int >::type select_code(select_codeSEXP);
+    Rcpp::traits::input_parameter< int >::type aggregate_code(aggregate_codeSEXP);
     Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
     Rcpp::traits::input_parameter< SEXP >::type x_cov_sexp(x_cov_sexpSEXP);
-    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, mode_code, weight_code, theta, x_cov_sexp));
-    return rcpp_result_gen;
-END_RCPP
-}
-// find_analogs_core
-SEXP find_analogs_core(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, const NumericVector& theta, int lattice_res, SEXP x_cov_sexp);
-RcppExport SEXP _analogs_find_analogs_core(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP lattice_resSEXP, SEXP x_cov_sexpSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const NumericMatrix& >::type focal_mm(focal_mmSEXP);
-    Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
-    Rcpp::traits::input_parameter< int >::type k(kSEXP);
-    Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
-    Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
-    Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
-    Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
-    Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
-    Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
-    Rcpp::traits::input_parameter< int >::type lattice_res(lattice_resSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type x_cov_sexp(x_cov_sexpSEXP);
-    rcpp_result_gen = Rcpp::wrap(find_analogs_core(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res, x_cov_sexp));
-    return rcpp_result_gen;
-END_RCPP
-}
-// profile_find_analogs
-Rcpp::List profile_find_analogs(const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, const std::string& geo_mode, int mode_code, int weight_code, const NumericVector& theta, int lattice_res, SEXP x_cov_sexp, bool enable_profiling);
-RcppExport SEXP _analogs_profile_find_analogs(SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP geo_modeSEXP, SEXP mode_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP lattice_resSEXP, SEXP x_cov_sexpSEXP, SEXP enable_profilingSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const NumericMatrix& >::type focal_mm(focal_mmSEXP);
-    Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
-    Rcpp::traits::input_parameter< int >::type k(kSEXP);
-    Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
-    Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
-    Rcpp::traits::input_parameter< const std::string& >::type geo_mode(geo_modeSEXP);
-    Rcpp::traits::input_parameter< int >::type mode_code(mode_codeSEXP);
-    Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
-    Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
-    Rcpp::traits::input_parameter< int >::type lattice_res(lattice_resSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type x_cov_sexp(x_cov_sexpSEXP);
-    Rcpp::traits::input_parameter< bool >::type enable_profiling(enable_profilingSEXP);
-    rcpp_result_gen = Rcpp::wrap(profile_find_analogs(focal_mm, ref_mm, k, max_clim, max_geog, geo_mode, mode_code, weight_code, theta, lattice_res, x_cov_sexp, enable_profiling));
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_code, weight_code, theta, x_cov_sexp));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -129,9 +87,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 3},
-    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 10},
-    {"_analogs_find_analogs_core", (DL_FUNC) &_analogs_find_analogs_core, 11},
-    {"_analogs_profile_find_analogs", (DL_FUNC) &_analogs_profile_find_analogs, 12},
+    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 11},
     {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 6},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},

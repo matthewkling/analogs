@@ -39,18 +39,19 @@ analog_availability <- function(
             n_threads = NULL
 ) {
       analog_search(
-            x          = x,
-            pool       = pool,
-            mode       = "count",
-            max_clim   = max_clim,
-            max_geog   = max_geog,
-            k          = NULL,   # required to be NULL
-            weight     = NULL,   # required to be NULL
-            theta      = NULL,   # required to be NULL
-            x_cov      = x_cov,
-            coord_type = coord_type,
+            x           = x,
+            pool        = pool,
+            select      = "all",
+            aggregate   = "count",
+            max_clim    = max_clim,
+            max_geog    = max_geog,
+            k           = NULL,
+            weight      = NULL,
+            theta       = NULL,
+            x_cov       = x_cov,
+            coord_type  = coord_type,
             report_dist = FALSE,  # no pair distances in aggregate mode
-            index_res  = index_res,
-            n_threads  = n_threads
+            index_res   = index_res,
+            n_threads   = n_threads
       )
 }

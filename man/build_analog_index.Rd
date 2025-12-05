@@ -32,7 +32,7 @@ build_analog_index(
 of the internally-used lattice search index. Either:
 \itemize{
   \item A positive integer.
-  \item \code{"auto"} (the default): Automatically tune the intex resolution
+  \item \code{"auto"} (the default): Automatically tune the index resolution
     by optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution of
     16 is used.

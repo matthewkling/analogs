@@ -7,14 +7,19 @@
 
 namespace analogs {
 
-// Mode code enums (consistent with R wrapper mapping)
-enum class ModeCode : int {
+// Selection code enums (R->C++ mapping for select parameter)
+enum class SelectCode : int {
       KNN_CLIM = 0,
             KNN_GEOG = 1,
-            COUNT    = 2,
-            SUM      = 3,
-            MEAN     = 4,
-            ALL      = 5
+            ALL      = 2
+};
+
+// Aggregation code enums (R->C++ mapping for aggregate parameter)
+enum class AggregateCode : int {
+      PAIRS        = 0,
+            COUNT        = 1,
+            SUM_WEIGHTS  = 2,
+            MEAN_WEIGHTS = 3
 };
 
 // Compute Euclidean climate distance (scalar) and/or per-var checks.

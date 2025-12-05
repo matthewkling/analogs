@@ -8,7 +8,7 @@ namespace analogs {
 
 // Weight code enums (consistent with R wrapper mapping)
 enum class WeightCode : int {
-      NONE            = 0,
+            NONE            = 0,
             UNIFORM         = 1,
             INVERSE_CLIM    = 2,
             INVERSE_GEOG    = 3,

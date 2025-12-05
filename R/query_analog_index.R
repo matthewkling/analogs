@@ -2,7 +2,8 @@
 #' @keywords internal
 query_analog_index <- function(x,
                                index,
-                               mode,
+                               select,
+                               aggregate,
                                max_clim,
                                max_geog,
                                x_cov,
@@ -22,8 +23,9 @@ query_analog_index <- function(x,
       .validate_analog_index(index, focal_mm, validate_ranges = FALSE)
 
       # Validate and normalize query parameters (including x_cov)
-      params <- .validate_query_params(mode, k, weight, theta, x_cov, focal_mm)
-      mode <- params$mode
+      params <- .validate_query_params(select, aggregate, k, weight, theta, x_cov, focal_mm)
+      select <- params$select
+      aggregate <- params$aggregate
       k <- params$k
       weight <- params$weight
       theta <- params$theta
@@ -33,18 +35,26 @@ query_analog_index <- function(x,
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
       max_clim_val <- if (is.null(max_clim)) Inf else max_clim
 
-      # Map mode/weight/theta for C++
-      mode_code <- switch(
-            mode,
+      # Map select/aggregate/weight for C++
+      # Select codes: 0=knn_clim, 1=knn_geog, 2=all
+      select_code <- switch(
+            select,
             "knn_clim" = 0L,
             "knn_geog" = 1L,
-            "count"    = 2L,
-            "sum"      = 3L,
-            "mean"     = 4L,
-            "all"      = 5L
+            "all"      = 2L
       )
 
-      weight_code <- if (mode %in% c("sum","mean")) {
+      # Aggregate codes: 0=pairs, 1=count, 2=sum_weights, 3=mean_weights
+      aggregate_code <- switch(
+            aggregate,
+            "pairs"        = 0L,
+            "count"        = 1L,
+            "sum_weights"  = 2L,
+            "mean_weights" = 3L
+      )
+
+      # Weight codes (only used when aggregate is sum_weights or mean_weights)
+      weight_code <- if (aggregate %in% c("sum_weights", "mean_weights")) {
             switch(
                   weight,
                   "uniform"        = 1L,
@@ -60,15 +70,13 @@ query_analog_index <- function(x,
       }
 
       # Handle theta: convert to numeric vector (length 1 or 2)
-      # For joint weights, theta should already be length 2 from validation
-      # For single weights, theta is length 1 or NULL (becomes NA_real_)
       theta_vec <- if (is.null(theta)) {
             NA_real_
       } else {
             as.numeric(theta)
       }
 
-      k_core <- if (mode %in% c("knn_clim","knn_geog")) as.integer(k) else 0L
+      k_core <- if (select %in% c("knn_clim", "knn_geog")) as.integer(k) else 0L
 
       # Thread control
       if (!is.null(n_threads)) {
@@ -79,8 +87,7 @@ query_analog_index <- function(x,
             RcppParallel::setThreadOptions(numThreads = as.integer(n_threads)[1L])
       }
 
-      # Call C++ query function
-      # Pass x_cov_mat directly - C++ handles NULL properly
+      # Call C++ query function with new parameter names
       res <- query_analog_index_cpp(
             index_list = index,
             focal_mm = focal_mm,
@@ -88,10 +95,11 @@ query_analog_index <- function(x,
             k = k_core,
             max_clim = max_clim_val,
             max_geog = max_geog_num,
-            mode_code = mode_code,
+            select_code = select_code,
+            aggregate_code = aggregate_code,
             weight_code = weight_code,
             theta = theta_vec,
-            x_cov = x_cov_mat  # NULL or matrix; C++ handles both
+            x_cov = x_cov_mat
       )
 
       # Capture diagnostic attributes
@@ -99,8 +107,8 @@ query_analog_index <- function(x,
       cpp_attrs$names <- NULL
       cpp_attrs$class <- NULL
 
-      # Post-process results (same as main function)
-      if (mode %in% c("knn_clim", "knn_geog", "all")) {
+      # Post-process results based on aggregate type
+      if (aggregate == "pairs") {
             out <- .emit_pairs_cpp(
                   res,
                   focal_mm,
@@ -112,13 +120,14 @@ query_analog_index <- function(x,
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
-            attr(out, "mode")   <- mode
-            attr(out, "weight") <- weight
-            attr(out, "theta")  <- theta
+            attr(out, "select")    <- select
+            attr(out, "aggregate") <- aggregate
+            attr(out, "weight")    <- weight
+            attr(out, "theta")     <- theta
             return(out)
       }
 
-      if (mode %in% c("sum", "mean", "count")) {
+      if (aggregate %in% c("sum_weights", "mean_weights", "count")) {
             values <- as.numeric(res)
             if (length(values) != nrow(focal_mm)) {
                   stop("Internal error: aggregate result length does not match number of focals.")
@@ -135,9 +144,10 @@ query_analog_index <- function(x,
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
-            attr(out, "mode")   <- mode
-            attr(out, "weight") <- weight
-            attr(out, "theta")  <- theta
+            attr(out, "select")    <- select
+            attr(out, "aggregate") <- aggregate
+            attr(out, "weight")    <- weight
+            attr(out, "theta")     <- theta
             return(out)
       }
 

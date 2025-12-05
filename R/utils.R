@@ -8,14 +8,21 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates mode/k/weight/theta/x_cov combinations and normalizes values.
+#' Validates select/aggregate/k/weight/theta/x_cov combinations and normalizes values.
 #' Returns a list with normalized parameters.
 #'
 #' @keywords internal
-.validate_query_params <- function(mode, k, weight, theta, x_cov = NULL, focal_mm = NULL) {
+.validate_query_params <- function(select, aggregate, k, weight, theta, x_cov = NULL, focal_mm = NULL) {
 
-      # Validate mode
-      mode <- match.arg(mode, c("knn_clim", "knn_geog", "count", "sum", "mean", "all"))
+      # Validate select
+      select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
+
+      # Normalize aggregate (NULL becomes "pairs")
+      if (is.null(aggregate)) {
+            aggregate <- "pairs"
+      } else {
+            aggregate <- match.arg(aggregate, c("pairs", "count", "sum_weights", "mean_weights"))
+      }
 
       # Validate and normalize weight
       if (!is.null(weight)) {
@@ -24,47 +31,30 @@
                                           "inverse_joint"))
       }
 
-      # Validate mode/k/weight/theta combinations
-      if (mode %in% c("knn_clim", "knn_geog")) {
-            # kNN modes
+      # Validate select/k combination
+      if (select %in% c("knn_clim", "knn_geog")) {
+            # kNN selection modes require k
             if (is.null(k)) k <- 1L
             k <- as.integer(k)
             if (length(k) != 1L || k <= 0L) {
-                  stop("For mode '", mode, "', k must be a positive integer.")
+                  stop("For select = '", select, "', k must be a positive integer.")
             }
-            if (!is.null(weight)) {
-                  stop("For mode '", mode, "', weight must be NULL.")
-            }
-            if (!is.null(theta)) {
-                  stop("For mode '", mode, "', theta must be NULL.")
-            }
-
-      } else if (mode %in% c("all", "count")) {
-            # Filter modes
+      } else {
+            # select = "all" doesn't use k
             if (!is.null(k)) {
-                  stop("For mode '", mode, "', k must be NULL.")
+                  stop("For select = '", select, "', k must be NULL.")
             }
-            if (!is.null(weight)) {
-                  stop("For mode '", mode, "', weight must be NULL.")
-            }
-            if (!is.null(theta)) {
-                  stop("For mode '", mode, "', theta must be NULL.")
-            }
-            # Leave k as NULL (converted to 0L later in query_analog_index if needed)
+      }
 
-      } else if (mode %in% c("sum", "mean")) {
-            # Aggregate modes
-            if (!is.null(k)) {
-                  stop("For mode '", mode, "', k must be NULL.")
-            }
-            # Leave k as NULL (converted to 0L later in query_analog_index if needed)
-
+      # Validate aggregate/weight/theta combinations
+      if (aggregate %in% c("sum_weights", "mean_weights")) {
+            # Weighted aggregation modes
             valid_weights <- c("uniform", "gaussian_clim", "gaussian_geog",
                                "gaussian_joint", "inverse_clim", "inverse_geog",
                                "inverse_joint")
             if (is.null(weight)) weight <- "uniform"
             if (!weight %in% valid_weights) {
-                  stop("For mode '", mode, "', weight must be one of: ",
+                  stop("For aggregate = '", aggregate, "', weight must be one of: ",
                        paste(valid_weights, collapse = ", "))
             }
 
@@ -93,6 +83,15 @@
                         }
                   }
             }
+
+      } else {
+            # Non-weighted aggregations (pairs, count)
+            if (!is.null(weight)) {
+                  stop("For aggregate = '", aggregate, "', weight must be NULL.")
+            }
+            if (!is.null(theta)) {
+                  stop("For aggregate = '", aggregate, "', theta must be NULL.")
+            }
       }
 
       # Validate and format x_cov if provided
@@ -106,7 +105,8 @@
 
       # Return normalized parameters
       list(
-            mode = mode,
+            select = select,
+            aggregate = aggregate,
             k = k,
             weight = weight,
             theta = theta,

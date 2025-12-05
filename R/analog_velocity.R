@@ -2,7 +2,7 @@
 #'
 #' Computes, for each focal location, the geographic nearest neighbor(s) in a
 #' reference dataset that satisfy a specified climate distance threshold. This
-#' helper wraps \code{\link{analog_search}} using \code{mode = "knn_geog"} and is
+#' helper wraps \code{\link{analog_search}} using \code{select = "knn_geog"} and is
 #' most commonly used for estimating climate velocity (the rate and direction
 #' at which organisms would have to move to track constant climate conditions).
 #'
@@ -69,18 +69,19 @@ analog_velocity <- function(
             n_threads = NULL
 ) {
       analog_search(
-            x          = x,
-            pool       = pool,
-            mode       = "knn_geog",
-            max_clim   = max_clim,
-            max_geog   = max_geog,
-            x_cov      = x_cov,
-            k          = k,
-            weight     = NULL,
-            theta      = NULL,
-            coord_type = coord_type,
+            x           = x,
+            pool        = pool,
+            select      = "knn_geog",
+            aggregate   = NULL,  # Returns pairs
+            max_clim    = max_clim,
+            max_geog    = max_geog,
+            x_cov       = x_cov,
+            k           = k,
+            weight      = NULL,
+            theta       = NULL,
+            coord_type  = coord_type,
             report_dist = report_dist,
-            index_res  = index_res,
-            n_threads  = n_threads
+            index_res   = index_res,
+            n_threads   = n_threads
       )
 }

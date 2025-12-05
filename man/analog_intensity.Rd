@@ -49,34 +49,30 @@ kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
 if \code{coord_type = "projected"}.}
 
 \item{weight}{Weighting function for matches, used only when
-\code{mode} is \code{"sum"} or \code{"mean"}. One of:
+\code{aggregate} is \code{"sum_weights"} or \code{"mean_weights"}. One of:
 \itemize{
   \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
-  \item \code{"inverse_clim"}: Weight = 1 / (climate_distance + epsilon),
-    with epsilon given by \code{theta} (or a small default if \code{theta}
-    is \code{NULL}).
-  \item \code{"inverse_geog"}: Weight = 1 / (geographic_distance + epsilon),
-    with epsilon given by \code{theta} (or a small default if \code{theta}
-    is \code{NULL}).
+  \item \code{"inverse_clim"}: Inverse climate distance,
+    weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
+  \item \code{"inverse_geog"}: Inverse geographic distance,
+    weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
   \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-    weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma (bandwidth)
-    given by \code{theta}.
+    weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
   \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-    weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma (bandwidth)
-    given by \code{theta}.
-  \item \code{"gaussian_joint"}: Bivariate Gaussian kernel (product of
-    independent Gaussians over climate and geographic distances), with
-    bandwidths given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
+    weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
+  \item \code{"gaussian_joint"}: Joint Gaussian kernel,
+    weight = exp(-climate_distance^2/(2*sigma_c^2) - geographic_distance^2/(2*sigma_g^2)),
+    with sigma values given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
   \item \code{"inverse_joint"}: Joint inverse distance,
     weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
     with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
 }
-For \code{mode} in \code{"knn_geog"}, \code{"knn_clim"}, \code{"count"},
-or \code{"all"}, \code{weight} must be \code{NULL}.}
+For \code{aggregate} in \code{NULL}, \code{"pairs"}, or \code{"count"},
+\code{weight} must be \code{NULL}.}
 
 \item{theta}{Optional numeric parameter used by weighting functions
-when \code{mode} is \code{"sum"} or \code{"mean"} and \code{weight} is
-not \code{"uniform"}. Interpretation depends on \code{weight}:
+when \code{aggregate} is \code{"sum_weights"} or \code{"mean_weights"} and
+\code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
 \itemize{
   \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
     added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -88,22 +84,14 @@ not \code{"uniform"}. Interpretation depends on \code{weight}:
     giving epsilon values for climate and geographic dimensions.
 }
 If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
-weights. For \code{weight = "uniform"} or for non-aggregating modes, \code{theta}
+weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
 must be \code{NULL}.}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row). For example:
-\itemize{
-  \item 2 variables: c(var1, var2, cov12)
-  \item 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-}
-When provided, all climate distances are computed as Mahalanobis distances
-using each focal's covariance structure. For focal-specific variances only
-(no covariance), set off-diagonal covariances to zero. Default is NULL
-(Euclidean climate distance).}
+first (diagonals), then covariances (upper triangle by row).}
 
 \item{coord_type}{Coordinate system type (default: "auto"):
 \itemize{
@@ -118,7 +106,7 @@ using each focal's covariance structure. For focal-specific variances only
 of the internally-used lattice search index. Either:
 \itemize{
   \item A positive integer.
-  \item \code{"auto"} (the default): Automatically tune the intex resolution
+  \item \code{"auto"} (the default): Automatically tune the index resolution
     by optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution of
     16 is used.

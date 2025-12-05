@@ -49,15 +49,7 @@ if \code{coord_type = "projected"}.}
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row). For example:
-\itemize{
-  \item 2 variables: c(var1, var2, cov12)
-  \item 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-}
-When provided, all climate distances are computed as Mahalanobis distances
-using each focal's covariance structure. For focal-specific variances only
-(no covariance), set off-diagonal covariances to zero. Default is NULL
-(Euclidean climate distance).}
+first (diagonals), then covariances (upper triangle by row).}
 
 \item{coord_type}{Coordinate system type (default: "auto"):
 \itemize{
@@ -72,7 +64,7 @@ using each focal's covariance structure. For focal-specific variances only
 of the internally-used lattice search index. Either:
 \itemize{
   \item A positive integer.
-  \item \code{"auto"} (the default): Automatically tune the intex resolution
+  \item \code{"auto"} (the default): Automatically tune the index resolution
     by optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution of
     16 is used.

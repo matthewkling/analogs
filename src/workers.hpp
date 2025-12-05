@@ -44,7 +44,8 @@ struct PairWorker : public Worker {
       double max_geog_chord;        // chord distance threshold for ECEF mode
       std::vector<double> max_clim_pervar;
 
-      ModeCode mcode;
+      SelectCode scode;     // Selection strategy
+
       int k;                        // k for kNN modes (>=1), ignored for ALL
       Lattice* lattice_ptr;         // may be nullptr if !use_lattice
 
@@ -91,7 +92,7 @@ struct PairWorker : public Worker {
                  double max_geog_,
                  double max_geog_chord_,
                  const std::vector<double>& max_clim_pervar_,
-                 ModeCode mcode_,
+                 SelectCode scode_,
                  int k_,
                  Lattice* lattice_ptr_,
                  bool use_ecef_,
@@ -120,7 +121,7 @@ struct PairWorker : public Worker {
               max_geog(max_geog_),
               max_geog_chord(max_geog_chord_),
               max_clim_pervar(max_clim_pervar_),
-              mcode(mcode_),
+              scode(scode_),
               k(k_),
               lattice_ptr(lattice_ptr_),
               R_earth(R_earth_),
@@ -162,8 +163,9 @@ struct AggWorker : public Worker {
       double max_geog_chord;        // chord threshold for ECEF
       std::vector<double> max_clim_pervar;
 
-      ModeCode mcode;
-      WeightCode wcode;
+      SelectCode scode;     // Selection strategy
+      AggregateCode acode;  // Which aggregation to perform
+      WeightCode wcode;     // Weight function (for sum/mean)
       double weight_param1;         // Pre-computed weight parameter 1
       double weight_param2;         // Pre-computed weight parameter 2
 
@@ -206,7 +208,8 @@ struct AggWorker : public Worker {
                 double max_geog_,
                 double max_geog_chord_,
                 const std::vector<double>& max_clim_pervar_,
-                ModeCode mcode_,
+                SelectCode scode_,
+                AggregateCode acode_,
                 WeightCode wcode_,
                 double weight_param1_,
                 double weight_param2_,
@@ -237,7 +240,8 @@ struct AggWorker : public Worker {
               max_geog(max_geog_),
               max_geog_chord(max_geog_chord_),
               max_clim_pervar(max_clim_pervar_),
-              mcode(mcode_),
+              scode(scode_),
+              acode(acode_),
               wcode(wcode_),
               weight_param1(weight_param1_),
               weight_param2(weight_param2_),

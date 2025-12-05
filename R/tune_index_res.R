@@ -36,7 +36,8 @@
 #' optimal_res <- tune_index_res(
 #'   x = sample_sites,
 #'   pool = climate_data,
-#'   mode = "knn_geog",
+#'   select = "knn_geog",
+#'   aggregate = NULL,
 #'   max_clim = 0.5,
 #'   k = 1
 #' )
@@ -48,7 +49,9 @@
 #' @export
 tune_index_res <- function(x,
                            pool,
-                           mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
+                           # mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
+                           select = "all",
+                           aggregate = NULL,
                            max_clim = NULL,
                            max_geog = NULL,
                            k = NULL,
@@ -74,8 +77,9 @@ tune_index_res <- function(x,
       # For x_cov validation, we'll need to format focal data first
       focal_mm <- .format_data(x)
 
-      params <- .validate_query_params(mode, k, weight, theta, x_cov, focal_mm)
-      mode <- params$mode
+      params <- .validate_query_params(select, aggregate, k, weight, theta, x_cov, focal_mm)
+      select <- params$select
+      aggregate <- params$aggregate
       k <- params$k
       weight <- params$weight
       theta <- params$theta
@@ -122,7 +126,8 @@ tune_index_res <- function(x,
                   result <- query_analog_index(
                         x = focal_mm_samp,
                         index = index,
-                        mode = mode,
+                        select = select,
+                        aggregte = aggregate,
                         max_clim = max_clim,
                         max_geog = max_geog,
                         x_cov = x_cov_samp,
@@ -192,7 +197,7 @@ tune_index_res <- function(x,
       t_eval <- times[o]
 
       # Check if we're in a k=1 velocity scenario (where tuning matters less)
-      is_k1_velocity <- (mode == "knn_geog" &&
+      is_k1_velocity <- (select == "knn_geog" &&
                                !is.null(k) &&
                                is.numeric(k) &&
                                k == 1L)

@@ -2,8 +2,8 @@
 #'
 #' Identifies locations in a reference dataset that are climatically similar to
 #' focal locations, with optional constraints on climate distance and geographic
-#' distance. This function supports multiple use cases including climate velocity
-#' analysis, analog availability mapping, and climate impact assessment.
+#' distance. This function uses a two-stage approach: first selecting analogs
+#' based on specified criteria, then optionally aggregating the results.
 #'
 #' The function uses a spatial indexing structure (lattice-based) to quickly
 #' search through large reference datasets. Climate similarity is measured
@@ -23,21 +23,26 @@
 #'       \code{\link{build_analog_index}} (for repeated queries).
 #'   }
 #'
-#' @param mode Character string specifying the analog search mode. One of:
+#' @param select Character string specifying the analog selection strategy.
+#'   One of:
 #'   \itemize{
-#'     \item \code{"knn_clim"}: For each focal, return up to \code{k} analogs
-#'       with smallest climate distance, subject to \code{max_clim} and
-#'       \code{max_geog} filters.
-#'     \item \code{"knn_geog"}: For each focal, return up to \code{k} analogs
-#'       with smallest geographic distance, subject to \code{max_clim} and
-#'       \code{max_geog} filters.
-#'     \item \code{"all"}: Return all analogs that satisfy the filters.
-#'     \item \code{"count"}: For each focal, count how many analogs satisfy
-#'       the filters.
-#'     \item \code{"sum"}: For each focal, sum weights of all analogs that
-#'       satisfy the filters (see \code{weight} and \code{theta}).
-#'     \item \code{"mean"}: For each focal, mean of weights of all analogs that
-#'       satisfy the filters.
+#'     \item \code{"all"} (default): Select all analogs that satisfy the
+#'       \code{max_clim} and \code{max_geog} constraints.
+#'     \item \code{"knn_clim"}: For each focal, select up to \code{k} analogs
+#'       with smallest climate distance, subject to filters.
+#'     \item \code{"knn_geog"}: For each focal, select up to \code{k} analogs
+#'       with smallest geographic distance, subject to filters.
+#'   }
+#'
+#' @param aggregate How to aggregate selected analogs. Either:
+#'   \itemize{
+#'     \item \code{NULL} or \code{"pairs"} (default): Return all selected
+#'       analog pairs as a data.frame.
+#'     \item \code{"count"}: For each focal, count the number of selected analogs.
+#'     \item \code{"sum_weights"}: For each focal, sum the weights of selected
+#'       analogs (see \code{weight} and \code{theta}).
+#'     \item \code{"mean_weights"}: For each focal, mean of weights of selected
+#'       analogs.
 #'   }
 #'
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
@@ -61,49 +66,37 @@
 #'   distance calculations. Should be a matrix or data.frame with one row per
 #'   focal location and one column per unique covariance component. For n climate
 #'   variables, there are n*(n+1)/2 unique components, ordered as: variances
-#'   first (diagonals), then covariances (upper triangle by row). For example:
-#'   \itemize{
-#'     \item 2 variables: c(var1, var2, cov12)
-#'     \item 3 variables: c(var1, var2, var3, cov12, cov13, cov23)
-#'   }
-#'   When provided, all climate distances are computed as Mahalanobis distances
-#'   using each focal's covariance structure. For focal-specific variances only
-#'   (no covariance), set off-diagonal covariances to zero. Default is NULL
-#'   (Euclidean climate distance).
+#'   first (diagonals), then covariances (upper triangle by row).
 #'
 #' @param k Number of nearest analogs to return per focal location for kNN
-#'   modes. Required when \code{mode} is \code{"knn_geog"} or \code{"knn_clim"};
-#'   must be \code{NULL} for other modes.
+#'   selection modes. Required when \code{select} is \code{"knn_geog"} or
+#'   \code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.
 #'
 #' @param weight Weighting function for matches, used only when
-#'   \code{mode} is \code{"sum"} or \code{"mean"}. One of:
+#'   \code{aggregate} is \code{"sum_weights"} or \code{"mean_weights"}. One of:
 #'   \itemize{
 #'     \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
-#'     \item \code{"inverse_clim"}: Weight = 1 / (climate_distance + epsilon),
-#'       with epsilon given by \code{theta} (or a small default if \code{theta}
-#'       is \code{NULL}).
-#'     \item \code{"inverse_geog"}: Weight = 1 / (geographic_distance + epsilon),
-#'       with epsilon given by \code{theta} (or a small default if \code{theta}
-#'       is \code{NULL}).
+#'     \item \code{"inverse_clim"}: Inverse climate distance,
+#'       weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
+#'     \item \code{"inverse_geog"}: Inverse geographic distance,
+#'       weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
 #'     \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-#'       weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma (bandwidth)
-#'       given by \code{theta}.
+#'       weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
 #'     \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-#'       weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma (bandwidth)
-#'       given by \code{theta}.
-#'     \item \code{"gaussian_joint"}: Bivariate Gaussian kernel (product of
-#'       independent Gaussians over climate and geographic distances), with
-#'       bandwidths given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
+#'       weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
+#'     \item \code{"gaussian_joint"}: Joint Gaussian kernel,
+#'       weight = exp(-climate_distance^2/(2*sigma_c^2) - geographic_distance^2/(2*sigma_g^2)),
+#'       with sigma values given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
 #'     \item \code{"inverse_joint"}: Joint inverse distance,
 #'       weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
 #'       with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
 #'   }
-#'   For \code{mode} in \code{"knn_geog"}, \code{"knn_clim"}, \code{"count"},
-#'   or \code{"all"}, \code{weight} must be \code{NULL}.
+#'   For \code{aggregate} in \code{NULL}, \code{"pairs"}, or \code{"count"},
+#'   \code{weight} must be \code{NULL}.
 #'
 #' @param theta Optional numeric parameter used by weighting functions
-#'   when \code{mode} is \code{"sum"} or \code{"mean"} and \code{weight} is
-#'   not \code{"uniform"}. Interpretation depends on \code{weight}:
+#'   when \code{aggregate} is \code{"sum_weights"} or \code{"mean_weights"} and
+#'   \code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
 #'   \itemize{
 #'     \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
 #'       added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -115,12 +108,12 @@
 #'       giving epsilon values for climate and geographic dimensions.
 #'   }
 #'   If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
-#'   weights. For \code{weight = "uniform"} or for non-aggregating modes, \code{theta}
+#'   weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
 #'   must be \code{NULL}.
 #'
 #' @param report_dist Logical; if TRUE (default), include distance columns in
-#'   output when \code{mode} is \code{"knn_geog"}, \code{"knn_clim"} or
-#'   \code{"all"}. Set to FALSE for more compact output.
+#'   output when \code{aggregate} is \code{NULL} or \code{"pairs"}. Set to FALSE
+#'   for more compact output.
 #'
 #' @param coord_type Coordinate system type (default: "auto"):
 #'   \itemize{
@@ -135,7 +128,7 @@
 #'   of the internally-used lattice search index. Either:
 #'   \itemize{
 #'     \item A positive integer.
-#'     \item \code{"auto"} (the default): Automatically tune the intex resolution
+#'     \item \code{"auto"} (the default): Automatically tune the index resolution
 #'       by optimizing compute time on a subsample of focal points. If focal has
 #'       relatively few rows, auto-tuning is skipped and a default resolution of
 #'       16 is used.
@@ -147,9 +140,9 @@
 #'   is used (see \code{RcppParallel::setThreadOptions}).
 #'
 #' @return
-#' The return value depends on the \code{mode} parameter:
+#' The return value depends on the \code{aggregate} parameter:
 #'
-#' **For mode = "knn_geog", "knn_clim" or "all"**:
+#' **For aggregate = NULL or "pairs"**:
 #' A data.frame with one row per focal-analog pair:
 #' \itemize{
 #'   \item \code{focal_index}: Index of focal location (1-based).
@@ -160,7 +153,7 @@
 #'   \item \code{geog_dist}: Geographic distance in km (if \code{report_dist = TRUE}).
 #' }
 #'
-#' **For mode = "sum", "mean", or "count"**:
+#' **For aggregate = "sum_weights", "mean_weights", or "count"**:
 #' A data.frame with one row per focal location:
 #' \itemize{
 #'   \item \code{focal_index}: Index of focal location (1-based).
@@ -168,95 +161,31 @@
 #'   \item \code{value}: Aggregated value (count, sum of weights, or mean of weights).
 #' }
 #'
-#' All outputs include diagnostic attributes propagated from the C++ core,
-#' including:
-#' \itemize{
-#'   \item \code{total_bins}: Number of spatial bins in the lattice index.
-#'   \item \code{avg_bin_occupancy}: Average points per bin.
-#'   \item \code{min_bin_occupancy, max_bin_occupancy}: Range of bin occupancy.
-#'   \item \code{binning_method}: Method used ("multi_dim_lattice" or "none").
-#'   \item \code{n_ref, n_clim}: Size of reference dataset and number of climate variables.
-#' }
+#' All outputs include diagnostic attributes propagated from the C++ core.
 #'
-#' @details
-#' **Common Use Cases:**
+#' @examples
+#' \dontrun{
+#' # Basic pair queries
+#' analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
+#' analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
 #'
-#' \strong{Climate Velocity} (nearest geographic neighbor with similar climate):
-#' \preformatted{
-#' analog_search(
-#'   x        = clim$clim1,
-#'   pool     = clim$clim2,
-#'   mode     = "knn_geog",
-#'   max_clim = 0.5,
-#'   max_geog = NULL,
-#'   k        = 1
-#' )
-#' }
+#' # Aggregated queries
+#' analog_search(x = focal, pool = ref, select = "all", aggregate = "count", max_clim = 0.5)
+#' analog_search(x = focal, pool = ref, select = "all", aggregate = "mean_weights",
+#'               max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
 #'
-#' \strong{Climate Impact} (climatically similar locations within dispersal range):
-#' \preformatted{
-#' analog_search(
-#'   x        = clim$clim1,
-#'   pool     = clim$clim2,
-#'   mode     = "knn_clim",
-#'   max_clim = 0.5,
-#'   max_geog = 100,
-#'   k        = 20
-#' )
-#' }
-#'
-#' \strong{Analog Availability} (count of suitable locations):
-#' \preformatted{
-#' analog_search(
-#'   x        = clim$clim1,
-#'   pool     = clim$clim1,
-#'   mode     = "count",
-#'   max_clim = 0.5,
-#'   max_geog = 100
-#' )
-#' }
-#'
-#' \strong{Weighted Analog Intensity} (e.g., distance-weighted availability):
-#' \preformatted{
-#' analog_search(
-#'   x        = clim$clim1,
-#'   pool     = clim$clim1,
-#'   mode     = "sum",
-#'   max_clim = 0.5,
-#'   max_geog = 100,
-#'   weight   = "inverse_geog",
-#'   theta    = 1e-6
-#' )
-#' }
-#'
-#' \strong{Using a Pre-built Index} (for repeated queries):
-#' \preformatted{
-#' # Build index once
-#' index <- build_analog_index(clim$clim2, index_res = 16)
-#'
-#' # Query multiple times
-#' v1 <- analog_search(x = sites1, pool = index, mode = "knn_geog", max_clim = 0.5, k = 1)
-#' v2 <- analog_search(x = sites2, pool = index, mode = "knn_geog", max_clim = 0.3, k = 1)
-#' }
-#'
-#' \strong{Focal-specific Mahalanobis Distance}:
-#' \preformatted{
-#' # With focal-specific covariance matrices
-#' analog_search(
-#'   x        = clim$clim1,
-#'   pool     = clim$clim2,
-#'   x_cov    = focal_covariances,  # n_focal x 3 matrix for 2 climate vars
-#'   mode     = "knn_geog",
-#'   max_clim = 2,  # In Mahalanobis distance units
-#'   k        = 1
-#' )
+#' # With pre-built index (for repeated queries)
+#' index <- build_analog_index(ref)
+#' analog_search(x = focal1, pool = index, select = "knn_geog", max_clim = 0.5, k = 1)
+#' analog_search(x = focal2, pool = index, select = "all", aggregate = "count", max_clim = 0.3)
 #' }
 #'
 #' @export
 analog_search <- function(
             x,
             pool,
-            mode,
+            select = "all",
+            aggregate = NULL,
             max_clim = NULL,
             max_geog = NULL,
             x_cov = NULL,
@@ -266,13 +195,13 @@ analog_search <- function(
             report_dist = TRUE,
             coord_type = c("auto", "lonlat", "projected"),
             index_res = "auto",
-            resolutions = NULL, n_sample = NULL, n_reps = NULL,
             n_threads = NULL
 ) {
 
       # Validate and normalize query parameters
-      params <- .validate_query_params(mode, k, weight, theta)
-      mode <- params$mode
+      params <- .validate_query_params(select, aggregate, k, weight, theta)
+      select <- params$select
+      aggregate <- params$aggregate
       k <- params$k
       weight <- params$weight
       theta <- params$theta
@@ -294,7 +223,8 @@ analog_search <- function(
                         x = x,
                         pool = pool,
                         x_cov = x_cov,
-                        mode = mode,
+                        select = select,
+                        aggregate = aggregate,
                         max_clim = max_clim,
                         max_geog = max_geog,
                         k = k,
@@ -322,7 +252,8 @@ analog_search <- function(
       return(query_analog_index(
             x = x,
             index = index,
-            mode = mode,
+            select = select,
+            aggregate = aggregate,
             max_clim = max_clim,
             max_geog = max_geog,
             x_cov = x_cov,

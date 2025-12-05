@@ -71,18 +71,19 @@ analog_intensity <- function(
       weight <- match.arg(weight)
 
       analog_search(
-            x          = x,
-            pool       = pool,
-            mode       = "sum",
-            max_clim   = max_clim,
-            max_geog   = max_geog,
-            k          = NULL,        # required to be NULL for sum/mean
-            weight     = weight,
-            theta      = theta,
-            x_cov      = x_cov,
-            coord_type = coord_type,
-            report_dist = FALSE,       # no pairwise distances needed for sums
-            index_res  = index_res,
-            n_threads  = n_threads
+            x           = x,
+            pool        = pool,
+            select      = "all",
+            aggregate   = "sum_weights",
+            max_clim    = max_clim,
+            max_geog    = max_geog,
+            k           = NULL,
+            weight      = weight,
+            theta       = theta,
+            x_cov       = x_cov,
+            coord_type  = coord_type,
+            report_dist = FALSE,  # no pairwise distances needed for sums
+            index_res   = index_res,
+            n_threads   = n_threads
       )
 }
