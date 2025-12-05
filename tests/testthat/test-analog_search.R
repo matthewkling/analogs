@@ -299,15 +299,30 @@ test_that("analog_search index path handles all constraint combinations", {
 })
 
 
-test_that("analog_search runs error-free with all select-aggregate combinations", {
+test_that("analog_search runs error-free with all valid select-aggregate-weight combinations", {
 
       d <- sim_test_data()
 
       for(s in c("all", "knn_clim", "knn_geog")){
             for(a in c("pairs", "count", "sum_weights", "mean_weights")){
-                  expect_no_error(
-                        analog_search(d$focal, d$ref, select = s, aggregate = a, max_clim = 1, max_geog = 2)
-                  )
+                  for(w in c("uniform",
+                             "gaussian_clim", "gaussian_geog", "gaussian_joint",
+                             "inverse_clim", "inverse_geog", "inverse_joint")){
+
+                        # avoid invalid combinations
+                        theta <- if(grepl("joint", w)) c(1, 1) else 1
+                        if(w == "uniform") theta <- NULL
+                        if(a %in% c("pairs", "count")){
+                              theta <- NULL
+                              w <- NULL
+                        }
+
+                        expect_no_error(
+                              analog_search(d$focal, d$ref,
+                                            select = s, aggregate = a, weight = w, theta = theta,
+                                            max_clim = 1, max_geog = 2)
+                        )
+                  }
             }
       }
 

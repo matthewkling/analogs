@@ -213,6 +213,7 @@ analog_search <- function(
       if (is_analog_index(pool)) {
             # Pool is pre-built index - use it directly
             index <- pool
+
       } else {
             # Pool is raw data - need to build index
 
@@ -248,7 +249,7 @@ analog_search <- function(
             )
       }
 
-      # Query the index (validation of x_cov happens here)
+      # Query the index
       return(query_analog_index(
             x = x,
             index = index,
