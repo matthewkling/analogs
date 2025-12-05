@@ -13,7 +13,7 @@ analog_search(
   x,
   pool,
   select = "all",
-  aggregate = NULL,
+  stat = NULL,
   max_clim = NULL,
   max_geog = NULL,
   x_cov = NULL,
@@ -59,11 +59,11 @@ analog_search(
   - `"knn_geog"`: For each focal, select up to `k` analogs with smallest
     geographic distance, subject to filters.
 
-- aggregate:
+- stat:
 
-  How to aggregate selected analogs. Either:
+  Statistic used to aggregate selected analogs. Either:
 
-  - `NULL` or `"pairs"` (default): Return all selected analog pairs as a
+  - `NULL` or `"none"` (default): Return all selected analog pairs as a
     data.frame.
 
   - `"count"`: For each focal, count the number of selected analogs.
@@ -112,7 +112,7 @@ analog_search(
 
 - weight:
 
-  Weighting function for matches, used only when `aggregate` is
+  Weighting function for matches, used only when `stat` is
   `"sum_weights"` or `"mean_weights"`. One of:
 
   - `"uniform"`: All matches weighted equally (weight = 1.0).
@@ -141,14 +141,14 @@ analog_search(
     eps_geog)^2), with epsilon values given by `theta` as a 2-element
     vector c(eps_clim, eps_geog).
 
-  For `aggregate` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
+  For `stat` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
   `NULL`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when
-  `aggregate` is `"sum_weights"` or `"mean_weights"` and `weight` is not
-  `"uniform"`. Interpretation depends on `weight`:
+  Optional numeric parameter used by weighting functions when `stat` is
+  `"sum_weights"` or `"mean_weights"` and `weight` is not `"uniform"`.
+  Interpretation depends on `weight`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -169,8 +169,7 @@ analog_search(
 - report_dist:
 
   Logical; if TRUE (default), include distance columns in output when
-  `aggregate` is `NULL` or `"pairs"`. Set to FALSE for more compact
-  output.
+  `stat` is `NULL` or `"pairs"`. Set to FALSE for more compact output.
 
 - coord_type:
 
@@ -206,14 +205,14 @@ analog_search(
 
 ## Value
 
-The return value depends on the `aggregate` parameter:
+The return value depends on the `stat` parameter:
 
-\*\*For aggregate = NULL or "pairs"\*\*: A data.frame with one row per
+\*\*For stat = NULL or "pairs"\*\*: A data.frame with one row per
 focal-analog pair:
 
-- `focal_index`: Index of focal location (1-based).
+- `index`: Index of focal location (1-based).
 
-- `focal_x, focal_y`: Coordinates of focal location.
+- `x, y`: Coordinates of focal location.
 
 - `analog_index`: Index of analog location in reference dataset
   (1-based).
@@ -224,12 +223,12 @@ focal-analog pair:
 
 - `geog_dist`: Geographic distance in km (if `report_dist = TRUE`).
 
-\*\*For aggregate = "sum_weights", "mean_weights", or "count"\*\*: A
+\*\*For stat = "sum_weights", "mean_weights", or "count"\*\*: A
 data.frame with one row per focal location:
 
-- `focal_index`: Index of focal location (1-based).
+- `index`: Index of focal location (1-based).
 
-- `focal_x, focal_y`: Coordinates of focal location.
+- `x, y`: Coordinates of focal location.
 
 - `value`: Aggregated value (count, sum of weights, or mean of weights).
 
@@ -253,13 +252,13 @@ analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
 analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
 
 # Aggregated queries
-analog_search(x = focal, pool = ref, select = "all", aggregate = "count", max_clim = 0.5)
-analog_search(x = focal, pool = ref, select = "all", aggregate = "mean_weights",
+analog_search(x = focal, pool = ref, select = "all", stat = "count", max_clim = 0.5)
+analog_search(x = focal, pool = ref, select = "all", stat = "mean_weights",
               max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(ref)
 analog_search(x = focal1, pool = index, select = "knn_geog", max_clim = 0.5, k = 1)
-analog_search(x = focal2, pool = index, select = "all", aggregate = "count", max_clim = 0.3)
+analog_search(x = focal2, pool = index, select = "all", stat = "count", max_clim = 0.3)
 } # }
 ```

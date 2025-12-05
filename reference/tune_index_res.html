@@ -48,7 +48,7 @@ different resolutions and recommends the one with the fastest compute speed.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  <span class="va">pool</span>,</span>
 <span>  select <span class="op">=</span> <span class="st">"all"</span>,</span>
-<span>  aggregate <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stat <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  k <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -91,8 +91,8 @@ One of:</p><ul><li><p><code>"all"</code> (default): Select all analogs that sati
 </ul></dd>
 
 
-<dt id="arg-aggregate">aggregate<a class="anchor" aria-label="anchor" href="#arg-aggregate"></a></dt>
-<dd><p>How to aggregate selected analogs. Either:</p><ul><li><p><code>NULL</code> or <code>"pairs"</code> (default): Return all selected
+<dt id="arg-stat">stat<a class="anchor" aria-label="anchor" href="#arg-stat"></a></dt>
+<dd><p>Statistic used to aggregate selected analogs. Either:</p><ul><li><p><code>NULL</code> or <code>"none"</code> (default): Return all selected
     analog pairs as a data.frame.</p></li>
 <li><p><code>"count"</code>: For each focal, count the number of selected analogs.</p></li>
 <li><p><code>"sum_weights"</code>: For each focal, sum the weights of selected
@@ -128,7 +128,7 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 
 <dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
 <dd><p>Weighting function for matches, used only when
-<code>aggregate</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
+<code>stat</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
 <li><p><code>"inverse_clim"</code>: Inverse climate distance,
     weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_geog"</code>: Inverse geographic distance,
@@ -143,13 +143,13 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 <li><p><code>"inverse_joint"</code>: Joint inverse distance,
     weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
     with epsilon values given by <code>theta</code> as a 2-element vector c(eps_clim, eps_geog).</p></li>
-</ul><p>For <code>aggregate</code> in <code>NULL</code>, <code>"pairs"</code>, or <code>"count"</code>,
+</ul><p>For <code>stat</code> in <code>NULL</code>, <code>"pairs"</code>, or <code>"count"</code>,
 <code>weight</code> must be <code>NULL</code>.</p></dd>
 
 
 <dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
 <dd><p>Optional numeric parameter used by weighting functions
-when <code>aggregate</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code> and
+when <code>stat</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code> and
 <code>weight</code> is not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
     added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
@@ -221,7 +221,7 @@ while still being representative of actual query performance.</p>
 <span class="r-in"><span>  x <span class="op">=</span> <span class="va">sample_sites</span>,</span></span>
 <span class="r-in"><span>  pool <span class="op">=</span> <span class="va">climate_data</span>,</span></span>
 <span class="r-in"><span>  select <span class="op">=</span> <span class="st">"knn_geog"</span>,</span></span>
-<span class="r-in"><span>  aggregate <span class="op">=</span> <span class="cn">NULL</span>,</span></span>
+<span class="r-in"><span>  stat <span class="op">=</span> <span class="cn">NULL</span>,</span></span>
 <span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>,</span></span>
 <span class="r-in"><span>  k <span class="op">=</span> <span class="fl">1</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>

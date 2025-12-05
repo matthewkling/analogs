@@ -125,7 +125,7 @@ first (diagonals), then covariances (upper triangle by row).</p></dd>
 
 <dt id="arg-report-dist">report_dist<a class="anchor" aria-label="anchor" href="#arg-report-dist"></a></dt>
 <dd><p>Logical; if TRUE (default), include distance columns in
-output when <code>aggregate</code> is <code>NULL</code> or <code>"pairs"</code>. Set to FALSE
+output when <code>stat</code> is <code>NULL</code> or <code>"pairs"</code>. Set to FALSE
 for more compact output.</p></dd>
 
 
@@ -147,8 +147,8 @@ is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOption
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A data.frame with one row per focal–analog pair, including:</p><ul><li><p><code>focal_index</code>, <code>analog_index</code></p></li>
-<li><p><code>focal_x</code>, <code>focal_y</code>, <code>analog_x</code>, <code>analog_y</code></p></li>
+    <p>A data.frame with one row per focal–analog pair, including:</p><ul><li><p><code>index</code>, <code>analog_index</code></p></li>
+<li><p><code>x</code>, <code>y</code>, <code>analog_x</code>, <code>analog_y</code></p></li>
 <li><p><code>clim_dist</code>, <code>geog_dist</code> (if <code>report_dist = TRUE</code>)</p></li>
 </ul><p>Diagnostic attributes (e.g., binning statistics) from the underlying spatial
 index are preserved.</p>

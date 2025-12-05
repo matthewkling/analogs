@@ -12,7 +12,7 @@ tune_index_res(
   x,
   pool,
   select = "all",
-  aggregate = NULL,
+  stat = NULL,
   max_clim = NULL,
   max_geog = NULL,
   k = NULL,
@@ -58,11 +58,11 @@ tune_index_res(
   - `"knn_geog"`: For each focal, select up to `k` analogs with smallest
     geographic distance, subject to filters.
 
-- aggregate:
+- stat:
 
-  How to aggregate selected analogs. Either:
+  Statistic used to aggregate selected analogs. Either:
 
-  - `NULL` or `"pairs"` (default): Return all selected analog pairs as a
+  - `NULL` or `"none"` (default): Return all selected analog pairs as a
     data.frame.
 
   - `"count"`: For each focal, count the number of selected analogs.
@@ -103,7 +103,7 @@ tune_index_res(
 
 - weight:
 
-  Weighting function for matches, used only when `aggregate` is
+  Weighting function for matches, used only when `stat` is
   `"sum_weights"` or `"mean_weights"`. One of:
 
   - `"uniform"`: All matches weighted equally (weight = 1.0).
@@ -132,14 +132,14 @@ tune_index_res(
     eps_geog)^2), with epsilon values given by `theta` as a 2-element
     vector c(eps_clim, eps_geog).
 
-  For `aggregate` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
+  For `stat` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
   `NULL`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when
-  `aggregate` is `"sum_weights"` or `"mean_weights"` and `weight` is not
-  `"uniform"`. Interpretation depends on `weight`:
+  Optional numeric parameter used by weighting functions when `stat` is
+  `"sum_weights"` or `"mean_weights"` and `weight` is not `"uniform"`.
+  Interpretation depends on `weight`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -225,7 +225,7 @@ optimal_res <- tune_index_res(
   x = sample_sites,
   pool = climate_data,
   select = "knn_geog",
-  aggregate = NULL,
+  stat = NULL,
   max_clim = 0.5,
   k = 1
 )

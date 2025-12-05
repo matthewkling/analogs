@@ -95,8 +95,7 @@ analog_velocity(
 - report_dist:
 
   Logical; if TRUE (default), include distance columns in output when
-  `aggregate` is `NULL` or `"pairs"`. Set to FALSE for more compact
-  output.
+  `stat` is `NULL` or `"pairs"`. Set to FALSE for more compact output.
 
 - index_res:
 
@@ -122,9 +121,9 @@ analog_velocity(
 
 A data.frame with one row per focal–analog pair, including:
 
-- `focal_index`, `analog_index`
+- `index`, `analog_index`
 
-- `focal_x`, `focal_y`, `analog_x`, `analog_y`
+- `x`, `y`, `analog_x`, `analog_y`
 
 - `clim_dist`, `geog_dist` (if `report_dist = TRUE`)
 

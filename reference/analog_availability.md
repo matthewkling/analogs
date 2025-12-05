@@ -102,8 +102,9 @@ analog_availability(
 
 ## Value
 
-A data.frame with columns: - focal_index - focal_x, focal_y - value (the
-count of analogs)
+A data.frame with columns: - index (the row number in the input \`x\`) -
+x, y (coordinates correspond to input \`x\`) - value (the count of
+analogs)
 
 ## Examples
 

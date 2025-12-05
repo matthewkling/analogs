@@ -51,7 +51,7 @@ based on specified criteria, then optionally aggregating the results.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  <span class="va">pool</span>,</span>
 <span>  select <span class="op">=</span> <span class="st">"all"</span>,</span>
-<span>  aggregate <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stat <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -94,8 +94,8 @@ One of:</p><ul><li><p><code>"all"</code> (default): Select all analogs that sati
 </ul></dd>
 
 
-<dt id="arg-aggregate">aggregate<a class="anchor" aria-label="anchor" href="#arg-aggregate"></a></dt>
-<dd><p>How to aggregate selected analogs. Either:</p><ul><li><p><code>NULL</code> or <code>"pairs"</code> (default): Return all selected
+<dt id="arg-stat">stat<a class="anchor" aria-label="anchor" href="#arg-stat"></a></dt>
+<dd><p>Statistic used to aggregate selected analogs. Either:</p><ul><li><p><code>NULL</code> or <code>"none"</code> (default): Return all selected
     analog pairs as a data.frame.</p></li>
 <li><p><code>"count"</code>: For each focal, count the number of selected analogs.</p></li>
 <li><p><code>"sum_weights"</code>: For each focal, sum the weights of selected
@@ -139,7 +139,7 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 
 <dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
 <dd><p>Weighting function for matches, used only when
-<code>aggregate</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
+<code>stat</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
 <li><p><code>"inverse_clim"</code>: Inverse climate distance,
     weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_geog"</code>: Inverse geographic distance,
@@ -154,13 +154,13 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 <li><p><code>"inverse_joint"</code>: Joint inverse distance,
     weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
     with epsilon values given by <code>theta</code> as a 2-element vector c(eps_clim, eps_geog).</p></li>
-</ul><p>For <code>aggregate</code> in <code>NULL</code>, <code>"pairs"</code>, or <code>"count"</code>,
+</ul><p>For <code>stat</code> in <code>NULL</code>, <code>"pairs"</code>, or <code>"count"</code>,
 <code>weight</code> must be <code>NULL</code>.</p></dd>
 
 
 <dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
 <dd><p>Optional numeric parameter used by weighting functions
-when <code>aggregate</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code> and
+when <code>stat</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code> and
 <code>weight</code> is not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
     added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
@@ -176,7 +176,7 @@ must be <code>NULL</code>.</p></dd>
 
 <dt id="arg-report-dist">report_dist<a class="anchor" aria-label="anchor" href="#arg-report-dist"></a></dt>
 <dd><p>Logical; if TRUE (default), include distance columns in
-output when <code>aggregate</code> is <code>NULL</code> or <code>"pairs"</code>. Set to FALSE
+output when <code>stat</code> is <code>NULL</code> or <code>"pairs"</code>. Set to FALSE
 for more compact output.</p></dd>
 
 
@@ -207,17 +207,17 @@ is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOption
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>The return value depends on the <code>aggregate</code> parameter:</p>
-<p>**For aggregate = NULL or "pairs"**:
-A data.frame with one row per focal-analog pair:</p><ul><li><p><code>focal_index</code>: Index of focal location (1-based).</p></li>
-<li><p><code>focal_x, focal_y</code>: Coordinates of focal location.</p></li>
+    <p>The return value depends on the <code>stat</code> parameter:</p>
+<p>**For stat = NULL or "pairs"**:
+A data.frame with one row per focal-analog pair:</p><ul><li><p><code>index</code>: Index of focal location (1-based).</p></li>
+<li><p><code>x, y</code>: Coordinates of focal location.</p></li>
 <li><p><code>analog_index</code>: Index of analog location in reference dataset (1-based).</p></li>
 <li><p><code>analog_x, analog_y</code>: Coordinates of analog location.</p></li>
 <li><p><code>clim_dist</code>: Climate distance (if <code>report_dist = TRUE</code>).</p></li>
 <li><p><code>geog_dist</code>: Geographic distance in km (if <code>report_dist = TRUE</code>).</p></li>
-</ul><p>**For aggregate = "sum_weights", "mean_weights", or "count"**:
-A data.frame with one row per focal location:</p><ul><li><p><code>focal_index</code>: Index of focal location (1-based).</p></li>
-<li><p><code>focal_x, focal_y</code>: Coordinates of focal location.</p></li>
+</ul><p>**For stat = "sum_weights", "mean_weights", or "count"**:
+A data.frame with one row per focal location:</p><ul><li><p><code>index</code>: Index of focal location (1-based).</p></li>
+<li><p><code>x, y</code>: Coordinates of focal location.</p></li>
 <li><p><code>value</code>: Aggregated value (count, sum of weights, or mean of weights).</p></li>
 </ul><p>All outputs include diagnostic attributes propagated from the C++ core.</p>
     </div>
@@ -238,14 +238,14 @@ distance) or projected coordinates (planar distance).</p>
 <span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"knn_geog"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Aggregated queries</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"all"</span>, aggregate <span class="op">=</span> <span class="st">"count"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"all"</span>, aggregate <span class="op">=</span> <span class="st">"mean_weights"</span>,</span></span>
+<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"all"</span>, stat <span class="op">=</span> <span class="st">"count"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"all"</span>, stat <span class="op">=</span> <span class="st">"mean_weights"</span>,</span></span>
 <span class="r-in"><span>              max_clim <span class="op">=</span> <span class="fl">0.5</span>, weight <span class="op">=</span> <span class="st">"gaussian_clim"</span>, theta <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># With pre-built index (for repeated queries)</span></span></span>
 <span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">ref</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal1</span>, pool <span class="op">=</span> <span class="va">index</span>, select <span class="op">=</span> <span class="st">"knn_geog"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal2</span>, pool <span class="op">=</span> <span class="va">index</span>, select <span class="op">=</span> <span class="st">"all"</span>, aggregate <span class="op">=</span> <span class="st">"count"</span>, max_clim <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal2</span>, pool <span class="op">=</span> <span class="va">index</span>, select <span class="op">=</span> <span class="st">"all"</span>, stat <span class="op">=</span> <span class="st">"count"</span>, max_clim <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
