@@ -3,7 +3,7 @@
 query_analog_index <- function(x,
                                index,
                                select,
-                               aggregate,
+                               stat,
                                max_clim,
                                max_geog,
                                x_cov,
@@ -23,9 +23,9 @@ query_analog_index <- function(x,
       .validate_analog_index(index, focal_mm, validate_ranges = FALSE)
 
       # Validate and normalize query parameters (including x_cov)
-      params <- .validate_query_params(select, aggregate, k, weight, theta, x_cov, focal_mm)
+      params <- .validate_query_params(select, stat, k, weight, theta, x_cov, focal_mm)
       select <- params$select
-      aggregate <- params$aggregate
+      stat <- params$stat
       k <- params$k
       weight <- params$weight
       theta <- params$theta
@@ -35,7 +35,7 @@ query_analog_index <- function(x,
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
       max_clim_val <- if (is.null(max_clim)) Inf else max_clim
 
-      # Map select/aggregate/weight for C++
+      # Map select/stat/weight for C++
       # Select codes: 0=knn_clim, 1=knn_geog, 2=all
       select_code <- switch(
             select,
@@ -46,15 +46,15 @@ query_analog_index <- function(x,
 
       # Aggregate codes: 0=pairs, 1=count, 2=sum_weights, 3=mean_weights
       aggregate_code <- switch(
-            aggregate,
+            stat,
             "pairs"        = 0L,
             "count"        = 1L,
             "sum_weights"  = 2L,
             "mean_weights" = 3L
       )
 
-      # Weight codes (only used when aggregate is sum_weights or mean_weights)
-      weight_code <- if (aggregate %in% c("sum_weights", "mean_weights")) {
+      # Weight codes (only used when stat is sum_weights or mean_weights)
+      weight_code <- if (stat %in% c("sum_weights", "mean_weights")) {
             switch(
                   weight,
                   "uniform"        = 1L,
@@ -108,7 +108,7 @@ query_analog_index <- function(x,
       cpp_attrs$class <- NULL
 
       # Post-process results based on aggregate type
-      if (aggregate == "pairs") {
+      if (stat == "pairs") {
             out <- .emit_pairs_cpp(
                   res,
                   focal_mm,
@@ -117,26 +117,27 @@ query_analog_index <- function(x,
                   geo_mode = index$coord_type,
                   x_cov = x_cov_mat
             )
+            names(out) <- gsub("focal_", "", names(out))
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
             attr(out, "select")    <- select
-            attr(out, "aggregate") <- aggregate
+            attr(out, "stat")      <- stat
             attr(out, "weight")    <- weight
             attr(out, "theta")     <- theta
             return(out)
       }
 
-      if (aggregate %in% c("sum_weights", "mean_weights", "count")) {
+      if (stat %in% c("sum_weights", "mean_weights", "count")) {
             values <- as.numeric(res)
             if (length(values) != nrow(focal_mm)) {
-                  stop("Internal error: aggregate result length does not match number of focals.")
+                  stop("Internal error: stat result length does not match number of focals.")
             }
 
             out <- data.frame(
-                  focal_index = seq_len(nrow(focal_mm)),
-                  focal_x     = focal_mm[, 1],
-                  focal_y     = focal_mm[, 2],
+                  index = seq_len(nrow(focal_mm)),
+                  x     = focal_mm[, 1],
+                  y     = focal_mm[, 2],
                   value       = values,
                   stringsAsFactors = FALSE
             )
@@ -145,7 +146,7 @@ query_analog_index <- function(x,
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
             attr(out, "select")    <- select
-            attr(out, "aggregate") <- aggregate
+            attr(out, "stat") <- stat
             attr(out, "weight")    <- weight
             attr(out, "theta")     <- theta
             return(out)

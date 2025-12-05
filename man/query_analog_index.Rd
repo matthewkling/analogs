@@ -8,7 +8,7 @@ query_analog_index(
   x,
   index,
   select,
-  aggregate,
+  stat,
   max_clim,
   max_geog,
   x_cov,

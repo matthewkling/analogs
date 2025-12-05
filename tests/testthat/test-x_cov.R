@@ -41,7 +41,7 @@ test_that("x_cov validation catches dimension mismatches", {
       # Wrong number of rows
       x_cov_bad_rows <- matrix(1.0, nrow = n_focal - 1, ncol = n_cov_cols)
       expect_error(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov_bad_rows, coord_type = "projected"),
             "must have same number of rows"
       )
@@ -49,7 +49,7 @@ test_that("x_cov validation catches dimension mismatches", {
       # Wrong number of columns
       x_cov_bad_cols <- matrix(1.0, nrow = n_focal, ncol = n_cov_cols + 1)
       expect_error(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov_bad_cols, coord_type = "projected"),
             "must have.*columns"
       )
@@ -71,7 +71,7 @@ test_that("x_cov validation catches non-finite values", {
       # Add NA
       x_cov[5, 2] <- NA
       expect_error(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov, coord_type = "projected"),
             "non-finite values"
       )
@@ -79,7 +79,7 @@ test_that("x_cov validation catches non-finite values", {
       # Add Inf
       x_cov[5, 2] <- Inf
       expect_error(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov, coord_type = "projected"),
             "non-finite values"
       )
@@ -100,7 +100,7 @@ test_that("x_cov validation catches non-positive-definite matrices", {
       x_cov <- matrix(c(1, 1, 2), nrow = n_focal, ncol = 3, byrow = TRUE)
 
       suppressWarnings(expect_warning(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov, coord_type = "projected"),
             "not positive definite"
       ))
@@ -145,8 +145,8 @@ test_that("x_cov with identity covariance matches Euclidean results", {
 
       # Analog indices should match (at least mostly)
       # Allow some minor differences due to numerical precision in ties
-      focal1_mahal <- result_mahal$analog_index[result_mahal$focal_index == 1]
-      focal1_eucl <- result_eucl$analog_index[result_eucl$focal_index == 1]
+      focal1_mahal <- result_mahal$analog_index[result_mahal$index == 1]
+      focal1_eucl <- result_eucl$analog_index[result_eucl$index == 1]
 
       # At least 2 out of 3 should match
       n_matches <- sum(focal1_mahal %in% focal1_eucl)
@@ -226,7 +226,7 @@ test_that("x_cov works correctly with knn_clim mode", {
 
       # Should return up to k matches per focal
       expect_true(nrow(result) <= n_focal * 5)
-      expect_true(all(c("focal_index", "analog_index", "clim_dist") %in% names(result)))
+      expect_true(all(c("index", "analog_index", "clim_dist") %in% names(result)))
 
       # All returned distances should be finite
       expect_true(all(is.finite(result$clim_dist)))
@@ -247,7 +247,7 @@ test_that("x_cov works correctly with count mode", {
       # Count analogs within thresholds
       result <- analog_search(
             d$focal, d$ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             max_geog = 2,
             x_cov = x_cov,
@@ -284,7 +284,7 @@ test_that("x_cov works with focal-specific covariance matrices", {
       # Should work without error
       result <- analog_search(
             d$focal, d$ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             x_cov = x_cov,
             coord_type = "projected",
@@ -328,7 +328,7 @@ test_that("x_cov works with analog_velocity wrapper", {
 
       expect_s3_class(result, "data.frame")
       expect_equal(nrow(result), n_focal)
-      expect_true(all(c("focal_index", "analog_index", "geog_dist") %in% names(result)))
+      expect_true(all(c("index", "analog_index", "geog_dist") %in% names(result)))
 })
 
 
@@ -407,7 +407,7 @@ test_that("x_cov works with single climate variable", {
       # Should work
       result <- analog_search(
             focal, ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             x_cov = x_cov,
             coord_type = "projected",
@@ -431,7 +431,7 @@ test_that("x_cov validation happens before expensive operations", {
 
       # Should fail quickly with clear error, not crash during C++ execution
       expect_error(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov_bad, coord_type = "projected"),
             "must have.*columns"
       )
@@ -489,7 +489,7 @@ test_that("x_cov error messages are informative", {
       # Wrong number of rows
       x_cov_wrong_rows <- matrix(1.0, nrow = 5, ncol = 3)
       err_msg <- tryCatch(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov_wrong_rows, coord_type = "projected"),
             error = function(e) e$message
       )
@@ -499,7 +499,7 @@ test_that("x_cov error messages are informative", {
       # Wrong number of columns
       x_cov_wrong_cols <- matrix(1.0, nrow = n_focal, ncol = 5)
       err_msg2 <- tryCatch(
-            analog_search(d$focal, d$ref, aggregate = "count", max_clim = 1,
+            analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          x_cov = x_cov_wrong_cols, coord_type = "projected"),
             error = function(e) e$message
       )
@@ -638,7 +638,7 @@ test_that("x_cov works with auto-tuning for large datasets", {
                            x_cov = x_cov)
 
       expect_equal(nrow(v), n_focal)
-      expect_true(all(c("focal_index", "analog_index") %in% names(v)))
+      expect_true(all(c("index", "analog_index") %in% names(v)))
 })
 
 
@@ -666,7 +666,7 @@ test_that("x_cov works correctly with 3 climate variables", {
                            x_cov = x_cov)
 
       expect_equal(nrow(v), n_focal)
-      expect_true(all(c("focal_index", "analog_index") %in% names(v)))
+      expect_true(all(c("index", "analog_index") %in% names(v)))
 })
 
 

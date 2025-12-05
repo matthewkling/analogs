@@ -15,7 +15,7 @@ test_that("analog_search uses build+query architecture correctly", {
 
       expect_s3_class(res1, "data.frame")
       expect_equal(nrow(res1), nrow(d$focal))
-      expect_true(all(c("focal_index", "analog_index", "geog_dist") %in% names(res1)))
+      expect_true(all(c("index", "analog_index", "geog_dist") %in% names(res1)))
 })
 
 
@@ -30,7 +30,7 @@ test_that("analog_search auto-tuning works with new architecture", {
       res <- analog_search(
             x = large_focal,
             pool = ref_data,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "projected",
             index_res = "auto"
@@ -51,7 +51,7 @@ test_that("analog_search with numeric index_res builds and queries correctly", {
             result <- analog_search(
                   x = d$focal,
                   pool = d$ref,
-                  aggregate = "count",
+                  stat = "count",
                   max_clim = 1,
                   coord_type = "projected",
                   index_res = res_val
@@ -92,7 +92,7 @@ test_that("analog_search raw data path matches index path results", {
 
       # Should get similar results (may differ slightly in edge cases)
       expect_equal(nrow(res_index), nrow(res_raw))
-      expect_equal(res_index$focal_index, res_raw$focal_index)
+      expect_equal(res_index$index, res_raw$index)
 
       # Analog indices should be highly correlated
       expect_true(cor(res_index$analog_index, res_raw$analog_index) > 0.95)
@@ -106,7 +106,7 @@ test_that("analog_search preserves diagnostic attributes", {
       res <- analog_search(
             x = d$focal,
             pool = d$ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "projected",
             index_res = 10
@@ -135,12 +135,12 @@ test_that("analog_search works for all modes with new architecture", {
       expect_true(nrow(i) <= nrow(d$focal) * 3)
 
       # count
-      c <- analog_search(d$focal, d$ref, agg = "count", max_clim = 1,
+      c <- analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
                          coord_type = "projected", index_res = 10)
       expect_equal(nrow(c), nrow(d$focal))
 
       # sum
-      s <- analog_search(d$focal, d$ref, agg = "sum", max_clim = 1,
+      s <- analog_search(d$focal, d$ref, stat = "sum", max_clim = 1,
                          weight = "uniform", coord_type = "projected", index_res = 10)
       expect_equal(nrow(s), nrow(d$focal))
 
@@ -199,7 +199,7 @@ test_that("analog_search dispatches correctly on analog_index", {
 
       # Results should be similar (may differ slightly due to floating point)
       expect_equal(nrow(res_index), nrow(res_raw))
-      expect_equal(res_index$focal_index, res_raw$focal_index)
+      expect_equal(res_index$index, res_raw$index)
 
       # Index-based should have similar analog indices (within reason)
       # Some tolerance since lattice queries can differ in edge cases
@@ -215,20 +215,20 @@ test_that("analog_search with index works for different modes", {
       # knn_geog
       v <- analog_search(d$focal, index, select = "knn_geog", max_clim = 1, k = 1)
       expect_equal(nrow(v), nrow(d$focal))
-      expect_true(all(c("focal_index", "analog_index", "geog_dist") %in% names(v)))
+      expect_true(all(c("index", "analog_index", "geog_dist") %in% names(v)))
 
       # knn_clim
       i <- analog_search(d$focal, index, select = "knn_clim", max_geog = 2, k = 3)
       expect_true(nrow(i) <= nrow(d$focal) * 3)
 
       # count
-      c <- analog_search(d$focal, index, aggregate = "count", max_clim = 1, max_geog = 2)
+      c <- analog_search(d$focal, index, stat = "count", max_clim = 1, max_geog = 2)
       expect_equal(nrow(c), nrow(d$focal))
       expect_true("value" %in% names(c))
       expect_true(all(c$value >= 0))
 
       # sum
-      s <- analog_search(d$focal, index, aggregate = "sum", max_clim = 1, max_geog = 2,
+      s <- analog_search(d$focal, index, stat = "sum", max_clim = 1, max_geog = 2,
                          weight = "uniform")
       expect_equal(nrow(s), nrow(d$focal))
 
@@ -246,7 +246,7 @@ test_that("analog_search with index validates inputs", {
       # Mismatched climate dimensions should error
       bad_focal <- matrix(rnorm(20 * 5), ncol = 5)  # 5 columns instead of 4
       expect_error(
-            analog_search(bad_focal, index, aggregate = "count"),
+            analog_search(bad_focal, index, stat = "count"),
             "has 5 columns but index expects 4"
       )
 })
@@ -280,26 +280,26 @@ test_that("analog_search index path handles all constraint combinations", {
       index <- build_analog_index(d$ref, coord_type = "projected", index_res = 8)
 
       # Only climate constraint
-      r1 <- analog_search(d$focal, index, aggregate = "count", max_clim = 1)
+      r1 <- analog_search(d$focal, index, stat = "count", max_clim = 1)
       expect_true(all(r1$value >= 0))
 
       # Only geographic constraint
-      r2 <- analog_search(d$focal, index, aggregate = "count", max_geog = 2)
+      r2 <- analog_search(d$focal, index, stat = "count", max_geog = 2)
       expect_true(all(r2$value >= 0))
 
       # Both constraints
-      r3 <- analog_search(d$focal, index, aggregate = "count", max_clim = 1, max_geog = 2)
+      r3 <- analog_search(d$focal, index, stat = "count", max_clim = 1, max_geog = 2)
       expect_true(all(r3$value >= 0))
       expect_true(all(r3$value <= r1$value))  # Combined should be subset
       expect_true(all(r3$value <= r2$value))
 
       # No constraints (should return all ref points as analogs)
-      r4 <- analog_search(d$focal, index, aggregate = "count")
+      r4 <- analog_search(d$focal, index, stat = "count")
       expect_true(all(r4$value > 0))
 })
 
 
-test_that("analog_search runs error-free with all valid select-aggregate-weight combinations", {
+test_that("analog_search runs error-free with all valid select-stat-weight combinations", {
 
       d <- sim_test_data()
 
@@ -319,7 +319,7 @@ test_that("analog_search runs error-free with all valid select-aggregate-weight 
 
                         expect_no_error(
                               analog_search(d$focal, d$ref,
-                                            select = s, aggregate = a, weight = w, theta = theta,
+                                            select = s, stat = a, weight = w, theta = theta,
                                             max_clim = 1, max_geog = 2)
                         )
                   }

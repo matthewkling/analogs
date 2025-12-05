@@ -8,20 +8,20 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates select/aggregate/k/weight/theta/x_cov combinations and normalizes values.
+#' Validates select/stat/k/weight/theta/x_cov combinations and normalizes values.
 #' Returns a list with normalized parameters.
 #'
 #' @keywords internal
-.validate_query_params <- function(select, aggregate, k, weight, theta, x_cov = NULL, focal_mm = NULL) {
+.validate_query_params <- function(select, stat, k, weight, theta, x_cov = NULL, focal_mm = NULL) {
 
       # Validate select
       select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
 
-      # Normalize aggregate (NULL becomes "pairs")
-      if (is.null(aggregate)) {
-            aggregate <- "pairs"
+      # Normalize stat (NULL becomes "pairs")
+      if (is.null(stat)) {
+            stat <- "pairs"
       } else {
-            aggregate <- match.arg(aggregate, c("pairs", "count", "sum_weights", "mean_weights"))
+            stat <- match.arg(stat, c("pairs", "count", "sum_weights", "mean_weights"))
       }
 
       # Validate and normalize weight
@@ -46,15 +46,15 @@
             }
       }
 
-      # Validate aggregate/weight/theta combinations
-      if (aggregate %in% c("sum_weights", "mean_weights")) {
+      # Validate stat/weight/theta combinations
+      if (stat %in% c("sum_weights", "mean_weights")) {
             # Weighted aggregation modes
             valid_weights <- c("uniform", "gaussian_clim", "gaussian_geog",
                                "gaussian_joint", "inverse_clim", "inverse_geog",
                                "inverse_joint")
             if (is.null(weight)) weight <- "uniform"
             if (!weight %in% valid_weights) {
-                  stop("For aggregate = '", aggregate, "', weight must be one of: ",
+                  stop("For stat = '", stat, "', weight must be one of: ",
                        paste(valid_weights, collapse = ", "))
             }
 
@@ -87,10 +87,10 @@
       } else {
             # Non-weighted aggregations (pairs, count)
             if (!is.null(weight)) {
-                  stop("For aggregate = '", aggregate, "', weight must be NULL.")
+                  stop("For stat = '", stat, "', weight must be NULL.")
             }
             if (!is.null(theta)) {
-                  stop("For aggregate = '", aggregate, "', theta must be NULL.")
+                  stop("For stat = '", stat, "', theta must be NULL.")
             }
       }
 
@@ -106,7 +106,7 @@
       # Return normalized parameters
       list(
             select = select,
-            aggregate = aggregate,
+            stat = stat,
             k = k,
             weight = weight,
             theta = theta,

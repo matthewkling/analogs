@@ -77,8 +77,8 @@ is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
 A data.frame with columns:
-  - focal_index
-  - focal_x, focal_y
+  - index (the row number in the input `x`)
+  - x, y (coordinates correspond to input `x`)
   - value (the count of analogs)
 }
 \description{

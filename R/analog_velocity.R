@@ -23,8 +23,8 @@
 #'
 #' @return A data.frame with one row per focal–analog pair, including:
 #'   \itemize{
-#'     \item \code{focal_index}, \code{analog_index}
-#'     \item \code{focal_x}, \code{focal_y}, \code{analog_x}, \code{analog_y}
+#'     \item \code{index}, \code{analog_index}
+#'     \item \code{x}, \code{y}, \code{analog_x}, \code{analog_y}
 #'     \item \code{clim_dist}, \code{geog_dist} (if \code{report_dist = TRUE})
 #'   }
 #' Diagnostic attributes (e.g., binning statistics) from the underlying spatial
@@ -72,7 +72,7 @@ analog_velocity <- function(
             x           = x,
             pool        = pool,
             select      = "knn_geog",
-            aggregate   = NULL,  # Returns pairs
+            stat       = NULL,  # Returns pairs
             max_clim    = max_clim,
             max_geog    = max_geog,
             x_cov       = x_cov,

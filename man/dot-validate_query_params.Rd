@@ -6,7 +6,7 @@
 \usage{
 .validate_query_params(
   select,
-  aggregate,
+  stat,
   k,
   weight,
   theta,
@@ -15,7 +15,7 @@
 )
 }
 \description{
-Validates select/aggregate/k/weight/theta/x_cov combinations and normalizes values.
+Validates select/stat/k/weight/theta/x_cov combinations and normalizes values.
 Returns a list with normalized parameters.
 }
 \keyword{internal}

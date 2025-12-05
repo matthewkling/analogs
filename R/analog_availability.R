@@ -7,8 +7,8 @@
 #' @inheritParams analog_search
 #'
 #' @return A data.frame with columns:
-#'   - focal_index
-#'   - focal_x, focal_y
+#'   - index (the row number in the input `x`)
+#'   - x, y (coordinates correspond to input `x`)
 #'   - value (the count of analogs)
 #'
 #' @examples
@@ -42,7 +42,7 @@ analog_availability <- function(
             x           = x,
             pool        = pool,
             select      = "all",
-            aggregate   = "count",
+            stat   = "count",
             max_clim    = max_clim,
             max_geog    = max_geog,
             k           = NULL,
@@ -50,7 +50,7 @@ analog_availability <- function(
             theta       = NULL,
             x_cov       = x_cov,
             coord_type  = coord_type,
-            report_dist = FALSE,  # no pair distances in aggregate mode
+            report_dist = FALSE,  # no pair distances in stat mode
             index_res   = index_res,
             n_threads   = n_threads
       )

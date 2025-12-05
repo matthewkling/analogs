@@ -9,8 +9,8 @@
 #'
 #' @return A data.frame with one row per focal location:
 #'   \itemize{
-#'     \item \code{focal_index}
-#'     \item \code{focal_x}, \code{focal_y}
+#'     \item \code{index}
+#'     \item \code{x}, \code{y}
 #'     \item \code{value}: weighted sum over all analogs
 #'   }
 #'
@@ -74,7 +74,7 @@ analog_intensity <- function(
             x           = x,
             pool        = pool,
             select      = "all",
-            aggregate   = "sum_weights",
+            stat        = "sum_weights",
             max_clim    = max_clim,
             max_geog    = max_geog,
             k           = NULL,

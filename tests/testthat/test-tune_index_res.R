@@ -40,7 +40,7 @@ test_that("tune_index_res works with different modes", {
       res2 <- tune_index_res(
             x = d$focal,
             pool = d$ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             max_geog = 2,
             coord_type = "projected",
@@ -53,7 +53,7 @@ test_that("tune_index_res works with different modes", {
       res3 <- tune_index_res(
             x = d$focal,
             pool = d$ref,
-            aggregate = "sum",
+            stat = "sum",
             max_clim = 1,
             max_geog = 2,
             weight = "uniform",
@@ -76,7 +76,7 @@ test_that("tune_index_res uses subsampling for large datasets", {
       res <- tune_index_res(
             x = large_focal,
             pool = ref_data,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "projected",
             verbose = FALSE
@@ -116,7 +116,7 @@ test_that("tune_index_res respects custom default_res", {
       res <- tune_index_res(
             x = d$focal,
             pool = d$ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "projected",
             default_res = 24L,
@@ -135,7 +135,7 @@ test_that("tune_index_res works with auto coord detection", {
       res_proj <- tune_index_res(
             x = d_proj$focal,
             pool = d_proj$ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "auto",
             verbose = FALSE
@@ -148,7 +148,7 @@ test_that("tune_index_res works with auto coord detection", {
       res_lonlat <- tune_index_res(
             x = d_lonlat$focal,
             pool = d_lonlat$ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "auto",
             verbose = FALSE
@@ -195,7 +195,7 @@ test_that("tune_index_res verbose output works", {
             tune_index_res(
                   x = large_focal,
                   pool = ref_data,
-                  aggregate = "count",
+                  stat = "count",
                   max_clim = 1,
                   coord_type = "projected",
                   verbose = TRUE
@@ -208,7 +208,7 @@ test_that("tune_index_res verbose output works", {
             tune_index_res(
                   x = large_focal,
                   pool = ref_data,
-                  aggregate = "count",
+                  stat = "count",
                   max_clim = 1,
                   coord_type = "projected",
                   verbose = FALSE
@@ -226,7 +226,7 @@ test_that("tune_index_res handles edge cases", {
       res <- tune_index_res(
             x = small_focal,
             pool = small_ref,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "projected",
             default_res = 12L,
@@ -249,7 +249,7 @@ test_that("tune_index_res works with all weight options", {
       res1 <- tune_index_res(
             x = large_focal,
             pool = ref_data,
-            aggregate = "sum",
+            stat = "sum",
             max_clim = 1,
             max_geog = 2,
             weight = "inverse_clim",
@@ -263,7 +263,7 @@ test_that("tune_index_res works with all weight options", {
       res2 <- tune_index_res(
             x = large_focal,
             pool = ref_data,
-            aggregate = "sum",
+            stat = "sum",
             max_clim = 1,
             max_geog = 2,
             weight = "inverse_geog",
@@ -292,7 +292,7 @@ test_that("tune_index_res works with lonlat coordinates", {
       res <- tune_index_res(
             x = large_focal,
             pool = ref_data,
-            aggregate = "count",
+            stat = "count",
             max_clim = 1,
             coord_type = "lonlat",
             verbose = FALSE

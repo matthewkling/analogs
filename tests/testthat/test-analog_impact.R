@@ -65,7 +65,7 @@ test_that("analog_impact works with x/pool parameter names", {
 
       expect_s3_class(i, "data.frame")
       expect_true(nrow(i) <= nrow(d$focal) * 3)
-      expect_true(all(c("focal_index", "analog_index", "clim_dist") %in% names(i)))
+      expect_true(all(c("index", "analog_index", "clim_dist") %in% names(i)))
 })
 
 
@@ -86,6 +86,6 @@ test_that("analog_impact works with analog_index", {
 
       expect_s3_class(i, "data.frame")
       expect_true(nrow(i) <= nrow(d$focal) * 3)
-      expect_true(all(c("focal_index", "analog_index", "clim_dist") %in% names(i)))
+      expect_true(all(c("index", "analog_index", "clim_dist") %in% names(i)))
 })
 

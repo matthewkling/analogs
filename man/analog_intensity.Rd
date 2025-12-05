@@ -49,7 +49,7 @@ kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
 if \code{coord_type = "projected"}.}
 
 \item{weight}{Weighting function for matches, used only when
-\code{aggregate} is \code{"sum_weights"} or \code{"mean_weights"}. One of:
+\code{stat} is \code{"sum_weights"} or \code{"mean_weights"}. One of:
 \itemize{
   \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
   \item \code{"inverse_clim"}: Inverse climate distance,
@@ -67,11 +67,11 @@ if \code{coord_type = "projected"}.}
     weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
     with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
 }
-For \code{aggregate} in \code{NULL}, \code{"pairs"}, or \code{"count"},
+For \code{stat} in \code{NULL}, \code{"pairs"}, or \code{"count"},
 \code{weight} must be \code{NULL}.}
 
 \item{theta}{Optional numeric parameter used by weighting functions
-when \code{aggregate} is \code{"sum_weights"} or \code{"mean_weights"} and
+when \code{stat} is \code{"sum_weights"} or \code{"mean_weights"} and
 \code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
 \itemize{
   \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
@@ -120,8 +120,8 @@ is used (see \code{RcppParallel::setThreadOptions}).}
 \value{
 A data.frame with one row per focal location:
   \itemize{
-    \item \code{focal_index}
-    \item \code{focal_x}, \code{focal_y}
+    \item \code{index}
+    \item \code{x}, \code{y}
     \item \code{value}: weighted sum over all analogs
   }
 }

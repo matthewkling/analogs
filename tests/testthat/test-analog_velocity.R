@@ -67,5 +67,5 @@ test_that("analog_velocity works with analog_index", {
 
       expect_s3_class(v, "data.frame")
       expect_equal(nrow(v), nrow(d$focal))
-      expect_true(all(c("focal_index", "analog_index", "geog_dist") %in% names(v)))
+      expect_true(all(c("index", "analog_index", "geog_dist") %in% names(v)))
 })

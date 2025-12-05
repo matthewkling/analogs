@@ -37,7 +37,7 @@
 #'   x = sample_sites,
 #'   pool = climate_data,
 #'   select = "knn_geog",
-#'   aggregate = NULL,
+#'   stat = NULL,
 #'   max_clim = 0.5,
 #'   k = 1
 #' )
@@ -51,7 +51,7 @@ tune_index_res <- function(x,
                            pool,
                            # mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
                            select = "all",
-                           aggregate = NULL,
+                           stat = NULL,
                            max_clim = NULL,
                            max_geog = NULL,
                            k = NULL,
@@ -77,9 +77,9 @@ tune_index_res <- function(x,
       # For x_cov validation, we'll need to format focal data first
       focal_mm <- .format_data(x)
 
-      params <- .validate_query_params(select, aggregate, k, weight, theta, x_cov, focal_mm)
+      params <- .validate_query_params(select, stat, k, weight, theta, x_cov, focal_mm)
       select <- params$select
-      aggregate <- params$aggregate
+      stat <- params$stat
       k <- params$k
       weight <- params$weight
       theta <- params$theta
@@ -127,7 +127,7 @@ tune_index_res <- function(x,
                         x = focal_mm_samp,
                         index = index,
                         select = select,
-                        aggregate = aggregate,
+                        stat = stat,
                         max_clim = max_clim,
                         max_geog = max_geog,
                         x_cov = x_cov_samp,
