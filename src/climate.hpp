@@ -14,9 +14,9 @@ enum class SelectCode : int {
             ALL      = 2
 };
 
-// Aggregation code enums (R->C++ mapping for aggregate parameter)
+// Aggregation code enums (R->C++ mapping for stat parameter)
 enum class AggregateCode : int {
-      PAIRS        = 0,
+      NONE         = 0,
             COUNT        = 1,
             SUM_WEIGHTS  = 2,
             MEAN_WEIGHTS = 3

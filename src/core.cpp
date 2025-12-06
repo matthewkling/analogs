@@ -184,7 +184,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             const NumericVector& max_clim,
                             double max_geog,
                             int select_code,
-                            int aggregate_code,
+                            const IntegerVector& aggregate_codes,
                             int weight_code,
                             const NumericVector& theta,
                             SEXP x_cov_sexp)
@@ -246,7 +246,21 @@ SEXP query_analog_index_cpp(SEXP index_list,
                   : max_geog;
 
       const SelectCode scode = static_cast<SelectCode>(select_code);
-      const AggregateCode acode = static_cast<AggregateCode>(aggregate_code);
+
+      // Parse aggregate_codes vector
+      const int n_stats = aggregate_codes.size();
+      if (n_stats == 0) {
+            stop("aggregate_codes must have at least one element");
+      }
+
+      std::vector<AggregateCode> acodes(n_stats);
+      for (int i = 0; i < n_stats; ++i) {
+            acodes[i] = static_cast<AggregateCode>(aggregate_codes[i]);
+      }
+
+      // Check for "none" (pairs mode)
+      const bool return_pairs = (n_stats == 1 && acodes[0] == AggregateCode::NONE);
+
       const WeightCode wcode = static_cast<WeightCode>(weight_code);
 
       // Pre-compute weight parameters for efficiency
@@ -299,8 +313,6 @@ SEXP query_analog_index_cpp(SEXP index_list,
       }
 
       // Execute query using workers
-      const bool return_pairs = (acode == AggregateCode::PAIRS);
-
       if (return_pairs) {
             const int k_knn = (scode == SelectCode::ALL ? 0 : k);
             std::vector< std::vector<int> > out_indices(n_focal);
@@ -372,8 +384,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
             return out;
       }
 
-      // Aggregate modes
-      std::vector<double> agg_vals(n_focal, NA_REAL);
+      // Aggregate modes - allocate flat vector for all stats
+      // Layout: [focal0_stat0, focal0_stat1, ..., focal1_stat0, focal1_stat1, ...]
+      std::vector<double> agg_vals(n_focal * n_stats, NA_REAL);
 
       AggWorker aworker(focal_mm,
                         ref_mm,
@@ -389,7 +402,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                         max_geog_chord,
                         max_clim_pervar_std,
                         scode,
-                        acode,
+                        acodes,
                         wcode,
                         weight_param1,
                         weight_param2,
@@ -400,15 +413,20 @@ SEXP query_analog_index_cpp(SEXP index_list,
                         x_cov_ptr,
                         x_cov_stride,
                         n_cov_components,
-                        agg_vals);
+                        agg_vals,
+                        n_stats);
 
       parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
 
-      NumericVector agg(n_focal);
+      // Convert flat vector to matrix: n_focal rows x n_stats columns
+      NumericMatrix agg(n_focal, n_stats);
       for (int i = 0; i < n_focal; ++i) {
-            agg[i] = agg_vals[i];
+            for (int s = 0; s < n_stats; ++s) {
+                  agg(i, s) = agg_vals[i * n_stats + s];
+            }
       }
 
+      // Add diagnostics as attributes
       agg.attr("n_focal") = n_focal;
       agg.attr("n_ref") = n_ref;
       agg.attr("n_clim") = n_clim;
@@ -437,5 +455,3 @@ SEXP query_analog_index_cpp(SEXP index_list,
 
       return agg;
 }
-
-

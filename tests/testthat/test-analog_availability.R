@@ -12,7 +12,7 @@ test_that("`analog_availability` result matches manual calculation for planar co
       dgeog <- xdist(d$focal, d$ref, "geog")
       avail <- as.vector(rowSums(dclim < max_clim & dgeog < max_geog))
 
-      expect_equal(nn$value, avail)
+      expect_equal(nn$count, avail)
 })
 
 
@@ -36,7 +36,7 @@ test_that("`analog_availability` result matches manual calculation for LON/LAT c
       dgeog <- xdist(d$focal, d$ref, "lonlat")
       avail <- as.vector(rowSums(dclim < max_clim & dgeog < max_geog))
 
-      expect_equal(nn$value, avail)
+      expect_equal(nn$count, avail)
 })
 
 
@@ -56,8 +56,8 @@ test_that("analog_availability works with x/pool parameter names", {
 
       expect_s3_class(a, "data.frame")
       expect_equal(nrow(a), nrow(d$focal))
-      expect_true("value" %in% names(a))
-      expect_true(all(is.numeric(a$value)))
+      expect_true("count" %in% names(a))
+      expect_true(all(is.numeric(a$count)))
 })
 
 
@@ -78,6 +78,6 @@ test_that("analog_availability works with analog_index", {
 
       expect_s3_class(a, "data.frame")
       expect_equal(nrow(a), nrow(d$focal))
-      expect_true("value" %in% names(a))
-      expect_true(all(is.numeric(a$value)))
+      expect_true("count" %in% names(a))
+      expect_true(all(is.numeric(a$count)))
 })

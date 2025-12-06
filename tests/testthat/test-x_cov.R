@@ -257,9 +257,9 @@ test_that("x_cov works correctly with count mode", {
 
       expect_s3_class(result, "data.frame")
       expect_equal(nrow(result), n_focal)
-      expect_true("value" %in% names(result))
-      expect_true(all(result$value >= 0))
-      expect_true(all(is.finite(result$value)))
+      expect_true("count" %in% names(result))
+      expect_true(all(result$count >= 0))
+      expect_true(all(is.finite(result$count)))
 })
 
 
@@ -295,8 +295,8 @@ test_that("x_cov works with focal-specific covariance matrices", {
 
       # Results should differ between the two groups
       # (different covariance → different distance metric → different counts)
-      counts_group1 <- result$value[1:half]
-      counts_group2 <- result$value[(half+1):n_focal]
+      counts_group1 <- result$count[1:half]
+      counts_group2 <- result$count[(half+1):n_focal]
 
       # At least some should differ (not guaranteed all will, but most should)
       n_different <- sum(counts_group1[1:min(5, half)] !=
@@ -415,7 +415,7 @@ test_that("x_cov works with single climate variable", {
       )
 
       expect_equal(nrow(result), n_focal)
-      expect_true("value" %in% names(result))
+      expect_true("count" %in% names(result))
 })
 
 
@@ -535,11 +535,11 @@ test_that("x_cov works with sum mode and weights", {
 
       # Should return same structure
       expect_equal(nrow(s1), nrow(s2))
-      expect_true("value" %in% names(s2))
-      expect_true(all(is.finite(s2$value)))
+      expect_true("sum_weights" %in% names(s2))
+      expect_true(all(is.finite(s2$sum_weights)))
 
       # Values should differ (different distance metric affects weights)
-      expect_false(all(abs(s1$value - s2$value) < 1e-10))
+      expect_false(all(abs(s1$sum_weights - s2$sum_weights) < 1e-10))
 })
 
 
@@ -606,8 +606,8 @@ test_that("x_cov affects which points pass max_clim threshold", {
 
       # High variance should result in more points passing the threshold
       # (because Mahalanobis distances are scaled down by sqrt(variance))
-      mean_count_std <- mean(a_std$value)
-      mean_count_high <- mean(a_high$value)
+      mean_count_std <- mean(a_std$count)
+      mean_count_high <- mean(a_high$count)
 
       expect_true(mean_count_high > mean_count_std)
 })
@@ -699,3 +699,4 @@ test_that("x_cov works with strongly correlated climate variables", {
 
       expect_false(length(v_uncorr$analog_index) == length(v_corr$analog_index))
 })
+

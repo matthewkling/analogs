@@ -35,7 +35,7 @@ query_analog_index <- function(x,
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
       max_clim_val <- if (is.null(max_clim)) Inf else max_clim
 
-      # Map select/stat/weight for C++
+      # Map select for C++
       # Select codes: 0=knn_clim, 1=knn_geog, 2=all
       select_code <- switch(
             select,
@@ -44,17 +44,20 @@ query_analog_index <- function(x,
             "all"      = 2L
       )
 
-      # Aggregate codes: 0=pairs, 1=count, 2=sum_weights, 3=mean_weights
-      aggregate_code <- switch(
-            stat,
-            "pairs"        = 0L,
+      # Map stat(s) for C++
+      # Aggregate codes: 0=none, 1=count, 2=sum_weights, 3=mean_weights
+      stat_name_to_code <- c(
+            "none"         = 0L,
             "count"        = 1L,
             "sum_weights"  = 2L,
             "mean_weights" = 3L
       )
+      aggregate_codes <- stat_name_to_code[stat]
+      names(aggregate_codes) <- NULL  # Remove names for C++
 
-      # Weight codes (only used when stat is sum_weights or mean_weights)
-      weight_code <- if (stat %in% c("sum_weights", "mean_weights")) {
+      # Weight code (only used when stat includes sum_weights or mean_weights)
+      has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights"))
+      weight_code <- if (has_weighted_stat) {
             switch(
                   weight,
                   "uniform"        = 1L,
@@ -87,7 +90,7 @@ query_analog_index <- function(x,
             RcppParallel::setThreadOptions(numThreads = as.integer(n_threads)[1L])
       }
 
-      # Call C++ query function with new parameter names
+      # Call C++ query function with vector of aggregate codes
       res <- query_analog_index_cpp(
             index_list = index,
             focal_mm = focal_mm,
@@ -96,7 +99,7 @@ query_analog_index <- function(x,
             max_clim = max_clim_val,
             max_geog = max_geog_num,
             select_code = select_code,
-            aggregate_code = aggregate_code,
+            aggregate_codes = aggregate_codes,
             weight_code = weight_code,
             theta = theta_vec,
             x_cov = x_cov_mat
@@ -106,9 +109,11 @@ query_analog_index <- function(x,
       cpp_attrs <- attributes(res)
       cpp_attrs$names <- NULL
       cpp_attrs$class <- NULL
+      cpp_attrs$dim <- NULL
+      cpp_attrs$dimnames <- NULL
 
       # Post-process results based on aggregate type
-      if (stat == "pairs") {
+      if (identical(stat, "none") || (length(stat) == 1 && stat[1] == "none")) {
             out <- .emit_pairs_cpp(
                   res,
                   focal_mm,
@@ -128,29 +133,41 @@ query_analog_index <- function(x,
             return(out)
       }
 
-      if (stat %in% c("sum_weights", "mean_weights", "count")) {
-            values <- as.numeric(res)
-            if (length(values) != nrow(focal_mm)) {
-                  stop("Internal error: stat result length does not match number of focals.")
-            }
-
-            out <- data.frame(
-                  index = seq_len(nrow(focal_mm)),
-                  x     = focal_mm[, 1],
-                  y     = focal_mm[, 2],
-                  value       = values,
-                  stringsAsFactors = FALSE
-            )
-
-            for (nm in names(cpp_attrs)) {
-                  attr(out, nm) <- cpp_attrs[[nm]]
-            }
-            attr(out, "select")    <- select
-            attr(out, "stat") <- stat
-            attr(out, "weight")    <- weight
-            attr(out, "theta")     <- theta
-            return(out)
+      # Aggregation mode(s)
+      # res is a matrix with n_focal rows and length(stat) columns
+      if (!is.matrix(res)) {
+            stop("Internal error: expected matrix result from C++ for aggregation stats")
       }
 
-      stop("Unreachable code - please report this bug")
+      if (nrow(res) != nrow(focal_mm)) {
+            stop("Internal error: stat result rows do not match number of focals.")
+      }
+
+      if (ncol(res) != length(stat)) {
+            stop("Internal error: stat result columns do not match number of stats.")
+      }
+
+      # Build output data.frame with named columns for each stat
+      out <- data.frame(
+            index = seq_len(nrow(focal_mm)),
+            x     = focal_mm[, 1],
+            y     = focal_mm[, 2],
+            stringsAsFactors = FALSE
+      )
+
+      # Add each stat as a named column
+      for (i in seq_along(stat)) {
+            out[[stat[i]]] <- res[, i]
+      }
+
+      # Add attributes
+      for (nm in names(cpp_attrs)) {
+            attr(out, nm) <- cpp_attrs[[nm]]
+      }
+      attr(out, "select")    <- select
+      attr(out, "stat")      <- stat
+      attr(out, "weight")    <- weight
+      attr(out, "theta")     <- theta
+
+      return(out)
 }

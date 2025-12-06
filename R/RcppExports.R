@@ -5,8 +5,8 @@ build_analog_index_cpp <- function(ref_mm, coord_type, index_res) {
     .Call(`_analogs_build_analog_index_cpp`, ref_mm, coord_type, index_res)
 }
 
-query_analog_index_cpp <- function(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_code, weight_code, theta, x_cov_sexp) {
-    .Call(`_analogs_query_analog_index_cpp`, index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_code, weight_code, theta, x_cov_sexp)
+query_analog_index_cpp <- function(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp) {
+    .Call(`_analogs_query_analog_index_cpp`, index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp)
 }
 
 .emit_pairs_cpp <- function(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov = NULL) {

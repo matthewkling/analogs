@@ -38,7 +38,7 @@ test_that("analog_search auto-tuning works with new architecture", {
 
       expect_s3_class(res, "data.frame")
       expect_equal(nrow(res), nrow(large_focal))
-      expect_true("value" %in% names(res))
+      expect_true("count" %in% names(res))
 })
 
 
@@ -140,7 +140,7 @@ test_that("analog_search works for all modes with new architecture", {
       expect_equal(nrow(c), nrow(d$focal))
 
       # sum
-      s <- analog_search(d$focal, d$ref, stat = "sum", max_clim = 1,
+      s <- analog_search(d$focal, d$ref, stat = "sum_weights", max_clim = 1,
                          weight = "uniform", coord_type = "projected", index_res = 10)
       expect_equal(nrow(s), nrow(d$focal))
 
@@ -224,11 +224,11 @@ test_that("analog_search with index works for different modes", {
       # count
       c <- analog_search(d$focal, index, stat = "count", max_clim = 1, max_geog = 2)
       expect_equal(nrow(c), nrow(d$focal))
-      expect_true("value" %in% names(c))
+      expect_true("count" %in% names(c))
       expect_true(all(c$value >= 0))
 
       # sum
-      s <- analog_search(d$focal, index, stat = "sum", max_clim = 1, max_geog = 2,
+      s <- analog_search(d$focal, index, stat = "sum_weights", max_clim = 1, max_geog = 2,
                          weight = "uniform")
       expect_equal(nrow(s), nrow(d$focal))
 
@@ -304,7 +304,7 @@ test_that("analog_search runs error-free with all valid select-stat-weight combi
       d <- sim_test_data()
 
       for(s in c("all", "knn_clim", "knn_geog")){
-            for(a in c("pairs", "count", "sum_weights", "mean_weights")){
+            for(a in c("none", "count", "sum_weights", "mean_weights")){
                   for(w in c("uniform",
                              "gaussian_clim", "gaussian_geog", "gaussian_joint",
                              "inverse_clim", "inverse_geog", "inverse_joint")){
@@ -312,7 +312,7 @@ test_that("analog_search runs error-free with all valid select-stat-weight combi
                         # avoid invalid combinations
                         theta <- if(grepl("joint", w)) c(1, 1) else 1
                         if(w == "uniform") theta <- NULL
-                        if(a %in% c("pairs", "count")){
+                        if(a %in% c("none", "count")){
                               theta <- NULL
                               w <- NULL
                         }
@@ -326,4 +326,25 @@ test_that("analog_search runs error-free with all valid select-stat-weight combi
             }
       }
 
+})
+
+
+test_that("analog_search handles multiple stats correctly", {
+
+      d <- sim_test_data(lonlat = TRUE)
+
+      stats <- c("count", "sum_weights", "mean_weights")
+
+      results <- analog_search(
+            x = d$focal,
+            pool = d$ref,
+            select = "all",
+            stat = stats,
+            max_clim = 0.5,
+            max_geog = 100,
+            weight = "gaussian_clim",
+            theta = 0.2
+      )
+
+      expect_equal(tail(colnames(results), 3), stats)
 })

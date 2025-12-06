@@ -344,6 +344,16 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
 
+      // Check if any stats need weights
+      bool need_weights = false;
+      for (size_t s = 0; s < acodes.size(); ++s) {
+            if (acodes[s] == AggregateCode::SUM_WEIGHTS ||
+                acodes[s] == AggregateCode::MEAN_WEIGHTS) {
+                  need_weights = true;
+                  break;
+            }
+      }
+
       // Pre-compute inverse covariance matrices if using Mahalanobis
       std::vector< std::vector<double> > inv_cov_matrices;
       if (use_mahalanobis) {
@@ -431,8 +441,8 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   }
             }
 
-            // Aggregate over candidates
-            double acc = 0.0;
+            // Initialize accumulators for all stats
+            std::vector<double> accumulators(n_stats, 0.0);
             int count = 0;
 
             double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
@@ -446,6 +456,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   inv_cov_ptr = &inv_cov_matrices[i - begin];
             }
 
+            // Iterate over candidates once
             for (size_t t = 0; t < cand.size(); ++t) {
                   const index_t j = cand[t];
                   const double rx = ref_ptr[j];
@@ -453,7 +464,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                   // Geog distance & filter
                   double gdist = 0.0;
-                  if (use_geog_filter || wcode != WeightCode::NONE) {
+                  if (use_geog_filter || need_weights) {
                         if (use_ecef) {
                               const double rx_ecef = ref_latt_ptr[j];
                               const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
@@ -476,8 +487,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                   if (use_mahalanobis) {
                         // Use Mahalanobis distance
-                        const bool need_dist = (wcode != WeightCode::NONE &&
-                                                wcode != WeightCode::UNIFORM);
+                        const bool need_dist = need_weights;
                         auto okd = mahalanobis_ok_and_dist(
                               f_clim_col, r_clim_col,
                               *inv_cov_ptr,
@@ -500,20 +510,38 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                   if (!ok) continue;
 
-                  // Compute weight
-                  const double w = weight_from_codes(wcode, clim_dist, gdist,
-                                                     weight_param1, weight_param2);
-                  acc += w;
+                  // Analog passed all filters - compute weight if needed
+                  const double w = need_weights
+                  ? weight_from_codes(wcode, clim_dist, gdist, weight_param1, weight_param2)
+                        : 1.0;
+
                   count++;
+
+                  // Update accumulators for each requested stat
+                  for (int s = 0; s < n_stats; ++s) {
+                        if (acodes[s] == AggregateCode::COUNT) {
+                              // Count incremented separately below
+                        } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
+                              accumulators[s] += w;
+                        } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
+                              accumulators[s] += w;
+                        }
+                  }
             }
 
-            // Store result
-            if (acode == AggregateCode::COUNT) {
-                  agg[i] = static_cast<double>(count);
-            } else if (acode == AggregateCode::SUM_WEIGHTS) {
-                  agg[i] = acc;
-            } else { // MEAN_WEIGHTS
-                  agg[i] = (count > 0) ? (acc / count) : NA_REAL;
+            // Finalize and store results
+            for (int s = 0; s < n_stats; ++s) {
+                  double result = NA_REAL;
+
+                  if (acodes[s] == AggregateCode::COUNT) {
+                        result = static_cast<double>(count);
+                  } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
+                        result = accumulators[s];
+                  } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
+                        result = (count > 0) ? (accumulators[s] / count) : NA_REAL;
+                  }
+
+                  agg[i * n_stats + s] = result;
             }
       }
 }

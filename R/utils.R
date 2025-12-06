@@ -17,11 +17,24 @@
       # Validate select
       select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
 
-      # Normalize stat (NULL becomes "pairs")
+      # Normalize stat (NULL becomes "none")
       if (is.null(stat)) {
-            stat <- "pairs"
+            stat <- "none"
+      } else if (is.character(stat)) {
+            # Validate each stat value
+            valid_stats <- c("none", "count", "sum_weights", "mean_weights")
+            invalid <- setdiff(stat, valid_stats)
+            if (length(invalid) > 0) {
+                  stop("Invalid stat value(s): ", paste(invalid, collapse = ", "),
+                       ". Must be one of: ", paste(valid_stats, collapse = ", "))
+            }
+
+            # Check that "none" is not combined with others
+            if ("none" %in% stat && length(stat) > 1) {
+                  stop('stat = "none" cannot be combined with other aggregations')
+            }
       } else {
-            stat <- match.arg(stat, c("pairs", "count", "sum_weights", "mean_weights"))
+            stop("stat must be NULL or a character vector")
       }
 
       # Validate and normalize weight
@@ -47,14 +60,19 @@
       }
 
       # Validate stat/weight/theta combinations
-      if (stat %in% c("sum_weights", "mean_weights")) {
-            # Weighted aggregation modes
+      has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights"))
+
+      if (has_weighted_stat) {
+            # Weighted aggregation modes require weight
             valid_weights <- c("uniform", "gaussian_clim", "gaussian_geog",
                                "gaussian_joint", "inverse_clim", "inverse_geog",
                                "inverse_joint")
-            if (is.null(weight)) weight <- "uniform"
+            if (is.null(weight)) {
+                  stop("For stat including 'sum_weights' or 'mean_weights', weight must be specified. ",
+                       "Valid options: ", paste(valid_weights, collapse = ", "))
+            }
             if (!weight %in% valid_weights) {
-                  stop("For stat = '", stat, "', weight must be one of: ",
+                  stop("For stat including 'sum_weights' or 'mean_weights', weight must be one of: ",
                        paste(valid_weights, collapse = ", "))
             }
 
@@ -85,12 +103,12 @@
             }
 
       } else {
-            # Non-weighted aggregations (pairs, count)
+            # Non-weighted aggregations (none, count)
             if (!is.null(weight)) {
-                  stop("For stat = '", stat, "', weight must be NULL.")
+                  stop("For stat = ", paste(stat, collapse = ", "), ", weight must be NULL.")
             }
             if (!is.null(theta)) {
-                  stop("For stat = '", stat, "', theta must be NULL.")
+                  stop("For stat = ", paste(stat, collapse = ", "), ", theta must be NULL.")
             }
       }
 

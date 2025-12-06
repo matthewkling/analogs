@@ -34,15 +34,16 @@
 #'       with smallest geographic distance, subject to filters.
 #'   }
 #'
-#' @param stat Statistic used to aggregate selected analogs. Either:
+#' @param stat Statistic(s) used to aggregate selected analogs. Either:
 #'   \itemize{
-#'     \item \code{NULL} or \code{"none"} (default): Return all selected
-#'       analog pairs as a data.frame.
+#'     \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
 #'     \item \code{"count"}: For each focal, count the number of selected analogs.
 #'     \item \code{"sum_weights"}: For each focal, sum the weights of selected
 #'       analogs (see \code{weight} and \code{theta}).
 #'     \item \code{"mean_weights"}: For each focal, mean of weights of selected
 #'       analogs.
+#'     \item A character vector combining multiple stats (e.g., \code{c("count", "sum_weights")}).
+#'       Note: \code{"none"} cannot be combined with other stats.
 #'   }
 #'
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
@@ -73,7 +74,7 @@
 #'   \code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.
 #'
 #' @param weight Weighting function for matches, used only when
-#'   \code{stat} is \code{"sum_weights"} or \code{"mean_weights"}. One of:
+#'   \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"}. One of:
 #'   \itemize{
 #'     \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
 #'     \item \code{"inverse_clim"}: Inverse climate distance,
@@ -91,11 +92,10 @@
 #'       weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
 #'       with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
 #'   }
-#'   For \code{stat} in \code{NULL}, \code{"pairs"}, or \code{"count"},
-#'   \code{weight} must be \code{NULL}.
+#'   For \code{stat} not including weighted aggregations, \code{weight} must be \code{NULL}.
 #'
 #' @param theta Optional numeric parameter used by weighting functions
-#'   when \code{stat} is \code{"sum_weights"} or \code{"mean_weights"} and
+#'   when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
 #'   \code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
 #'   \itemize{
 #'     \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
@@ -112,7 +112,7 @@
 #'   must be \code{NULL}.
 #'
 #' @param report_dist Logical; if TRUE (default), include distance columns in
-#'   output when \code{stat} is \code{NULL} or \code{"pairs"}. Set to FALSE
+#'   output when \code{stat} is \code{NULL} or \code{"none"}. Set to FALSE
 #'   for more compact output.
 #'
 #' @param coord_type Coordinate system type (default: "auto"):
@@ -142,7 +142,7 @@
 #' @return
 #' The return value depends on the \code{stat} parameter:
 #'
-#' **For stat = NULL or "pairs"**:
+#' **For stat = NULL or "none"**:
 #' A data.frame with one row per focal-analog pair:
 #' \itemize{
 #'   \item \code{index}: Index of focal location (1-based).
@@ -153,12 +153,12 @@
 #'   \item \code{geog_dist}: Geographic distance in km (if \code{report_dist = TRUE}).
 #' }
 #'
-#' **For stat = "sum_weights", "mean_weights", or "count"**:
+#' **For stat = single aggregation or vector of aggregations**:
 #' A data.frame with one row per focal location:
 #' \itemize{
 #'   \item \code{index}: Index of focal location (1-based).
 #'   \item \code{x, y}: Coordinates of focal location.
-#'   \item \code{value}: Aggregated value (count, sum of weights, or mean of weights).
+#'   \item One column per requested stat: \code{count}, \code{sum_weights}, and/or \code{mean_weights}.
 #' }
 #'
 #' All outputs include diagnostic attributes propagated from the C++ core.
@@ -169,9 +169,12 @@
 #' analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
 #' analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
 #'
-#' # Aggregated queries
+#' # Single aggregation
 #' analog_search(x = focal, pool = ref, select = "all", stat = "count", max_clim = 0.5)
-#' analog_search(x = focal, pool = ref, select = "all", stat = "mean_weights",
+#'
+#' # Multiple aggregations in one pass
+#' analog_search(x = focal, pool = ref, select = "all",
+#'               stat = c("count", "sum_weights", "mean_weights"),
 #'               max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
 #'
 #' # With pre-built index (for repeated queries)

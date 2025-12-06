@@ -72,7 +72,7 @@ analog_velocity <- function(
             x           = x,
             pool        = pool,
             select      = "knn_geog",
-            stat       = NULL,  # Returns pairs
+            stat        = "none",  # Returns pairs
             max_clim    = max_clim,
             max_geog    = max_geog,
             x_cov       = x_cov,

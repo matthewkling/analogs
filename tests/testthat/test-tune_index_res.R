@@ -53,7 +53,7 @@ test_that("tune_index_res works with different modes", {
       res3 <- tune_index_res(
             x = d$focal,
             pool = d$ref,
-            stat = "sum",
+            stat = "sum_weights",
             max_clim = 1,
             max_geog = 2,
             weight = "uniform",
@@ -249,7 +249,7 @@ test_that("tune_index_res works with all weight options", {
       res1 <- tune_index_res(
             x = large_focal,
             pool = ref_data,
-            stat = "sum",
+            stat = "sum_weights",
             max_clim = 1,
             max_geog = 2,
             weight = "inverse_clim",
@@ -263,7 +263,7 @@ test_that("tune_index_res works with all weight options", {
       res2 <- tune_index_res(
             x = large_focal,
             pool = ref_data,
-            stat = "sum",
+            stat = "sum_weights",
             max_clim = 1,
             max_geog = 2,
             weight = "inverse_geog",

@@ -67,7 +67,7 @@ first (diagonals), then covariances (upper triangle by row).}
 }}
 
 \item{report_dist}{Logical; if TRUE (default), include distance columns in
-output when \code{stat} is \code{NULL} or \code{"pairs"}. Set to FALSE
+output when \code{stat} is \code{NULL} or \code{"none"}. Set to FALSE
 for more compact output.}
 
 \item{index_res}{Tuning parameter giving the number of bins per dimension

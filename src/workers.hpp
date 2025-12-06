@@ -137,8 +137,8 @@ struct PairWorker : public Worker {
 
 
 // -------------------------------------------------------------------------
-// Worker for aggregate modes: COUNT / SUM / MEAN
-// Writes into agg[i] the scalar aggregate for focal i.
+// Worker for aggregate modes: COUNT / SUM / MEAN (potentially multiple)
+// Writes into agg[i * n_stats + s] the scalar aggregate for focal i, stat s.
 // -------------------------------------------------------------------------
 struct AggWorker : public Worker {
       const double* focal_ptr;
@@ -163,9 +163,9 @@ struct AggWorker : public Worker {
       double max_geog_chord;        // chord threshold for ECEF
       std::vector<double> max_clim_pervar;
 
-      SelectCode scode;     // Selection strategy
-      AggregateCode acode;  // Which aggregation to perform
-      WeightCode wcode;     // Weight function (for sum/mean)
+      SelectCode scode;             // Selection strategy
+      std::vector<AggregateCode> acodes;  // Which aggregations to perform
+      WeightCode wcode;             // Weight function (for sum/mean)
       double weight_param1;         // Pre-computed weight parameter 1
       double weight_param2;         // Pre-computed weight parameter 2
 
@@ -178,7 +178,8 @@ struct AggWorker : public Worker {
       int x_cov_stride;                               // stride for x_cov
       int n_cov_components;                           // n_clim * (n_clim + 1) / 2
 
-      std::vector<double>& agg; // output
+      std::vector<double>& agg; // flat output: size = n_focal * n_stats
+      int n_stats;              // number of stats to compute
 
       // Thread-local storage for reusable allocations
       struct ThreadLocalStorage {
@@ -209,7 +210,7 @@ struct AggWorker : public Worker {
                 double max_geog_chord_,
                 const std::vector<double>& max_clim_pervar_,
                 SelectCode scode_,
-                AggregateCode acode_,
+                const std::vector<AggregateCode>& acodes_,
                 WeightCode wcode_,
                 double weight_param1_,
                 double weight_param2_,
@@ -220,7 +221,8 @@ struct AggWorker : public Worker {
                 const double* x_cov_ptr_,
                 int x_cov_stride_,
                 int n_cov_components_,
-                std::vector<double>& agg_)
+                std::vector<double>& agg_,
+                int n_stats_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
               ref_latt_ptr(ref_latt_ptr_),
@@ -241,7 +243,7 @@ struct AggWorker : public Worker {
               max_geog_chord(max_geog_chord_),
               max_clim_pervar(max_clim_pervar_),
               scode(scode_),
-              acode(acode_),
+              acodes(acodes_),
               wcode(wcode_),
               weight_param1(weight_param1_),
               weight_param2(weight_param2_),
@@ -251,7 +253,8 @@ struct AggWorker : public Worker {
               x_cov_ptr(x_cov_ptr_),
               x_cov_stride(x_cov_stride_),
               n_cov_components(n_cov_components_),
-              agg(agg_)
+              agg(agg_),
+              n_stats(n_stats_)
       {}
 
       void operator()(std::size_t begin, std::size_t end);

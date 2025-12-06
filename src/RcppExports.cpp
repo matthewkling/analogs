@@ -24,8 +24,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, int aggregate_code, int weight_code, const NumericVector& theta, SEXP x_cov_sexp);
-RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codeSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP) {
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, const IntegerVector& aggregate_codes, int weight_code, const NumericVector& theta, SEXP x_cov_sexp);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -36,11 +36,11 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
     Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
     Rcpp::traits::input_parameter< int >::type select_code(select_codeSEXP);
-    Rcpp::traits::input_parameter< int >::type aggregate_code(aggregate_codeSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type aggregate_codes(aggregate_codesSEXP);
     Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
     Rcpp::traits::input_parameter< SEXP >::type x_cov_sexp(x_cov_sexpSEXP);
-    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_code, weight_code, theta, x_cov_sexp));
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp));
     return rcpp_result_gen;
 END_RCPP
 }

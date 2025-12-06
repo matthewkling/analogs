@@ -45,15 +45,16 @@ One of:
     with smallest geographic distance, subject to filters.
 }}
 
-\item{stat}{Statistic used to aggregate selected analogs. Either:
+\item{stat}{Statistic(s) used to aggregate selected analogs. Either:
 \itemize{
-  \item \code{NULL} or \code{"none"} (default): Return all selected
-    analog pairs as a data.frame.
+  \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
   \item \code{"count"}: For each focal, count the number of selected analogs.
   \item \code{"sum_weights"}: For each focal, sum the weights of selected
     analogs (see \code{weight} and \code{theta}).
   \item \code{"mean_weights"}: For each focal, mean of weights of selected
     analogs.
+  \item A character vector combining multiple stats (e.g., \code{c("count", "sum_weights")}).
+    Note: \code{"none"} cannot be combined with other stats.
 }}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
@@ -78,7 +79,7 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 \code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.}
 
 \item{weight}{Weighting function for matches, used only when
-\code{stat} is \code{"sum_weights"} or \code{"mean_weights"}. One of:
+\code{stat} includes \code{"sum_weights"} or \code{"mean_weights"}. One of:
 \itemize{
   \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
   \item \code{"inverse_clim"}: Inverse climate distance,
@@ -96,11 +97,10 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
     weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
     with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
 }
-For \code{stat} in \code{NULL}, \code{"pairs"}, or \code{"count"},
-\code{weight} must be \code{NULL}.}
+For \code{stat} not including weighted aggregations, \code{weight} must be \code{NULL}.}
 
 \item{theta}{Optional numeric parameter used by weighting functions
-when \code{stat} is \code{"sum_weights"} or \code{"mean_weights"} and
+when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
 \code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
 \itemize{
   \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value

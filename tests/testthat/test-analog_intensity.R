@@ -15,7 +15,7 @@ test_that("`analog_intensity` result matches manual calculation", {
       dclim[dgeog > max_geog] <- Inf
       intens <- as.vector(rowSums(1 / dclim))
 
-      expect_equal(nn$value, intens)
+      expect_equal(nn$sum_weights, intens)
 })
 
 test_that("analog_intensity works with x/pool parameter names", {
@@ -35,8 +35,8 @@ test_that("analog_intensity works with x/pool parameter names", {
 
       expect_s3_class(i, "data.frame")
       expect_equal(nrow(i), nrow(d$focal))
-      expect_true("value" %in% names(i))
-      expect_true(all(is.numeric(i$value)))
+      expect_true("sum_weights" %in% names(i))
+      expect_true(all(is.numeric(i$sum_weights)))
 })
 
 
@@ -58,8 +58,8 @@ test_that("analog_intensity works with analog_index", {
 
       expect_s3_class(i, "data.frame")
       expect_equal(nrow(i), nrow(d$focal))
-      expect_true("value" %in% names(i))
-      expect_true(all(is.numeric(i$value)))
+      expect_true("sum_weights" %in% names(i))
+      expect_true(all(is.numeric(i$sum_weights)))
 })
 
 test_that("gaussian_clim weight works", {
@@ -78,8 +78,8 @@ test_that("gaussian_clim weight works", {
 
       expect_s3_class(result, "data.frame")
       expect_equal(nrow(result), nrow(d$focal))
-      expect_true(all(is.finite(result$value)))
-      expect_true(all(result$value >= 0))  # Gaussian weights are always positive
+      expect_true(all(is.finite(result$sum_weights)))
+      expect_true(all(result$sum_weights >= 0))  # Gaussian weights are always positive
 })
 
 
@@ -99,8 +99,8 @@ test_that("gaussian_geog weight works", {
 
       expect_s3_class(result, "data.frame")
       expect_equal(nrow(result), nrow(d$focal))
-      expect_true(all(is.finite(result$value)))
-      expect_true(all(result$value >= 0))
+      expect_true(all(is.finite(result$sum_weights)))
+      expect_true(all(result$sum_weights >= 0))
 })
 
 
@@ -120,8 +120,8 @@ test_that("gaussian_joint weight works", {
 
       expect_s3_class(result, "data.frame")
       expect_equal(nrow(result), nrow(d$focal))
-      expect_true(all(is.finite(result$value)))
-      expect_true(all(result$value >= 0))
+      expect_true(all(is.finite(result$sum_weights)))
+      expect_true(all(result$sum_weights >= 0))
 })
 
 
@@ -141,8 +141,8 @@ test_that("inverse_joint weight works", {
 
       expect_s3_class(result, "data.frame")
       expect_equal(nrow(result), nrow(d$focal))
-      expect_true(all(is.finite(result$value)))
-      expect_true(all(result$value > 0))
+      expect_true(all(is.finite(result$sum_weights)))
+      expect_true(all(result$sum_weights > 0))
 })
 
 
@@ -171,7 +171,7 @@ test_that("gaussian weights respect theta parameter", {
 
       # Larger bandwidth should generally give larger sums (less decay)
       # Though this isn't guaranteed for every focal point
-      mean_ratio <- mean(r2$value / r1$value, na.rm = TRUE)
+      mean_ratio <- mean(r2$sum_weights / r1$sum_weights, na.rm = TRUE)
       expect_true(mean_ratio > 1.0)
 })
 
@@ -239,7 +239,7 @@ test_that("new weights work with analog_index", {
             weight = "gaussian_clim",
             theta = 0.5
       )
-      expect_true(all(is.finite(r1$value)))
+      expect_true(all(is.finite(r1$sum_weights)))
 
       r2 <- analog_intensity(
             d$focal, index,
@@ -248,7 +248,7 @@ test_that("new weights work with analog_index", {
             weight = "gaussian_geog",
             theta = 0.5
       )
-      expect_true(all(is.finite(r2$value)))
+      expect_true(all(is.finite(r2$sum_weights)))
 
       r3 <- analog_intensity(
             d$focal, index,
@@ -257,7 +257,7 @@ test_that("new weights work with analog_index", {
             weight = "gaussian_joint",
             theta = c(0.5, 1.0)
       )
-      expect_true(all(is.finite(r3$value)))
+      expect_true(all(is.finite(r3$sum_weights)))
 
       r4 <- analog_intensity(
             d$focal, index,
@@ -266,7 +266,7 @@ test_that("new weights work with analog_index", {
             weight = "inverse_joint",
             theta = c(1e-6, 1e-3)
       )
-      expect_true(all(is.finite(r4$value)))
+      expect_true(all(is.finite(r4$sum_weights)))
 })
 
 
@@ -294,7 +294,7 @@ test_that("gaussian and inverse weights produce different results", {
       )
 
       # Results should differ (different functional forms)
-      expect_false(all(abs(r_gauss$value - r_inv$value) < 1e-10))
+      expect_false(all(abs(r_gauss$sum_weights - r_inv$sum_weights) < 1e-10))
 })
 
 
@@ -322,5 +322,5 @@ test_that("joint weights combine both dimensions appropriately", {
       )
 
       # Results should generally differ since joint considers both dimensions
-      expect_false(all(abs(r_joint$value - r_clim_only$value) < 1e-10))
+      expect_false(all(abs(r_joint$sum_weights - r_clim_only$sum_weights) < 1e-10))
 })
