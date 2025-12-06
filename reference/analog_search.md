@@ -61,9 +61,9 @@ analog_search(
 
 - stat:
 
-  Statistic used to aggregate selected analogs. Either:
+  Statistic(s) used to aggregate selected analogs. Either:
 
-  - `NULL` or `"none"` (default): Return all selected analog pairs as a
+  - `NULL` or `"none"`: Return all selected analog pairs as a
     data.frame.
 
   - `"count"`: For each focal, count the number of selected analogs.
@@ -73,6 +73,10 @@ analog_search(
 
   - `"mean_weights"`: For each focal, mean of weights of selected
     analogs.
+
+  - A character vector combining multiple stats (e.g.,
+    `c("count", "sum_weights")`). Note: `"none"` cannot be combined with
+    other stats.
 
 - max_clim:
 
@@ -112,7 +116,7 @@ analog_search(
 
 - weight:
 
-  Weighting function for matches, used only when `stat` is
+  Weighting function for matches, used only when `stat` includes
   `"sum_weights"` or `"mean_weights"`. One of:
 
   - `"uniform"`: All matches weighted equally (weight = 1.0).
@@ -141,14 +145,14 @@ analog_search(
     eps_geog)^2), with epsilon values given by `theta` as a 2-element
     vector c(eps_clim, eps_geog).
 
-  For `stat` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
+  For `stat` not including weighted aggregations, `weight` must be
   `NULL`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `stat` is
-  `"sum_weights"` or `"mean_weights"` and `weight` is not `"uniform"`.
-  Interpretation depends on `weight`:
+  Optional numeric parameter used by weighting functions when `stat`
+  includes `"sum_weights"` or `"mean_weights"` and `weight` is not
+  `"uniform"`. Interpretation depends on `weight`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -169,7 +173,7 @@ analog_search(
 - report_dist:
 
   Logical; if TRUE (default), include distance columns in output when
-  `stat` is `NULL` or `"pairs"`. Set to FALSE for more compact output.
+  `stat` is `NULL` or `"none"`. Set to FALSE for more compact output.
 
 - coord_type:
 
@@ -207,7 +211,7 @@ analog_search(
 
 The return value depends on the `stat` parameter:
 
-\*\*For stat = NULL or "pairs"\*\*: A data.frame with one row per
+\*\*For stat = NULL or "none"\*\*: A data.frame with one row per
 focal-analog pair:
 
 - `index`: Index of focal location (1-based).
@@ -223,14 +227,15 @@ focal-analog pair:
 
 - `geog_dist`: Geographic distance in km (if `report_dist = TRUE`).
 
-\*\*For stat = "sum_weights", "mean_weights", or "count"\*\*: A
+\*\*For stat = single aggregation or vector of aggregations\*\*: A
 data.frame with one row per focal location:
 
 - `index`: Index of focal location (1-based).
 
 - `x, y`: Coordinates of focal location.
 
-- `value`: Aggregated value (count, sum of weights, or mean of weights).
+- One column per requested stat: `count`, `sum_weights`, and/or
+  `mean_weights`.
 
 All outputs include diagnostic attributes propagated from the C++ core.
 
@@ -251,9 +256,12 @@ if (FALSE) { # \dontrun{
 analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
 analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
 
-# Aggregated queries
+# Single aggregation
 analog_search(x = focal, pool = ref, select = "all", stat = "count", max_clim = 0.5)
-analog_search(x = focal, pool = ref, select = "all", stat = "mean_weights",
+
+# Multiple aggregations in one pass
+analog_search(x = focal, pool = ref, select = "all",
+              stat = c("count", "sum_weights", "mean_weights"),
               max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
 
 # With pre-built index (for repeated queries)

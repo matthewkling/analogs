@@ -66,7 +66,7 @@ analog_intensity(
 
 - weight:
 
-  Weighting function for matches, used only when `stat` is
+  Weighting function for matches, used only when `stat` includes
   `"sum_weights"` or `"mean_weights"`. One of:
 
   - `"uniform"`: All matches weighted equally (weight = 1.0).
@@ -95,14 +95,14 @@ analog_intensity(
     eps_geog)^2), with epsilon values given by `theta` as a 2-element
     vector c(eps_clim, eps_geog).
 
-  For `stat` in `NULL`, `"pairs"`, or `"count"`, `weight` must be
+  For `stat` not including weighted aggregations, `weight` must be
   `NULL`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `stat` is
-  `"sum_weights"` or `"mean_weights"` and `weight` is not `"uniform"`.
-  Interpretation depends on `weight`:
+  Optional numeric parameter used by weighting functions when `stat`
+  includes `"sum_weights"` or `"mean_weights"` and `weight` is not
+  `"uniform"`. Interpretation depends on `weight`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).

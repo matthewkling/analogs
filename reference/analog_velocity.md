@@ -95,7 +95,7 @@ analog_velocity(
 - report_dist:
 
   Logical; if TRUE (default), include distance columns in output when
-  `stat` is `NULL` or `"pairs"`. Set to FALSE for more compact output.
+  `stat` is `NULL` or `"none"`. Set to FALSE for more compact output.
 
 - index_res:
 

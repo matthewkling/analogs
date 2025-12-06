@@ -100,7 +100,7 @@ if <code>coord_type = "projected"</code>.</p></dd>
 
 <dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
 <dd><p>Weighting function for matches, used only when
-<code>stat</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
+<code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
 <li><p><code>"inverse_clim"</code>: Inverse climate distance,
     weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_geog"</code>: Inverse geographic distance,
@@ -115,13 +115,12 @@ if <code>coord_type = "projected"</code>.</p></dd>
 <li><p><code>"inverse_joint"</code>: Joint inverse distance,
     weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
     with epsilon values given by <code>theta</code> as a 2-element vector c(eps_clim, eps_geog).</p></li>
-</ul><p>For <code>stat</code> in <code>NULL</code>, <code>"pairs"</code>, or <code>"count"</code>,
-<code>weight</code> must be <code>NULL</code>.</p></dd>
+</ul><p>For <code>stat</code> not including weighted aggregations, <code>weight</code> must be <code>NULL</code>.</p></dd>
 
 
 <dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
 <dd><p>Optional numeric parameter used by weighting functions
-when <code>stat</code> is <code>"sum_weights"</code> or <code>"mean_weights"</code> and
+when <code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weights"</code> and
 <code>weight</code> is not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
     added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
