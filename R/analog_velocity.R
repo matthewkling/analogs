@@ -25,7 +25,7 @@
 #'   \itemize{
 #'     \item \code{index}, \code{analog_index}
 #'     \item \code{x}, \code{y}, \code{analog_x}, \code{analog_y}
-#'     \item \code{clim_dist}, \code{geog_dist} (if \code{report_dist = TRUE})
+#'     \item \code{clim_dist}, \code{geog_dist}
 #'   }
 #' Diagnostic attributes (e.g., binning statistics) from the underlying spatial
 #' index are preserved.
@@ -59,12 +59,14 @@
 analog_velocity <- function(
             x,
             pool,
-            max_clim,
-            k = 1,
-            max_geog = NULL,
             x_cov = NULL,
+            values = NULL,
             coord_type = "auto",
-            report_dist = TRUE,
+
+            max_clim,
+            max_geog = NULL,
+            k = 1,
+
             index_res = "auto",
             n_threads = NULL
 ) {
@@ -76,11 +78,11 @@ analog_velocity <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             x_cov       = x_cov,
+            values = values,
             k           = k,
             weight      = NULL,
             theta       = NULL,
             coord_type  = coord_type,
-            report_dist = report_dist,
             index_res   = index_res,
             n_threads   = n_threads
       )

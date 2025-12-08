@@ -31,10 +31,13 @@
 analog_availability <- function(
             x,
             pool,
+            x_cov = NULL,
+            values = NULL,
+            coord_type = "auto",
+
             max_clim = NULL,
             max_geog = NULL,
-            x_cov = NULL,
-            coord_type = "auto",
+
             index_res = "auto",
             n_threads = NULL
 ) {
@@ -49,8 +52,8 @@ analog_availability <- function(
             weight      = NULL,
             theta       = NULL,
             x_cov       = x_cov,
+            values = values,
             coord_type  = coord_type,
-            report_dist = FALSE,  # no pair distances in stat mode
             index_res   = index_res,
             n_threads   = n_threads
       )

@@ -7,10 +7,11 @@
 analog_availability(
   x,
   pool,
+  x_cov = NULL,
+  values = NULL,
+  coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
-  x_cov = NULL,
-  coord_type = "auto",
   index_res = "auto",
   n_threads = NULL
 )
@@ -22,18 +23,53 @@ SpatRaster with climate variable layers.}
 
 \item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-  \item Matrix/data.frame with columns x, y, and climate variables,
-    or SpatRaster with climate variable layers, OR
-  \item An \code{\link{analog_index}} object created by
-    \code{\link{build_analog_index}} (for repeated queries).
+\item Matrix/data.frame with columns x, y, and climate variables,
+or SpatRaster with climate variable layers, OR
+\item An \code{\link[=analog_index]{analog_index()}} object created by
+\code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
+}}
+
+\item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
+distance calculations. Should be a matrix or data.frame with one row per
+focal location and one column per unique covariance component. For n climate
+variables, there are n*(n+1)/2 unique components, ordered as: variances
+first (diagonals), then covariances (upper triangle by row).}
+
+\item{values}{Optional user-defined variables for each reference location to
+aggregate across selected analogs. Can be:
+\itemize{
+\item A numeric vector (single variable)
+\item A matrix or data.frame with numeric columns (multiple variables)
+}
+Must have exactly \code{nrow(pool)} rows (or number of reference locations
+if pool is an index). Each row corresponds to a reference location.
+
+When provided, enables value-based aggregation stats:
+\itemize{
+\item \code{"sum"}: Sum of values across analogs
+\item \code{"mean"}: Mean of values across analogs
+\item \code{"weighted_sum"}: Sum of (value × weight) - requires \code{weight}
+\item \code{"weighted_mean"}: Sum of (value × weight) / sum of weights - requires \code{weight}
+}
+
+For stat = NULL/"none" (pairs mode), value columns are included in output
+for each analog pair.}
+
+\item{coord_type}{Coordinate system type (default: "auto"):
+\itemize{
+\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+assumes \code{max_geog} is in km).
+\item \code{"projected"}: Projected XY coordinates (uses planar distance;
+assumes \code{max_geog} is in projection units).
 }}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
 \itemize{
-  \item A scalar: Euclidean radius in climate space (e.g., 0.5)
-  \item A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
+\item A scalar: Euclidean radius in climate space (e.g., 0.5)
+\item A vector: Per-variable absolute differences (length must equal
+number of climate variables)
 }
 Only reference locations within this climate distance are considered.
 When \code{x_cov} is provided, scalar thresholds are interpreted in
@@ -45,29 +81,14 @@ within this distance are considered. Radius units should be specified in
 kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
 if \code{coord_type = "projected"}.}
 
-\item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
-distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component. For n climate
-variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row).}
-
-\item{coord_type}{Coordinate system type (default: "auto"):
-\itemize{
-  \item \code{"auto"}: Automatically detect from coordinate ranges.
-  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-    assumes \code{max_geog} is in km).
-  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
-    assumes \code{max_geog} is in projection units).
-}}
-
 \item{index_res}{Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:
 \itemize{
-  \item A positive integer.
-  \item \code{"auto"} (the default): Automatically tune the index resolution
-    by optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution of
-    16 is used.
+\item A positive integer.
+\item \code{"auto"} (the default): Automatically tune the index resolution
+by optimizing compute time on a subsample of focal points. If focal has
+relatively few rows, auto-tuning is skipped and a default resolution of
+16 is used.
 }
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
@@ -77,9 +98,11 @@ is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
 A data.frame with columns:
-  - index (the row number in the input `x`)
-  - x, y (coordinates correspond to input `x`)
-  - value (the count of analogs)
+\itemize{
+\item index (the row number in the input \code{x})
+\item x, y (coordinates correspond to input \code{x})
+\item value (the count of analogs)
+}
 }
 \description{
 Computes, for each focal location, how many reference locations satisfy

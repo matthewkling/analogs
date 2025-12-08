@@ -26,7 +26,7 @@
 #'   \itemize{
 #'     \item \code{index}, \code{analog_index}
 #'     \item \code{x}, \code{y}, \code{analog_x}, \code{analog_y}
-#'     \item \code{clim_dist}, \code{geog_dist} (if \code{report_dist = TRUE})
+#'     \item \code{clim_dist}, \code{geog_dist}
 #'   }
 #' Diagnostic attributes from the underlying spatial index are preserved.
 #'
@@ -50,12 +50,14 @@
 analog_impact <- function(
             x,
             pool,
-            max_geog,
             x_cov = NULL,
-            k = 20,
-            max_clim = NULL,
+            values = NULL,
             coord_type = "auto",
-            report_dist = TRUE,
+
+            max_geog,
+            max_clim = NULL,
+            k = 20,
+
             index_res = "auto",
             n_threads = NULL
 ) {
@@ -67,11 +69,11 @@ analog_impact <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             x_cov       = x_cov,
+            values = values,
             k           = k,
             weight      = NULL,
             theta       = NULL,
             coord_type  = coord_type,
-            report_dist = report_dist,
             index_res   = index_res,
             n_threads   = n_threads
       )

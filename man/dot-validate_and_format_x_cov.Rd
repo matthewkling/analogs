@@ -4,7 +4,7 @@
 \alias{.validate_and_format_x_cov}
 \title{Validate and format x_cov parameter}
 \usage{
-.validate_and_format_x_cov(x_cov, focal_mm)
+.validate_and_format_x_cov(x_cov, focal)
 }
 \description{
 Validate and format x_cov parameter

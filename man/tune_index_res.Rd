@@ -15,6 +15,7 @@ tune_index_res(
   weight = NULL,
   theta = NULL,
   x_cov = NULL,
+  values = NULL,
   coord_type = c("auto", "lonlat", "projected"),
   n_threads = NULL,
   default_res = 16L,
@@ -28,41 +29,48 @@ SpatRaster with climate variable layers.}
 
 \item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-  \item Matrix/data.frame with columns x, y, and climate variables,
-    or SpatRaster with climate variable layers, OR
-  \item An \code{\link{analog_index}} object created by
-    \code{\link{build_analog_index}} (for repeated queries).
+\item Matrix/data.frame with columns x, y, and climate variables,
+or SpatRaster with climate variable layers, OR
+\item An \code{\link[=analog_index]{analog_index()}} object created by
+\code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
 \item{select}{Character string specifying the analog selection strategy.
 One of:
 \itemize{
-  \item \code{"all"} (default): Select all analogs that satisfy the
-    \code{max_clim} and \code{max_geog} constraints.
-  \item \code{"knn_clim"}: For each focal, select up to \code{k} analogs
-    with smallest climate distance, subject to filters.
-  \item \code{"knn_geog"}: For each focal, select up to \code{k} analogs
-    with smallest geographic distance, subject to filters.
+\item \code{"all"} (default): Select all analogs that satisfy the
+\code{max_clim} and \code{max_geog} constraints.
+\item \code{"knn_clim"}: For each focal, select up to \code{k} analogs
+with smallest climate distance, subject to filters.
+\item \code{"knn_geog"}: For each focal, select up to \code{k} analogs
+with smallest geographic distance, subject to filters.
 }}
 
 \item{stat}{Statistic(s) used to aggregate selected analogs. Either:
 \itemize{
-  \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
-  \item \code{"count"}: For each focal, count the number of selected analogs.
-  \item \code{"sum_weights"}: For each focal, sum the weights of selected
-    analogs (see \code{weight} and \code{theta}).
-  \item \code{"mean_weights"}: For each focal, mean of weights of selected
-    analogs.
-  \item A character vector combining multiple stats (e.g., \code{c("count", "sum_weights")}).
-    Note: \code{"none"} cannot be combined with other stats.
+\item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
+\item \code{"count"}: For each focal, count the number of selected analogs.
+\item \code{"sum_weights"}: For each focal, sum the weights of selected
+analogs (see \code{weight} and \code{theta}).
+\item \code{"mean_weights"}: For each focal, mean of weights of selected
+analogs.
+\item \code{"sum"}: Sum of values across analogs (requires \code{values}).
+\item \code{"mean"}: Mean of values across analogs (requires \code{values}).
+\item \code{"weighted_sum"}: Sum of (value × weight) across analogs
+(requires \code{values} and \code{weight}).
+\item \code{"weighted_mean"}: Weighted mean of values across analogs
+(requires \code{values} and \code{weight}).
+\item A character vector combining multiple stats (e.g.,
+\code{c("count", "sum", "mean")}).
+Note: \code{"none"} cannot be combined with other stats.
 }}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
 \itemize{
-  \item A scalar: Euclidean radius in climate space (e.g., 0.5)
-  \item A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
+\item A scalar: Euclidean radius in climate space (e.g., 0.5)
+\item A vector: Per-variable absolute differences (length must equal
+number of climate variables)
 }
 Only reference locations within this climate distance are considered.
 When \code{x_cov} is provided, scalar thresholds are interpreted in
@@ -81,21 +89,21 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 \item{weight}{Weighting function for matches, used only when
 \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"}. One of:
 \itemize{
-  \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
-  \item \code{"inverse_clim"}: Inverse climate distance,
-    weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
-  \item \code{"inverse_geog"}: Inverse geographic distance,
-    weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
-  \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-    weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
-  \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-    weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
-  \item \code{"gaussian_joint"}: Joint Gaussian kernel,
-    weight = exp(-climate_distance^2/(2*sigma_c^2) - geographic_distance^2/(2*sigma_g^2)),
-    with sigma values given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
-  \item \code{"inverse_joint"}: Joint inverse distance,
-    weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
-    with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
+\item \code{"uniform"}: All matches weighted equally (weight = 1.0).
+\item \code{"inverse_clim"}: Inverse climate distance,
+weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
+\item \code{"inverse_geog"}: Inverse geographic distance,
+weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
+\item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
+weight = exp(-climate_distance^2 / (2\emph{sigma^2)), with sigma given by \code{theta}.
+\item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
+weight = exp(-geographic_distance^2 / (2}sigma^2)), with sigma given by \code{theta}.
+\item \code{"gaussian_joint"}: Joint Gaussian kernel,
+weight = exp(-climate_distance^2/(2\emph{sigma_c^2) - geographic_distance^2/(2}sigma_g^2)),
+with sigma values given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
+\item \code{"inverse_joint"}: Joint inverse distance,
+weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
+with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
 }
 For \code{stat} not including weighted aggregations, \code{weight} must be \code{NULL}.}
 
@@ -103,14 +111,14 @@ For \code{stat} not including weighted aggregations, \code{weight} must be \code
 when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
 \code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
 \itemize{
-  \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
-    added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-  \item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
-    parameter (scalar; larger values = slower decay with distance).
-  \item For \code{"gaussian_joint"}: 2-element vector c(sigma_clim, sigma_geog)
-    giving bandwidths for climate and geographic dimensions.
-  \item For \code{"inverse_joint"}: 2-element vector c(eps_clim, eps_geog)
-    giving epsilon values for climate and geographic dimensions.
+\item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
+added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
+\item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
+parameter (scalar; larger values = slower decay with distance).
+\item For \code{"gaussian_joint"}: 2-element vector c(sigma_clim, sigma_geog)
+giving bandwidths for climate and geographic dimensions.
+\item For \code{"inverse_joint"}: 2-element vector c(eps_clim, eps_geog)
+giving epsilon values for climate and geographic dimensions.
 }
 If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
 weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
@@ -122,13 +130,33 @@ focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
 first (diagonals), then covariances (upper triangle by row).}
 
+\item{values}{Optional user-defined variables for each reference location to
+aggregate across selected analogs. Can be:
+\itemize{
+\item A numeric vector (single variable)
+\item A matrix or data.frame with numeric columns (multiple variables)
+}
+Must have exactly \code{nrow(pool)} rows (or number of reference locations
+if pool is an index). Each row corresponds to a reference location.
+
+When provided, enables value-based aggregation stats:
+\itemize{
+\item \code{"sum"}: Sum of values across analogs
+\item \code{"mean"}: Mean of values across analogs
+\item \code{"weighted_sum"}: Sum of (value × weight) - requires \code{weight}
+\item \code{"weighted_mean"}: Sum of (value × weight) / sum of weights - requires \code{weight}
+}
+
+For stat = NULL/"none" (pairs mode), value columns are included in output
+for each analog pair.}
+
 \item{coord_type}{Coordinate system type (default: "auto"):
 \itemize{
-  \item \code{"auto"}: Automatically detect from coordinate ranges.
-  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-    assumes \code{max_geog} is in km).
-  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
-    assumes \code{max_geog} is in projection units).
+\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+assumes \code{max_geog} is in km).
+\item \code{"projected"}: Projected XY coordinates (uses planar distance;
+assumes \code{max_geog} is in projection units).
 }}
 
 \item{n_threads}{Optional integer number of threads to use for the
@@ -151,10 +179,10 @@ different resolutions and recommends the one with the fastest compute speed.
 \details{
 The function uses an adaptive bracketing algorithm:
 \enumerate{
-  \item Starts with three resolutions: default/2, default, default*2
-  \item Evaluates elapsed time for each
-  \item If minimum is at an edge, expands search in that direction
-  \item Returns resolution with lowest elapsed time
+\item Starts with three resolutions: default/2, default, default*2
+\item Evaluates elapsed time for each
+\item If minimum is at an edge, expands search in that direction
+\item Returns resolution with lowest elapsed time
 }
 
 This typically requires only 3-5 query evaluations total, making it much

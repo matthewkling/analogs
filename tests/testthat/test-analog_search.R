@@ -348,3 +348,35 @@ test_that("analog_search handles multiple stats correctly", {
 
       expect_equal(tail(colnames(results), 3), stats)
 })
+
+test_that("analog_search handles user-supplied values correctly", {
+
+      d <- sim_test_data(lonlat = TRUE)
+
+      values <- matrix(runif(nrow(d$ref)*2), ncol = 2)
+      vars <- c("var1", "var2")
+      colnames(values) <- vars
+
+      stats <- c("count", "sum", "weighted_mean")
+
+      results <- analog_search(
+            x = d$focal,
+            pool = d$ref,
+            select = "all",
+            stat = stats,
+            values = values,
+            max_clim = NULL,
+            max_geog = NULL,
+            weight = "gaussian_clim",
+            theta = 0.2
+      )
+
+      # result should contain the correct columns
+      expect_true(all(c("count", "sum_var1", "sum_var2", "weighted_mean_var1", "weighted_mean_var2")
+                      %in% names(results)))
+
+      # with both filters NULL, all focals should match global for sums
+      expect_true(all(results$sum_var1 == sum(values[,"var1"])))
+
+})
+

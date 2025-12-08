@@ -13,40 +13,40 @@ build_analog_index(
 \arguments{
 \item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-  \item Matrix/data.frame with columns x, y, and climate variables,
-    or SpatRaster with climate variable layers, OR
-  \item An \code{\link{analog_index}} object created by
-    \code{\link{build_analog_index}} (for repeated queries).
+\item Matrix/data.frame with columns x, y, and climate variables,
+or SpatRaster with climate variable layers, OR
+\item An \code{\link[=analog_index]{analog_index()}} object created by
+\code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
 \item{coord_type}{Coordinate system type (default: "auto"):
 \itemize{
-  \item \code{"auto"}: Automatically detect from coordinate ranges.
-  \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-    assumes \code{max_geog} is in km).
-  \item \code{"projected"}: Projected XY coordinates (uses planar distance;
-    assumes \code{max_geog} is in projection units).
+\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+assumes \code{max_geog} is in km).
+\item \code{"projected"}: Projected XY coordinates (uses planar distance;
+assumes \code{max_geog} is in projection units).
 }}
 
 \item{index_res}{Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:
 \itemize{
-  \item A positive integer.
-  \item \code{"auto"} (the default): Automatically tune the index resolution
-    by optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution of
-    16 is used.
+\item A positive integer.
+\item \code{"auto"} (the default): Automatically tune the index resolution
+by optimizing compute time on a subsample of focal points. If focal has
+relatively few rows, auto-tuning is skipped and a default resolution of
+16 is used.
 }
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 }
 \value{
 An S3 object of class \code{"analog_index"} containing:
-  \itemize{
-    \item The compiled lattice index (internal C++ structure)
-    \item Reference data
-    \item Metadata: coordinate type, dimensions, ranges, resolution
-    \item Diagnostics: bin counts and occupancy statistics
-  }
+\itemize{
+\item The compiled lattice index (internal C++ structure)
+\item Reference data
+\item Metadata: coordinate type, dimensions, ranges, resolution
+\item Diagnostics: bin counts and occupancy statistics
+}
 }
 \description{
 Pre-builds a reusable lattice index from reference climate data. The index

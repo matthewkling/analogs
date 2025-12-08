@@ -2,14 +2,32 @@
 #'
 #' Identifies locations in a reference dataset that are climatically similar to
 #' focal locations, with optional constraints on climate distance and geographic
-#' distance. This function uses a two-stage approach: first selecting analogs
+#' distance. Analog searches use a two-stage approach: first selecting analogs
 #' based on specified criteria, then optionally aggregating the results.
+#'
+#' Parameters fall into four categories:
+#' \itemize{
+#'     \item *Data parameters*
+#'       (`x`, `pool`, `x_cov`, `values`, `coord_type`)
+#'       give attributes of the data on which to operate.
+#'     \item *Selection parameters*
+#'       (`select`, `max_clim`, `max_geog`, `k`)
+#'       define which analogs to `select` from the `pool` for each `x`.
+#'     \item *Aggregation parameters*
+#'       (`stat`, `weight`, `theta`)
+#'       control how selected analogs are summarized.
+#'     \item *Computation parameters*
+#'       (`index_res`, `n_threads`)
+#'       specify internal behavior affecting compute performance.
+#' }
 #'
 #' The function uses a spatial indexing structure (lattice-based) to quickly
 #' search through large reference datasets. Climate similarity is measured
-#' using Euclidean distance in climate space (ideally pre-whitened; see Details).
+#' using Euclidean distance in climate space (ideally pre-whitened).
 #' Geographic distance can be computed for lon/lat coordinates (great-circle
 #' distance) or projected coordinates (planar distance).
+#'
+#'
 #'
 #' @param x Focal locations for which analogs will be found. Should be a
 #'   matrix/data.frame with columns x, y, and climate variables, or a
@@ -19,32 +37,46 @@
 #'   \itemize{
 #'     \item Matrix/data.frame with columns x, y, and climate variables,
 #'       or SpatRaster with climate variable layers, OR
-#'     \item An \code{\link{analog_index}} object created by
-#'       \code{\link{build_analog_index}} (for repeated queries).
+#'     \item An [analog_index()] object created by
+#'       [build_analog_index()] (for repeated queries).
 #'   }
 #'
-#' @param select Character string specifying the analog selection strategy.
-#'   One of:
+#' @param x_cov Optional focal-specific covariance matrices for Mahalanobis
+#'   distance calculations. Should be a matrix or data.frame with one row per
+#'   focal location and one column per unique covariance component. For n climate
+#'   variables, there are n*(n+1)/2 unique components, ordered as: variances
+#'   first (diagonals), then covariances (upper triangle by row).
+#'
+#' @param values Optional user-defined variables for each reference location to
+#'   aggregate across selected analogs. Can be:
 #'   \itemize{
-#'     \item \code{"all"} (default): Select all analogs that satisfy the
-#'       \code{max_clim} and \code{max_geog} constraints.
-#'     \item \code{"knn_clim"}: For each focal, select up to \code{k} analogs
-#'       with smallest climate distance, subject to filters.
-#'     \item \code{"knn_geog"}: For each focal, select up to \code{k} analogs
-#'       with smallest geographic distance, subject to filters.
+#'     \item A numeric vector (single variable)
+#'     \item A matrix or data.frame with numeric columns (multiple variables)
+#'   }
+#'   Must have exactly `nrow(pool)` rows (or number of reference locations
+#'   if pool is an index). Each row corresponds to a reference location.
+#'
+#'   When provided, enables value-based aggregation stats:
+#'   \itemize{
+#'     \item `"sum"`: Sum of values across analogs
+#'     \item `"mean"`: Mean of values across analogs
+#'     \item `"weighted_sum"`: Sum of (value × weight) - requires `weight`
+#'     \item `"weighted_mean"`: Sum of (value × weight) / sum of weights - requires `weight`
 #'   }
 #'
-#' @param stat Statistic(s) used to aggregate selected analogs. Either:
+#'   For stat = NULL/"none" (pairs mode), value columns are included in output
+#'   for each analog pair.
+#'
+#' @param coord_type Coordinate system type (default: "auto"):
 #'   \itemize{
-#'     \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
-#'     \item \code{"count"}: For each focal, count the number of selected analogs.
-#'     \item \code{"sum_weights"}: For each focal, sum the weights of selected
-#'       analogs (see \code{weight} and \code{theta}).
-#'     \item \code{"mean_weights"}: For each focal, mean of weights of selected
-#'       analogs.
-#'     \item A character vector combining multiple stats (e.g., \code{c("count", "sum_weights")}).
-#'       Note: \code{"none"} cannot be combined with other stats.
+#'     \item \code{"auto"}: Automatically detect from coordinate ranges.
+#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+#'       assumes \code{max_geog} is in km).
+#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance;
+#'       assumes \code{max_geog} is in projection units).
 #'   }
+#'
+#'
 #'
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
 #'   climate constraint). Can be either:
@@ -63,15 +95,42 @@
 #'   kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
 #'   if \code{coord_type = "projected"}.
 #'
-#' @param x_cov Optional focal-specific covariance matrices for Mahalanobis
-#'   distance calculations. Should be a matrix or data.frame with one row per
-#'   focal location and one column per unique covariance component. For n climate
-#'   variables, there are n*(n+1)/2 unique components, ordered as: variances
-#'   first (diagonals), then covariances (upper triangle by row).
+#' @param select Character string specifying the analog selection strategy.
+#'   One of:
+#'   \itemize{
+#'     \item `"all"` (default): Select all analogs that satisfy the
+#'       `max_clim` and `max_geog` constraints.
+#'     \item `"knn_clim"`: For each focal, select up to `k` analogs
+#'       with smallest climate distance, subject to filters.
+#'     \item `"knn_geog"`: For each focal, select up to `k` analogs
+#'       with smallest geographic distance, subject to filters.
+#'   }
 #'
 #' @param k Number of nearest analogs to return per focal location for kNN
 #'   selection modes. Required when \code{select} is \code{"knn_geog"} or
 #'   \code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.
+#'
+#'
+#'
+#'
+#' @param stat Statistic(s) used to aggregate selected analogs. Either:
+#'   \itemize{
+#'     \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
+#'     \item \code{"count"}: For each focal, count the number of selected analogs.
+#'     \item \code{"sum_weights"}: For each focal, sum the weights of selected
+#'       analogs (see \code{weight} and \code{theta}).
+#'     \item \code{"mean_weights"}: For each focal, mean of weights of selected
+#'       analogs.
+#'     \item \code{"sum"}: Sum of values across analogs (requires \code{values}).
+#'     \item \code{"mean"}: Mean of values across analogs (requires \code{values}).
+#'     \item \code{"weighted_sum"}: Sum of (value × weight) across analogs
+#'       (requires \code{values} and \code{weight}).
+#'     \item \code{"weighted_mean"}: Weighted mean of values across analogs
+#'       (requires \code{values} and \code{weight}).
+#'     \item A character vector combining multiple stats (e.g.,
+#'       \code{c("count", "sum", "mean")}).
+#'       Note: \code{"none"} cannot be combined with other stats.
+#'   }
 #'
 #' @param weight Weighting function for matches, used only when
 #'   \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"}. One of:
@@ -111,18 +170,7 @@
 #'   weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
 #'   must be \code{NULL}.
 #'
-#' @param report_dist Logical; if TRUE (default), include distance columns in
-#'   output when \code{stat} is \code{NULL} or \code{"none"}. Set to FALSE
-#'   for more compact output.
 #'
-#' @param coord_type Coordinate system type (default: "auto"):
-#'   \itemize{
-#'     \item \code{"auto"}: Automatically detect from coordinate ranges.
-#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-#'       assumes \code{max_geog} is in km).
-#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance;
-#'       assumes \code{max_geog} is in projection units).
-#'   }
 #'
 #' @param index_res Tuning parameter giving the number of bins per dimension
 #'   of the internally-used lattice search index. Either:
@@ -149,8 +197,9 @@
 #'   \item \code{x, y}: Coordinates of focal location.
 #'   \item \code{analog_index}: Index of analog location in reference dataset (1-based).
 #'   \item \code{analog_x, analog_y}: Coordinates of analog location.
-#'   \item \code{clim_dist}: Climate distance (if \code{report_dist = TRUE}).
-#'   \item \code{geog_dist}: Geographic distance in km (if \code{report_dist = TRUE}).
+#'   \item \code{clim_dist}: Climate distance.
+#'   \item \code{geog_dist}: Geographic distance in km or projected units.
+#'   \item Value columns (if \code{values} provided): one column per variable.
 #' }
 #'
 #' **For stat = single aggregation or vector of aggregations**:
@@ -158,7 +207,10 @@
 #' \itemize{
 #'   \item \code{index}: Index of focal location (1-based).
 #'   \item \code{x, y}: Coordinates of focal location.
-#'   \item One column per requested stat: \code{count}, \code{sum_weights}, and/or \code{mean_weights}.
+#'   \item One column per requested stat.
+#'   \item For value stats with single variable: \code{sum}, \code{mean}, \code{weighted_sum}, \code{weighted_mean}.
+#'   \item For value stats with multiple variables: \code{{stat}_{varname}}
+#'     (e.g., \code{sum_biomass}, \code{mean_richness}).
 #' }
 #'
 #' All outputs include diagnostic attributes propagated from the C++ core.
@@ -183,34 +235,49 @@
 #' analog_search(x = focal2, pool = index, select = "all", stat = "count", max_clim = 0.3)
 #' }
 #'
+#' # With user-defined values
+#' values_df <- data.frame(
+#'   biomass = runif(nrow(ref), 0, 100),
+#'   richness = rpois(nrow(ref), 20)
+#' )
+#'
+#' analog_search(x = focal, pool = ref, values = values_df,
+#'               stat = c("count", "sum", "mean"),
+#'               max_clim = 0.5)
+#' # Returns: index, x, y, count, sum_biomass, mean_biomass, sum_richness, mean_richness
+#'
+#' # Weighted aggregation of values
+#' analog_search(x = focal, pool = ref, values = values_df$biomass,
+#'               stat = c("weighted_sum", "weighted_mean"),
+#'               weight = "gaussian_clim", theta = 0.2,
+#'               max_clim = 0.5)
+#' # Returns: index, x, y, weighted_sum, weighted_mean
+#'
 #' @export
 analog_search <- function(
-            x,
-            pool,
-            select = "all",
-            stat = NULL,
-            max_clim = NULL,
-            max_geog = NULL,
-            x_cov = NULL,
-            k = NULL,
-            weight = NULL,
-            theta = NULL,
-            report_dist = TRUE,
-            coord_type = c("auto", "lonlat", "projected"),
-            index_res = "auto",
-            n_threads = NULL
+
+      # data
+      x,
+      pool,
+      x_cov = NULL,
+      values = NULL,
+      coord_type = c("auto", "lonlat", "projected"),
+
+      # candidate filtering
+      max_clim = NULL,
+      max_geog = NULL,
+      select = "all",
+      k = NULL,
+
+      # analog aggregation
+      stat = NULL,
+      weight = NULL,
+      theta = NULL,
+
+      # admin
+      index_res = "auto",
+      n_threads = NULL
 ) {
-
-      # Validate and normalize query parameters
-      params <- .validate_query_params(select, stat, k, weight, theta)
-      select <- params$select
-      stat <- params$stat
-      k <- params$k
-      weight <- params$weight
-      theta <- params$theta
-
-      # Validate coord_type
-      coord_type <- match.arg(coord_type)
 
       # Check if pool is already an index
       if (is_analog_index(pool)) {
@@ -227,6 +294,7 @@ analog_search <- function(
                         x = x,
                         pool = pool,
                         x_cov = x_cov,
+                        values = values,
                         select = select,
                         stat = stat,
                         max_clim = max_clim,
@@ -261,10 +329,10 @@ analog_search <- function(
             max_clim = max_clim,
             max_geog = max_geog,
             x_cov = x_cov,
+            values = values,
             k = k,
             weight = weight,
             theta = theta,
-            report_dist = report_dist,
             n_threads = n_threads
       ))
 }

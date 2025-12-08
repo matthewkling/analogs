@@ -49,7 +49,6 @@
 #' @export
 tune_index_res <- function(x,
                            pool,
-                           # mode = c("knn_clim", "knn_geog", "count", "sum", "mean", "all"),
                            select = "all",
                            stat = NULL,
                            max_clim = NULL,
@@ -58,6 +57,7 @@ tune_index_res <- function(x,
                            weight = NULL,
                            theta = NULL,
                            x_cov = NULL,
+                           values = NULL,
                            coord_type = c("auto", "lonlat", "projected"),
                            n_threads = NULL,
                            default_res = 16L,
@@ -72,23 +72,8 @@ tune_index_res <- function(x,
                   all(dx >=  tol * abs(x[-length(x)]))
       }
 
-      # Validate and normalize query parameters
-      # Note: We don't have focal_mm yet, but .validate_query_params handles x_cov=NULL gracefully
-      # For x_cov validation, we'll need to format focal data first
-      focal_mm <- .format_data(x)
-
-      params <- .validate_query_params(select, stat, k, weight, theta, x_cov, focal_mm)
-      select <- params$select
-      stat <- params$stat
-      k <- params$k
-      weight <- params$weight
-      theta <- params$theta
-      x_cov_mat <- params$x_cov  # Already validated if provided
-
-      # Validate coord_type
-      coord_type <- match.arg(coord_type)
-
-      n_focal <- nrow(focal_mm)
+      focal <- .format_data(x)
+      n_focal <- nrow(focal)
 
       # Only tune for non-trivial problem sizes
       if (n_focal <= 2000L) {
@@ -102,9 +87,10 @@ tune_index_res <- function(x,
       # Subsample focal sites for faster benchmarking
       n_samp <- min(1000L, max(100L, as.integer(n_focal * 0.01)))
       idx    <- sample.int(n_focal, n_samp)
-      focal_mm_samp <- focal_mm[idx, , drop = FALSE]
+      focal_samp <- focal[idx, , drop = FALSE]
 
       # Subsample x_cov if provided
+      x_cov_mat <- x_cov
       x_cov_samp <- NULL
       if (!is.null(x_cov_mat)) {
             x_cov_samp <- x_cov_mat[idx, , drop = FALSE]
@@ -124,17 +110,17 @@ tune_index_res <- function(x,
             # Time the query
             st <- system.time({
                   result <- query_analog_index(
-                        x = focal_mm_samp,
+                        x = focal_samp,
                         index = index,
                         select = select,
                         stat = stat,
                         max_clim = max_clim,
                         max_geog = max_geog,
                         x_cov = x_cov_samp,
+                        values = values,
                         k = k,
                         weight = weight,
                         theta = theta,
-                        report_dist = FALSE,  # Faster without distances
                         n_threads = n_threads
                   )
             })

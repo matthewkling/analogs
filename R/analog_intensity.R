@@ -57,14 +57,18 @@
 analog_intensity <- function(
             x,
             pool,
+            x_cov      = NULL,
+            values = NULL,
+            coord_type = "auto",
+
             max_clim   = NULL,
             max_geog   = NULL,
+
             weight     = c("uniform", "inverse_clim", "inverse_geog",
                            "gaussian_clim", "gaussian_geog",
                            "gaussian_joint", "inverse_joint"),
             theta      = NULL,
-            x_cov      = NULL,
-            coord_type = "auto",
+
             index_res = "auto",
             n_threads = NULL
 ) {
@@ -81,8 +85,8 @@ analog_intensity <- function(
             weight      = weight,
             theta       = theta,
             x_cov       = x_cov,
+            values = values,
             coord_type  = coord_type,
-            report_dist = FALSE,  # no pairwise distances needed for sums
             index_res   = index_res,
             n_threads   = n_threads
       )

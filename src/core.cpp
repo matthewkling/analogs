@@ -187,7 +187,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             const IntegerVector& aggregate_codes,
                             int weight_code,
                             const NumericVector& theta,
-                            SEXP x_cov_sexp)
+                            SEXP x_cov_sexp,
+                            SEXP values_sexp)
 {
       // Extract lattice and metadata from index
       List idx = as<List>(index_list);
@@ -292,6 +293,26 @@ SEXP query_analog_index_cpp(SEXP index_list,
             x_cov_stride = n_focal;  // Column-major stride
       }
 
+      // Parse values parameter
+      bool has_values = false;
+      const double* values_ptr = nullptr;
+      int values_stride = 0;
+      int n_vars = 0;
+
+      if (!Rf_isNull(values_sexp) && values_sexp != R_NilValue) {
+            NumericMatrix values_mat = as<NumericMatrix>(values_sexp);
+
+            // Validate dimensions
+            if (values_mat.nrow() != n_ref) {
+                  stop("values must have same number of rows as reference data");
+            }
+
+            has_values = true;
+            values_ptr = REAL(values_mat);
+            values_stride = n_ref;  // Column-major stride
+            n_vars = values_mat.ncol();
+      }
+
       // Get ECEF data pointer if applicable
       const double* ref_latt_ptr;
       int stride_latt_r;
@@ -384,9 +405,28 @@ SEXP query_analog_index_cpp(SEXP index_list,
             return out;
       }
 
-      // Aggregate modes - allocate flat vector for all stats
+      // Aggregate modes
+      // Count regular vs value stats to calculate total columns
+      int n_regular_stats = 0;
+      int n_value_stats = 0;
+
+      for (int i = 0; i < n_stats; ++i) {
+            if (acodes[i] == AggregateCode::SUM ||
+                acodes[i] == AggregateCode::MEAN ||
+                acodes[i] == AggregateCode::WEIGHTED_SUM ||
+                acodes[i] == AggregateCode::WEIGHTED_MEAN) {
+                  n_value_stats++;
+            } else {
+                  n_regular_stats++;
+            }
+      }
+
+      // Total columns = regular stats + (value stats × n_vars)
+      const int n_total_cols = n_regular_stats + (n_value_stats * n_vars);
+
+      // Allocate flat vector for all stats
       // Layout: [focal0_stat0, focal0_stat1, ..., focal1_stat0, focal1_stat1, ...]
-      std::vector<double> agg_vals(n_focal * n_stats, NA_REAL);
+      std::vector<double> agg_vals(n_focal * n_total_cols, NA_REAL);
 
       AggWorker aworker(focal_mm,
                         ref_mm,
@@ -413,16 +453,20 @@ SEXP query_analog_index_cpp(SEXP index_list,
                         x_cov_ptr,
                         x_cov_stride,
                         n_cov_components,
+                        has_values,
+                        values_ptr,
+                        values_stride,
+                        n_vars,
                         agg_vals,
-                        n_stats);
+                        n_total_cols);
 
       parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
 
-      // Convert flat vector to matrix: n_focal rows x n_stats columns
-      NumericMatrix agg(n_focal, n_stats);
+      // Convert flat vector to matrix: n_focal rows x n_total_cols columns
+      NumericMatrix agg(n_focal, n_total_cols);
       for (int i = 0; i < n_focal; ++i) {
-            for (int s = 0; s < n_stats; ++s) {
-                  agg(i, s) = agg_vals[i * n_stats + s];
+            for (int s = 0; s < n_total_cols; ++s) {
+                  agg(i, s) = agg_vals[i * n_total_cols + s];
             }
       }
 

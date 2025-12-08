@@ -8,21 +8,43 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates select/stat/k/weight/theta/x_cov combinations and normalizes values.
+#' Validates select/stat/k/weight/theta/x_cov/values combinations and normalizes values.
 #' Returns a list with normalized parameters.
 #'
 #' @keywords internal
-.validate_query_params <- function(select, stat, k, weight, theta, x_cov = NULL, focal_mm = NULL) {
+.validate_query_params <- function(focal = NULL, ref = NULL,
+                                   x_cov = NULL, values = NULL,
+                                   max_clim, max_geog,
+                                   select, k,
+                                   stat, weight, theta) {
 
       # Validate select
       select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
+
+      # Validate max_clim, max_geog
+      if(!is.null(max_clim)){
+            if(!is.numeric(max_clim) ||
+               min(max_clim) <= 0 ||
+               !length(max_clim) %in% c(1, ncol(focal)-2)) {
+                  stop("max_clim must be a non-negative numeric, with length 1 or",
+                       "length matching the number of climate variables.")
+            }
+      }
+      if(!is.null(max_geog)){
+            if(!is.numeric(max_geog) ||
+               min(max_geog) <= 0 ||
+               length(max_geog) != 1) {
+                  stop("max_geog must be a non-negative numeric value of length 1.")
+            }
+      }
 
       # Normalize stat (NULL becomes "none")
       if (is.null(stat)) {
             stat <- "none"
       } else if (is.character(stat)) {
             # Validate each stat value
-            valid_stats <- c("none", "count", "sum_weights", "mean_weights")
+            valid_stats <- c("none", "count", "sum_weights", "mean_weights",
+                             "sum", "mean", "weighted_sum", "weighted_mean")
             invalid <- setdiff(stat, valid_stats)
             if (length(invalid) > 0) {
                   stop("Invalid stat value(s): ", paste(invalid, collapse = ", "),
@@ -59,8 +81,21 @@
             }
       }
 
+      # Check for value-based stats
+      value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
+      has_value_stat <- any(stat %in% value_stats)
+
+      # If value stats requested, values must be provided
+      if (has_value_stat && is.null(values)) {
+            requested_value_stats <- intersect(stat, value_stats)
+            stop("stat includes ", paste(requested_value_stats, collapse = ", "),
+                 " but 'values' parameter is NULL. ",
+                 "These stats require 'values' to be provided.")
+      }
+
       # Validate stat/weight/theta combinations
-      has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights"))
+      has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
+                                           "weighted_sum", "weighted_mean"))
 
       if (has_weighted_stat) {
             # Weighted aggregation modes require weight
@@ -68,11 +103,11 @@
                                "gaussian_joint", "inverse_clim", "inverse_geog",
                                "inverse_joint")
             if (is.null(weight)) {
-                  stop("For stat including 'sum_weights' or 'mean_weights', weight must be specified. ",
+                  stop("For stat including weighted aggregations, weight must be specified. ",
                        "Valid options: ", paste(valid_weights, collapse = ", "))
             }
             if (!weight %in% valid_weights) {
-                  stop("For stat including 'sum_weights' or 'mean_weights', weight must be one of: ",
+                  stop("For stat including weighted aggregations, weight must be one of: ",
                        paste(valid_weights, collapse = ", "))
             }
 
@@ -103,7 +138,7 @@
             }
 
       } else {
-            # Non-weighted aggregations (none, count)
+            # Non-weighted aggregations (none, count, sum, mean)
             if (!is.null(weight)) {
                   stop("For stat = ", paste(stat, collapse = ", "), ", weight must be NULL.")
             }
@@ -115,10 +150,23 @@
       # Validate and format x_cov if provided
       x_cov_mat <- NULL
       if (!is.null(x_cov)) {
-            if (is.null(focal_mm)) {
-                  stop("Internal error: focal_mm required for x_cov validation")
+            if (is.null(focal)) {
+                  stop("Internal error: focal required for x_cov validation")
             }
-            x_cov_mat <- .validate_and_format_x_cov(x_cov, focal_mm)
+            x_cov_mat <- .validate_and_format_x_cov(x_cov, focal)
+      }
+
+      # Validate and format values if provided
+      values_mat <- NULL
+      values_names <- NULL
+      if (!is.null(values)) {
+            if (is.null(ref)) {
+                  stop("Internal error: ref required for values validation")
+            }
+
+            result <- .validate_and_format_values(values, ref)
+            values_mat <- result$matrix
+            values_names <- result$names
       }
 
       # Return normalized parameters
@@ -128,17 +176,70 @@
             k = k,
             weight = weight,
             theta = theta,
-            x_cov = x_cov_mat
+            x_cov = x_cov_mat,
+            values = values_mat,
+            values_names = values_names
+      )
+}
+
+#' Validate and format values parameter
+#' @keywords internal
+.validate_and_format_values <- function(values, ref) {
+
+      n_ref <- nrow(ref)
+
+      # Convert to matrix if needed
+      if (is.vector(values)) {
+            values <- matrix(values, ncol = 1)
+            values_names <- "value_1"
+      } else if (is.data.frame(values)) {
+            values_names <- colnames(values)
+            values <- as.matrix(values)
+      } else if (is.matrix(values)) {
+            values_names <- colnames(values)
+      } else {
+            stop("values must be a vector, matrix, or data.frame")
+      }
+
+      # Validate dimensions
+      if (nrow(values) != n_ref) {
+            stop(sprintf(
+                  "values must have same number of rows as reference data (%d), but has %d rows",
+                  n_ref, nrow(values)
+            ))
+      }
+
+      # Check for numeric
+      if (!is.numeric(values)) {
+            stop("values must be numeric")
+      }
+
+      # Generate names if missing
+      if (is.null(values_names)) {
+            n_vars <- ncol(values)
+            values_names <- if (n_vars == 1) {
+                  "value_1"
+            } else {
+                  paste0("value_", seq_len(n_vars))
+            }
+      }
+
+      # Ensure storage mode is double
+      storage.mode(values) <- "double"
+
+      list(
+            matrix = values,
+            names = values_names
       )
 }
 
 #' Validate and format x_cov parameter
 #' @keywords internal
-.validate_and_format_x_cov <- function(x_cov, focal_mm) {
+.validate_and_format_x_cov <- function(x_cov, focal) {
 
-      # focal_mm is already formatted matrix with coords + climate
-      n_focal <- nrow(focal_mm)
-      n_clim <- ncol(focal_mm) - 2
+      # focal is already formatted matrix with coords + climate
+      n_focal <- nrow(focal)
+      n_clim <- ncol(focal) - 2
 
       # Expected number of covariance components
       n_cov_components <- n_clim * (n_clim + 1) / 2

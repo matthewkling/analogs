@@ -16,10 +16,14 @@ enum class SelectCode : int {
 
 // Aggregation code enums (R->C++ mapping for stat parameter)
 enum class AggregateCode : int {
-      NONE         = 0,
-            COUNT        = 1,
-            SUM_WEIGHTS  = 2,
-            MEAN_WEIGHTS = 3
+      NONE           = 0,
+            COUNT          = 1,
+            SUM_WEIGHTS    = 2,
+            MEAN_WEIGHTS   = 3,
+            SUM            = 4,
+            MEAN           = 5,
+            WEIGHTED_SUM   = 6,
+            WEIGHTED_MEAN  = 7
 };
 
 // Compute Euclidean climate distance (scalar) and/or per-var checks.

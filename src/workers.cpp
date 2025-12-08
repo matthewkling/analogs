@@ -344,11 +344,31 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
 
+      // Determine which stats are regular vs value-based
+      std::vector<int> regular_stat_positions;
+      std::vector<int> value_stat_positions;
+
+      for (int s = 0; s < static_cast<int>(acodes.size()); ++s) {
+            if (acodes[s] == AggregateCode::SUM ||
+                acodes[s] == AggregateCode::MEAN ||
+                acodes[s] == AggregateCode::WEIGHTED_SUM ||
+                acodes[s] == AggregateCode::WEIGHTED_MEAN) {
+                  value_stat_positions.push_back(s);
+            } else {
+                  regular_stat_positions.push_back(s);
+            }
+      }
+
+      const int n_regular = static_cast<int>(regular_stat_positions.size());
+      const int n_value = static_cast<int>(value_stat_positions.size());
+
       // Check if any stats need weights
       bool need_weights = false;
       for (size_t s = 0; s < acodes.size(); ++s) {
             if (acodes[s] == AggregateCode::SUM_WEIGHTS ||
-                acodes[s] == AggregateCode::MEAN_WEIGHTS) {
+                acodes[s] == AggregateCode::MEAN_WEIGHTS ||
+                acodes[s] == AggregateCode::WEIGHTED_SUM ||
+                acodes[s] == AggregateCode::WEIGHTED_MEAN) {
                   need_weights = true;
                   break;
             }
@@ -441,9 +461,15 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   }
             }
 
-            // Initialize accumulators for all stats
-            std::vector<double> accumulators(n_stats, 0.0);
+            // Initialize accumulators for regular and value stats
+            std::vector<double> regular_accum(n_regular, 0.0);
+            std::vector<double> value_accum;
+            if (has_values && n_value > 0) {
+                  value_accum.resize(n_vars * n_value, 0.0);
+            }
+
             int count = 0;
+            double sum_weights = 0.0;
 
             double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
             if (use_ecef) {
@@ -516,32 +542,86 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         : 1.0;
 
                   count++;
+                  sum_weights += w;
 
-                  // Update accumulators for each requested stat
-                  for (int s = 0; s < n_stats; ++s) {
+                  // Update regular stat accumulators
+                  for (int idx = 0; idx < n_regular; ++idx) {
+                        int s = regular_stat_positions[idx];
+
                         if (acodes[s] == AggregateCode::COUNT) {
-                              // Count incremented separately below
+                              // Count tracked separately
                         } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
-                              accumulators[s] += w;
+                              regular_accum[idx] += w;
                         } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
-                              accumulators[s] += w;
+                              regular_accum[idx] += w;
+                        }
+                  }
+
+                  // Update value stat accumulators
+                  if (has_values && n_value > 0) {
+                        for (int v = 0; v < n_vars; ++v) {
+                              const double val = values_ptr[j + v * values_stride];
+
+                              for (int idx = 0; idx < n_value; ++idx) {
+                                    int s = value_stat_positions[idx];
+                                    int accum_idx = v * n_value + idx;
+
+                                    if (acodes[s] == AggregateCode::SUM) {
+                                          value_accum[accum_idx] += val;
+                                    } else if (acodes[s] == AggregateCode::MEAN) {
+                                          value_accum[accum_idx] += val;
+                                    } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
+                                          value_accum[accum_idx] += val * w;
+                                    } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
+                                          value_accum[accum_idx] += val * w;
+                                    }
+                              }
                         }
                   }
             }
 
             // Finalize and store results
-            for (int s = 0; s < n_stats; ++s) {
+            int col_idx = 0;
+
+            // Write regular stats
+            for (int idx = 0; idx < n_regular; ++idx) {
+                  int s = regular_stat_positions[idx];
                   double result = NA_REAL;
 
                   if (acodes[s] == AggregateCode::COUNT) {
                         result = static_cast<double>(count);
                   } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
-                        result = accumulators[s];
+                        result = regular_accum[idx];
                   } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
-                        result = (count > 0) ? (accumulators[s] / count) : NA_REAL;
+                        result = (count > 0) ? (regular_accum[idx] / count) : NA_REAL;
                   }
 
-                  agg[i * n_stats + s] = result;
+                  agg[i * n_stats + col_idx] = result;
+                  col_idx++;
+            }
+
+            // Write value stats (grouped by variable)
+            if (has_values && n_value > 0) {
+                  for (int v = 0; v < n_vars; ++v) {
+                        for (int idx = 0; idx < n_value; ++idx) {
+                              int s = value_stat_positions[idx];
+                              int accum_idx = v * n_value + idx;
+                              double result = NA_REAL;
+
+                              if (acodes[s] == AggregateCode::SUM) {
+                                    result = value_accum[accum_idx];
+                              } else if (acodes[s] == AggregateCode::MEAN) {
+                                    result = (count > 0) ? (value_accum[accum_idx] / count) : NA_REAL;
+                              } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
+                                    result = value_accum[accum_idx];
+                              } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
+                                    result = (sum_weights > 0) ? (value_accum[accum_idx] / sum_weights) : NA_REAL;
+                              }
+
+                              agg[i * n_stats + col_idx] = result;
+                              col_idx++;
+                        }
+                  }
             }
       }
 }

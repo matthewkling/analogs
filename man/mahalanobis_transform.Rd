@@ -9,8 +9,8 @@ mahalanobis_transform(x, pool = NULL, center = TRUE, scale = TRUE)
 \arguments{
 \item{x}{Climate data for focal/query points. Can be:
 \itemize{
-  \item Matrix/data.frame with columns x, y, and climate variables
-  \item SpatRaster with climate variable layers
+\item Matrix/data.frame with columns x, y, and climate variables
+\item SpatRaster with climate variable layers
 }}
 
 \item{pool}{Optional reference climate data to transform jointly with \code{x}.
@@ -33,8 +33,8 @@ format (matrix/data.frame/SpatRaster).
 
 If \code{pool} is provided: Returns a list with two components:
 \itemize{
-  \item \code{$x}: Transformed version of \code{x}
-  \item \code{$pool}: Transformed version of \code{pool}
+\item \code{$x}: Transformed version of \code{x}
+\item \code{$pool}: Transformed version of \code{pool}
 }
 Both use the same format as their respective inputs.
 }
@@ -50,7 +50,7 @@ matrix to decorrelate variables and scale to unit variance in all directions.
 After transformation, Euclidean distance in the transformed space is
 equivalent to Mahalanobis distance in the original space.
 
-The transformation is: X_transformed = (X - μ) %*% Σ^(-1/2)
+The transformation is: X_transformed = (X - μ) \%*\% Σ^(-1/2)
 
 When \code{pool} is provided, the covariance structure is computed from the
 combined dataset to ensure both are transformed to the same space.

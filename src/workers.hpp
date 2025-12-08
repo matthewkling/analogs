@@ -178,8 +178,14 @@ struct AggWorker : public Worker {
       int x_cov_stride;                               // stride for x_cov
       int n_cov_components;                           // n_clim * (n_clim + 1) / 2
 
+      // Values support for user-provided aggregation variables
+      bool has_values;                                // true if values provided
+      const double* values_ptr;                       // pointer to values matrix (n_ref × n_vars)
+      int values_stride;                              // stride for values (n_ref)
+      int n_vars;                                     // number of value variables
+
       std::vector<double>& agg; // flat output: size = n_focal * n_stats
-      int n_stats;              // number of stats to compute
+      int n_stats;              // number of stats to compute (total columns in output)
 
       // Thread-local storage for reusable allocations
       struct ThreadLocalStorage {
@@ -221,6 +227,10 @@ struct AggWorker : public Worker {
                 const double* x_cov_ptr_,
                 int x_cov_stride_,
                 int n_cov_components_,
+                bool has_values_,
+                const double* values_ptr_,
+                int values_stride_,
+                int n_vars_,
                 std::vector<double>& agg_,
                 int n_stats_)
             : focal_ptr(REAL(focal_mm)),
@@ -253,6 +263,10 @@ struct AggWorker : public Worker {
               x_cov_ptr(x_cov_ptr_),
               x_cov_stride(x_cov_stride_),
               n_cov_components(n_cov_components_),
+              has_values(has_values_),
+              values_ptr(values_ptr_),
+              values_stride(values_stride_),
+              n_vars(n_vars_),
               agg(agg_),
               n_stats(n_stats_)
       {}

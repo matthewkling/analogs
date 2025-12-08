@@ -12,10 +12,10 @@ query_analog_index(
   max_clim,
   max_geog,
   x_cov,
+  values,
   k,
   weight,
   theta,
-  report_dist,
   n_threads
 )
 }

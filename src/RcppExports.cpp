@@ -24,8 +24,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, const IntegerVector& aggregate_codes, int weight_code, const NumericVector& theta, SEXP x_cov_sexp);
-RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP) {
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, const IntegerVector& aggregate_codes, int weight_code, const NumericVector& theta, SEXP x_cov_sexp, SEXP values_sexp);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -40,13 +40,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type weight_code(weight_codeSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type theta(thetaSEXP);
     Rcpp::traits::input_parameter< SEXP >::type x_cov_sexp(x_cov_sexpSEXP);
-    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp));
+    Rcpp::traits::input_parameter< SEXP >::type values_sexp(values_sexpSEXP);
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp, values_sexp));
     return rcpp_result_gen;
 END_RCPP
 }
 // emit_pairs_cpp
-SEXP emit_pairs_cpp(List res, NumericMatrix focal_mm, NumericMatrix ref_mm, bool report_dist, std::string geo_mode, Nullable<NumericMatrix> x_cov);
-RcppExport SEXP _analogs_emit_pairs_cpp(SEXP resSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP report_distSEXP, SEXP geo_modeSEXP, SEXP x_covSEXP) {
+SEXP emit_pairs_cpp(List res, NumericMatrix focal_mm, NumericMatrix ref_mm, bool report_dist, std::string geo_mode, Nullable<NumericMatrix> x_cov, Nullable<NumericMatrix> values, Nullable<CharacterVector> values_names);
+RcppExport SEXP _analogs_emit_pairs_cpp(SEXP resSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP report_distSEXP, SEXP geo_modeSEXP, SEXP x_covSEXP, SEXP valuesSEXP, SEXP values_namesSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -56,7 +57,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type report_dist(report_distSEXP);
     Rcpp::traits::input_parameter< std::string >::type geo_mode(geo_modeSEXP);
     Rcpp::traits::input_parameter< Nullable<NumericMatrix> >::type x_cov(x_covSEXP);
-    rcpp_result_gen = Rcpp::wrap(emit_pairs_cpp(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov));
+    Rcpp::traits::input_parameter< Nullable<NumericMatrix> >::type values(valuesSEXP);
+    Rcpp::traits::input_parameter< Nullable<CharacterVector> >::type values_names(values_namesSEXP);
+    rcpp_result_gen = Rcpp::wrap(emit_pairs_cpp(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -87,8 +90,8 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 3},
-    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 11},
-    {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 6},
+    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 12},
+    {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 8},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
     {NULL, NULL, 0}

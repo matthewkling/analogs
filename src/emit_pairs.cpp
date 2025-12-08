@@ -34,7 +34,9 @@ SEXP emit_pairs_cpp(List res,
                     NumericMatrix ref_mm,
                     bool report_dist,
                     std::string geo_mode,
-                    Nullable<NumericMatrix> x_cov = R_NilValue) {
+                    Nullable<NumericMatrix> x_cov = R_NilValue,
+                    Nullable<NumericMatrix> values = R_NilValue,
+                    Nullable<CharacterVector> values_names = R_NilValue) {
 
       const int n_f = focal_mm.nrow();
       const int n_ref = ref_mm.nrow();
@@ -53,6 +55,38 @@ SEXP emit_pairs_cpp(List res,
             stop("Internal error: focal_mm and ref_mm must have the same number of columns.");
       }
 
+      // Parse values if provided
+      bool has_values = values.isNotNull();
+      const double* values_ptr = nullptr;
+      int n_vars = 0;
+      int values_stride = 0;
+      std::vector<std::string> var_names;
+
+      if (has_values) {
+            NumericMatrix values_mat = values.get();
+
+            if (values_mat.nrow() != n_ref) {
+                  stop("Internal error: values must have same number of rows as reference data");
+            }
+
+            n_vars = values_mat.ncol();
+            values_ptr = REAL(values_mat);
+            values_stride = n_ref;
+
+            // Get variable names if provided
+            if (values_names.isNotNull()) {
+                  CharacterVector names_vec = values_names.get();
+                  for (int i = 0; i < n_vars; ++i) {
+                        var_names.push_back(as<std::string>(names_vec[i]));
+                  }
+            } else {
+                  // Generate default names
+                  for (int i = 0; i < n_vars; ++i) {
+                        var_names.push_back("value_" + std::to_string(i + 1));
+                  }
+            }
+      }
+
       // First pass: count total number of pairs
       std::size_t total_pairs = 0;
       for (int i = 0; i < n_f; ++i) {
@@ -62,29 +96,29 @@ SEXP emit_pairs_cpp(List res,
 
       // Handle "no matches anywhere" case
       if (total_pairs == 0) {
+            // Build empty data.frame with appropriate columns
+            List df_cols;
+            df_cols["focal_index"] = IntegerVector(0);
+            df_cols["focal_x"] = NumericVector(0);
+            df_cols["focal_y"] = NumericVector(0);
+            df_cols["analog_index"] = IntegerVector(0);
+            df_cols["analog_x"] = NumericVector(0);
+            df_cols["analog_y"] = NumericVector(0);
+
             if (report_dist) {
-                  return DataFrame::create(
-                        _["focal_index"] = IntegerVector(0),
-                        _["focal_x"]     = NumericVector(0),
-                        _["focal_y"]     = NumericVector(0),
-                        _["analog_index"]= IntegerVector(0),
-                        _["analog_x"]    = NumericVector(0),
-                        _["analog_y"]    = NumericVector(0),
-                        _["clim_dist"]   = NumericVector(0),
-                        _["geog_dist"]   = NumericVector(0),
-                        _["stringsAsFactors"] = false
-                  );
-            } else {
-                  return DataFrame::create(
-                        _["focal_index"] = IntegerVector(0),
-                        _["focal_x"]     = NumericVector(0),
-                        _["focal_y"]     = NumericVector(0),
-                        _["analog_index"]= IntegerVector(0),
-                        _["analog_x"]    = NumericVector(0),
-                        _["analog_y"]    = NumericVector(0),
-                        _["stringsAsFactors"] = false
-                  );
+                  df_cols["clim_dist"] = NumericVector(0);
+                  df_cols["geog_dist"] = NumericVector(0);
             }
+
+            if (has_values) {
+                  for (int v = 0; v < n_vars; ++v) {
+                        df_cols[var_names[v]] = NumericVector(0);
+                  }
+            }
+
+            DataFrame df(df_cols);
+            df.attr("stringsAsFactors") = false;
+            return df;
       }
 
       // Allocate output vectors
@@ -97,6 +131,15 @@ SEXP emit_pairs_cpp(List res,
       if (report_dist) {
             clim_dist = NumericVector(total_pairs);
             geog_dist = NumericVector(total_pairs);
+      }
+
+      // Allocate value vectors if needed
+      std::vector<NumericVector> value_cols;
+      if (has_values) {
+            value_cols.resize(n_vars);
+            for (int v = 0; v < n_vars; ++v) {
+                  value_cols[v] = NumericVector(total_pairs);
+            }
       }
 
       const bool use_lonlat = (geo_mode == "lonlat");
@@ -224,6 +267,13 @@ SEXP emit_pairs_cpp(List res,
                               geog_dist[pos]  = std::sqrt(dx * dx + dy * dy);
                         }
                   }
+
+                  // Copy values if provided
+                  if (has_values) {
+                        for (int v = 0; v < n_vars; ++v) {
+                              value_cols[v][pos] = values_ptr[ref_row + v * values_stride];
+                        }
+                  }
             }
       }
 
@@ -231,27 +281,27 @@ SEXP emit_pairs_cpp(List res,
             stop("Internal error: mismatch between allocated and filled pair counts.");
       }
 
+      // Build output DataFrame
+      List df_cols;
+      df_cols["focal_index"] = focal_index;
+      df_cols["focal_x"] = focal_x;
+      df_cols["focal_y"] = focal_y;
+      df_cols["analog_index"] = analog_index;
+      df_cols["analog_x"] = analog_x;
+      df_cols["analog_y"] = analog_y;
+
       if (report_dist) {
-            return DataFrame::create(
-                  _["focal_index"] = focal_index,
-                  _["focal_x"]     = focal_x,
-                  _["focal_y"]     = focal_y,
-                  _["analog_index"]= analog_index,
-                  _["analog_x"]    = analog_x,
-                  _["analog_y"]    = analog_y,
-                  _["clim_dist"]   = clim_dist,
-                  _["geog_dist"]   = geog_dist,
-                  _["stringsAsFactors"] = false
-            );
-      } else {
-            return DataFrame::create(
-                  _["focal_index"] = focal_index,
-                  _["focal_x"]     = focal_x,
-                  _["focal_y"]     = focal_y,
-                  _["analog_index"]= analog_index,
-                  _["analog_x"]    = analog_x,
-                  _["analog_y"]    = analog_y,
-                  _["stringsAsFactors"] = false
-            );
+            df_cols["clim_dist"] = clim_dist;
+            df_cols["geog_dist"] = geog_dist;
       }
+
+      if (has_values) {
+            for (int v = 0; v < n_vars; ++v) {
+                  df_cols[var_names[v]] = value_cols[v];
+            }
+      }
+
+      DataFrame df(df_cols);
+      df.attr("stringsAsFactors") = false;
+      return df;
 }
