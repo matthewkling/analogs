@@ -47,10 +47,11 @@ mapping analog "availability" or environmental similarity density.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">analog_availability</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
 <span>  <span class="va">pool</span>,</span>
+<span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  values <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -68,9 +69,40 @@ SpatRaster with climate variable layers.</p></dd>
 
 <dt id="arg-pool">pool<a class="anchor" aria-label="anchor" href="#arg-pool"></a></dt>
 <dd><p>The reference dataset to search for analogs. Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and climate variables,
-    or SpatRaster with climate variable layers, OR</p></li>
-<li><p>An <code>analog_index</code> object created by
-    <code><a href="build_analog_index.html">build_analog_index</a></code> (for repeated queries).</p></li>
+or SpatRaster with climate variable layers, OR</p></li>
+<li><p>An <code>analog_index()</code> object created by
+<code><a href="build_analog_index.html">build_analog_index()</a></code> (for repeated queries).</p></li>
+</ul></dd>
+
+
+<dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
+<dd><p>Optional focal-specific covariance matrices for Mahalanobis
+distance calculations. Should be a matrix or data.frame with one row per
+focal location and one column per unique covariance component. For n climate
+variables, there are n*(n+1)/2 unique components, ordered as: variances
+first (diagonals), then covariances (upper triangle by row).</p></dd>
+
+
+<dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
+<dd><p>Optional user-defined variables for each reference location to
+aggregate across selected analogs. Can be:</p><ul><li><p>A numeric vector (single variable)</p></li>
+<li><p>A matrix or data.frame with numeric columns (multiple variables)</p></li>
+</ul><p>Must have exactly <code>nrow(pool)</code> rows (or number of reference locations
+if pool is an index). Each row corresponds to a reference location.</p>
+<p>When provided, enables value-based aggregation stats:</p><ul><li><p><code>"sum"</code>: Sum of values across analogs</p></li>
+<li><p><code>"mean"</code>: Mean of values across analogs</p></li>
+<li><p><code>"weighted_sum"</code>: Sum of (value × weight) - requires <code>weight</code></p></li>
+<li><p><code>"weighted_mean"</code>: Sum of (value × weight) / sum of weights - requires <code>weight</code></p></li>
+</ul><p>For stat = NULL/"none" (pairs mode), value columns are included in output
+for each analog pair.</p></dd>
+
+
+<dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
+<dd><p>Coordinate system type (default: "auto"):</p><ul><li><p><code>"auto"</code>: Automatically detect from coordinate ranges.</p></li>
+<li><p><code>"lonlat"</code>: Unprojected lon/lat coordinates (uses great-circle distance;
+assumes <code>max_geog</code> is in km).</p></li>
+<li><p><code>"projected"</code>: Projected XY coordinates (uses planar distance;
+assumes <code>max_geog</code> is in projection units).</p></li>
 </ul></dd>
 
 
@@ -78,7 +110,7 @@ SpatRaster with climate variable layers.</p></dd>
 <dd><p>Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:</p><ul><li><p>A scalar: Euclidean radius in climate space (e.g., 0.5)</p></li>
 <li><p>A vector: Per-variable absolute differences (length must equal
-    number of climate variables)</p></li>
+number of climate variables)</p></li>
 </ul><p>Only reference locations within this climate distance are considered.
 When <code>x_cov</code> is provided, scalar thresholds are interpreted in
 Mahalanobis distance units.</p></dd>
@@ -92,30 +124,13 @@ kilometers if <code>coord_type = "lonlat"</code>, or in projected coordinate uni
 if <code>coord_type = "projected"</code>.</p></dd>
 
 
-<dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
-<dd><p>Optional focal-specific covariance matrices for Mahalanobis
-distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component. For n climate
-variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row).</p></dd>
-
-
-<dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
-<dd><p>Coordinate system type (default: "auto"):</p><ul><li><p><code>"auto"</code>: Automatically detect from coordinate ranges.</p></li>
-<li><p><code>"lonlat"</code>: Unprojected lon/lat coordinates (uses great-circle distance;
-    assumes <code>max_geog</code> is in km).</p></li>
-<li><p><code>"projected"</code>: Projected XY coordinates (uses planar distance;
-    assumes <code>max_geog</code> is in projection units).</p></li>
-</ul></dd>
-
-
 <dt id="arg-index-res">index_res<a class="anchor" aria-label="anchor" href="#arg-index-res"></a></dt>
 <dd><p>Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:</p><ul><li><p>A positive integer.</p></li>
 <li><p><code>"auto"</code> (the default): Automatically tune the index resolution
-    by optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution of
-    16 is used.</p></li>
+by optimizing compute time on a subsample of focal points. If focal has
+relatively few rows, auto-tuning is skipped and a default resolution of
+16 is used.</p></li>
 </ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
 
 
@@ -127,11 +142,10 @@ is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOption
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A data.frame with columns:
-  - index (the row number in the input `x`)
-  - x, y (coordinates correspond to input `x`)
-  - value (the count of analogs)</p>
-    </div>
+    <p>A data.frame with columns:</p><ul><li><p>index (the row number in the input <code>x</code>)</p></li>
+<li><p>x, y (coordinates correspond to input <code>x</code>)</p></li>
+<li><p>value (the count of analogs)</p></li>
+</ul></div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

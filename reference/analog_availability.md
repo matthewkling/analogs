@@ -10,10 +10,11 @@ mapping analog "availability" or environmental similarity density.
 analog_availability(
   x,
   pool,
+  x_cov = NULL,
+  values = NULL,
+  coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
-  x_cov = NULL,
-  coord_type = "auto",
   index_res = "auto",
   n_threads = NULL
 )
@@ -34,9 +35,55 @@ analog_availability(
   - Matrix/data.frame with columns x, y, and climate variables, or
     SpatRaster with climate variable layers, OR
 
-  - An `analog_index` object created by
-    [`build_analog_index`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
+  - An `analog_index()` object created by
+    [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
+
+- x_cov:
+
+  Optional focal-specific covariance matrices for Mahalanobis distance
+  calculations. Should be a matrix or data.frame with one row per focal
+  location and one column per unique covariance component. For n climate
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
+
+- values:
+
+  Optional user-defined variables for each reference location to
+  aggregate across selected analogs. Can be:
+
+  - A numeric vector (single variable)
+
+  - A matrix or data.frame with numeric columns (multiple variables)
+
+  Must have exactly `nrow(pool)` rows (or number of reference locations
+  if pool is an index). Each row corresponds to a reference location.
+
+  When provided, enables value-based aggregation stats:
+
+  - `"sum"`: Sum of values across analogs
+
+  - `"mean"`: Mean of values across analogs
+
+  - `"weighted_sum"`: Sum of (value × weight) - requires `weight`
+
+  - `"weighted_mean"`: Sum of (value × weight) / sum of weights -
+    requires `weight`
+
+  For stat = NULL/"none" (pairs mode), value columns are included in
+  output for each analog pair.
+
+- coord_type:
+
+  Coordinate system type (default: "auto"):
+
+  - `"auto"`: Automatically detect from coordinate ranges.
+
+  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
+    distance; assumes `max_geog` is in km).
+
+  - `"projected"`: Projected XY coordinates (uses planar distance;
+    assumes `max_geog` is in projection units).
 
 - max_clim:
 
@@ -60,26 +107,6 @@ analog_availability(
   kilometers if `coord_type = "lonlat"`, or in projected coordinate
   units if `coord_type = "projected"`.
 
-- x_cov:
-
-  Optional focal-specific covariance matrices for Mahalanobis distance
-  calculations. Should be a matrix or data.frame with one row per focal
-  location and one column per unique covariance component. For n climate
-  variables, there are n\*(n+1)/2 unique components, ordered as:
-  variances first (diagonals), then covariances (upper triangle by row).
-
-- coord_type:
-
-  Coordinate system type (default: "auto"):
-
-  - `"auto"`: Automatically detect from coordinate ranges.
-
-  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
-    distance; assumes `max_geog` is in km).
-
-  - `"projected"`: Projected XY coordinates (uses planar distance;
-    assumes `max_geog` is in projection units).
-
 - index_res:
 
   Tuning parameter giving the number of bins per dimension of the
@@ -102,9 +129,13 @@ analog_availability(
 
 ## Value
 
-A data.frame with columns: - index (the row number in the input \`x\`) -
-x, y (coordinates correspond to input \`x\`) - value (the count of
-analogs)
+A data.frame with columns:
+
+- index (the row number in the input `x`)
+
+- x, y (coordinates correspond to input `x`)
+
+- value (the count of analogs)
 
 ## Examples
 

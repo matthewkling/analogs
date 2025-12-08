@@ -94,7 +94,7 @@ format (matrix/data.frame/SpatRaster).</p>
 matrix to decorrelate variables and scale to unit variance in all directions.
 After transformation, Euclidean distance in the transformed space is
 equivalent to Mahalanobis distance in the original space.</p>
-<p>The transformation is: X_transformed = (X - μ) <!-- %*% Σ^(-1/2) --></p>
+<p>The transformation is: X_transformed = (X - μ) %*% Σ^(-1/2)</p>
 <p>When <code>pool</code> is provided, the covariance structure is computed from the
 combined dataset to ensure both are transformed to the same space.</p>
 <p>If the covariance matrix is near-singular, a small regularization term

@@ -11,13 +11,14 @@ applied after filtering.
 analog_intensity(
   x,
   pool,
+  x_cov = NULL,
+  values = NULL,
+  coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
   weight = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
     "gaussian_joint", "inverse_joint"),
   theta = NULL,
-  x_cov = NULL,
-  coord_type = "auto",
   index_res = "auto",
   n_threads = NULL
 )
@@ -38,9 +39,55 @@ analog_intensity(
   - Matrix/data.frame with columns x, y, and climate variables, or
     SpatRaster with climate variable layers, OR
 
-  - An `analog_index` object created by
-    [`build_analog_index`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
+  - An `analog_index()` object created by
+    [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
+
+- x_cov:
+
+  Optional focal-specific covariance matrices for Mahalanobis distance
+  calculations. Should be a matrix or data.frame with one row per focal
+  location and one column per unique covariance component. For n climate
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
+
+- values:
+
+  Optional user-defined variables for each reference location to
+  aggregate across selected analogs. Can be:
+
+  - A numeric vector (single variable)
+
+  - A matrix or data.frame with numeric columns (multiple variables)
+
+  Must have exactly `nrow(pool)` rows (or number of reference locations
+  if pool is an index). Each row corresponds to a reference location.
+
+  When provided, enables value-based aggregation stats:
+
+  - `"sum"`: Sum of values across analogs
+
+  - `"mean"`: Mean of values across analogs
+
+  - `"weighted_sum"`: Sum of (value × weight) - requires `weight`
+
+  - `"weighted_mean"`: Sum of (value × weight) / sum of weights -
+    requires `weight`
+
+  For stat = NULL/"none" (pairs mode), value columns are included in
+  output for each analog pair.
+
+- coord_type:
+
+  Coordinate system type (default: "auto"):
+
+  - `"auto"`: Automatically detect from coordinate ranges.
+
+  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
+    distance; assumes `max_geog` is in km).
+
+  - `"projected"`: Projected XY coordinates (uses planar distance;
+    assumes `max_geog` is in projection units).
 
 - max_clim:
 
@@ -78,16 +125,14 @@ analog_intensity(
     (geographic_distance + eps), with epsilon given by `theta`.
 
   - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2\*sigma^2)), with sigma given by
-    `theta`.
-
-  - `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma given by
+    exp(-climate_distance^2 / (2*sigma^2)), with sigma given by `theta`.
+    `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
+    exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
     `theta`.
 
   - `"gaussian_joint"`: Joint Gaussian kernel, weight =
-    exp(-climate_distance^2/(2\*sigma_c^2) -
-    geographic_distance^2/(2\*sigma_g^2)), with sigma values given by
+    exp(-climate_distance^2/(2*sigma_c^2) -
+    geographic_distance^2/(2*sigma_g^2)), with sigma values given by
     `theta` as a 2-element vector c(sigma_clim, sigma_geog).
 
   - `"inverse_joint"`: Joint inverse distance, weight = 1 /
@@ -119,26 +164,6 @@ analog_intensity(
   If `theta` is `NULL`, sensible defaults are used for single-parameter
   weights. For `weight = "uniform"` or for non-weighted aggregations,
   `theta` must be `NULL`.
-
-- x_cov:
-
-  Optional focal-specific covariance matrices for Mahalanobis distance
-  calculations. Should be a matrix or data.frame with one row per focal
-  location and one column per unique covariance component. For n climate
-  variables, there are n\*(n+1)/2 unique components, ordered as:
-  variances first (diagonals), then covariances (upper triangle by row).
-
-- coord_type:
-
-  Coordinate system type (default: "auto"):
-
-  - `"auto"`: Automatically detect from coordinate ranges.
-
-  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
-    distance; assumes `max_geog` is in km).
-
-  - `"projected"`: Projected XY coordinates (uses planar distance;
-    assumes `max_geog` is in projection units).
 
 - index_res:
 

@@ -23,7 +23,7 @@ build_analog_index(
   - Matrix/data.frame with columns x, y, and climate variables, or
     SpatRaster with climate variable layers, OR
 
-  - An `analog_index` object created by `build_analog_index` (for
+  - An `analog_index()` object created by `build_analog_index()` (for
     repeated queries).
 
 - coord_type:

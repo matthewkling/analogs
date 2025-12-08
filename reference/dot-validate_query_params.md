@@ -1,18 +1,22 @@
 # Validate and normalize query parameters
 
-Validates select/stat/k/weight/theta/x_cov combinations and normalizes
-values. Returns a list with normalized parameters.
+Validates select/stat/k/weight/theta/x_cov/values combinations and
+normalizes values. Returns a list with normalized parameters.
 
 ## Usage
 
 ``` r
 .validate_query_params(
-  select,
-  stat,
-  k,
-  weight,
-  theta,
+  focal = NULL,
+  ref = NULL,
   x_cov = NULL,
-  focal_mm = NULL
+  values = NULL,
+  max_clim,
+  max_geog,
+  select,
+  k,
+  stat,
+  weight,
+  theta
 )
 ```

@@ -2,7 +2,7 @@
 
 Identifies locations in a reference dataset that are climatically
 similar to focal locations, with optional constraints on climate
-distance and geographic distance. This function uses a two-stage
+distance and geographic distance. Analog searches use a two-stage
 approach: first selecting analogs based on specified criteria, then
 optionally aggregating the results.
 
@@ -12,16 +12,16 @@ optionally aggregating the results.
 analog_search(
   x,
   pool,
-  select = "all",
-  stat = NULL,
+  x_cov = NULL,
+  values = NULL,
+  coord_type = c("auto", "lonlat", "projected"),
   max_clim = NULL,
   max_geog = NULL,
-  x_cov = NULL,
+  select = "all",
   k = NULL,
+  stat = NULL,
   weight = NULL,
   theta = NULL,
-  report_dist = TRUE,
-  coord_type = c("auto", "lonlat", "projected"),
   index_res = "auto",
   n_threads = NULL
 )
@@ -42,41 +42,55 @@ analog_search(
   - Matrix/data.frame with columns x, y, and climate variables, or
     SpatRaster with climate variable layers, OR
 
-  - An `analog_index` object created by
-    [`build_analog_index`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
+  - An `analog_index()` object created by
+    [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
 
-- select:
+- x_cov:
 
-  Character string specifying the analog selection strategy. One of:
+  Optional focal-specific covariance matrices for Mahalanobis distance
+  calculations. Should be a matrix or data.frame with one row per focal
+  location and one column per unique covariance component. For n climate
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
 
-  - `"all"` (default): Select all analogs that satisfy the `max_clim`
-    and `max_geog` constraints.
+- values:
 
-  - `"knn_clim"`: For each focal, select up to `k` analogs with smallest
-    climate distance, subject to filters.
+  Optional user-defined variables for each reference location to
+  aggregate across selected analogs. Can be:
 
-  - `"knn_geog"`: For each focal, select up to `k` analogs with smallest
-    geographic distance, subject to filters.
+  - A numeric vector (single variable)
 
-- stat:
+  - A matrix or data.frame with numeric columns (multiple variables)
 
-  Statistic(s) used to aggregate selected analogs. Either:
+  Must have exactly `nrow(pool)` rows (or number of reference locations
+  if pool is an index). Each row corresponds to a reference location.
 
-  - `NULL` or `"none"`: Return all selected analog pairs as a
-    data.frame.
+  When provided, enables value-based aggregation stats:
 
-  - `"count"`: For each focal, count the number of selected analogs.
+  - `"sum"`: Sum of values across analogs
 
-  - `"sum_weights"`: For each focal, sum the weights of selected analogs
-    (see `weight` and `theta`).
+  - `"mean"`: Mean of values across analogs
 
-  - `"mean_weights"`: For each focal, mean of weights of selected
-    analogs.
+  - `"weighted_sum"`: Sum of (value × weight) - requires `weight`
 
-  - A character vector combining multiple stats (e.g.,
-    `c("count", "sum_weights")`). Note: `"none"` cannot be combined with
-    other stats.
+  - `"weighted_mean"`: Sum of (value × weight) / sum of weights -
+    requires `weight`
+
+  For stat = NULL/"none" (pairs mode), value columns are included in
+  output for each analog pair.
+
+- coord_type:
+
+  Coordinate system type (default: "auto"):
+
+  - `"auto"`: Automatically detect from coordinate ranges.
+
+  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
+    distance; assumes `max_geog` is in km).
+
+  - `"projected"`: Projected XY coordinates (uses planar distance;
+    assumes `max_geog` is in projection units).
 
 - max_clim:
 
@@ -100,19 +114,53 @@ analog_search(
   kilometers if `coord_type = "lonlat"`, or in projected coordinate
   units if `coord_type = "projected"`.
 
-- x_cov:
+- select:
 
-  Optional focal-specific covariance matrices for Mahalanobis distance
-  calculations. Should be a matrix or data.frame with one row per focal
-  location and one column per unique covariance component. For n climate
-  variables, there are n\*(n+1)/2 unique components, ordered as:
-  variances first (diagonals), then covariances (upper triangle by row).
+  Character string specifying the analog selection strategy. One of:
+
+  - `"all"` (default): Select all analogs that satisfy the `max_clim`
+    and `max_geog` constraints.
+
+  - `"knn_clim"`: For each focal, select up to `k` analogs with smallest
+    climate distance, subject to filters.
+
+  - `"knn_geog"`: For each focal, select up to `k` analogs with smallest
+    geographic distance, subject to filters.
 
 - k:
 
   Number of nearest analogs to return per focal location for kNN
   selection modes. Required when `select` is `"knn_geog"` or
   `"knn_clim"`; must be `NULL` for `select = "all"`.
+
+- stat:
+
+  Statistic(s) used to aggregate selected analogs. Either:
+
+  - `NULL` or `"none"`: Return all selected analog pairs as a
+    data.frame.
+
+  - `"count"`: For each focal, count the number of selected analogs.
+
+  - `"sum_weights"`: For each focal, sum the weights of selected analogs
+    (see `weight` and `theta`).
+
+  - `"mean_weights"`: For each focal, mean of weights of selected
+    analogs.
+
+  - `"sum"`: Sum of values across analogs (requires `values`).
+
+  - `"mean"`: Mean of values across analogs (requires `values`).
+
+  - `"weighted_sum"`: Sum of (value × weight) across analogs (requires
+    `values` and `weight`).
+
+  - `"weighted_mean"`: Weighted mean of values across analogs (requires
+    `values` and `weight`).
+
+  - A character vector combining multiple stats (e.g.,
+    `c("count", "sum", "mean")`). Note: `"none"` cannot be combined with
+    other stats.
 
 - weight:
 
@@ -128,16 +176,14 @@ analog_search(
     (geographic_distance + eps), with epsilon given by `theta`.
 
   - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2\*sigma^2)), with sigma given by
-    `theta`.
-
-  - `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2\*sigma^2)), with sigma given by
+    exp(-climate_distance^2 / (2*sigma^2)), with sigma given by `theta`.
+    `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
+    exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
     `theta`.
 
   - `"gaussian_joint"`: Joint Gaussian kernel, weight =
-    exp(-climate_distance^2/(2\*sigma_c^2) -
-    geographic_distance^2/(2\*sigma_g^2)), with sigma values given by
+    exp(-climate_distance^2/(2*sigma_c^2) -
+    geographic_distance^2/(2*sigma_g^2)), with sigma values given by
     `theta` as a 2-element vector c(sigma_clim, sigma_geog).
 
   - `"inverse_joint"`: Joint inverse distance, weight = 1 /
@@ -170,23 +216,6 @@ analog_search(
   weights. For `weight = "uniform"` or for non-weighted aggregations,
   `theta` must be `NULL`.
 
-- report_dist:
-
-  Logical; if TRUE (default), include distance columns in output when
-  `stat` is `NULL` or `"none"`. Set to FALSE for more compact output.
-
-- coord_type:
-
-  Coordinate system type (default: "auto"):
-
-  - `"auto"`: Automatically detect from coordinate ranges.
-
-  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
-    distance; assumes `max_geog` is in km).
-
-  - `"projected"`: Projected XY coordinates (uses planar distance;
-    assumes `max_geog` is in projection units).
-
 - index_res:
 
   Tuning parameter giving the number of bins per dimension of the
@@ -211,7 +240,7 @@ analog_search(
 
 The return value depends on the `stat` parameter:
 
-\*\*For stat = NULL or "none"\*\*: A data.frame with one row per
+**For stat = NULL or "none"**: A data.frame with one row per
 focal-analog pair:
 
 - `index`: Index of focal location (1-based).
@@ -223,30 +252,51 @@ focal-analog pair:
 
 - `analog_x, analog_y`: Coordinates of analog location.
 
-- `clim_dist`: Climate distance (if `report_dist = TRUE`).
+- `clim_dist`: Climate distance.
 
-- `geog_dist`: Geographic distance in km (if `report_dist = TRUE`).
+- `geog_dist`: Geographic distance in km or projected units.
 
-\*\*For stat = single aggregation or vector of aggregations\*\*: A
+- Value columns (if `values` provided): one column per variable.
+
+**For stat = single aggregation or vector of aggregations**: A
 data.frame with one row per focal location:
 
 - `index`: Index of focal location (1-based).
 
 - `x, y`: Coordinates of focal location.
 
-- One column per requested stat: `count`, `sum_weights`, and/or
-  `mean_weights`.
+- One column per requested stat.
+
+- For value stats with single variable: `sum`, `mean`, `weighted_sum`,
+  `weighted_mean`.
+
+- For value stats with multiple variables: `{stat}_{varname}` (e.g.,
+  `sum_biomass`, `mean_richness`).
 
 All outputs include diagnostic attributes propagated from the C++ core.
 
 ## Details
 
+Parameters fall into four categories:
+
+- *Data parameters* (`x`, `pool`, `x_cov`, `values`, `coord_type`) give
+  attributes of the data on which to operate.
+
+- *Selection parameters* (`select`, `max_clim`, `max_geog`, `k`) define
+  which analogs to `select` from the `pool` for each `x`.
+
+- *Aggregation parameters* (`stat`, `weight`, `theta`) control how
+  selected analogs are summarized.
+
+- *Computation parameters* (`index_res`, `n_threads`) specify internal
+  behavior affecting compute performance.
+
 The function uses a spatial indexing structure (lattice-based) to
 quickly search through large reference datasets. Climate similarity is
 measured using Euclidean distance in climate space (ideally
-pre-whitened; see Details). Geographic distance can be computed for
-lon/lat coordinates (great-circle distance) or projected coordinates
-(planar distance).
+pre-whitened). Geographic distance can be computed for lon/lat
+coordinates (great-circle distance) or projected coordinates (planar
+distance).
 
 ## Examples
 
@@ -269,4 +319,25 @@ index <- build_analog_index(ref)
 analog_search(x = focal1, pool = index, select = "knn_geog", max_clim = 0.5, k = 1)
 analog_search(x = focal2, pool = index, select = "all", stat = "count", max_clim = 0.3)
 } # }
+
+# With user-defined values
+values_df <- data.frame(
+  biomass = runif(nrow(ref), 0, 100),
+  richness = rpois(nrow(ref), 20)
+)
+#> Error: object 'ref' not found
+
+analog_search(x = focal, pool = ref, values = values_df,
+              stat = c("count", "sum", "mean"),
+              max_clim = 0.5)
+#> Error: object 'ref' not found
+# Returns: index, x, y, count, sum_biomass, mean_biomass, sum_richness, mean_richness
+
+# Weighted aggregation of values
+analog_search(x = focal, pool = ref, values = values_df$biomass,
+              stat = c("weighted_sum", "weighted_mean"),
+              weight = "gaussian_clim", theta = 0.2,
+              max_clim = 0.5)
+#> Error: object 'ref' not found
+# Returns: index, x, y, weighted_sum, weighted_mean
 ```

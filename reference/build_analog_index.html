@@ -57,18 +57,18 @@ avoiding the need to rebuild the lattice for each query.</p>
 
 <dl><dt id="arg-pool">pool<a class="anchor" aria-label="anchor" href="#arg-pool"></a></dt>
 <dd><p>The reference dataset to search for analogs. Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and climate variables,
-    or SpatRaster with climate variable layers, OR</p></li>
-<li><p>An <code>analog_index</code> object created by
-    <code>build_analog_index</code> (for repeated queries).</p></li>
+or SpatRaster with climate variable layers, OR</p></li>
+<li><p>An <code>analog_index()</code> object created by
+<code>build_analog_index()</code> (for repeated queries).</p></li>
 </ul></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
 <dd><p>Coordinate system type (default: "auto"):</p><ul><li><p><code>"auto"</code>: Automatically detect from coordinate ranges.</p></li>
 <li><p><code>"lonlat"</code>: Unprojected lon/lat coordinates (uses great-circle distance;
-    assumes <code>max_geog</code> is in km).</p></li>
+assumes <code>max_geog</code> is in km).</p></li>
 <li><p><code>"projected"</code>: Projected XY coordinates (uses planar distance;
-    assumes <code>max_geog</code> is in projection units).</p></li>
+assumes <code>max_geog</code> is in projection units).</p></li>
 </ul></dd>
 
 
@@ -76,9 +76,9 @@ avoiding the need to rebuild the lattice for each query.</p>
 <dd><p>Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:</p><ul><li><p>A positive integer.</p></li>
 <li><p><code>"auto"</code> (the default): Automatically tune the index resolution
-    by optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution of
-    16 is used.</p></li>
+by optimizing compute time on a subsample of focal points. If focal has
+relatively few rows, auto-tuning is skipped and a default resolution of
+16 is used.</p></li>
 </ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
 
 </dl></div>

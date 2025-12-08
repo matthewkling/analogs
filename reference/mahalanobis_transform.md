@@ -62,7 +62,7 @@ in all directions. After transformation, Euclidean distance in the
 transformed space is equivalent to Mahalanobis distance in the original
 space.
 
-The transformation is: X_transformed = (X - μ)
+The transformation is: X_transformed = (X - μ) %\*% Σ^(-1/2)
 
 When `pool` is provided, the covariance structure is computed from the
 combined dataset to ensure both are transformed to the same space.

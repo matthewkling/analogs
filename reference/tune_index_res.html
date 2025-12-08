@@ -55,6 +55,7 @@ different resolutions and recommends the one with the fastest compute speed.</p>
 <span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  theta <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  values <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"lonlat"</span>, <span class="st">"projected"</span><span class="op">)</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  default_res <span class="op">=</span> <span class="fl">16L</span>,</span>
@@ -74,20 +75,20 @@ SpatRaster with climate variable layers.</p></dd>
 
 <dt id="arg-pool">pool<a class="anchor" aria-label="anchor" href="#arg-pool"></a></dt>
 <dd><p>The reference dataset to search for analogs. Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and climate variables,
-    or SpatRaster with climate variable layers, OR</p></li>
-<li><p>An <code>analog_index</code> object created by
-    <code><a href="build_analog_index.html">build_analog_index</a></code> (for repeated queries).</p></li>
+or SpatRaster with climate variable layers, OR</p></li>
+<li><p>An <code>analog_index()</code> object created by
+<code><a href="build_analog_index.html">build_analog_index()</a></code> (for repeated queries).</p></li>
 </ul></dd>
 
 
 <dt id="arg-select">select<a class="anchor" aria-label="anchor" href="#arg-select"></a></dt>
 <dd><p>Character string specifying the analog selection strategy.
 One of:</p><ul><li><p><code>"all"</code> (default): Select all analogs that satisfy the
-    <code>max_clim</code> and <code>max_geog</code> constraints.</p></li>
+<code>max_clim</code> and <code>max_geog</code> constraints.</p></li>
 <li><p><code>"knn_clim"</code>: For each focal, select up to <code>k</code> analogs
-    with smallest climate distance, subject to filters.</p></li>
+with smallest climate distance, subject to filters.</p></li>
 <li><p><code>"knn_geog"</code>: For each focal, select up to <code>k</code> analogs
-    with smallest geographic distance, subject to filters.</p></li>
+with smallest geographic distance, subject to filters.</p></li>
 </ul></dd>
 
 
@@ -95,11 +96,18 @@ One of:</p><ul><li><p><code>"all"</code> (default): Select all analogs that sati
 <dd><p>Statistic(s) used to aggregate selected analogs. Either:</p><ul><li><p><code>NULL</code> or <code>"none"</code>: Return all selected analog pairs as a data.frame.</p></li>
 <li><p><code>"count"</code>: For each focal, count the number of selected analogs.</p></li>
 <li><p><code>"sum_weights"</code>: For each focal, sum the weights of selected
-    analogs (see <code>weight</code> and <code>theta</code>).</p></li>
+analogs (see <code>weight</code> and <code>theta</code>).</p></li>
 <li><p><code>"mean_weights"</code>: For each focal, mean of weights of selected
-    analogs.</p></li>
-<li><p>A character vector combining multiple stats (e.g., <code>c("count", "sum_weights")</code>).
-    Note: <code>"none"</code> cannot be combined with other stats.</p></li>
+analogs.</p></li>
+<li><p><code>"sum"</code>: Sum of values across analogs (requires <code>values</code>).</p></li>
+<li><p><code>"mean"</code>: Mean of values across analogs (requires <code>values</code>).</p></li>
+<li><p><code>"weighted_sum"</code>: Sum of (value × weight) across analogs
+(requires <code>values</code> and <code>weight</code>).</p></li>
+<li><p><code>"weighted_mean"</code>: Weighted mean of values across analogs
+(requires <code>values</code> and <code>weight</code>).</p></li>
+<li><p>A character vector combining multiple stats (e.g.,
+<code>c("count", "sum", "mean")</code>).
+Note: <code>"none"</code> cannot be combined with other stats.</p></li>
 </ul></dd>
 
 
@@ -107,7 +115,7 @@ One of:</p><ul><li><p><code>"all"</code> (default): Select all analogs that sati
 <dd><p>Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:</p><ul><li><p>A scalar: Euclidean radius in climate space (e.g., 0.5)</p></li>
 <li><p>A vector: Per-variable absolute differences (length must equal
-    number of climate variables)</p></li>
+number of climate variables)</p></li>
 </ul><p>Only reference locations within this climate distance are considered.
 When <code>x_cov</code> is provided, scalar thresholds are interpreted in
 Mahalanobis distance units.</p></dd>
@@ -131,19 +139,19 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 <dd><p>Weighting function for matches, used only when
 <code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
 <li><p><code>"inverse_clim"</code>: Inverse climate distance,
-    weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
+weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_geog"</code>: Inverse geographic distance,
-    weight = 1 / (geographic_distance + eps), with epsilon given by <code>theta</code>.</p></li>
+weight = 1 / (geographic_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"gaussian_clim"</code>: Gaussian kernel on climate distance,
-    weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma given by <code>theta</code>.</p></li>
-<li><p><code>"gaussian_geog"</code>: Gaussian kernel on geographic distance,
-    weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by <code>theta</code>.</p></li>
+weight = exp(-climate_distance^2 / (2<em>sigma^2)), with sigma given by <code>theta</code>.
+ <code>"gaussian_geog"</code>: Gaussian kernel on geographic distance,
+weight = exp(-geographic_distance^2 / (2</em>sigma^2)), with sigma given by <code>theta</code>.</p></li>
 <li><p><code>"gaussian_joint"</code>: Joint Gaussian kernel,
-    weight = exp(-climate_distance^2/(2*sigma_c^2) - geographic_distance^2/(2*sigma_g^2)),
-    with sigma values given by <code>theta</code> as a 2-element vector c(sigma_clim, sigma_geog).</p></li>
+weight = exp(-climate_distance^2/(2<em>sigma_c^2) - geographic_distance^2/(2</em>sigma_g^2)),
+with sigma values given by <code>theta</code> as a 2-element vector c(sigma_clim, sigma_geog).</p></li>
 <li><p><code>"inverse_joint"</code>: Joint inverse distance,
-    weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
-    with epsilon values given by <code>theta</code> as a 2-element vector c(eps_clim, eps_geog).</p></li>
+weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
+with epsilon values given by <code>theta</code> as a 2-element vector c(eps_clim, eps_geog).</p></li>
 </ul><p>For <code>stat</code> not including weighted aggregations, <code>weight</code> must be <code>NULL</code>.</p></dd>
 
 
@@ -151,13 +159,13 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 <dd><p>Optional numeric parameter used by weighting functions
 when <code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weights"</code> and
 <code>weight</code> is not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
-    added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
+added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
-    parameter (scalar; larger values = slower decay with distance).</p></li>
+parameter (scalar; larger values = slower decay with distance).</p></li>
 <li><p>For <code>"gaussian_joint"</code>: 2-element vector c(sigma_clim, sigma_geog)
-    giving bandwidths for climate and geographic dimensions.</p></li>
+giving bandwidths for climate and geographic dimensions.</p></li>
 <li><p>For <code>"inverse_joint"</code>: 2-element vector c(eps_clim, eps_geog)
-    giving epsilon values for climate and geographic dimensions.</p></li>
+giving epsilon values for climate and geographic dimensions.</p></li>
 </ul><p>If <code>theta</code> is <code>NULL</code>, sensible defaults are used for single-parameter
 weights. For <code>weight = "uniform"</code> or for non-weighted aggregations, <code>theta</code>
 must be <code>NULL</code>.</p></dd>
@@ -171,12 +179,26 @@ variables, there are n*(n+1)/2 unique components, ordered as: variances
 first (diagonals), then covariances (upper triangle by row).</p></dd>
 
 
+<dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
+<dd><p>Optional user-defined variables for each reference location to
+aggregate across selected analogs. Can be:</p><ul><li><p>A numeric vector (single variable)</p></li>
+<li><p>A matrix or data.frame with numeric columns (multiple variables)</p></li>
+</ul><p>Must have exactly <code>nrow(pool)</code> rows (or number of reference locations
+if pool is an index). Each row corresponds to a reference location.</p>
+<p>When provided, enables value-based aggregation stats:</p><ul><li><p><code>"sum"</code>: Sum of values across analogs</p></li>
+<li><p><code>"mean"</code>: Mean of values across analogs</p></li>
+<li><p><code>"weighted_sum"</code>: Sum of (value × weight) - requires <code>weight</code></p></li>
+<li><p><code>"weighted_mean"</code>: Sum of (value × weight) / sum of weights - requires <code>weight</code></p></li>
+</ul><p>For stat = NULL/"none" (pairs mode), value columns are included in output
+for each analog pair.</p></dd>
+
+
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
 <dd><p>Coordinate system type (default: "auto"):</p><ul><li><p><code>"auto"</code>: Automatically detect from coordinate ranges.</p></li>
 <li><p><code>"lonlat"</code>: Unprojected lon/lat coordinates (uses great-circle distance;
-    assumes <code>max_geog</code> is in km).</p></li>
+assumes <code>max_geog</code> is in km).</p></li>
 <li><p><code>"projected"</code>: Projected XY coordinates (uses planar distance;
-    assumes <code>max_geog</code> is in projection units).</p></li>
+assumes <code>max_geog</code> is in projection units).</p></li>
 </ul></dd>
 
 
