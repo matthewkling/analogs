@@ -1,23 +1,23 @@
-# Analog intensity: weighted sum of analogs within climate/geographic limits
+# Analog similarity: best climate analogs within a geographic envelope
 
-Computes, for each focal location, the weighted sum of all reference
-locations that satisfy the supplied climate and geographic constraints.
-The weights are controlled by the `weight` and `theta` arguments and are
-applied after filtering.
+Computes, for each focal location, the climate–nearest neighbor(s) in a
+reference dataset that satisfy a specified geographic distance
+threshold. This helper wraps
+[`analog_search`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+using `select = "knn_clim"`.
 
 ## Usage
 
 ``` r
-analog_intensity(
+analog_similarity(
   x,
   pool,
   x_cov = NULL,
+  values = NULL,
   coord_type = "auto",
+  max_geog,
   max_clim = NULL,
-  max_geog = NULL,
-  weight = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
-    "gaussian_joint", "inverse_joint"),
-  theta = NULL,
+  k = 20,
   index_res = "auto",
   n_threads = NULL
 )
@@ -50,6 +50,32 @@ analog_intensity(
   variables, there are n\*(n+1)/2 unique components, ordered as:
   variances first (diagonals), then covariances (upper triangle by row).
 
+- values:
+
+  Optional user-defined variables for each reference location to
+  aggregate across selected analogs. Can be:
+
+  - A numeric vector (single variable)
+
+  - A matrix or data.frame with numeric columns (multiple variables)
+
+  Must have exactly `nrow(pool)` rows (or number of reference locations
+  if pool is an index). Each row corresponds to a reference location.
+
+  When provided, enables value-based aggregation stats:
+
+  - `"sum"`: Sum of values across analogs
+
+  - `"mean"`: Mean of values across analogs
+
+  - `"weighted_sum"`: Sum of (value × weight) - requires `weight`
+
+  - `"weighted_mean"`: Sum of (value × weight) / sum of weights -
+    requires `weight`
+
+  For stat = NULL/"none" (pairs mode), value columns are included in
+  output for each analog pair.
+
 - coord_type:
 
   Coordinate system type:
@@ -61,6 +87,14 @@ analog_intensity(
 
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
+
+- max_geog:
+
+  Maximum geographic distance constraint (default: NULL = no geographic
+  constraint). When specified, only reference locations within this
+  distance are considered. Radius units should be specified in
+  kilometers if `coord_type = "lonlat"`, or in projected coordinate
+  units if `coord_type = "projected"`.
 
 - max_clim:
 
@@ -76,67 +110,11 @@ analog_intensity(
   When `x_cov` is provided, scalar thresholds are interpreted in
   Mahalanobis distance units.
 
-- max_geog:
+- k:
 
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
-
-- weight:
-
-  Weighting function for matches, used only when `stat` includes
-  `"sum_weights"` or `"mean_weights"`. One of:
-
-  - `"uniform"`: All matches weighted equally (weight = 1.0).
-
-  - `"inverse_clim"`: Inverse climate distance, weight = 1 /
-    (climate_distance + eps), with epsilon given by `theta`.
-
-  - `"inverse_geog"`: Inverse geographic distance, weight = 1 /
-    (geographic_distance + eps), with epsilon given by `theta`.
-
-  - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2*sigma^2)), with sigma given by `theta`.
-    `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
-    `theta`.
-
-  - `"gaussian_joint"`: Joint Gaussian kernel, weight =
-    exp(-climate_distance^2/(2*sigma_c^2) -
-    geographic_distance^2/(2*sigma_g^2)), with sigma values given by
-    `theta` as a 2-element vector c(sigma_clim, sigma_geog).
-
-  - `"inverse_joint"`: Joint inverse distance, weight = 1 /
-    sqrt((climate_distance + eps_clim)^2 + (geographic_distance +
-    eps_geog)^2), with epsilon values given by `theta` as a 2-element
-    vector c(eps_clim, eps_geog).
-
-  For `stat` not including weighted aggregations, `weight` must be
-  `NULL`.
-
-- theta:
-
-  Optional numeric parameter used by weighting functions when `stat`
-  includes `"sum_weights"` or `"mean_weights"` and `weight` is not
-  `"uniform"`. Interpretation depends on `weight`:
-
-  - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
-    distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-
-  - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
-    parameter (scalar; larger values = slower decay with distance).
-
-  - For `"gaussian_joint"`: 2-element vector c(sigma_clim, sigma_geog)
-    giving bandwidths for climate and geographic dimensions.
-
-  - For `"inverse_joint"`: 2-element vector c(eps_clim, eps_geog) giving
-    epsilon values for climate and geographic dimensions.
-
-  If `theta` is `NULL`, sensible defaults are used for single-parameter
-  weights. For `weight = "uniform"` or for non-weighted aggregations,
-  `theta` must be `NULL`.
+  Number of nearest analogs to return per focal location for kNN
+  selection modes. Required when `select` is `"knn_geog"` or
+  `"knn_clim"`; must be `NULL` for `select = "all"`.
 
 - index_res:
 
@@ -198,44 +176,36 @@ etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
 
+## Details
+
+For each focal location, `analog_similarity()`:
+
+1.  Identifies all reference points within `max_geog` km (and optional
+    climate filter).
+
+2.  Selects the `k` closest in *climate* distance.
+
+This is the natural "inverse" of
+[`analog_velocity`](https://matthewkling.github.io/analogs/reference/analog_velocity.md):
+instead of finding where the focal climate moves geographically, it
+finds the closest climatically similar conditions that are
+geographically reachable.
+
 ## Examples
 
 ``` r
 if (FALSE) { # \dontrun{
-# One-shot query with inverse weighting
-intens <- analog_intensity(
-  x = sites,
-  pool = climate_data,
-  max_clim = 0.5,
+# One-shot query
+im <- analog_similarity(
+  x = clim$clim1,
+  pool = clim$clim2,
   max_geog = 100,
-  weight = "inverse_clim"
-)
-
-# Gaussian weighting by climate distance
-intens_gauss <- analog_intensity(
-  x = sites,
-  pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100,
-  weight = "gaussian_clim",
-  theta = 0.2  # bandwidth parameter
-)
-
-# Joint Gaussian weighting (both climate and geography)
-intens_joint <- analog_intensity(
-  x = sites,
-  pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100,
-  weight = "gaussian_joint",
-  theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
+  k = 20
 )
 
 # With pre-built index (for repeated queries)
-index <- build_analog_index(climate_data)
-i1 <- analog_intensity(x = sites1, pool = index, max_clim = 0.5,
-                       weight = "inverse_clim")
-i2 <- analog_intensity(x = sites2, pool = index, max_geog = 100,
-                       weight = "inverse_geog")
+index <- build_analog_index(clim$clim2)
+i1 <- analog_similarity(x = sites1, pool = index, max_geog = 100, k = 20)
+i2 <- analog_similarity(x = sites2, pool = index, max_geog = 50, k = 10)
 } # }
 ```

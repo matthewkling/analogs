@@ -7,15 +7,13 @@ geographic proximity.
 
 ## Core Functions
 
-The package supports a range of analyses. For fully customized queries,
-you can call the core
-[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-function. Common query types are supported via dedicated helper
-functions:
+The package supports a range of analyses. The core workhorse function is
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
+Common query types are supported via dedicated helper functions:
 
 - [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md)
   finds the k nearest geographic analogs under a hard climate constraint
-- [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
+- [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md)
   finds the k nearest climate analogs within a geographic constraint  
 - [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md)
   counts analogs that meet both climate and distance thresholds

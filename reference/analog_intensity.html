@@ -51,7 +51,6 @@ after filtering.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  <span class="va">pool</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  values <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -87,20 +86,6 @@ distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
 first (diagonals), then covariances (upper triangle by row).</p></dd>
-
-
-<dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
-<dd><p>Optional user-defined variables for each reference location to
-aggregate across selected analogs. Can be:</p><ul><li><p>A numeric vector (single variable)</p></li>
-<li><p>A matrix or data.frame with numeric columns (multiple variables)</p></li>
-</ul><p>Must have exactly <code>nrow(pool)</code> rows (or number of reference locations
-if pool is an index). Each row corresponds to a reference location.</p>
-<p>When provided, enables value-based aggregation stats:</p><ul><li><p><code>"sum"</code>: Sum of values across analogs</p></li>
-<li><p><code>"mean"</code>: Mean of values across analogs</p></li>
-<li><p><code>"weighted_sum"</code>: Sum of (value × weight) - requires <code>weight</code></p></li>
-<li><p><code>"weighted_mean"</code>: Sum of (value × weight) / sum of weights - requires <code>weight</code></p></li>
-</ul><p>For stat = NULL/"none" (pairs mode), value columns are included in output
-for each analog pair.</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
