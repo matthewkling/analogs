@@ -1,18 +1,14 @@
-#' Climate impact: nearest climate analogs within a geographic envelope
+#' Analog similarity: best climate analogs within a geographic envelope
 #'
 #' Computes, for each focal location, the climate–nearest neighbor(s) in a
 #' reference dataset that satisfy a specified geographic distance threshold.
 #' This helper wraps \code{\link{analog_search}} using \code{select = "knn_clim"}.
 #'
-#' It is useful for estimating the potential ecological impact of local climate
-#' change: e.g., how climate conditions at a site compare to those available
-#' within a species' dispersal range.
-#'
 #' @inheritParams analog_search
 #' @inherit analog_search return
 #'
 #' @details
-#' For each focal location, \code{analog_impact()}:
+#' For each focal location, \code{analog_similarity()}:
 #' \enumerate{
 #'   \item Identifies all reference points within \code{max_geog} km (and
 #'         optional climate filter).
@@ -26,7 +22,7 @@
 #' @examples
 #' \dontrun{
 #' # One-shot query
-#' im <- analog_impact(
+#' im <- analog_similarity(
 #'   x = clim$clim1,
 #'   pool = clim$clim2,
 #'   max_geog = 100,
@@ -35,12 +31,12 @@
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(clim$clim2)
-#' i1 <- analog_impact(x = sites1, pool = index, max_geog = 100, k = 20)
-#' i2 <- analog_impact(x = sites2, pool = index, max_geog = 50, k = 10)
+#' i1 <- analog_similarity(x = sites1, pool = index, max_geog = 100, k = 20)
+#' i2 <- analog_similarity(x = sites2, pool = index, max_geog = 50, k = 10)
 #' }
 #'
 #' @export
-analog_impact <- function(
+analog_similarity <- function(
             x,
             pool,
             x_cov = NULL,
@@ -62,7 +58,7 @@ analog_impact <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             x_cov       = x_cov,
-            values = values,
+            values      = values,
             k           = k,
             weight      = NULL,
             theta       = NULL,

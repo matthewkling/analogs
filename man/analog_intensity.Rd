@@ -8,7 +8,6 @@ analog_intensity(
   x,
   pool,
   x_cov = NULL,
-  values = NULL,
   coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
@@ -37,26 +36,6 @@ distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component. For n climate
 variables, there are n*(n+1)/2 unique components, ordered as: variances
 first (diagonals), then covariances (upper triangle by row).}
-
-\item{values}{Optional user-defined variables for each reference location to
-aggregate across selected analogs. Can be:
-\itemize{
-\item A numeric vector (single variable)
-\item A matrix or data.frame with numeric columns (multiple variables)
-}
-Must have exactly \code{nrow(pool)} rows (or number of reference locations
-if pool is an index). Each row corresponds to a reference location.
-
-When provided, enables value-based aggregation stats:
-\itemize{
-\item \code{"sum"}: Sum of values across analogs
-\item \code{"mean"}: Mean of values across analogs
-\item \code{"weighted_sum"}: Sum of (value × weight) - requires \code{weight}
-\item \code{"weighted_mean"}: Sum of (value × weight) / sum of weights - requires \code{weight}
-}
-
-For stat = NULL/"none" (pairs mode), value columns are included in output
-for each analog pair.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{

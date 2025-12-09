@@ -61,7 +61,7 @@ benchmark <- function(clim, fun = time, n_focal = 1e5,
                   max_clim = .5, k = 1,
                   ...)),
 
-            impact = fun(analog_impact(
+            impact = fun(analog_similarity(
                   focal, ref,
                   max_clim = NULL, max_geog = max_geog, k = 20,
                   ...)),

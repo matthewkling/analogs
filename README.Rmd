@@ -23,10 +23,10 @@ The **analogs** package provides fast, flexible tools for climate analog analyse
 
 ## Core Functions
 
-The package supports a range of analyses. For fully customized queries, you can call the core `analog_search()` function. Common query types are supported via dedicated helper functions:
+The package supports a range of analyses. The core workhorse function is `analog_search()`. Common query types are supported via dedicated helper functions:
 
 - `analog_velocity()` finds the k nearest geographic analogs under a hard climate constraint
-- `analog_impact()` finds the k nearest climate analogs within a geographic constraint  
+- `analog_similarity()` finds the k nearest climate analogs within a geographic constraint  
 - `analog_availability()` counts analogs that meet both climate and distance thresholds
 - `analog_intensity()` computes distance-weighted aggregations of analog properties
 

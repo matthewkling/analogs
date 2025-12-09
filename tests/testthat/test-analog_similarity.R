@@ -1,10 +1,10 @@
-test_that("`analog_impact` result matches manual calculation", {
+test_that("`analog_similarity` result matches manual calculation", {
 
       d <- sim_test_data()
       max_geog <- 1
 
       # impact
-      nn <- analog_impact(d$focal, d$ref, max_geog = max_geog, k = 1, coord_type = "projected")
+      nn <- analog_similarity(d$focal, d$ref, max_geog = max_geog, k = 1, coord_type = "projected")
 
       # manual impact calculation
       dclim <- xdist(d$focal, d$ref, "clim")
@@ -17,13 +17,13 @@ test_that("`analog_impact` result matches manual calculation", {
       expect_equal(nn$clim_dist, nn_dst)
 })
 
-test_that("`analog_impact` result matches manual calculation for LON/LAT coords", {
+test_that("`analog_similarity` result matches manual calculation for LON/LAT coords", {
 
       d <- sim_test_data(lonlat = TRUE)
       max_geog <- 5000  # km, large enough that some analogs will typically pass
 
       # impact (lon/lat)
-      nn <- analog_impact(
+      nn <- analog_similarity(
             d$focal, d$ref,
             max_geog = max_geog,
             k = 1,
@@ -49,12 +49,12 @@ test_that("`analog_impact` result matches manual calculation for LON/LAT coords"
       expect_equal(nn$clim_dist, nn_dst, tolerance = 1e-8)
 })
 
-test_that("analog_impact works with x/pool parameter names", {
+test_that("analog_similarity works with x/pool parameter names", {
 
       d <- sim_test_data()
 
       # Test with raw data
-      i <- analog_impact(
+      i <- analog_similarity(
             x = d$focal,
             pool = d$ref,
             max_geog = 2,
@@ -69,7 +69,7 @@ test_that("analog_impact works with x/pool parameter names", {
 })
 
 
-test_that("analog_impact works with analog_index", {
+test_that("analog_similarity works with analog_index", {
 
       d <- sim_test_data()
 
@@ -77,7 +77,7 @@ test_that("analog_impact works with analog_index", {
       index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
 
       # Query with index
-      i <- analog_impact(
+      i <- analog_similarity(
             x = d$focal,
             pool = index,
             max_geog = 2,
