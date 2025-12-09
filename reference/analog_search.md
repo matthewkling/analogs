@@ -82,9 +82,9 @@ analog_search(
 
 - coord_type:
 
-  Coordinate system type (default: "auto"):
+  Coordinate system type:
 
-  - `"auto"`: Automatically detect from coordinate ranges.
+  - `"auto"` (default): Automatically detect from coordinate ranges.
 
   - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
     distance; assumes `max_geog` is in km).
@@ -238,42 +238,43 @@ analog_search(
 
 ## Value
 
-The return value depends on the `stat` parameter:
+Return type depends on input format and query mode.
 
-**For stat = NULL or "none"**: A data.frame with one row per
-focal-analog pair:
+Returns a data.frame, unless `x` is a SpatRaster and results have
+exactly one record per input cell (aggregation mode, or pairwise with
+`k = 1`), in which case returns a SpatRaster with one layer per output
+variable.
 
-- `index`: Index of focal location (1-based).
+Pairwise mode (`stat = NULL` or `"none"`) returns one row per
+focal-analog pair, with the following variables:
 
-- `x, y`: Coordinates of focal location.
+- `index`, `x`, `y`: Focal location (1-based index and coordinates)
+  corresponding to input `x`
 
-- `analog_index`: Index of analog location in reference dataset
-  (1-based).
+- `analog_index`, `analog_x`, `analog_y`: Analog location corresponding
+  to input `pool`
 
-- `analog_x, analog_y`: Coordinates of analog location.
+- `clim_dist`: Climate distance (Euclidean or Mahalanobis)
 
-- `clim_dist`: Climate distance.
+- `geog_dist`: Geographic distance (km for lonlat, projection units
+  otherwise)
 
-- `geog_dist`: Geographic distance in km or projected units.
+- Value columns (if `values` provided): one per variable
 
-- Value columns (if `values` provided): one column per variable.
+Aggregation mode (one or more `stat` values) returns one row per focal
+location, with the following variables:
 
-**For stat = single aggregation or vector of aggregations**: A
-data.frame with one row per focal location:
+- `index`, `x`, `y`: Focal location
 
-- `index`: Index of focal location (1-based).
+- One column per requested statistic. For `stat` with single `values`
+  variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
+  multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
+  `sum_biomass`, `mean_richness`)
 
-- `x, y`: Coordinates of focal location.
-
-- One column per requested stat.
-
-- For value stats with single variable: `sum`, `mean`, `weighted_sum`,
-  `weighted_mean`.
-
-- For value stats with multiple variables: `{stat}_{varname}` (e.g.,
-  `sum_biomass`, `mean_richness`).
-
-All outputs include diagnostic attributes propagated from the C++ core.
+All results include metadata attributes (`select`, `stat`, `weight`,
+etc.). Use
+[`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
+to view a formatted summary.
 
 ## Details
 
@@ -297,6 +298,11 @@ measured using Euclidean distance in climate space (ideally
 pre-whitened). Geographic distance can be computed for lon/lat
 coordinates (great-circle distance) or projected coordinates (planar
 distance).
+
+## See also
+
+[`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
+to print a summary of search result metadata.
 
 ## Examples
 

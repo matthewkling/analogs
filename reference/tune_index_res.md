@@ -206,9 +206,9 @@ tune_index_res(
 
 - coord_type:
 
-  Coordinate system type (default: "auto"):
+  Coordinate system type:
 
-  - `"auto"`: Automatically detect from coordinate ranges.
+  - `"auto"` (default): Automatically detect from coordinate ranges.
 
   - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
     distance; assumes `max_geog` is in km).

@@ -79,9 +79,9 @@ analog_intensity(
 
 - coord_type:
 
-  Coordinate system type (default: "auto"):
+  Coordinate system type:
 
-  - `"auto"`: Automatically detect from coordinate ranges.
+  - `"auto"` (default): Automatically detect from coordinate ranges.
 
   - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
     distance; assumes `max_geog` is in km).
@@ -187,13 +187,43 @@ analog_intensity(
 
 ## Value
 
-A data.frame with one row per focal location:
+Return type depends on input format and query mode.
 
-- `index`
+Returns a data.frame, unless `x` is a SpatRaster and results have
+exactly one record per input cell (aggregation mode, or pairwise with
+`k = 1`), in which case returns a SpatRaster with one layer per output
+variable.
 
-- `x`, `y`
+Pairwise mode (`stat = NULL` or `"none"`) returns one row per
+focal-analog pair, with the following variables:
 
-- `value`: weighted sum over all analogs
+- `index`, `x`, `y`: Focal location (1-based index and coordinates)
+  corresponding to input `x`
+
+- `analog_index`, `analog_x`, `analog_y`: Analog location corresponding
+  to input `pool`
+
+- `clim_dist`: Climate distance (Euclidean or Mahalanobis)
+
+- `geog_dist`: Geographic distance (km for lonlat, projection units
+  otherwise)
+
+- Value columns (if `values` provided): one per variable
+
+Aggregation mode (one or more `stat` values) returns one row per focal
+location, with the following variables:
+
+- `index`, `x`, `y`: Focal location
+
+- One column per requested statistic. For `stat` with single `values`
+  variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
+  multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
+  `sum_biomass`, `mean_richness`)
+
+All results include metadata attributes (`select`, `stat`, `weight`,
+etc.). Use
+[`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
+to view a formatted summary.
 
 ## Examples
 

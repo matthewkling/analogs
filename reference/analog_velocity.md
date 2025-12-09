@@ -1,12 +1,11 @@
-# Climate velocity: nearest geographic analogs within a climate envelope
+# Climate velocity: geographically nearest climate analogs
 
 Computes, for each focal location, the geographic nearest neighbor(s) in
-a reference dataset that satisfy a specified climate distance threshold.
-This helper wraps
+a reference dataset that satisfy a specified maximum climate distance
+threshold. This helper wraps
 [`analog_search`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-using `select = "knn_geog"` and is most commonly used for estimating
-climate velocity (the rate and direction at which organisms would have
-to move to track constant climate conditions).
+using `select = "knn_geog"` and is used for estimating analog-based
+climate velocity.
 
 ## Usage
 
@@ -80,9 +79,9 @@ analog_velocity(
 
 - coord_type:
 
-  Coordinate system type (default: "auto"):
+  Coordinate system type:
 
-  - `"auto"`: Automatically detect from coordinate ranges.
+  - `"auto"` (default): Automatically detect from coordinate ranges.
 
   - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
     distance; assumes `max_geog` is in km).
@@ -140,29 +139,43 @@ analog_velocity(
 
 ## Value
 
-A data.frame with one row per focal–analog pair, including:
+Return type depends on input format and query mode.
 
-- `index`, `analog_index`
+Returns a data.frame, unless `x` is a SpatRaster and results have
+exactly one record per input cell (aggregation mode, or pairwise with
+`k = 1`), in which case returns a SpatRaster with one layer per output
+variable.
 
-- `x`, `y`, `analog_x`, `analog_y`
+Pairwise mode (`stat = NULL` or `"none"`) returns one row per
+focal-analog pair, with the following variables:
 
-- `clim_dist`, `geog_dist`
+- `index`, `x`, `y`: Focal location (1-based index and coordinates)
+  corresponding to input `x`
 
-Diagnostic attributes (e.g., binning statistics) from the underlying
-spatial index are preserved.
+- `analog_index`, `analog_x`, `analog_y`: Analog location corresponding
+  to input `pool`
 
-## Details
+- `clim_dist`: Climate distance (Euclidean or Mahalanobis)
 
-For each focal point, this function:
+- `geog_dist`: Geographic distance (km for lonlat, projection units
+  otherwise)
 
-1.  Identifies all reference points satisfying the climate (and optional
-    geographic) threshold(s).
+- Value columns (if `values` provided): one per variable
 
-2.  Among those, selects the `k` nearest in *geographic* distance.
+Aggregation mode (one or more `stat` values) returns one row per focal
+location, with the following variables:
 
-This is the classical operation needed for estimating *climate
-velocity*: the minimum relocation distance needed to maintain similar
-climatic conditions under temporal change.
+- `index`, `x`, `y`: Focal location
+
+- One column per requested statistic. For `stat` with single `values`
+  variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
+  multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
+  `sum_biomass`, `mean_richness`)
+
+All results include metadata attributes (`select`, `stat`, `weight`,
+etc.). Use
+[`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
+to view a formatted summary.
 
 ## Examples
 

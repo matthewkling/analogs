@@ -106,7 +106,7 @@ for each analog pair.</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
-<dd><p>Coordinate system type (default: "auto"):</p><ul><li><p><code>"auto"</code>: Automatically detect from coordinate ranges.</p></li>
+<dd><p>Coordinate system type:</p><ul><li><p><code>"auto"</code> (default): Automatically detect from coordinate ranges.</p></li>
 <li><p><code>"lonlat"</code>: Unprojected lon/lat coordinates (uses great-circle distance;
 assumes <code>max_geog</code> is in km).</p></li>
 <li><p><code>"projected"</code>: Projected XY coordinates (uses planar distance;
@@ -222,23 +222,23 @@ is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOption
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>The return value depends on the <code>stat</code> parameter:</p>
-<p><strong>For stat = NULL or "none"</strong>:
-A data.frame with one row per focal-analog pair:</p><ul><li><p><code>index</code>: Index of focal location (1-based).</p></li>
-<li><p><code>x, y</code>: Coordinates of focal location.</p></li>
-<li><p><code>analog_index</code>: Index of analog location in reference dataset (1-based).</p></li>
-<li><p><code>analog_x, analog_y</code>: Coordinates of analog location.</p></li>
-<li><p><code>clim_dist</code>: Climate distance.</p></li>
-<li><p><code>geog_dist</code>: Geographic distance in km or projected units.</p></li>
-<li><p>Value columns (if <code>values</code> provided): one column per variable.</p></li>
-</ul><p><strong>For stat = single aggregation or vector of aggregations</strong>:
-A data.frame with one row per focal location:</p><ul><li><p><code>index</code>: Index of focal location (1-based).</p></li>
-<li><p><code>x, y</code>: Coordinates of focal location.</p></li>
-<li><p>One column per requested stat.</p></li>
-<li><p>For value stats with single variable: <code>sum</code>, <code>mean</code>, <code>weighted_sum</code>, <code>weighted_mean</code>.</p></li>
-<li><p>For value stats with multiple variables: <code>{stat}_{varname}</code>
-(e.g., <code>sum_biomass</code>, <code>mean_richness</code>).</p></li>
-</ul><p>All outputs include diagnostic attributes propagated from the C++ core.</p>
+    <p>Return type depends on input format and query mode.</p>
+<p>Returns a data.frame, unless <code>x</code> is a SpatRaster and results have exactly one record per
+input cell (aggregation mode, or pairwise with <code>k = 1</code>), in which case returns a
+SpatRaster with one layer per output variable.</p>
+<p>Pairwise mode (<code>stat = NULL</code> or <code>"none"</code>) returns one row per focal-analog pair,
+with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location (1-based index and coordinates) corresponding to input <code>x</code></p></li>
+<li><p><code>analog_index</code>, <code>analog_x</code>, <code>analog_y</code>: Analog location corresponding to input <code>pool</code></p></li>
+<li><p><code>clim_dist</code>: Climate distance (Euclidean or Mahalanobis)</p></li>
+<li><p><code>geog_dist</code>: Geographic distance (km for lonlat, projection units otherwise)</p></li>
+<li><p>Value columns (if <code>values</code> provided): one per variable</p></li>
+</ul><p>Aggregation mode (one or more <code>stat</code> values) returns one row per focal location,
+with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location</p></li>
+<li><p>One column per requested statistic. For <code>stat</code> with single <code>values</code> variable:
+column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>values</code>
+variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass</code>, <code>mean_richness</code>)</p></li>
+</ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>weight</code>, etc.).
+Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a formatted summary.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -259,6 +259,10 @@ search through large reference datasets. Climate similarity is measured
 using Euclidean distance in climate space (ideally pre-whitened).
 Geographic distance can be computed for lon/lat coordinates (great-circle
 distance) or projected coordinates (planar distance).</p>
+    </div>
+    <div class="section level2">
+    <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
+    <div class="dont-index"><p><code><a href="analog_summary.html">analog_summary()</a></code> to print a summary of search result metadata.</p></div>
     </div>
 
     <div class="section level2">

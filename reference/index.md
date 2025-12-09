@@ -12,9 +12,10 @@
   limits
 - [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   : Find Climate Analogs
+- [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
+  : Summarize analog search results and parameters
 - [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md)
-  : Climate velocity: nearest geographic analogs within a climate
-  envelope
+  : Climate velocity: geographically nearest climate analogs
 - [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
   : Build Analog Index
 - [`is_analog_index()`](https://matthewkling.github.io/analogs/reference/is_analog_index.md)
