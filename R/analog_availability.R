@@ -5,11 +5,7 @@
 #' mapping analog "availability" or environmental similarity density.
 #'
 #' @inheritParams analog_search
-#'
-#' @return A data.frame with columns:
-#'   - index (the row number in the input `x`)
-#'   - x, y (coordinates correspond to input `x`)
-#'   - value (the count of analogs)
+#' @inherit analog_search return
 #'
 #' @examples
 #' \dontrun{

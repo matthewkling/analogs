@@ -375,7 +375,7 @@
 
 
 
-.format_output <- function(out, x, stat, select, k, weight, theta){
+.format_output <- function(out, x, stat, select, k, weight, theta, x_cov_mat){
 
       if(! requireNamespace("terra", quietly = TRUE) || # terra not available
          is.null(attr(x, "template")) || # x wasn't a raster
@@ -386,19 +386,25 @@
 
       } else {
             # rasterize with template
+            att <- attributes(out) # capture cpp attributes
             vars <- setdiff(names(out), c("x", "y", "index"))
             out <- terra::rast(
                   lapply(vars, function(v){
                         setNames(terra::setValues(attr(x, "template"), out[[v]]), v)
                   })
             )
-            terra::varnames(out) <- vars  # Set varnames to match layer names
+            terra::varnames(out) <- vars  # set varnames to match layer names
+
+            # add attributes
+            attributes(out) <- append(attributes(out), att[setdiff(names(att), names(attributes(out)))])
       }
 
       attr(out, "select")    <- select
       attr(out, "stat")      <- stat
+      attr(out, "k")         <- k
       attr(out, "weight")    <- weight
       attr(out, "theta")     <- theta
+      attr(out, "x_cov")     <- !is.null(x_cov_mat)
 
       return(out)
 }

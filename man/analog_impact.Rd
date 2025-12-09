@@ -56,9 +56,9 @@ When provided, enables value-based aggregation stats:
 For stat = NULL/"none" (pairs mode), value columns are included in output
 for each analog pair.}
 
-\item{coord_type}{Coordinate system type (default: "auto"):
+\item{coord_type}{Coordinate system type:
 \itemize{
-\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"auto"} (default): Automatically detect from coordinate ranges.
 \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
 assumes \code{max_geog} is in km).
 \item \code{"projected"}: Projected XY coordinates (uses planar distance;
@@ -102,13 +102,33 @@ computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
-A data.frame with one row per focal–analog pair, including:
+Return type depends on input format and query mode.
+
+Returns a data.frame, unless \code{x} is a SpatRaster and results have exactly one record per
+input cell (aggregation mode, or pairwise with \code{k = 1}), in which case returns a
+SpatRaster with one layer per output variable.
+
+Pairwise mode (\code{stat = NULL} or \code{"none"}) returns one row per focal-analog pair,
+with the following variables:
 \itemize{
-\item \code{index}, \code{analog_index}
-\item \code{x}, \code{y}, \code{analog_x}, \code{analog_y}
-\item \code{clim_dist}, \code{geog_dist}
+\item \code{index}, \code{x}, \code{y}: Focal location (1-based index and coordinates) corresponding to input \code{x}
+\item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
+\item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
+\item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
+\item Value columns (if \code{values} provided): one per variable
 }
-Diagnostic attributes from the underlying spatial index are preserved.
+
+Aggregation mode (one or more \code{stat} values) returns one row per focal location,
+with the following variables:
+\itemize{
+\item \code{index}, \code{x}, \code{y}: Focal location
+\item One column per requested statistic. For \code{stat} with single \code{values} variable:
+column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
+variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
+}
+
+All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
 Computes, for each focal location, the climate–nearest neighbor(s) in a

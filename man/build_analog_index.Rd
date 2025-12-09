@@ -19,9 +19,9 @@ or SpatRaster with climate variable layers, OR
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
-\item{coord_type}{Coordinate system type (default: "auto"):
+\item{coord_type}{Coordinate system type:
 \itemize{
-\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"auto"} (default): Automatically detect from coordinate ranges.
 \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
 assumes \code{max_geog} is in km).
 \item \code{"projected"}: Projected XY coordinates (uses planar distance;

@@ -60,9 +60,9 @@ When provided, enables value-based aggregation stats:
 For stat = NULL/"none" (pairs mode), value columns are included in output
 for each analog pair.}
 
-\item{coord_type}{Coordinate system type (default: "auto"):
+\item{coord_type}{Coordinate system type:
 \itemize{
-\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"auto"} (default): Automatically detect from coordinate ranges.
 \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
 assumes \code{max_geog} is in km).
 \item \code{"projected"}: Projected XY coordinates (uses planar distance;
@@ -174,37 +174,33 @@ computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
-The return value depends on the \code{stat} parameter:
+Return type depends on input format and query mode.
 
-\strong{For stat = NULL or "none"}:
-A data.frame (or SpatRaster) with one row (cell) per focal-analog pair:
+Returns a data.frame, unless \code{x} is a SpatRaster and results have exactly one record per
+input cell (aggregation mode, or pairwise with \code{k = 1}), in which case returns a
+SpatRaster with one layer per output variable.
+
+Pairwise mode (\code{stat = NULL} or \code{"none"}) returns one row per focal-analog pair,
+with the following variables:
 \itemize{
-\item \code{index}: Index of focal location (1-based).
-\item \code{x, y}: Coordinates of focal location.
-\item \code{analog_index}: Index of analog location in reference dataset (1-based).
-\item \code{analog_x, analog_y}: Coordinates of analog location.
-\item \code{clim_dist}: Climate distance.
-\item \code{geog_dist}: Geographic distance in km or projected units.
-\item Value columns (if \code{values} provided): one column per variable.
+\item \code{index}, \code{x}, \code{y}: Focal location (1-based index and coordinates) corresponding to input \code{x}
+\item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
+\item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
+\item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
+\item Value columns (if \code{values} provided): one per variable
 }
 
-\strong{For stat = single aggregation or vector of aggregations}:
-A data.frame (or SpatRaster) with one row (cell) per focal location:
+Aggregation mode (one or more \code{stat} values) returns one row per focal location,
+with the following variables:
 \itemize{
-\item \code{index}: Index of focal location (1-based).
-\item \code{x, y}: Coordinates of focal location.
-\item One column per requested stat.
-\item For value stats with single variable: \code{sum}, \code{mean}, \code{weighted_sum}, \code{weighted_mean}.
-\item For value stats with multiple variables: \code{{stat}_{varname}}
-(e.g., \code{sum_biomass}, \code{mean_richness}).
+\item \code{index}, \code{x}, \code{y}: Focal location
+\item One column per requested statistic. For \code{stat} with single \code{values} variable:
+column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
+variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
 }
 
-If \code{x} is a SpatRaster and the query results generate one result per
-grid cell of \code{x} (i.e. if \code{k = 1 }or if \code{stat != "none"}) the function
-returns as SpatRaster corresponding to \code{x}, with a layer for each of
-the variables described above.
-
-All outputs include diagnostic attributes propagated from the C++ core.
+All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
 Identifies locations in a reference dataset that are climatically similar to
@@ -273,4 +269,7 @@ analog_search(x = focal, pool = ref, values = values_df$biomass,
               max_clim = 0.5)
 # Returns: index, x, y, weighted_sum, weighted_mean
 
+}
+\seealso{
+\code{\link[=analog_summary]{analog_summary()}} to print a summary of search result metadata.
 }

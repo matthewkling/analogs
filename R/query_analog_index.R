@@ -147,7 +147,7 @@ query_analog_index <- function(x,
             }
 
             return(.format_output(out, focal, stat, select,
-                                  k, weight, theta))
+                                  k, weight, theta, x_cov_mat))
       }
 
       # Aggregation mode(s)
@@ -212,5 +212,5 @@ query_analog_index <- function(x,
       }
 
       return(.format_output(out, focal, stat, select,
-                            k, weight, theta))
+                            k, weight, theta, x_cov_mat))
 }

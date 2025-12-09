@@ -9,6 +9,7 @@
 #' within a species' dispersal range.
 #'
 #' @inheritParams analog_search
+#' @inherit analog_search return
 #'
 #' @details
 #' For each focal location, \code{analog_impact()}:
@@ -21,14 +22,6 @@
 #' This is the natural "inverse" of \code{\link{analog_velocity}}: instead of finding
 #' where the focal climate moves geographically, it finds the closest climatically
 #' similar conditions that are geographically reachable.
-#'
-#' @return A data.frame with one row per focal–analog pair, including:
-#'   \itemize{
-#'     \item \code{index}, \code{analog_index}
-#'     \item \code{x}, \code{y}, \code{analog_x}, \code{analog_y}
-#'     \item \code{clim_dist}, \code{geog_dist}
-#'   }
-#' Diagnostic attributes from the underlying spatial index are preserved.
 #'
 #' @examples
 #' \dontrun{

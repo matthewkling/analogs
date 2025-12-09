@@ -67,9 +67,9 @@
 #'   For stat = NULL/"none" (pairs mode), value columns are included in output
 #'   for each analog pair.
 #'
-#' @param coord_type Coordinate system type (default: "auto"):
+#' @param coord_type Coordinate system type:
 #'   \itemize{
-#'     \item \code{"auto"}: Automatically detect from coordinate ranges.
+#'     \item \code{"auto"} (default): Automatically detect from coordinate ranges.
 #'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
 #'       assumes \code{max_geog} is in km).
 #'     \item \code{"projected"}: Projected XY coordinates (uses planar distance;
@@ -188,37 +188,33 @@
 #'   is used (see \code{RcppParallel::setThreadOptions}).
 #'
 #' @return
-#' The return value depends on the \code{select} and \code{stat} parameters:
+#' Return type depends on input format and query mode.
 #'
-#' **For stat = NULL or "none"**:
-#' A data.frame (or SpatRaster) with one row (cell) per focal-analog pair:
+#' Returns a data.frame, unless `x` is a SpatRaster and results have exactly one record per
+#' input cell (aggregation mode, or pairwise with `k = 1`), in which case returns a
+#' SpatRaster with one layer per output variable.
+#'
+#' Pairwise mode (`stat = NULL` or `"none"`) returns one row per focal-analog pair,
+#' with the following variables:
 #' \itemize{
-#'   \item \code{index}: Index of focal location (1-based).
-#'   \item \code{x, y}: Coordinates of focal location.
-#'   \item \code{analog_index}: Index of analog location in reference dataset (1-based).
-#'   \item \code{analog_x, analog_y}: Coordinates of analog location.
-#'   \item \code{clim_dist}: Climate distance.
-#'   \item \code{geog_dist}: Geographic distance in km or projected units.
-#'   \item Value columns (if \code{values} provided): one column per variable.
+#'   \item `index`, `x`, `y`: Focal location (1-based index and coordinates) corresponding to input `x`
+#'   \item `analog_index`, `analog_x`, `analog_y`: Analog location corresponding to input `pool`
+#'   \item `clim_dist`: Climate distance (Euclidean or Mahalanobis)
+#'   \item `geog_dist`: Geographic distance (km for lonlat, projection units otherwise)
+#'   \item Value columns (if `values` provided): one per variable
 #' }
 #'
-#' **For stat = single aggregation or vector of aggregations**:
-#' A data.frame (or SpatRaster) with one row (cell) per focal location:
+#' Aggregation mode (one or more `stat` values) returns one row per focal location,
+#' with the following variables:
 #' \itemize{
-#'   \item \code{index}: Index of focal location (1-based).
-#'   \item \code{x, y}: Coordinates of focal location.
-#'   \item One column per requested stat.
-#'   \item For value stats with single variable: \code{sum}, \code{mean}, \code{weighted_sum}, \code{weighted_mean}.
-#'   \item For value stats with multiple variables: \code{{stat}_{varname}}
-#'     (e.g., \code{sum_biomass}, \code{mean_richness}).
+#'   \item `index`, `x`, `y`: Focal location
+#'   \item One column per requested statistic. For `stat` with single `values` variable:
+#'     column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `values`
+#'     variables: columns named `{stat}_{varname}` (e.g., `sum_biomass`, `mean_richness`)
 #' }
 #'
-#' If `x` is a SpatRaster and the query results generate one result per
-#' grid cell of `x` (i.e. if `k = 1 `or if `stat != "none"`) the function
-#' returns as SpatRaster corresponding to `x`, with a layer for each of
-#' the variables described above.
-#'
-#' All outputs include diagnostic attributes propagated from the C++ core.
+#' All results include metadata attributes (`select`, `stat`, `weight`, etc.).
+#' Use [analog_summary()] to view a formatted summary.
 #'
 #' @examples
 #' \dontrun{
@@ -258,6 +254,7 @@
 #'               max_clim = 0.5)
 #' # Returns: index, x, y, weighted_sum, weighted_mean
 #'
+#' @seealso [analog_summary()] to print a summary of search result metadata.
 #' @export
 analog_search <- function(
 

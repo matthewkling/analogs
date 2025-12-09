@@ -1,43 +1,12 @@
-#' Climate velocity: nearest geographic analogs within a climate envelope
+#' Climate velocity: geographically nearest climate analogs
 #'
 #' Computes, for each focal location, the geographic nearest neighbor(s) in a
-#' reference dataset that satisfy a specified climate distance threshold. This
-#' helper wraps \code{\link{analog_search}} using \code{select = "knn_geog"} and is
-#' most commonly used for estimating climate velocity (the rate and direction
-#' at which organisms would have to move to track constant climate conditions).
+#' reference dataset that satisfy a specified maximum climate distance threshold.
+#' This helper wraps \code{\link{analog_search}} using \code{select = "knn_geog"}
+#' and is used for estimating analog-based climate velocity.
 #'
 #' @inheritParams analog_search
-#'
-#' @details
-#' For each focal point, this function:
-#' \enumerate{
-#'   \item Identifies all reference points satisfying the climate (and optional
-#'         geographic) threshold(s).
-#'   \item Among those, selects the \code{k} nearest in \emph{geographic}
-#'         distance.
-#' }
-#'
-#' This is the classical operation needed for estimating \emph{climate
-#' velocity}: the minimum relocation distance needed to maintain similar
-#' climatic conditions under temporal change.
-#'
-#' @return A data set with a record for every focal site in `x` for each of
-#' its `k` analogs from the `pool`, with the following variables:
-#'   \itemize{
-#'     \item `index`, `x`, `y`: reference variables identifying the focal site's
-#'       row number (index) and geographic coordinates from input dataset `x`
-#'     \item `analog_index`, `analog_x`, `analog_y`: results identifying an analog
-#'       for each focal site, including its index in `pool` and its coordinates
-#'     \item `clim_dist` Euclidean climate distance between the focal and analog sites
-#'     \item `geog_dist` Geographic distance between the focal and analog sites,
-#'       either in km or projected units.
-#'   }
-#'
-#' If `x` is a SpatRaster AND `k = 1`, the result is a SpatRaster and the reference
-#' variables are omitted; otherwise it is a data.frame.
-#'
-#' Diagnostic attributes (e.g., binning statistics) from the underlying spatial
-#' index are preserved.
+#' @inherit analog_search return
 #'
 #' @examples
 #' \dontrun{

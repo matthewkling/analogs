@@ -399,6 +399,8 @@ test_that("analog_search handles raster output correctly", {
             weight = "inverse_geog",
             max_clim = .1
       )
+
+
       expect_true(inherits(result, "SpatRaster"))
       expect_true(all(c("sum_weights", "count") %in% names(result)))
 

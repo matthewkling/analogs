@@ -150,9 +150,9 @@ When provided, enables value-based aggregation stats:
 For stat = NULL/"none" (pairs mode), value columns are included in output
 for each analog pair.}
 
-\item{coord_type}{Coordinate system type (default: "auto"):
+\item{coord_type}{Coordinate system type:
 \itemize{
-\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"auto"} (default): Automatically detect from coordinate ranges.
 \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
 assumes \code{max_geog} is in km).
 \item \code{"projected"}: Projected XY coordinates (uses planar distance;

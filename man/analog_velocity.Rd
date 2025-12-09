@@ -2,7 +2,7 @@
 % Please edit documentation in R/analog_velocity.R
 \name{analog_velocity}
 \alias{analog_velocity}
-\title{Climate velocity: nearest geographic analogs within a climate envelope}
+\title{Climate velocity: geographically nearest climate analogs}
 \usage{
 analog_velocity(
   x,
@@ -56,9 +56,9 @@ When provided, enables value-based aggregation stats:
 For stat = NULL/"none" (pairs mode), value columns are included in output
 for each analog pair.}
 
-\item{coord_type}{Coordinate system type (default: "auto"):
+\item{coord_type}{Coordinate system type:
 \itemize{
-\item \code{"auto"}: Automatically detect from coordinate ranges.
+\item \code{"auto"} (default): Automatically detect from coordinate ranges.
 \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
 assumes \code{max_geog} is in km).
 \item \code{"projected"}: Projected XY coordinates (uses planar distance;
@@ -102,43 +102,39 @@ computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
-A data set with a record for every focal site in \code{x} for each of
-its \code{k} analogs from the \code{pool}, with the following variables:
+Return type depends on input format and query mode.
+
+Returns a data.frame, unless \code{x} is a SpatRaster and results have exactly one record per
+input cell (aggregation mode, or pairwise with \code{k = 1}), in which case returns a
+SpatRaster with one layer per output variable.
+
+Pairwise mode (\code{stat = NULL} or \code{"none"}) returns one row per focal-analog pair,
+with the following variables:
 \itemize{
-\item \code{index}, \code{x}, \code{y}: reference variables identifying the focal site's
-row number (index) and geographic coordinates from input dataset \code{x}
-\item \code{analog_index}, \code{analog_x}, \code{analog_y}: results identifying an analog
-for each focal site, including its index in \code{pool} and its coordinates
-\item \code{clim_dist} Euclidean climate distance between the focal and analog sites
-\item \code{geog_dist} Geographic distance between the focal and analog sites,
-either in km or projected units.
+\item \code{index}, \code{x}, \code{y}: Focal location (1-based index and coordinates) corresponding to input \code{x}
+\item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
+\item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
+\item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
+\item Value columns (if \code{values} provided): one per variable
 }
 
-If \code{x} is a SpatRaster AND \code{k = 1}, the result is a SpatRaster and the reference
-variables are omitted; otherwise it is a data.frame.
+Aggregation mode (one or more \code{stat} values) returns one row per focal location,
+with the following variables:
+\itemize{
+\item \code{index}, \code{x}, \code{y}: Focal location
+\item One column per requested statistic. For \code{stat} with single \code{values} variable:
+column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
+variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
+}
 
-Diagnostic attributes (e.g., binning statistics) from the underlying spatial
-index are preserved.
+All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
 Computes, for each focal location, the geographic nearest neighbor(s) in a
-reference dataset that satisfy a specified climate distance threshold. This
-helper wraps \code{\link{analog_search}} using \code{select = "knn_geog"} and is
-most commonly used for estimating climate velocity (the rate and direction
-at which organisms would have to move to track constant climate conditions).
-}
-\details{
-For each focal point, this function:
-\enumerate{
-\item Identifies all reference points satisfying the climate (and optional
-geographic) threshold(s).
-\item Among those, selects the \code{k} nearest in \emph{geographic}
-distance.
-}
-
-This is the classical operation needed for estimating \emph{climate
-velocity}: the minimum relocation distance needed to maintain similar
-climatic conditions under temporal change.
+reference dataset that satisfy a specified maximum climate distance threshold.
+This helper wraps \code{\link{analog_search}} using \code{select = "knn_geog"}
+and is used for estimating analog-based climate velocity.
 }
 \examples{
 \dontrun{

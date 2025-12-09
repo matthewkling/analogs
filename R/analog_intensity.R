@@ -6,13 +6,7 @@
 #' after filtering.
 #'
 #' @inheritParams analog_search
-#'
-#' @return A data.frame with one row per focal location:
-#'   \itemize{
-#'     \item \code{index}
-#'     \item \code{x}, \code{y}
-#'     \item \code{value}: weighted sum over all analogs
-#'   }
+#' @inherit analog_search return
 #'
 #' @examples
 #' \dontrun{
