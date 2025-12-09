@@ -188,10 +188,10 @@
 #'   is used (see \code{RcppParallel::setThreadOptions}).
 #'
 #' @return
-#' The return value depends on the \code{stat} parameter:
+#' The return value depends on the \code{select} and \code{stat} parameters:
 #'
 #' **For stat = NULL or "none"**:
-#' A data.frame with one row per focal-analog pair:
+#' A data.frame (or SpatRaster) with one row (cell) per focal-analog pair:
 #' \itemize{
 #'   \item \code{index}: Index of focal location (1-based).
 #'   \item \code{x, y}: Coordinates of focal location.
@@ -203,7 +203,7 @@
 #' }
 #'
 #' **For stat = single aggregation or vector of aggregations**:
-#' A data.frame with one row per focal location:
+#' A data.frame (or SpatRaster) with one row (cell) per focal location:
 #' \itemize{
 #'   \item \code{index}: Index of focal location (1-based).
 #'   \item \code{x, y}: Coordinates of focal location.
@@ -212,6 +212,11 @@
 #'   \item For value stats with multiple variables: \code{{stat}_{varname}}
 #'     (e.g., \code{sum_biomass}, \code{mean_richness}).
 #' }
+#'
+#' If `x` is a SpatRaster and the query results generate one result per
+#' grid cell of `x` (i.e. if `k = 1 `or if `stat != "none"`) the function
+#' returns as SpatRaster corresponding to `x`, with a layer for each of
+#' the variables described above.
 #'
 #' All outputs include diagnostic attributes propagated from the C++ core.
 #'
@@ -336,3 +341,4 @@ analog_search <- function(
             n_threads = n_threads
       ))
 }
+

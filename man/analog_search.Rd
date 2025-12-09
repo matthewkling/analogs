@@ -177,7 +177,7 @@ is used (see \code{RcppParallel::setThreadOptions}).}
 The return value depends on the \code{stat} parameter:
 
 \strong{For stat = NULL or "none"}:
-A data.frame with one row per focal-analog pair:
+A data.frame (or SpatRaster) with one row (cell) per focal-analog pair:
 \itemize{
 \item \code{index}: Index of focal location (1-based).
 \item \code{x, y}: Coordinates of focal location.
@@ -189,7 +189,7 @@ A data.frame with one row per focal-analog pair:
 }
 
 \strong{For stat = single aggregation or vector of aggregations}:
-A data.frame with one row per focal location:
+A data.frame (or SpatRaster) with one row (cell) per focal location:
 \itemize{
 \item \code{index}: Index of focal location (1-based).
 \item \code{x, y}: Coordinates of focal location.
@@ -198,6 +198,11 @@ A data.frame with one row per focal location:
 \item For value stats with multiple variables: \code{{stat}_{varname}}
 (e.g., \code{sum_biomass}, \code{mean_richness}).
 }
+
+If \code{x} is a SpatRaster and the query results generate one result per
+grid cell of \code{x} (i.e. if \code{k = 1 }or if \code{stat != "none"}) the function
+returns as SpatRaster corresponding to \code{x}, with a layer for each of
+the variables described above.
 
 All outputs include diagnostic attributes propagated from the C++ core.
 }

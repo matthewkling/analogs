@@ -102,12 +102,21 @@ computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
 }
 \value{
-A data.frame with one row per focal–analog pair, including:
+A data set with a record for every focal site in \code{x} for each of
+its \code{k} analogs from the \code{pool}, with the following variables:
 \itemize{
-\item \code{index}, \code{analog_index}
-\item \code{x}, \code{y}, \code{analog_x}, \code{analog_y}
-\item \code{clim_dist}, \code{geog_dist}
+\item \code{index}, \code{x}, \code{y}: reference variables identifying the focal site's
+row number (index) and geographic coordinates from input dataset \code{x}
+\item \code{analog_index}, \code{analog_x}, \code{analog_y}: results identifying an analog
+for each focal site, including its index in \code{pool} and its coordinates
+\item \code{clim_dist} Euclidean climate distance between the focal and analog sites
+\item \code{geog_dist} Geographic distance between the focal and analog sites,
+either in km or projected units.
 }
+
+If \code{x} is a SpatRaster AND \code{k = 1}, the result is a SpatRaster and the reference
+variables are omitted; otherwise it is a data.frame.
+
 Diagnostic attributes (e.g., binning statistics) from the underlying spatial
 index are preserved.
 }

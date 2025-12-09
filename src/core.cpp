@@ -364,6 +364,19 @@ SEXP query_analog_index_cpp(SEXP index_list,
 
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
 
+            // For k=1 queries (select codes knn_clim or knn_geog with k=1),
+            // ensure every focal has exactly one result.
+            // Focals with no matches get an NA entry (represented as 0 for 1-based indexing,
+            // which will be converted to NA_INTEGER in emit_pairs)
+            if (k == 1 && (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG)) {
+                  for (int i = 0; i < n_focal; ++i) {
+                        if (out_indices[i].empty()) {
+                              // No analog found for this focal - add 0 (will be treated as NA)
+                              out_indices[i].push_back(0);
+                        }
+                  }
+            }
+
             // Convert to List<IntegerVector>
             List out(n_focal);
             for (int i = 0; i < n_focal; ++i) {

@@ -21,12 +21,21 @@
 #' velocity}: the minimum relocation distance needed to maintain similar
 #' climatic conditions under temporal change.
 #'
-#' @return A data.frame with one row per focal–analog pair, including:
+#' @return A data set with a record for every focal site in `x` for each of
+#' its `k` analogs from the `pool`, with the following variables:
 #'   \itemize{
-#'     \item \code{index}, \code{analog_index}
-#'     \item \code{x}, \code{y}, \code{analog_x}, \code{analog_y}
-#'     \item \code{clim_dist}, \code{geog_dist}
+#'     \item `index`, `x`, `y`: reference variables identifying the focal site's
+#'       row number (index) and geographic coordinates from input dataset `x`
+#'     \item `analog_index`, `analog_x`, `analog_y`: results identifying an analog
+#'       for each focal site, including its index in `pool` and its coordinates
+#'     \item `clim_dist` Euclidean climate distance between the focal and analog sites
+#'     \item `geog_dist` Geographic distance between the focal and analog sites,
+#'       either in km or projected units.
 #'   }
+#'
+#' If `x` is a SpatRaster AND `k = 1`, the result is a SpatRaster and the reference
+#' variables are omitted; otherwise it is a data.frame.
+#'
 #' Diagnostic attributes (e.g., binning statistics) from the underlying spatial
 #' index are preserved.
 #'

@@ -145,11 +145,9 @@ query_analog_index <- function(x,
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
-            attr(out, "select")    <- select
-            attr(out, "stat")      <- stat
-            attr(out, "weight")    <- weight
-            attr(out, "theta")     <- theta
-            return(out)
+
+            return(.format_output(out, focal, stat, select,
+                                  k, weight, theta))
       }
 
       # Aggregation mode(s)
@@ -212,10 +210,7 @@ query_analog_index <- function(x,
       for (nm in names(cpp_attrs)) {
             attr(out, nm) <- cpp_attrs[[nm]]
       }
-      attr(out, "select")    <- select
-      attr(out, "stat")      <- stat
-      attr(out, "weight")    <- weight
-      attr(out, "theta")     <- theta
 
-      return(out)
+      return(.format_output(out, focal, stat, select,
+                            k, weight, theta))
 }

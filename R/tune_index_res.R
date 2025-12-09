@@ -88,6 +88,7 @@ tune_index_res <- function(x,
       n_samp <- min(1000L, max(100L, as.integer(n_focal * 0.01)))
       idx    <- sample.int(n_focal, n_samp)
       focal_samp <- focal[idx, , drop = FALSE]
+      attr(focal_samp, "template") <- attr(focal, "template")
 
       # Subsample x_cov if provided
       x_cov_mat <- x_cov

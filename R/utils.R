@@ -361,10 +361,44 @@
                   stop("Package 'terra' is required for SpatRaster inputs")
             }
             df <- terra::as.data.frame(r, xy = TRUE, na.rm = FALSE)
-            .select_xy_climate(df)
+            df <- .select_xy_climate(df)
+            attr(df, "template") <- setNames(terra::setValues(r[[1]], NA), "raster")
+            return(df)
       } else if (is.matrix(r) || is.data.frame(r)) {
-            .select_xy_climate(r)
+            df <- .select_xy_climate(r)
+            attr(df, "template") <- NULL
+            return(df)
       } else {
             stop("Input must be a data.frame, matrix, or SpatRaster")
       }
+}
+
+
+
+.format_output <- function(out, x, stat, select, k, weight, theta){
+
+      if(! requireNamespace("terra", quietly = TRUE) || # terra not available
+         is.null(attr(x, "template")) || # x wasn't a raster
+         (any(stat == "none") && (k != 1 || select == "all")) || # query not compatible
+         nrow(out) != terra::ncell(attr(x, "template")) # data not compatible (e.g. called from tune_index_res)
+      ){
+            # raster not relevant -- return data.frame as is
+
+      } else {
+            # rasterize with template
+            vars <- setdiff(names(out), c("x", "y", "index"))
+            out <- terra::rast(
+                  lapply(vars, function(v){
+                        setNames(terra::setValues(attr(x, "template"), out[[v]]), v)
+                  })
+            )
+            terra::varnames(out) <- vars  # Set varnames to match layer names
+      }
+
+      attr(out, "select")    <- select
+      attr(out, "stat")      <- stat
+      attr(out, "weight")    <- weight
+      attr(out, "theta")     <- theta
+
+      return(out)
 }

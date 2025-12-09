@@ -380,3 +380,52 @@ test_that("analog_search handles user-supplied values correctly", {
 
 })
 
+
+test_that("analog_search handles raster output correctly", {
+
+      skip_if_not_installed("terra")
+
+      requireNamespace("terra", quietly = TRUE)
+
+      focal <- terra::rast(matrix(runif(100), 10))
+      ref <- terra::rast(matrix(runif(100), 10))
+
+      # aggregation mode
+      result <- analog_search(
+            x = focal,
+            pool = ref,
+            select = "all",
+            stat = c("sum_weights", "count"),
+            weight = "inverse_geog",
+            max_clim = .1
+      )
+      expect_true(inherits(result, "SpatRaster"))
+      expect_true(all(c("sum_weights", "count") %in% names(result)))
+
+      # pairs mode: knn with k = 1
+      result <- analog_search(
+            x = focal,
+            pool = ref,
+            select = "knn_geog",
+            k = 1,
+            stat = "none",
+            max_clim = .1
+      )
+      expect_true(inherits(result, "SpatRaster"))
+      expect_true(all(c("clim_dist", "geog_dist", "analog_index", "analog_x", "analog_y") %in%
+                            names(result)))
+
+      # pairs mode: knn with k > 1 (should NOT return raster)
+      result <- analog_search(
+            x = focal,
+            pool = ref,
+            select = "knn_geog",
+            k = 3,
+            stat = "none",
+            max_clim = .1
+      )
+      expect_true(inherits(result, "data.frame"))
+      expect_true(all(c("clim_dist", "geog_dist", "analog_index", "analog_x", "analog_y") %in%
+                            names(result)))
+
+})
