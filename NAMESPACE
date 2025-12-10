@@ -2,6 +2,7 @@
 
 S3method(print,analog_index)
 export(analog_availability)
+export(analog_impact)
 export(analog_intensity)
 export(analog_search)
 export(analog_similarity)

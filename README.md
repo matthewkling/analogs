@@ -17,6 +17,8 @@ The package supports a range of analyses. The core workhorse function is
 `analog_search()`. Common query types are supported via dedicated helper
 functions:
 
+- `analog_impact()` predicts ecological state variables using analog
+  impact models (AIMs)
 - `analog_velocity()` finds the k nearest geographic analogs under a
   hard climate constraint
 - `analog_similarity()` finds the k nearest climate analogs within a
