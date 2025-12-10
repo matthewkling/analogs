@@ -11,6 +11,8 @@ The package supports a range of analyses. The core workhorse function is
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
 Common query types are supported via dedicated helper functions:
 
+- [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
+  predicts ecological state variables using analog impact models (AIMs)
 - [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md)
   finds the k nearest geographic analogs under a hard climate constraint
 - [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md)
