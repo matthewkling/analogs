@@ -12,6 +12,7 @@
 #include <vector>
 #include <queue>
 #include <algorithm>
+#include <unordered_map>
 
 using namespace RcppParallel;
 
@@ -20,6 +21,7 @@ namespace analogs {
 // -------------------------------------------------------------------------
 // Worker for pair-returning modes: knn_clim, knn_geog, all
 // Writes into out_indices[i] a vector<int> of 1-based ref indices.
+// Writes into out_weights[i] a vector<double> of sample weights.
 // -------------------------------------------------------------------------
 struct PairWorker : public Worker {
       const double* focal_ptr;      // focal matrix (original coords + clim)
@@ -58,6 +60,7 @@ struct PairWorker : public Worker {
       int n_cov_components;                           // n_clim * (n_clim + 1) / 2
 
       std::vector< std::vector<int> >& out_indices;
+      std::vector< std::vector<double> >& out_weights;  // NEW: sample weights
 
       // Thread-local storage for reusable allocations
       struct ThreadLocalStorage {
@@ -66,6 +69,7 @@ struct PairWorker : public Worker {
             std::vector<double> q_geo;
             std::vector<double> q_clim;
             std::vector<index_t> cand;
+            std::vector<double> cand_weights;  // NEW: weights for candidates
 
             ThreadLocalStorage() {
                   // Pre-allocate with reasonable sizes
@@ -74,6 +78,7 @@ struct PairWorker : public Worker {
                   q_geo.reserve(3);
                   q_clim.reserve(16);
                   cand.reserve(256);     // typical candidate count
+                  cand_weights.reserve(256);  // NEW
             }
       };
 
@@ -101,7 +106,8 @@ struct PairWorker : public Worker {
                  const double* x_cov_ptr_,
                  int x_cov_stride_,
                  int n_cov_components_,
-                 std::vector< std::vector<int> >& out_indices_)
+                 std::vector< std::vector<int> >& out_indices_,
+                 std::vector< std::vector<double> >& out_weights_)  // NEW parameter
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
               ref_latt_ptr(ref_latt_ptr_),
@@ -129,7 +135,8 @@ struct PairWorker : public Worker {
               x_cov_ptr(x_cov_ptr_),
               x_cov_stride(x_cov_stride_),
               n_cov_components(n_cov_components_),
-              out_indices(out_indices_)
+              out_indices(out_indices_),
+              out_weights(out_weights_)  // NEW initialization
       {}
 
       void operator()(std::size_t begin, std::size_t end);
@@ -192,11 +199,13 @@ struct AggWorker : public Worker {
             std::vector<double> q_geo;
             std::vector<double> q_clim;
             std::vector<index_t> cand;
+            std::vector<double> cand_weights;  // NEW: weights for candidates
 
             ThreadLocalStorage() {
                   q_geo.reserve(3);
                   q_clim.reserve(16);
                   cand.reserve(256);
+                  cand_weights.reserve(256);  // NEW
             }
       };
 

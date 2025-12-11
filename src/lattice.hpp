@@ -9,9 +9,19 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <random>
+#include <algorithm>
 
 
 namespace analogs {
+
+// Bin structure: stores point IDs and sampling weight
+struct Bin {
+      std::vector<index_t> point_ids;
+      double sample_weight;  // 1.0 = no downsampling, >1.0 = each point represents multiple
+
+      Bin() : sample_weight(1.0) {}
+};
 
 // Full-dimensional regular lattice over
 //   dims = [x, y, clim1, ..., climP].
@@ -25,7 +35,7 @@ class Lattice {
 public:
       MetricType metric_type;
 
-      size_tu n_points;     // number of reference points
+      size_tu n_points;     // number of reference points (before downsampling)
       size_tu n_geo_dims;   // number of geographic variables (2 for planar; 2 or 3 in general)
       size_tu n_clim_dims;  // number of climate variables
       size_tu n_dims;       // = n_geo_dims + n_clim_dims
@@ -37,14 +47,15 @@ public:
       std::vector<size_tu> n_bins; // number of bins per dimension
       std::vector<size_tu> strides; // flattening strides per dimension
 
-      // Sparse cells: key (flattened bin index) -> list of reference indices
-      std::unordered_map<size_tu, std::vector<index_t> > cells;
+      // Sparse bins: key (flattened bin index) -> Bin struct
+      std::unordered_map<size_tu, Bin> bins;
 
       // Diagnostics
       size_tu total_bins;        // product of n_bins[d]
-      size_tu min_cell_occ;      // min occupancy among occupied cells
-      size_tu max_cell_occ;      // max occupancy among occupied cells
+      size_tu min_cell_occ;      // min occupancy among occupied cells (before downsampling)
+      size_tu max_cell_occ;      // max occupancy among occupied cells (before downsampling)
       size_tu n_cells_nonempty;  // number of occupied cells
+      double downsample_actual;  // actual downsampling rate achieved (points kept / total points)
 
       Lattice()
             : metric_type(MetricType::Planar),
@@ -55,19 +66,10 @@ public:
               total_bins(1),
               min_cell_occ(std::numeric_limits<size_tu>::max()),
               max_cell_occ(0),
-              n_cells_nonempty(0) {}
+              n_cells_nonempty(0),
+              downsample_actual(1.0) {}
 
-      // Build lattice over all dims.
-      //
-      // ref_ptr: pointer to ref matrix (column-major R layout)
-      // n_ref:   number of rows
-      // n_clim:  number of climate columns (total columns = 2 + n_clim)
-      // stride_r: n_ref (for column-major indexing)
-      // metric:   geographic metric type (lon/lat vs planar)
-      // max_dist: geographic threshold (km); may be Inf
-      // use_scalar_clim: whether scalar max_clim is active
-      // max_clim_pervar: per-variable climate thresholds (length n_clim)
-      // max_clim_scalar: scalar Euclidean climate threshold (or Inf)
+      // Build lattice over all dims with optional downsampling
       void build(const double* ref_ptr,
                  size_tu n_ref,
                  size_tu n_geo,
@@ -78,40 +80,30 @@ public:
                  bool use_scalar_clim,
                  const std::vector<double>& max_clim_pervar,
                  double max_clim_scalar,
-                 int    bins_per_dim,
-                 bool   use_geo_lattice,
-                 bool   use_clim_lattice);
+                 int bins_per_dim,
+                 bool use_geo_lattice,
+                 bool use_clim_lattice,
+                 double downsample_rate = 1.0,
+                 unsigned int seed = 0);
 
+      // Get candidates within [lo, hi] bin ranges
+      void get_candidates(const std::vector<size_tu>& lo,
+                          const std::vector<size_tu>& hi,
+                          std::vector<index_t>& out_indices,
+                          std::vector<double>& out_weights) const;
 
-      // Query candidate indices for a focal point.
-      //
-      // focal_geo: length-2 array [x, y]
-      // focal_clim: length n_clim array [clim1, ..., climP]
-      // max_dist, use_scalar_clim, max_clim_pervar, max_clim_scalar: same
-      //   semantics as in build().
-      // out_indices: will be filled with 0-based ref indices belonging to
-      //   cells whose binned coordinates are consistent with the thresholds.
+      // Query candidate indices for a focal point
       void query(const double* focal_geo,
                  const double* focal_clim,
                  double max_dist,
                  bool use_scalar_clim,
                  const std::vector<double>& max_clim_pervar,
                  double max_clim_scalar,
-                 std::vector<index_t>& out_indices) const;
+                 std::vector<index_t>& out_indices,
+                 std::vector<double>& out_weights) const;
 
-      // KNN query using expanding search over lattice cells (Chebyshev shells).
-      //
-      // - focal_geo: length-2 [x, y]
-      // - focal_clim: length n_clim (contiguous)
-      // - ref_ptr: pointer to ref matrix (col-major: [x, y, clim1, ...])
-      // - stride_r: n_ref (rows of ref matrix)
-      // - n_clim: number of climate variables
-      // - rank_by_geog: if true, kNN in geographic space; else in climate space
-      // - max_geog: geographic constraint (km); may be Inf
-      // - use_scalar_clim, max_clim_pervar, max_clim_scalar: climate constraints
-      // - k: number of neighbors desired
-      // - out_indices: filled with 0-based row indices (sorted by increasing
-      //   ranking metric). May contain fewer than k if not enough admissible refs.
+      // KNN query with priority-queue based search
+      // May contain fewer than k if not enough admissible refs.
       void knn_query(const double* focal_geo,
                      const double* focal_clim,
                      const double* ref_ptr,
@@ -123,7 +115,8 @@ public:
                      const std::vector<double>& max_clim_pervar,
                      double max_clim_scalar,
                      int k,
-                     std::vector<index_t>& out_indices) const;
+                     std::vector<index_t>& out_indices,
+                     std::vector<double>& out_weights) const;
 
 
 private:
@@ -131,7 +124,8 @@ private:
                            const std::vector<size_tu>& hi,
                            std::vector<size_tu>& idx,
                            size_tu dim,
-                           std::vector<index_t>& out_indices) const;
+                           std::vector<index_t>& out_indices,
+                           std::vector<double>& out_weights) const;
 
 private:
       inline size_tu flatten_idx(const std::array<size_tu, 8>& idx) const {
@@ -158,7 +152,9 @@ inline void Lattice::build(const double* ref_ptr,
                            double max_clim_scalar,
                            int    bins_per_dim,
                            bool   use_geo_lattice,
-                           bool   use_clim_lattice) {
+                           bool   use_clim_lattice,
+                           double downsample_rate,
+                           unsigned int seed) {
       metric_type    = metric;
       n_points       = n_ref;
       n_geo_dims     = n_geo;
@@ -170,11 +166,12 @@ inline void Lattice::build(const double* ref_ptr,
       res.assign(n_dims, 1.0);
       n_bins.assign(n_dims, 1);
       strides.assign(n_dims, 1);
-      cells.clear();
+      bins.clear();
       total_bins    = 1;
       min_cell_occ  = std::numeric_limits<size_tu>::max();
       max_cell_occ  = 0;
       n_cells_nonempty  = 0;
+      downsample_actual = 1.0;
 
       if (n_ref == 0) {
             return;
@@ -250,7 +247,7 @@ inline void Lattice::build(const double* ref_ptr,
       }
 
 
-      // Second pass: assign points to cells.
+      // Second pass: assign points to bins.
       std::vector<size_tu> idx(n_dims);
 
       for (size_tu j = 0; j < n_ref; ++j) {
@@ -281,45 +278,110 @@ inline void Lattice::build(const double* ref_ptr,
                   key += idx[d] * strides[d];
             }
 
-            std::vector<index_t>& cell = cells[key];
-            cell.push_back(static_cast<index_t>(j));
-
-            size_tu occ = cell.size();
-            if (occ > max_cell_occ) max_cell_occ = occ;
-            if (occ < min_cell_occ) min_cell_occ = occ;
+            // Insert point into bin (store 0-based index like original code)
+            bins[key].point_ids.push_back(static_cast<index_t>(j));
       }
 
-      n_cells_nonempty = static_cast<size_tu>(cells.size());
+      // Compute diagnostics before downsampling
+      for (const auto& pair : bins) {
+            size_tu occ = pair.second.point_ids.size();
+            if (occ < min_cell_occ) min_cell_occ = occ;
+            if (occ > max_cell_occ) max_cell_occ = occ;
+      }
+      n_cells_nonempty = bins.size();
 
-      if (cells.empty()) {
-            min_cell_occ = 0;
+      // Apply downsampling if requested
+      if (downsample_rate < 1.0) {
+            // Create RNG for randomization
+            std::mt19937 rng(seed);
+
+            // Target total points to keep
+            size_tu target_total = static_cast<size_tu>(std::ceil(n_ref * downsample_rate));
+
+            // Collect all bin sizes
+            std::vector<size_tu> bin_sizes;
+            bin_sizes.reserve(bins.size());
+            for (const auto& pair : bins) {
+                  bin_sizes.push_back(pair.second.point_ids.size());
+            }
+
+            // Sort descending for efficiency
+            std::sort(bin_sizes.begin(), bin_sizes.end(), std::greater<size_tu>());
+
+            // Binary search for optimal target occupancy
+            // Note: if bins.size() > target_total, we'll keep 1 per bin (spatial coverage priority)
+            size_tu lo = 1;
+            size_tu hi = bin_sizes.empty() ? 1 : bin_sizes[0];
+            size_tu target_occ = 1;
+
+            while (lo <= hi) {
+                  size_tu mid = lo + (hi - lo) / 2;
+
+                  // Calculate how many points we'd keep with this target
+                  size_tu kept = 0;
+                  for (size_tu size : bin_sizes) {
+                        kept += std::min(size, mid);
+                  }
+
+                  if (kept <= target_total) {
+                        // Can increase target (this is valid, try to find larger)
+                        target_occ = mid;
+                        lo = mid + 1;
+                  } else {
+                        // Would keep too many, need to decrease target
+                        hi = mid - 1;
+                  }
+            }
+
+            // Ensure at least 1 (maintain spatial coverage - don't drop entire bins)
+            target_occ = std::max(static_cast<size_tu>(1), target_occ);
+
+            // Apply downsampling to bins
+            size_tu total_kept = 0;
+
+            for (auto& pair : bins) {
+                  Bin& bin = pair.second;
+                  size_tu original_size = bin.point_ids.size();
+
+                  if (original_size > target_occ) {
+                        // Shuffle and keep first target_occ points
+                        std::shuffle(bin.point_ids.begin(), bin.point_ids.end(), rng);
+                        bin.point_ids.resize(target_occ);
+                        bin.sample_weight = static_cast<double>(original_size) / target_occ;
+                  } else {
+                        // Keep all points in this bin (no downsampling at this location)
+                        bin.sample_weight = 1.0;
+                  }
+
+                  total_kept += bin.point_ids.size();
+            }
+
+            // Record actual downsampling rate achieved
+            downsample_actual = static_cast<double>(total_kept) / n_ref;
+
+            // Recompute occupancy statistics after downsampling
+            min_cell_occ = std::numeric_limits<size_tu>::max();
             max_cell_occ = 0;
+            for (const auto& pair : bins) {
+                  size_tu occ = pair.second.point_ids.size();
+                  if (occ < min_cell_occ) min_cell_occ = occ;
+                  if (occ > max_cell_occ) max_cell_occ = occ;
+            }
+            if (bins.empty()) {
+                  min_cell_occ = 0;
+            }
+      } else {
+            // No downsampling
+            downsample_actual = 1.0;
       }
 }
 
-inline void Lattice::enumerate_cells(const std::vector<size_tu>& lo,
-                                     const std::vector<size_tu>& hi,
-                                     std::vector<size_tu>& idx,
-                                     size_tu dim,
-                                     std::vector<index_t>& out_indices) const {
-      if (dim == n_dims) {
-            size_tu key = 0;
-            for (size_tu d = 0; d < n_dims; ++d) {
-                  key += idx[d] * strides[d];
-            }
-            typename std::unordered_map<size_tu, std::vector<index_t> >::const_iterator it =
-                  cells.find(key);
-            if (it != cells.end()) {
-                  const std::vector<index_t>& cell = it->second;
-                  out_indices.insert(out_indices.end(), cell.begin(), cell.end());
-            }
-            return;
-      }
-
-      for (size_tu v = lo[dim]; v <= hi[dim]; ++v) {
-            idx[dim] = v;
-            enumerate_cells(lo, hi, idx, dim + 1, out_indices);
-      }
+inline void Lattice::get_candidates(const std::vector<size_tu>& lo,
+                                    const std::vector<size_tu>& hi,
+                                    std::vector<index_t>& out_indices,
+                                    std::vector<double>& out_weights) const {
+      std::vector<size_tu> idx(n_dims, 0);
+      enumerate_cells(lo, hi, idx, 0, out_indices, out_weights);
 }
 
 inline void Lattice::query(const double* focal_geo,
@@ -328,73 +390,103 @@ inline void Lattice::query(const double* focal_geo,
                            bool use_scalar_clim,
                            const std::vector<double>& max_clim_pervar,
                            double max_clim_scalar,
-                           std::vector<index_t>& out_indices) const {
+                           std::vector<index_t>& out_indices,
+                           std::vector<double>& out_weights) const {
       out_indices.clear();
+      out_weights.clear();
+
       if (n_points == 0 || n_dims == 0) return;
 
       std::vector<size_tu> lo(n_dims);
       std::vector<size_tu> hi(n_dims);
-      std::vector<size_tu> idx(n_dims);
 
-      // Per-dimension allowed bin index ranges.
+      // Per-dimension allowed bin index ranges
       for (size_tu d = 0; d < n_dims; ++d) {
             double minv = mins[d];
             double maxv = maxs[d];
 
             if (d < n_geo_dims) {
-                  // Geo dims: bound by max_dist if finite.
+                  // Geo dims: bound by max_dist if finite
                   if (std::isfinite(max_dist) && max_dist > 0.0) {
                         double q = focal_geo[d];
                         minv = q - max_dist;
                         maxv = q + max_dist;
                   }
             } else {
-                  // Climate dims: bound by per-var or scalar climate thresholds.
-                  size_tu k = d - n_geo_dims;
-                  double band = std::numeric_limits<double>::infinity();
+                  // Climate dims: bound by per-var or scalar climate thresholds
+                  size_tu clim_idx = d - n_geo_dims;
+                  double q = focal_clim[clim_idx];
 
-                  if (k < max_clim_pervar.size() &&
-                      std::isfinite(max_clim_pervar[k]) &&
-                      max_clim_pervar[k] > 0.0) {
-                        band = max_clim_pervar[k];
-                  } else if (use_scalar_clim &&
-                        std::isfinite(max_clim_scalar) &&
-                        max_clim_scalar > 0.0) {
-                        band = max_clim_scalar;
+                  if (!max_clim_pervar.empty() && clim_idx < max_clim_pervar.size()) {
+                        double thr = max_clim_pervar[clim_idx];
+                        if (std::isfinite(thr) && thr > 0.0) {
+                              minv = q - thr;
+                              maxv = q + thr;
+                        }
                   }
 
-                  if (std::isfinite(band) && band > 0.0) {
-                        double q = focal_clim[k];
-                        minv = q - band;
-                        maxv = q + band;
+                  if (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0) {
+                        double thr2 = max_clim_scalar;
+                        minv = (minv == mins[d]) ? (q - thr2) : std::max(minv, q - thr2);
+                        maxv = (maxv == maxs[d]) ? (q + thr2) : std::min(maxv, q + thr2);
                   }
             }
 
-            // Convert value range to bin index range.
+            // Convert to bin indices
+            if (minv < mins[d]) minv = mins[d];
+            if (maxv > maxs[d]) maxv = maxs[d];
+
             double pos_lo = (minv - mins[d]) / res[d];
             double pos_hi = (maxv - mins[d]) / res[d];
+
             if (pos_lo < 0.0) pos_lo = 0.0;
             if (pos_hi < 0.0) pos_hi = 0.0;
 
-            size_tu ilo = static_cast<size_tu>(pos_lo);
-            size_tu ihi = static_cast<size_tu>(pos_hi);
+            size_tu ib_lo = static_cast<size_tu>(pos_lo);
+            size_tu ib_hi = static_cast<size_tu>(pos_hi);
 
-            if (ilo >= n_bins[d]) ilo = n_bins[d] - 1;
-            if (ihi >= n_bins[d]) ihi = n_bins[d] - 1;
-            if (ilo > ihi) {
-                  size_tu tmp = ilo;
-                  ilo = ihi;
-                  ihi = tmp;
-            }
-            lo[d] = ilo;
-            hi[d] = ihi;
+            if (ib_lo >= n_bins[d]) ib_lo = n_bins[d] - 1;
+            if (ib_hi >= n_bins[d]) ib_hi = n_bins[d] - 1;
+
+            lo[d] = ib_lo;
+            hi[d] = ib_hi;
       }
 
-      // Enumerate all cells within the bin ranges and collect their points.
-      enumerate_cells(lo, hi, idx, 0, out_indices);
+      get_candidates(lo, hi, out_indices, out_weights);
 }
 
-// Helpers used by knn_query
+inline void Lattice::enumerate_cells(const std::vector<size_tu>& lo,
+                                     const std::vector<size_tu>& hi,
+                                     std::vector<size_tu>& idx,
+                                     size_tu dim,
+                                     std::vector<index_t>& out_indices,
+                                     std::vector<double>& out_weights) const {
+      if (dim == n_dims) {
+            // Compute flattened key
+            size_tu key = 0;
+            for (size_tu d = 0; d < n_dims; ++d) {
+                  key += idx[d] * strides[d];
+            }
+
+            auto it = bins.find(key);
+            if (it != bins.end()) {
+                  const Bin& bin = it->second;
+                  double weight = bin.sample_weight;
+                  for (index_t pid : bin.point_ids) {
+                        out_indices.push_back(pid);
+                        out_weights.push_back(weight);
+                  }
+            }
+            return;
+      }
+
+      for (size_tu i = lo[dim]; i <= hi[dim]; ++i) {
+            idx[dim] = i;
+            enumerate_cells(lo, hi, idx, dim + 1, out_indices, out_weights);
+      }
+}
+
+// Forward declarations for knn_query helper functions
 inline double lb_geo_projected(const Lattice& lat,
                                const std::array<size_tu, 8>& idx,
                                const double* focal_geo);
@@ -417,8 +509,7 @@ inline bool clim_ok_and_dist_knn(const double* focal_clim,
                                  double& clim_dist_out,
                                  bool compute_dist);
 
-
-
+// KNN query implementation with weight tracking
 inline void Lattice::knn_query(const double* focal_geo,
                                const double* focal_clim,
                                const double* ref_ptr,
@@ -430,112 +521,92 @@ inline void Lattice::knn_query(const double* focal_geo,
                                const std::vector<double>& max_clim_pervar,
                                double max_clim_scalar,
                                int k,
-                               std::vector<index_t>& out_indices) const {
+                               std::vector<index_t>& out_indices,
+                               std::vector<double>& out_weights) const {
       out_indices.clear();
+      out_weights.clear();
+
       if (k <= 0 || n_points == 0 || n_dims == 0) return;
 
-      // For now, only implement expanding search when the geo part is
-      // Euclidean (Planar or Chord3D). Non-Euclidean metrics should fall back.
-      if (rank_by_geog &&
-          !(metric_type == MetricType::Planar ||
-          metric_type == MetricType::Chord3D)) {
+      // Only implement expanding search for Euclidean metrics
+      if (rank_by_geog && !(metric_type == MetricType::Planar || metric_type == MetricType::Chord3D)) {
             return;
       }
 
-      // Sanity: n_clim argument should match lattice's climate dims.
       if (n_clim != n_clim_dims) {
             return;
       }
 
-      const size_tu D     = n_dims;
+      const size_tu D = n_dims;
       const size_tu n_geo = n_geo_dims;
 
-      // 1. Compute per-dimension bin ranges [lo[d], hi[d]] based on thresholds
+      // Compute threshold bin ranges
       std::vector<size_tu> lo(D), hi(D);
-
       for (size_tu d = 0; d < D; ++d) {
+            double q = (d < n_geo) ? focal_geo[d] : focal_clim[d - n_geo];
+
             double minv = mins[d];
             double maxv = maxs[d];
 
             if (d < n_geo) {
-                  // Geo dims: bound by max_geog if finite
                   if (std::isfinite(max_geog) && max_geog > 0.0) {
-                        const double q = focal_geo[d];
                         minv = q - max_geog;
                         maxv = q + max_geog;
                   }
             } else {
-                  // Climate dims: bound by per-var or scalar climate thresholds
-                  const size_tu kdim = d - n_geo;
-                  double band = std::numeric_limits<double>::infinity();
-
-                  if (kdim < max_clim_pervar.size() &&
-                      std::isfinite(max_clim_pervar[kdim]) &&
-                      max_clim_pervar[kdim] > 0.0) {
-                        band = max_clim_pervar[kdim];
-                  } else if (use_scalar_clim &&
-                        std::isfinite(max_clim_scalar) &&
-                        max_clim_scalar > 0.0) {
-                        band = max_clim_scalar;
+                  size_tu cidx = d - n_geo;
+                  if (!max_clim_pervar.empty() && cidx < max_clim_pervar.size()) {
+                        double t = max_clim_pervar[cidx];
+                        if (std::isfinite(t) && t > 0.0) {
+                              minv = q - t;
+                              maxv = q + t;
+                        }
                   }
-
-                  if (std::isfinite(band) && band > 0.0) {
-                        const double q = focal_clim[kdim];
-                        minv = q - band;
-                        maxv = q + band;
+                  if (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0) {
+                        minv = (minv == mins[d]) ? (q - max_clim_scalar) : std::max(minv, q - max_clim_scalar);
+                        maxv = (maxv == maxs[d]) ? (q + max_clim_scalar) : std::min(maxv, q + max_clim_scalar);
                   }
             }
 
-            // Convert to bin indices
+            if (minv < mins[d]) minv = mins[d];
+            if (maxv > maxs[d]) maxv = maxs[d];
+
             double pos_lo = (minv - mins[d]) / res[d];
             double pos_hi = (maxv - mins[d]) / res[d];
             if (pos_lo < 0.0) pos_lo = 0.0;
             if (pos_hi < 0.0) pos_hi = 0.0;
 
-            size_tu ilo = static_cast<size_tu>(pos_lo);
-            size_tu ihi = static_cast<size_tu>(pos_hi);
+            size_tu ib_lo = static_cast<size_tu>(pos_lo);
+            size_tu ib_hi = static_cast<size_tu>(pos_hi);
+            if (ib_lo >= n_bins[d]) ib_lo = n_bins[d] - 1;
+            if (ib_hi >= n_bins[d]) ib_hi = n_bins[d] - 1;
 
-            if (ilo >= n_bins[d]) ilo = n_bins[d] - 1;
-            if (ihi >= n_bins[d]) ihi = n_bins[d] - 1;
-            if (ilo > ihi) {
-                  size_tu tmp = ilo;
-                  ilo = ihi;
-                  ihi = tmp;
-            }
-            lo[d] = ilo;
-            hi[d] = ihi;
+            lo[d] = ib_lo;
+            hi[d] = ib_hi;
       }
 
-      // 2. Seed cell index (center of Chebyshev shells)
+      // Find center cell
       std::array<size_tu, 8> center;
       for (size_tu d = 0; d < D; ++d) {
-            double q;
-            if (d < n_geo) {
-                  q = focal_geo[d];
-            } else {
-                  q = focal_clim[d - n_geo];
-            }
+            double q = (d < n_geo) ? focal_geo[d] : focal_clim[d - n_geo];
             double pos = (q - mins[d]) / res[d];
             if (pos < 0.0) pos = 0.0;
             size_tu ic = static_cast<size_tu>(pos);
             if (ic >= n_bins[d]) ic = n_bins[d] - 1;
-
-            // Clamp to [lo[d], hi[d]] so we're inside the threshold box
             if (ic < lo[d]) ic = lo[d];
             if (ic > hi[d]) ic = hi[d];
-
             center[d] = ic;
       }
 
+      // Cell lower bound function
       auto cell_lb = [&](const std::array<size_tu, 8>& idx) -> double {
             if (rank_by_geog) {
                   if (metric_type == MetricType::Planar) {
                         return lb_geo_projected(*this, idx, focal_geo);
                   } else if (metric_type == MetricType::Chord3D) {
                         return lb_geo_chord3d(*this, idx, focal_geo);
-                  } else {
-                        return 0.0;
                   }
+                  return 0.0;
             } else {
                   return lb_clim(*this, idx, focal_clim);
             }
@@ -548,7 +619,7 @@ inline void Lattice::knn_query(const double* focal_geo,
 
       struct CellCmp {
             bool operator()(const CellState& a, const CellState& b) const {
-                  return a.lb > b.lb; // min-heap: top has smallest lb
+                  return a.lb > b.lb;
             }
       };
 
@@ -558,102 +629,97 @@ inline void Lattice::knn_query(const double* focal_geo,
 
       CellState start;
       start.idx = center;
-      start.lb  = cell_lb(center);
-      const size_tu start_key = flatten_idx(center);
+      start.lb = cell_lb(center);
+      size_tu start_key = flatten_idx(center);
       visited.insert(start_key);
       pq.push(start);
 
-      // kNN heap: max-heap by distance (we keep smallest k)
-      struct NeighborCmp {
-            bool operator()(const Neighbor& a, const Neighbor& b) const {
-                  return a.first < b.first; // top has largest distance
+      // kNN heap with weights
+      struct Neighbor {
+            double dist;
+            index_t idx;
+            double weight;
+
+            Neighbor(double d, index_t i, double w) : dist(d), idx(i), weight(w) {}
+
+            bool operator<(const Neighbor& other) const {
+                  return dist < other.dist;  // max-heap: top has largest
             }
       };
-      std::priority_queue<Neighbor, std::vector<Neighbor>, NeighborCmp> knn;
+
+      std::priority_queue<Neighbor> knn;
 
       const bool use_geo_constraint = (std::isfinite(max_geog) && max_geog > 0.0);
-      const double max_geog2 = (use_geo_constraint ? max_geog * max_geog
-                                      : std::numeric_limits<double>::infinity());
-
+      const double max_geog2 = use_geo_constraint ? max_geog * max_geog : std::numeric_limits<double>::infinity();
       double d_k = std::numeric_limits<double>::infinity();
 
-      // 3. Expanding search over cells
-
+      // Expanding search
       while (!pq.empty()) {
             CellState current = pq.top();
             pq.pop();
 
-            const double lb = current.lb;
-            if (!knn.empty() && lb > d_k) {
-                  break;
-            }
+            if (!knn.empty() && current.lb > d_k) break;
 
-            const size_tu key = flatten_idx(current.idx);
-            auto it_cell = cells.find(key);
-            if (it_cell != cells.end()) {
-                  const auto& vec = it_cell->second;
-                  for (size_tu t = 0; t < vec.size(); ++t) {
-                        const index_t j = vec[t];
+            size_tu key = flatten_idx(current.idx);
+            auto it_cell = bins.find(key);
 
-                        // Geo distance and filter
+            if (it_cell != bins.end()) {
+                  const Bin& bin = it_cell->second;
+                  double bin_weight = bin.sample_weight;
+
+                  for (index_t j : bin.point_ids) {
+                        // j is already 0-based, use directly
+
+                        // Geo distance
                         double gdist2 = 0.0;
-                        double gdist  = 0.0;
+                        double gdist = 0.0;
                         if (rank_by_geog || use_geo_constraint) {
                               double sumsq = 0.0;
                               for (size_tu g = 0; g < n_geo; ++g) {
-                                    const double rg = ref_ptr[j + g * stride_r];
-                                    const double dg = focal_geo[g] - rg;
+                                    double rg = ref_ptr[j + g * stride_r];
+                                    double dg = focal_geo[g] - rg;
                                     sumsq += dg * dg;
                               }
                               gdist2 = sumsq;
-                              gdist  = std::sqrt(gdist2);
+                              gdist = std::sqrt(gdist2);
                         }
 
-                        if (use_geo_constraint && gdist2 > max_geog2) {
-                              continue;
-                        }
+                        if (use_geo_constraint && gdist2 > max_geog2) continue;
 
-                        // Climate constraints and (optionally) distance
+                        // Climate constraints
                         double clim_dist = 0.0;
-                        const bool compute_clim_dist = !rank_by_geog; // need it for knn_clim
-                        if (!clim_ok_and_dist_knn(
-                                    focal_clim,
-                                    ref_ptr + j + n_geo * stride_r,
-                                    n_clim, stride_r,
-                                    use_scalar_clim, max_clim_pervar, max_clim_scalar,
-                                    clim_dist, compute_clim_dist)) {
+                        bool compute_clim = !rank_by_geog;
+                        if (!clim_ok_and_dist_knn(focal_clim,
+                                                  ref_ptr + j + n_geo * stride_r,
+                                                  n_clim, stride_r,
+                                                  use_scalar_clim, max_clim_pervar, max_clim_scalar,
+                                                  clim_dist, compute_clim)) {
                               continue;
                         }
 
-                        // Ranking distance: geog or clim
-                        double key_dist = 0.0;
-                        if (rank_by_geog) {
-                              key_dist = gdist;
-                        } else {
-                              key_dist = clim_dist;
-                        }
+                        // Ranking distance
+                        double key_dist = rank_by_geog ? gdist : clim_dist;
 
                         if (static_cast<int>(knn.size()) < k) {
-                              knn.emplace(key_dist, j);
-                        } else if (!knn.empty() && key_dist < knn.top().first) {
+                              knn.emplace(key_dist, j, bin_weight);
+                              if (static_cast<int>(knn.size()) == k) {
+                                    d_k = knn.top().dist;
+                              }
+                        } else if (key_dist < knn.top().dist) {
                               knn.pop();
-                              knn.emplace(key_dist, j);
-                        }
-
-                        if (static_cast<int>(knn.size()) == k) {
-                              d_k = knn.top().first;
-                              // (optional) could tighten bound further here if desired
+                              knn.emplace(key_dist, j, bin_weight);
+                              d_k = knn.top().dist;
                         }
                   }
             }
 
-            // Expand to neighboring cells in Chebyshev shell
+            // Expand to neighbors
             std::array<size_tu, 8> base = current.idx;
             for (size_tu d = 0; d < D; ++d) {
-                  for (int offset = -1; offset <= 1; ++offset) {
-                        if (offset == 0) continue;
+                  for (int offset = -1; offset <= 1; offset += 2) {
                         std::array<size_tu, 8> nb_idx = base;
                         size_tu id = nb_idx[d];
+
                         if (offset < 0) {
                               if (id == 0 || id <= lo[d]) continue;
                               --id;
@@ -663,13 +729,13 @@ inline void Lattice::knn_query(const double* focal_geo,
                         }
                         nb_idx[d] = id;
 
-                        const size_tu nb_key = flatten_idx(nb_idx);
+                        size_tu nb_key = flatten_idx(nb_idx);
                         if (visited.find(nb_key) != visited.end()) continue;
                         visited.insert(nb_key);
 
                         CellState nb;
                         nb.idx = nb_idx;
-                        nb.lb  = cell_lb(nb_idx);
+                        nb.lb = cell_lb(nb_idx);
                         if (nb.lb <= d_k) {
                               pq.push(nb);
                         }
@@ -677,24 +743,23 @@ inline void Lattice::knn_query(const double* focal_geo,
             }
       }
 
-      // 4. Extract neighbors in ascending distance order
-      const int m = static_cast<int>(knn.size());
+      // Extract results in ascending distance order
+      int m = static_cast<int>(knn.size());
       out_indices.resize(m);
-      // we want smallest distance first, so pop into reverse
+      out_weights.resize(m);
+
       for (int pos = m - 1; pos >= 0; --pos) {
-            const Neighbor nb = knn.top();
-            out_indices[pos] = nb.second; // 0-based row index
+            const Neighbor& nb = knn.top();
+            out_indices[pos] = nb.idx;
+            out_weights[pos] = nb.weight;
             knn.pop();
       }
 }
 
-
-
-// Lower bound on geographic distance (projected) from focal to a cell.
+// Helper functions for knn_query
 inline double lb_geo_projected(const Lattice& lat,
                                const std::array<size_tu, 8>& idx,
                                const double* focal_geo) {
-      // dim 0: x, dim 1: y
       const double fx = focal_geo[0];
       const double fy = focal_geo[1];
 
@@ -714,49 +779,39 @@ inline double lb_geo_projected(const Lattice& lat,
       return std::sqrt(dx * dx + dy * dy);
 }
 
-// Lower bound on 3D geographic distance (lonlat) from focal to a cell.
 inline double lb_geo_chord3d(const Lattice& lat,
                              const std::array<size_tu, 8>& idx,
                              const double* focal_geo) {
-      // Generic n_geo-dimensional Euclidean lower bound, used for 3D ECEF chord.
-      const size_tu n_geo = lat.n_geo_dims; // will be 3 in Chord3D mode
       double sumsq = 0.0;
-
-      for (size_tu g = 0; g < n_geo; ++g) {
+      for (size_tu g = 0; g < lat.n_geo_dims; ++g) {
             const double fg = focal_geo[g];
-            const double g_min = lat.mins[g] + static_cast<double>(idx[g]) * lat.res[g];
-            const double g_max = g_min + lat.res[g];
+            const double c_min = lat.mins[g] + static_cast<double>(idx[g]) * lat.res[g];
+            const double c_max = c_min + lat.res[g];
 
-            double dg = 0.0;
-            if (fg < g_min) dg = g_min - fg;
-            else if (fg > g_max) dg = fg - g_max;
+            double d = 0.0;
+            if (fg < c_min) d = c_min - fg;
+            else if (fg > c_max) d = fg - c_max;
 
-            sumsq += dg * dg;
+            sumsq += d * d;
       }
-
       return std::sqrt(sumsq);
 }
 
-
-// Lower bound on climate distance (Euclidean) from focal to a cell.
 inline double lb_clim(const Lattice& lat,
                       const std::array<size_tu, 8>& idx,
                       const double* focal_clim) {
-      const size_tu n_geo = lat.n_geo_dims;   // 2
-      const size_tu n_clim = lat.n_clim_dims;
-
       double sumsq = 0.0;
-      for (size_tu k = 0; k < n_clim; ++k) {
-            const size_tu d = n_geo + k;
+      for (size_tu c = 0; c < lat.n_clim_dims; ++c) {
+            size_tu d = lat.n_geo_dims + c;
+            const double fc = focal_clim[c];
             const double c_min = lat.mins[d] + static_cast<double>(idx[d]) * lat.res[d];
             const double c_max = c_min + lat.res[d];
-            const double cf = focal_clim[k];
 
-            double dc = 0.0;
-            if (cf < c_min) dc = c_min - cf;
-            else if (cf > c_max) dc = cf - c_max;
+            double diff = 0.0;
+            if (fc < c_min) diff = c_min - fc;
+            else if (fc > c_max) diff = fc - c_max;
 
-            sumsq += dc * dc;
+            sumsq += diff * diff;
       }
       return std::sqrt(sumsq);
 }
@@ -771,36 +826,36 @@ inline bool clim_ok_and_dist_knn(const double* focal_clim,
                                  double& clim_dist_out,
                                  bool compute_dist) {
       double sumsq = 0.0;
-      const bool use_pervar = !max_clim_pervar.empty();
-      const double max_clim2 = (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0)
-            ? max_clim_scalar * max_clim_scalar
-      : std::numeric_limits<double>::infinity();
 
-      for (size_tu k = 0; k < n_clim; ++k) {
-            const double fk = focal_clim[k];
-            const double rk = ref_clim_col[k * stride_r];
-            const double diff = fk - rk;
-            const double adiff = std::fabs(diff);
+      for (size_tu c = 0; c < n_clim; ++c) {
+            const double fc = focal_clim[c];
+            const double rc = ref_clim_col[c * stride_r];
+            const double diff = fc - rc;
 
-            if (use_pervar && k < max_clim_pervar.size()) {
-                  const double band = max_clim_pervar[k];
-                  if (std::isfinite(band) && band > 0.0 && adiff > band) {
-                        return false;
+            // Check per-variable threshold
+            if (!max_clim_pervar.empty() && c < max_clim_pervar.size()) {
+                  double thr = max_clim_pervar[c];
+                  if (std::isfinite(thr) && thr > 0.0) {
+                        if (std::fabs(diff) > thr) return false;
                   }
             }
 
-            sumsq += diff * diff;
+            if (compute_dist || use_scalar_clim) {
+                  sumsq += diff * diff;
+            }
       }
 
-      if (max_clim2 < std::numeric_limits<double>::infinity()) {
-            if (sumsq > max_clim2) return false;
+      // Check scalar threshold
+      if (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0) {
+            double dist = std::sqrt(sumsq);
+            if (dist > max_clim_scalar) return false;
       }
 
       if (compute_dist) {
             clim_dist_out = std::sqrt(sumsq);
       }
+
       return true;
 }
-
 
 } // namespace analogs

@@ -1,11 +1,12 @@
 #' Find Climate Analogs
 #'
-#' Identifies locations in a reference dataset that are climatically similar to
-#' focal locations, with optional constraints on climate distance and geographic
-#' distance. Analog searches use a two-stage approach: first selecting analogs
-#' based on specified criteria, then optionally aggregating the results.
+#' Identifies locations in a reference dataset that are climatically similar
+#' and/or geographically proximal to focal locations. Analog searches use a
+#' two-stage approach: first selecting analogs based on specified criteria,
+#' then optionally aggregating the results.
 #'
-#' Parameters fall into four categories:
+#' ## Parameter categories
+#'
 #' \itemize{
 #'     \item *Data parameters*
 #'       (`x`, `pool`, `x_cov`, `values`, `coord_type`)
@@ -17,17 +18,40 @@
 #'       (`stat`, `weight`, `theta`)
 #'       control how selected analogs are summarized.
 #'     \item *Computation parameters*
-#'       (`index_res`, `n_threads`)
-#'       specify internal behavior affecting compute performance.
+#'       (`n_threads`, `index_res`, `downsample`, `seed`)
+#'       specify behavior for optimizing compute performance.
 #' }
 #'
-#' The function uses a spatial indexing structure (lattice-based) to quickly
-#' search through large reference datasets. Climate similarity is measured
-#' using Euclidean distance in climate space (ideally pre-whitened).
+#' ## Distance metrics
+#'
 #' Geographic distance can be computed for lon/lat coordinates (great-circle
 #' distance) or projected coordinates (planar distance).
 #'
+#' Climate similarity is measured using Euclidean or Mahalanobis distance in
+#' climate space. In general, when multiple climate variables are used, it is
+#' recommended to use pre-whitened (scaled) climate data, to avoid major artifacts
+#' from climate variables with different units. Pre-whitening can be done using
+#' `scale()` for dataset-wide Euclidean distances, or `mahalanobis_transform()`
+#' for dataset-wide Mahalanobis distances.
 #'
+#' The function also supports climate distance calculations based on
+#' *local temporal* covariance structure at focal locations, via the `x_cov`
+#' parameter. These local covariance values need to be pre-calculated.
+#'
+#'
+#' ## Computational optimization
+#'
+#' The analog search architecture is designed with compute performance in mind:
+#' \itemize{
+#'     \item All internal computations are done in C++.
+#'     \item Searches use a lattice-based indexing structure to efficiently
+#'       search through large reference datasets. By default, the lattice
+#'       resolution is tuned for optimal performance.
+#'     \item Parallel processing is available via the `threads` parameter.
+#'     \item You can `downsample` prohibitively large reference pool datasets
+#'       to improve speed and memory, using a stratified sampling
+#'       scheme that reduces loss of precision relative to random sampling.
+#' }
 #'
 #' @param x Focal locations for which analogs will be found. Should be a
 #'   matrix/data.frame with columns x, y, and climate variables, or a
@@ -66,15 +90,6 @@
 #'
 #'   For stat = NULL/"none" (pairs mode), value columns are included in output
 #'   for each analog pair.
-#'
-#' @param coord_type Coordinate system type:
-#'   \itemize{
-#'     \item \code{"auto"} (default): Automatically detect from coordinate ranges.
-#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-#'       assumes \code{max_geog} is in km).
-#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance;
-#'       assumes \code{max_geog} is in projection units).
-#'   }
 #'
 #'
 #'
@@ -172,20 +187,12 @@
 #'
 #'
 #'
-#' @param index_res Tuning parameter giving the number of bins per dimension
-#'   of the internally-used lattice search index. Either:
-#'   \itemize{
-#'     \item A positive integer.
-#'     \item \code{"auto"} (the default): Automatically tune the index resolution
-#'       by optimizing compute time on a subsample of focal points. If focal has
-#'       relatively few rows, auto-tuning is skipped and a default resolution of
-#'       16 is used.
-#'   }
-#'   Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).
 #'
 #' @param n_threads Optional integer number of threads to use for the
 #'   computation. If \code{NULL} (default), the global RcppParallel setting
 #'   is used (see \code{RcppParallel::setThreadOptions}).
+#'
+#' @inheritParams build_analog_index
 #'
 #' @return
 #' Return type depends on input format and query mode.
@@ -280,7 +287,6 @@ analog_search <- function(
       pool,
       x_cov = NULL,
       values = NULL,
-      coord_type = c("auto", "lonlat", "projected"),
 
       # candidate filtering
       max_clim = NULL,
@@ -293,8 +299,12 @@ analog_search <- function(
       weight = NULL,
       theta = NULL,
 
-      # admin
+      # args passed to build_lattice_index
+      coord_type = c("auto", "lonlat", "projected"),
+      downsample = 1.0,
+      seed = NULL,
       index_res = "auto",
+
       n_threads = NULL
 ) {
 
@@ -323,7 +333,9 @@ analog_search <- function(
                         theta = theta,
                         coord_type = coord_type,
                         n_threads = n_threads,
-                        verbose = FALSE
+                        verbose = FALSE,
+                        downsample = downsample,
+                        seed = seed
                   )
             } else if (is.numeric(index_res)) {
                   index_res_int <- as.integer(index_res)
@@ -335,7 +347,9 @@ analog_search <- function(
             index <- build_analog_index(
                   pool = pool,
                   coord_type = coord_type,
-                  index_res = index_res_int
+                  index_res = index_res_int,
+                  downsample = downsample,
+                  seed = seed
             )
       }
 

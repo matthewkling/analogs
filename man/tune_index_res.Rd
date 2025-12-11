@@ -7,6 +7,8 @@
 tune_index_res(
   x,
   pool,
+  downsample = 1,
+  seed = NULL,
   select = "all",
   stat = NULL,
   max_clim = NULL,
@@ -34,6 +36,15 @@ or SpatRaster with climate variable layers, OR
 \item An \code{\link[=analog_index]{analog_index()}} object created by
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
+
+\item{downsample}{Optional downsampling rate (0-1) indicating the proportion of
+points in \code{pool} to retain. Downsampling reduces memory use and improves
+query speed at the cost of some precision; adaptive stratified sampling is
+used to minimize loss of precision. The default is 1.0 (no downsampling).
+See Details for more info.}
+
+\item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
+(default), uses current R random state.}
 
 \item{select}{Character string specifying the analog selection strategy.
 One of:

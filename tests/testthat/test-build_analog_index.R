@@ -198,3 +198,39 @@ test_that("build_analog_index works with different resolutions", {
       # Higher resolution should have more bins
       expect_true(index_high$total_bins > index_low$total_bins)
 })
+
+test_that("build_analog_index works with downsampling", {
+
+      d <- sim_test_data(nref = 1000000)
+
+      # Build full index
+      index_full <- build_analog_index(
+            d$ref,
+            coord_type = "projected",
+            index_res = 16,
+            downsample = 1.0
+      )
+
+      # Build downsampled index
+      index_down <- build_analog_index(
+            d$ref,
+            coord_type = "projected",
+            index_res = 16,
+            downsample = 0.1,
+            seed = 456
+      )
+
+      expect_equal(index_down$downsample_target, 0.1)
+      expect_equal(index_down$downsample_actual, index_down$downsample_target, tolerance = .01)
+
+
+      # Test reproducibility
+      index_down2 <- build_analog_index(
+            d$ref,
+            coord_type = "projected",
+            index_res = 16,
+            downsample = 0.1,
+            seed = 456  # Same seed
+      )
+      expect_equal(index_down$downsample_actual, index_down2$downsample_actual)
+})

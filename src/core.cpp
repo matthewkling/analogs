@@ -29,7 +29,9 @@ using namespace RcppParallel;
 // [[Rcpp::export]]
 SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                             const std::string& coord_type,
-                            int index_res)
+                            int index_res,
+                            double downsample,
+                            unsigned int seed)
 {
       const int n_ref = ref_mm.nrow();
       const int ncol_ref = ref_mm.ncol();
@@ -130,13 +132,15 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                   static_cast<size_tu>(n_clim),
                   static_cast<size_tu>(lattice_stride),
                   metric,
-                  std::numeric_limits<double>::infinity(),  // No geog constraint at build time
-                  false,                                     // No scalar clim constraint at build time
-                  std::vector<double>(),                     // No pervar clim constraint at build time
+                  std::numeric_limits<double>::infinity(),
+                  false,
+                  std::vector<double>(),
                   std::numeric_limits<double>::infinity(),
                   index_res,
-                  true,  // use_geo_lattice
-                  true   // use_clim_lattice
+                  true,       // use_geo_lattice
+                  true,       // use_clim_lattice
+                  downsample, // NEW
+                  seed        // NEW
       );
 
       // Create Xptr
@@ -165,7 +169,8 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             Named("total_bins") = static_cast<double>(lattice->total_bins),
             Named("n_cells_nonempty") = static_cast<double>(lattice->n_cells_nonempty),
             Named("min_cell_occ") = static_cast<double>(lattice->min_cell_occ),
-            Named("max_cell_occ") = static_cast<double>(lattice->max_cell_occ)
+            Named("max_cell_occ") = static_cast<double>(lattice->max_cell_occ),
+            Named("downsample_actual") = lattice->downsample_actual  // NEW
       );
 
       return result;
@@ -336,7 +341,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
       // Execute query using workers
       if (return_pairs) {
             const int k_knn = (scode == SelectCode::ALL ? 0 : k);
+            // Pair mode
             std::vector< std::vector<int> > out_indices(n_focal);
+            std::vector< std::vector<double> > out_weights(n_focal);  // NEW
 
             PairWorker worker(focal_mm,
                               ref_mm,
@@ -360,33 +367,52 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               x_cov_ptr,
                               x_cov_stride,
                               n_cov_components,
-                              out_indices);
+                              out_indices,
+                              out_weights);  // NEW: Added weight parameter
 
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
 
-            // For k=1 queries (select codes knn_clim or knn_geog with k=1),
-            // ensure every focal has exactly one result.
-            // Focals with no matches get an NA entry (represented as 0 for 1-based indexing,
-            // which will be converted to NA_INTEGER in emit_pairs)
+            // Handle k=1 NA cases - need to add weight too
             if (k == 1 && (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG)) {
                   for (int i = 0; i < n_focal; ++i) {
                         if (out_indices[i].empty()) {
-                              // No analog found for this focal - add 0 (will be treated as NA)
                               out_indices[i].push_back(0);
+                              out_weights[i].push_back(1.0);  // NEW: NA gets weight 1.0
                         }
                   }
             }
 
-            // Convert to List<IntegerVector>
-            List out(n_focal);
+            // Convert to List with both indices and weights
+            // Structure: List with two named elements: "indices" and "weights"
+            List out;
+
+            // Create indices list
+            List indices_list(n_focal);
             for (int i = 0; i < n_focal; ++i) {
                   const std::vector<int>& v = out_indices[i];
                   IntegerVector idx_vec(v.size());
                   for (std::size_t j = 0; j < v.size(); ++j) {
                         idx_vec[j] = v[j];
                   }
-                  out[i] = idx_vec;
+                  indices_list[i] = idx_vec;
             }
+
+            // Create weights list
+            List weights_list(n_focal);
+            for (int i = 0; i < n_focal; ++i) {
+                  const std::vector<double>& w = out_weights[i];
+                  NumericVector wgt_vec(w.size());
+                  for (std::size_t j = 0; j < w.size(); ++j) {
+                        wgt_vec[j] = w[j];
+                  }
+                  weights_list[i] = wgt_vec;
+            }
+
+            // Package both into the output list
+            out = List::create(
+                  Named("indices") = indices_list,
+                  Named("weights") = weights_list
+            );
 
             // Attach diagnostics
             out.attr("n_focal") = n_focal;

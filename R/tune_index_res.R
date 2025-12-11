@@ -5,6 +5,7 @@
 #' different resolutions and recommends the one with the fastest compute speed.
 #'
 #' @inheritParams analog_search
+#' @inheritParams build_analog_index
 #'
 #' @param default_res Default resolution to use as starting point for search.
 #'   Default is 16.
@@ -49,6 +50,8 @@
 #' @export
 tune_index_res <- function(x,
                            pool,
+                           downsample = 1.0,
+                           seed = NULL,
                            select = "all",
                            stat = NULL,
                            max_clim = NULL,
@@ -62,6 +65,9 @@ tune_index_res <- function(x,
                            n_threads = NULL,
                            default_res = 16L,
                            verbose = FALSE) {
+
+      if(is.null(seed)) seed <- .Random.seed[1]
+      set.seed(seed)
 
       # Helper: detect monotonic timings with a tolerance
       is_strict_monotonic <- function(x, tol = 0.15) {
@@ -105,7 +111,9 @@ tune_index_res <- function(x,
             index <- build_analog_index(
                   pool = pool,
                   coord_type = coord_type,
-                  index_res = r
+                  index_res = r,
+                  downsample = downsample,
+                  seed = seed
             )
 
             # Time the query

@@ -35,15 +35,19 @@ SEXP emit_pairs_cpp(List res,
                     NumericMatrix ref_mm,
                     bool report_dist,
                     std::string geo_mode,
-                    Nullable<NumericMatrix> x_cov = R_NilValue,
-                    Nullable<NumericMatrix> values = R_NilValue,
-                    Nullable<CharacterVector> values_names = R_NilValue) {
+                    Nullable<NumericMatrix> x_cov,
+                    Nullable<NumericMatrix> values,
+                    Nullable<CharacterVector> values_names) {
 
       const int n_f = focal_mm.nrow();
       const int n_ref = ref_mm.nrow();
 
-      if (res.size() != n_f) {
-            stop("Internal error: length(res) != nrow(focal_mm).");
+      // Extract indices and weights from structured result
+      List indices_list = res["indices"];
+      List weights_list = res["weights"];
+
+      if (indices_list.size() != n_f || weights_list.size() != n_f) {
+            stop("Internal error: result lists don't match nrow(focal_mm).");
       }
 
       const int ncol_focal = focal_mm.ncol();
@@ -94,7 +98,7 @@ SEXP emit_pairs_cpp(List res,
       // Count total pairs
       int total_pairs = 0;
       for (int i = 0; i < n_f; ++i) {
-            IntegerVector analog_idx = res[i];
+            IntegerVector analog_idx = indices_list[i];
             total_pairs += analog_idx.size();
       }
 
@@ -107,6 +111,7 @@ SEXP emit_pairs_cpp(List res,
       NumericVector analog_y(total_pairs);
       NumericVector clim_dist(total_pairs);
       NumericVector geog_dist(total_pairs);
+      NumericVector sample_weight(total_pairs);
 
       // Value columns if needed
       std::vector<NumericVector> value_cols;
@@ -120,7 +125,8 @@ SEXP emit_pairs_cpp(List res,
       // Fill output vectors
       int out_idx = 0;
       for (int i = 0; i < n_f; ++i) {
-            IntegerVector analog_idx_vec = res[i];
+            IntegerVector analog_idx_vec = indices_list[i];  // Fixed: use indices_list
+            NumericVector analog_wgt_vec = weights_list[i];
             const int n_analogs = analog_idx_vec.size();
 
             const double fx = focal_mm(i, 0);
@@ -128,6 +134,7 @@ SEXP emit_pairs_cpp(List res,
 
             for (int j = 0; j < n_analogs; ++j) {
                   int ref_idx = analog_idx_vec[j];
+                  double ref_weight = analog_wgt_vec[j];
 
                   focal_index[out_idx] = i + 1;  // 1-based for R
                   focal_x[out_idx] = fx;
@@ -140,6 +147,7 @@ SEXP emit_pairs_cpp(List res,
                         analog_y[out_idx] = NA_REAL;
                         clim_dist[out_idx] = NA_REAL;
                         geog_dist[out_idx] = NA_REAL;
+                        sample_weight[out_idx] = NA_REAL;
 
                         // NA for values too
                         if (has_values) {
@@ -228,6 +236,8 @@ SEXP emit_pairs_cpp(List res,
                                     value_cols[v][out_idx] = values_mat(ref_row, v);
                               }
                         }
+
+                        sample_weight[out_idx] = ref_weight;
                   }
 
                   out_idx++;
@@ -244,6 +254,7 @@ SEXP emit_pairs_cpp(List res,
       out_list["analog_y"] = analog_y;
       out_list["clim_dist"] = clim_dist;
       out_list["geog_dist"] = geog_dist;
+      out_list["sample_weight"] = sample_weight;
 
       // Add value columns
       if (has_values) {

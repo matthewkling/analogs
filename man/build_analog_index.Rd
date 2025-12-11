@@ -7,17 +7,15 @@
 build_analog_index(
   pool,
   coord_type = c("auto", "lonlat", "projected"),
-  index_res = 16
+  index_res = 16,
+  downsample = 1,
+  seed = NULL
 )
 }
 \arguments{
-\item{pool}{The reference dataset to search for analogs. Either:
-\itemize{
-\item Matrix/data.frame with columns x, y, and climate variables,
-or SpatRaster with climate variable layers, OR
-\item An \code{\link[=analog_index]{analog_index()}} object created by
-\code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
-}}
+\item{pool}{The reference dataset to search for analogs. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a SpatRaster
+with climate variable layers.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -38,6 +36,15 @@ relatively few rows, auto-tuning is skipped and a default resolution of
 16 is used.
 }
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
+
+\item{downsample}{Optional downsampling rate (0-1) indicating the proportion of
+points in \code{pool} to retain. Downsampling reduces memory use and improves
+query speed at the cost of some precision; adaptive stratified sampling is
+used to minimize loss of precision. The default is 1.0 (no downsampling).
+See Details for more info.}
+
+\item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
+(default), uses current R random state.}
 }
 \value{
 An S3 object of class \code{"analog_index"} containing:
@@ -45,7 +52,7 @@ An S3 object of class \code{"analog_index"} containing:
 \item The compiled lattice index (internal C++ structure)
 \item Reference data
 \item Metadata: coordinate type, dimensions, ranges, resolution
-\item Diagnostics: bin counts and occupancy statistics
+\item Diagnostics: bin counts, occupancy statistics, and downsampling info
 }
 }
 \description{
@@ -54,15 +61,34 @@ can be queried multiple times with different focal points and parameters,
 avoiding the need to rebuild the lattice for each query.
 }
 \details{
-The lattice index is built over both geographic and climate dimensions,
-allowing efficient spatial queries regardless of the constraint values used
-at query time. For lon/lat coordinates, the index uses ECEF (Earth-Centered
-Earth-Fixed) space internally for optimal performance.
+The lattice index is a multidimensional grid of bins, built over both geographic
+and climate dimensions. This structure enables efficient analog searches by
+first filtering and sorting bins of similar points before computing exact
+results. For lon/lat coordinates, the index uses ECEF (Earth-Centered Earth-Fixed)
+space internally for optimal performance.
 
 Index resolution (\code{index_res}) controls the granularity of spatial
 binning. The optimal value depends on your data size and query patterns.
-Use \code{\link{tune_index_res}} to find the best resolution for your use case,
-or accept the default of 16 which works well for most applications.
+Use \code{\link[=tune_index_res]{tune_index_res()}} to find the best resolution for your use case,
+or accept the default of 16 which works well for many applications.
+\subsection{Downsampling}{
+
+For very large datasets, downsampling can significantly improve memory usage
+and query speed, at the cost of some precision. The \code{downsample} parameter controls
+the target fraction of the data points in \code{pool} that are retained in the index.
+Downsampling uses an adaptive stratified approach: densely-packed bins are thinned more
+aggressively while sparse bins are preserved, which helps reduce imprecision
+in sparse regions compared to fully random sampling. Note: The actual rate may be
+higher than requested if maintaining at least one point per occupied bin requires
+it (common with sparse data or fine-grained binning); check \code{index$downsample_actual}.
+
+Each remaining analog in the downsampled pool gets a \code{sample_weight} indicating
+the number of points it represents in the original pool; this weight is the inverse
+of the sampling rate in the analog's index bin. For pair queries (\code{stat = "none"}),
+results include each analog's \code{sample_weight}. For aggregation stats (count, sum,
+mean, etc.), sampling weights are used internally to automatically correct for
+the downsampling bias.
+}
 }
 \examples{
 \dontrun{
@@ -71,6 +97,14 @@ index <- build_analog_index(climate_data)
 
 # Build with explicit resolution
 index <- build_analog_index(climate_data, index_res = 20)
+
+# Build with downsampling for large datasets
+index <- build_analog_index(
+  large_climate_data,
+  index_res = 16,
+  downsample = 0.1,  # Reduce max bin size to 10\%
+  seed = 123         # Reproducible sampling
+)
 
 # Query the index multiple times
 v1 <- analog_velocity(sites1, pool = index, max_clim = 0.5)

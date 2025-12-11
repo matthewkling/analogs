@@ -9,7 +9,6 @@ analog_search(
   pool,
   x_cov = NULL,
   values = NULL,
-  coord_type = c("auto", "lonlat", "projected"),
   max_clim = NULL,
   max_geog = NULL,
   select = "all",
@@ -17,6 +16,9 @@ analog_search(
   stat = NULL,
   weight = NULL,
   theta = NULL,
+  coord_type = c("auto", "lonlat", "projected"),
+  downsample = 1,
+  seed = NULL,
   index_res = "auto",
   n_threads = NULL
 )
@@ -59,15 +61,6 @@ When provided, enables value-based aggregation stats:
 
 For stat = NULL/"none" (pairs mode), value columns are included in output
 for each analog pair.}
-
-\item{coord_type}{Coordinate system type:
-\itemize{
-\item \code{"auto"} (default): Automatically detect from coordinate ranges.
-\item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-assumes \code{max_geog} is in km).
-\item \code{"projected"}: Projected XY coordinates (uses planar distance;
-assumes \code{max_geog} is in projection units).
-}}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
@@ -158,6 +151,24 @@ If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
 weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
 must be \code{NULL}.}
 
+\item{coord_type}{Coordinate system type:
+\itemize{
+\item \code{"auto"} (default): Automatically detect from coordinate ranges.
+\item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+assumes \code{max_geog} is in km).
+\item \code{"projected"}: Projected XY coordinates (uses planar distance;
+assumes \code{max_geog} is in projection units).
+}}
+
+\item{downsample}{Optional downsampling rate (0-1) indicating the proportion of
+points in \code{pool} to retain. Downsampling reduces memory use and improves
+query speed at the cost of some precision; adaptive stratified sampling is
+used to minimize loss of precision. The default is 1.0 (no downsampling).
+See Details for more info.}
+
+\item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
+(default), uses current R random state.}
+
 \item{index_res}{Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:
 \itemize{
@@ -203,13 +214,14 @@ All results include metadata attributes (\code{select}, \code{stat}, \code{weigh
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
-Identifies locations in a reference dataset that are climatically similar to
-focal locations, with optional constraints on climate distance and geographic
-distance. Analog searches use a two-stage approach: first selecting analogs
-based on specified criteria, then optionally aggregating the results.
+Identifies locations in a reference dataset that are climatically similar
+and/or geographically proximal to focal locations. Analog searches use a
+two-stage approach: first selecting analogs based on specified criteria,
+then optionally aggregating the results.
 }
 \details{
-Parameters fall into four categories:
+\subsection{Parameter categories}{
+
 \itemize{
 \item \emph{Data parameters}
 (\code{x}, \code{pool}, \code{x_cov}, \code{values}, \code{coord_type})
@@ -221,15 +233,41 @@ define which analogs to \code{select} from the \code{pool} for each \code{x}.
 (\code{stat}, \code{weight}, \code{theta})
 control how selected analogs are summarized.
 \item \emph{Computation parameters}
-(\code{index_res}, \code{n_threads})
-specify internal behavior affecting compute performance.
+(\code{n_threads}, \code{index_res}, \code{downsample}, \code{seed})
+specify behavior for optimizing compute performance.
+}
 }
 
-The function uses a spatial indexing structure (lattice-based) to quickly
-search through large reference datasets. Climate similarity is measured
-using Euclidean distance in climate space (ideally pre-whitened).
+\subsection{Distance metrics}{
+
 Geographic distance can be computed for lon/lat coordinates (great-circle
 distance) or projected coordinates (planar distance).
+
+Climate similarity is measured using Euclidean or Mahalanobis distance in
+climate space. In general, when multiple climate variables are used, it is
+recommended to use pre-whitened (scaled) climate data, to avoid major artifacts
+from climate variables with different units. Pre-whitening can be done using
+\code{scale()} for dataset-wide Euclidean distances, or \code{mahalanobis_transform()}
+for dataset-wide Mahalanobis distances.
+
+The function also supports climate distance calculations based on
+\emph{local temporal} covariance structure at focal locations, via the \code{x_cov}
+parameter. These local covariance values need to be pre-calculated.
+}
+
+\subsection{Computational optimization}{
+
+The analog search architecture is designed with compute performance in mind:
+\itemize{
+\item All internal computations are done in C++.
+\item Searches use a lattice-based indexing structure to efficiently
+search through large reference datasets.
+\item Parallel processing is available via the \code{threads} parameter.
+\item You can \code{downsample} very large reference pool datasets to
+further improve speed and memory, using a stratified sampling
+scheme that minimizes loss of precision relative to random sampling.
+}
+}
 }
 \examples{
 \dontrun{

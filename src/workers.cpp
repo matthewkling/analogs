@@ -18,6 +18,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_geo = tls.q_geo;
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
+      auto& cand_weights = tls.cand_weights;  // NEW
 
       // Pre-compute inverse covariance matrices if using Mahalanobis
       std::vector< std::vector<double> > inv_cov_matrices;
@@ -92,8 +93,10 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   // Expanded KNN search (Euclidean)
                   // Reuse cand vector for results
                   cand.clear();
+                  cand_weights.clear();  // NEW
 
-                  const double geog_thresh = use_ecef ? max_geog_chord : max_geog;
+                  const double geog_thresh = use_ecef ?
+                  max_geog_chord : max_geog;
 
                   lattice_ptr->knn_query(
                               fgeo_vec.data(),
@@ -107,15 +110,19 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                               max_clim_pervar,
                               max_clim_scalar,
                               k,
-                              cand
+                              cand,
+                              cand_weights  // NEW
                   );
 
-                  // Convert 0-based indices to 1-based for R
+                  // Convert 0-based indices to 1-based for R and store weights
                   std::vector<int> keep(cand.size());
+                  std::vector<double> weights(cand.size());  // NEW
                   for (std::size_t t = 0; t < cand.size(); ++t) {
                         keep[t] = static_cast<int>(cand[t]) + 1;
+                        weights[t] = cand_weights[t];  // NEW
                   }
                   out_indices[i] = std::move(keep);
+                  out_weights[i] = std::move(weights);  // NEW
                   continue;
             }
 
@@ -124,6 +131,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             // (Used for: Haversine, Mahalanobis, or ALL mode)
             // -----------------------------------------------------------------
             cand.clear();
+            cand_weights.clear();  // NEW
 
             if (use_lattice && lattice_ptr != nullptr) {
                   const size_tu n_geo = lattice_ptr->n_geo_dims;
@@ -165,10 +173,12 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                               use_scalar_clim,
                               max_clim_pervar,
                               effective_max_clim,
-                              cand
+                              cand,
+                              cand_weights  // NEW
                   );
             } else {
                   cand.resize(n_ref);
+                  cand_weights.resize(n_ref, 1.0);  // NEW: all weights = 1.0 for full scan
                   for (size_t j = 0; j < static_cast<size_t>(n_ref); ++j) {
                         cand[j] = static_cast<index_t>(j);
                   }
@@ -177,7 +187,9 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             // Filter and collect results from candidates
             if (scode == SelectCode::ALL) {
                   std::vector<int> keep;
+                  std::vector<double> weights;  // NEW
                   keep.reserve(cand.size());
+                  weights.reserve(cand.size());  // NEW
 
                   double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
                   if (use_ecef) {
@@ -192,6 +204,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
                   for (size_t t = 0; t < cand.size(); ++t) {
                         const index_t j = cand[t];
+                        const double weight = cand_weights[t];  // NEW
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
@@ -240,9 +253,11 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         if (!ok) continue;
 
                         keep.push_back(j + 1); // 1-based
+                        weights.push_back(weight);  // NEW
                   }
 
                   out_indices[i] = std::move(keep);
+                  out_weights[i] = std::move(weights);  // NEW
                   continue;
             }
 
@@ -251,6 +266,12 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   return a.first < b.first; // max-heap: top has largest distance
             };
             std::priority_queue<Neighbor, std::vector<Neighbor>, decltype(cmp)> pq(cmp);
+
+            // Build map from candidate index to weight for later lookup
+            std::unordered_map<index_t, double> idx_to_weight;  // NEW
+            for (size_t t = 0; t < cand.size(); ++t) {
+                  idx_to_weight[cand[t]] = cand_weights[t];
+            }
 
             // ECEF focal coords (if needed)
             double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
@@ -315,7 +336,8 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
                   if (!ok) continue;
 
-                  const double key = rank_by_clim ? clim_dist : gdist;
+                  const double key = rank_by_clim ?
+                  clim_dist : gdist;
                   const index_t ref_index_1based = j + 1;
 
                   if (static_cast<int>(pq.size()) < k) {
@@ -328,12 +350,19 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             const int m = static_cast<int>(pq.size());
             std::vector<int> idx_vec(m);
+            std::vector<double> wgt_vec(m);  // NEW
             for (int pos = m - 1; pos >= 0; --pos) {
                   const Neighbor& nb = pq.top();
                   idx_vec[pos] = nb.second;
+
+                  // Look up weight for this analog (nb.second is 1-based)
+                  index_t idx_0based = static_cast<index_t>(nb.second - 1);
+                  wgt_vec[pos] = idx_to_weight[idx_0based];  // NEW
+
                   pq.pop();
             }
             out_indices[i] = std::move(idx_vec);
+            out_weights[i] = std::move(wgt_vec);  // NEW
       }
 }
 
@@ -343,6 +372,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_geo = tls.q_geo;
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
+      auto& cand_weights = tls.cand_weights;  // NEW
 
       // Determine which stats are regular vs value-based
       std::vector<int> regular_stat_positions;
@@ -411,21 +441,21 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             const double fy = focal_ptr[i + stride_f];
             const double* f_clim_col = focal_ptr + i + 2 * stride_f;
 
+            // Gather candidates
             cand.clear();
+            cand_weights.clear();  // NEW
 
             if (use_lattice && lattice_ptr != nullptr) {
                   const size_tu n_geo = lattice_ptr->n_geo_dims;
                   q_geo.resize(n_geo);
 
                   if (use_ecef && n_geo == 3) {
-                        // Lattice was built in ECEF; query in ECEF.
                         double X, Y, Z;
                         lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
                         q_geo[0] = X;
                         q_geo[1] = Y;
                         q_geo[2] = Z;
                   } else {
-                        // Planar / non-ECEF lattice: use raw x,y.
                         q_geo[0] = fx;
                         q_geo[1] = fy;
                   }
@@ -452,10 +482,12 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                               use_scalar_clim,
                               max_clim_pervar,
                               effective_max_clim,
-                              cand
+                              cand,
+                              cand_weights  // NEW
                   );
             } else {
                   cand.resize(n_ref);
+                  cand_weights.resize(n_ref, 1.0);  // NEW: all weights = 1.0 for full scan
                   for (size_t j = 0; j < static_cast<size_t>(n_ref); ++j) {
                         cand[j] = static_cast<index_t>(j);
                   }
@@ -485,6 +517,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             // Iterate over candidates once
             for (size_t t = 0; t < cand.size(); ++t) {
                   const index_t j = cand[t];
+                  const double sample_weight = cand_weights[t];  // NEW
                   const double rx = ref_ptr[j];
                   const double ry = ref_ptr[j + stride_r];
 
@@ -536,13 +569,14 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                   if (!ok) continue;
 
-                  // Analog passed all filters - compute weight if needed
-                  const double w = need_weights
+                  // Analog passed all filters - compute distance weight if needed
+                  const double dist_weight = need_weights
                   ? weight_from_codes(wcode, clim_dist, gdist, weight_param1, weight_param2)
                         : 1.0;
 
-                  count++;
-                  sum_weights += w;
+                  // Apply sample weight to count and sum_weights
+                  count += static_cast<int>(sample_weight);  // MODIFIED: weighted count
+                  sum_weights += (dist_weight * sample_weight);  // MODIFIED: combine both weights
 
                   // Update regular stat accumulators
                   for (int idx = 0; idx < n_regular; ++idx) {
@@ -551,9 +585,9 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         if (acodes[s] == AggregateCode::COUNT) {
                               // Count tracked separately
                         } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
-                              regular_accum[idx] += w;
+                              regular_accum[idx] += (dist_weight * sample_weight);  // MODIFIED
                         } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
-                              regular_accum[idx] += w;
+                              regular_accum[idx] += (dist_weight * sample_weight);  // MODIFIED
                         }
                   }
 
@@ -567,13 +601,13 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     int accum_idx = v * n_value + idx;
 
                                     if (acodes[s] == AggregateCode::SUM) {
-                                          value_accum[accum_idx] += val;
+                                          value_accum[accum_idx] += (val * sample_weight);  // MODIFIED
                                     } else if (acodes[s] == AggregateCode::MEAN) {
-                                          value_accum[accum_idx] += val;
+                                          value_accum[accum_idx] += (val * sample_weight);  // MODIFIED
                                     } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
-                                          value_accum[accum_idx] += val * w;
+                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);  // MODIFIED
                                     } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
-                                          value_accum[accum_idx] += val * w;
+                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);  // MODIFIED
                                     }
                               }
                         }
@@ -593,7 +627,8 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
                         result = regular_accum[idx];
                   } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
-                        result = (count > 0) ? (regular_accum[idx] / count) : NA_REAL;
+                        result = (count > 0) ?
+                        (regular_accum[idx] / count) : NA_REAL;
                   }
 
                   agg[i * n_stats + col_idx] = result;
