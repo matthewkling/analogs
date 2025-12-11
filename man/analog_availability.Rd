@@ -126,3 +126,19 @@ a2 <- analog_availability(x = sites2, pool = index, max_clim = 0.3, max_geog = 5
 }
 
 }
+\references{
+Stralberg D, Carroll C, Pedlar JH, Wilsey CB, McKenney DW, Nielsen SE (2018).
+"Macrorefugia for North American trees and songbirds: Climatic limiting
+factors and multi-scale topographic influences." \emph{Global Ecology and
+Biogeography}, \strong{27}(6), 690-703. \doi{10.1111/geb.12731}
+
+Carroll C, Lawler JJ, Roberts DR, Hamann A (2015). "Biotic and climatic
+velocity identify contrasting areas of vulnerability to climate change."
+\emph{PLOS ONE}, \strong{10}(10), e0140486.
+\doi{10.1371/journal.pone.0140486}
+
+Parks SA, Holsinger LM, Abatzoglou JT, Littlefield CE, Zeller KA (2023).
+"Protected areas not likely to serve as steppingstones for species
+undergoing climate-induced range shifts." \emph{Global Change Biology},
+\strong{29}(10), 2681-2696. \doi{10.1111/gcb.16629}
+}

@@ -8,6 +8,22 @@
 #' @inheritParams analog_search
 #' @inherit analog_search return
 #'
+#' @references
+#' Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
+#' climates: New methods and insights at continental to landscape scales."
+#' \emph{Global Change Biology}, \strong{23}(9), 3934-3955.
+#' \doi{10.1111/gcb.13645}
+#'
+#' Abatzoglou JT, Dobrowski SZ, Parks SA (2020). "Multivariate climate
+#' departures have outpaced univariate changes across global lands."
+#' \emph{Scientific Reports}, \strong{10}(1), 3891.
+#' \doi{10.1038/s41598-020-60270-5}
+#'
+#' Williams JW, Jackson ST, Kutzbach JE (2007). "Projected distributions of
+#' novel and disappearing climates by 2100 AD." \emph{Proceedings of the
+#' National Academy of Sciences}, \strong{104}(14), 5738-5742.
+#' \doi{10.1073/pnas.0606292104}
+#'
 #' @examples
 #' \dontrun{
 #' # One-shot query with inverse weighting

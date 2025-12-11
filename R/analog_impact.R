@@ -95,6 +95,26 @@
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function.
 #'
+#' @references
+#' Parks SA, Holsinger LM, Miller C, Parisien MA (2018). "Analog-based fire
+#' regime and vegetation shifts in mountainous regions of the western US."
+#' \emph{Ecography}, \strong{41}(6), 910-921. \doi{10.1111/ecog.03378}
+#'
+#' Parks SA, Dobrowski SZ, Shaw JD, Miller C (2019). "Living on the edge:
+#' Trailing edge forests at risk of fire-facilitated conversion to non-forest."
+#' \emph{Ecosphere}, \strong{10}(3), e02651. \doi{10.1002/ecs2.2651}
+#'
+#' Holsinger L, Parks SA, Parisien MA, Miller C, Batllori E, Moritz MA (2019).
+#' "Climate change likely to reshape vegetation in North America's largest
+#' protected areas." \emph{Conservation Science and Practice}, \strong{1}(7),
+#' e50. \doi{10.1111/csp2.50}
+#'
+#' Dobrowski SZ, Littlefield CE, Lyons DS, Hollenberg CH, Carroll C, Parks SA,
+#' Abatzoglou JT, Hegewisch K, Gage J (2021). "Protected-area targets could be
+#' undermined by climate change-driven shifts in ecoregions and biomes."
+#' \emph{Communications Earth & Environment}, \strong{2}(1), 198.
+#' \doi{10.1038/s43247-021-00270-z}
+#'
 #' @examples
 #' \dontrun{
 #' # Basic climate impact assessment
@@ -105,11 +125,6 @@
 #'   max_geog = 100,    # 100 km dispersal range
 #'   max_clim = 0.5     # Climate analog threshold
 #' )
-#'
-#' # Interpret results:
-#' # - count: how many analogs?
-#' # - sum_weights: analog availability (higher = more/better matches)
-#' # - weighted_mean: expected habitat quality (higher = lower impact)
 #'
 #' # Multiple ecosystem variables
 #' values_df <- data.frame(

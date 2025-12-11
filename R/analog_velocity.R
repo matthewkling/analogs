@@ -33,6 +33,16 @@
 #' )
 #' }
 #'
+#' @references
+#' Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of
+#' climate change algorithms for guiding conservation and management."
+#' \emph{Global Change Biology}, \strong{21}(2), 997-1004.
+#' \doi{10.1111/gcb.12736}
+#'
+#' Dobrowski SZ, Parks SA (2016). "Climate change velocity underestimates
+#' climate change exposure in mountainous regions." \emph{Nature Communications},
+#' \strong{7}, 12349. \doi{10.1038/ncomms12349}
+#'
 #' @export
 analog_velocity <- function(
             x,

@@ -255,6 +255,23 @@
 #' # Returns: index, x, y, weighted_sum, weighted_mean
 #'
 #' @seealso [analog_summary()] to print a summary of search result metadata.
+#'
+#' @references
+#' Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
+#' climates: New methods and insights at continental to landscape scales."
+#' \emph{Global Change Biology}, \strong{23}(9), 3934-3955.
+#' \doi{10.1111/gcb.13645}
+#'
+#' Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of
+#' climate change algorithms for guiding conservation and management."
+#' \emph{Global Change Biology}, \strong{21}(2), 997-1004.
+#' \doi{10.1111/gcb.12736}
+#'
+#' Grenier P, Parent A-C, Huard D, Anctil F, Chaumont D (2013). "An assessment
+#' of six dissimilarity metrics for climate analogs." \emph{Journal of Applied
+#' Meteorology and Climatology}, \strong{52}(4), 733-752.
+#' \doi{10.1175/JAMC-D-12-0170.1}
+#'
 #' @export
 analog_search <- function(
 
