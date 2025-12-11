@@ -140,6 +140,25 @@ etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
 
+## References
+
+Stralberg D, Carroll C, Pedlar JH, Wilsey CB, McKenney DW, Nielsen SE
+(2018). "Macrorefugia for North American trees and songbirds: Climatic
+limiting factors and multi-scale topographic influences." *Global
+Ecology and Biogeography*, **27**(6), 690-703.
+[doi:10.1111/geb.12731](https://doi.org/10.1111/geb.12731)
+
+Carroll C, Lawler JJ, Roberts DR, Hamann A (2015). "Biotic and climatic
+velocity identify contrasting areas of vulnerability to climate change."
+*PLOS ONE*, **10**(10), e0140486.
+[doi:10.1371/journal.pone.0140486](https://doi.org/10.1371/journal.pone.0140486)
+
+Parks SA, Holsinger LM, Abatzoglou JT, Littlefield CE, Zeller KA (2023).
+"Protected areas not likely to serve as steppingstones for species
+undergoing climate-induced range shifts." *Global Change Biology*,
+**29**(10), 2681-2696.
+[doi:10.1111/gcb.16629](https://doi.org/10.1111/gcb.16629)
+
 ## Examples
 
 ``` r

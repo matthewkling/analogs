@@ -198,6 +198,23 @@ etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
 
+## References
+
+Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
+climates: New methods and insights at continental to landscape scales."
+*Global Change Biology*, **23**(9), 3934-3955.
+[doi:10.1111/gcb.13645](https://doi.org/10.1111/gcb.13645)
+
+Abatzoglou JT, Dobrowski SZ, Parks SA (2020). "Multivariate climate
+departures have outpaced univariate changes across global lands."
+*Scientific Reports*, **10**(1), 3891.
+[doi:10.1038/s41598-020-60270-5](https://doi.org/10.1038/s41598-020-60270-5)
+
+Williams JW, Jackson ST, Kutzbach JE (2007). "Projected distributions of
+novel and disappearing climates by 2100 AD." *Proceedings of the
+National Academy of Sciences*, **104**(14), 5738-5742.
+[doi:10.1073/pnas.0606292104](https://doi.org/10.1073/pnas.0606292104)
+
 ## Examples
 
 ``` r

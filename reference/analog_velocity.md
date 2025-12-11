@@ -177,6 +177,18 @@ etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
 
+## References
+
+Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity
+of climate change algorithms for guiding conservation and management."
+*Global Change Biology*, **21**(2), 997-1004.
+[doi:10.1111/gcb.12736](https://doi.org/10.1111/gcb.12736)
+
+Dobrowski SZ, Parks SA (2016). "Climate change velocity underestimates
+climate change exposure in mountainous regions." *Nature
+Communications*, **7**, 12349.
+[doi:10.1038/ncomms12349](https://doi.org/10.1038/ncomms12349)
+
 ## Examples
 
 ``` r
