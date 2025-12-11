@@ -1,10 +1,9 @@
 # Find Climate Analogs
 
 Identifies locations in a reference dataset that are climatically
-similar to focal locations, with optional constraints on climate
-distance and geographic distance. Analog searches use a two-stage
-approach: first selecting analogs based on specified criteria, then
-optionally aggregating the results.
+similar and/or geographically proximal to focal locations. Analog
+searches use a two-stage approach: first selecting analogs based on
+specified criteria, then optionally aggregating the results.
 
 ## Usage
 
@@ -14,7 +13,6 @@ analog_search(
   pool,
   x_cov = NULL,
   values = NULL,
-  coord_type = c("auto", "lonlat", "projected"),
   max_clim = NULL,
   max_geog = NULL,
   select = "all",
@@ -22,6 +20,9 @@ analog_search(
   stat = NULL,
   weight = NULL,
   theta = NULL,
+  coord_type = c("auto", "lonlat", "projected"),
+  downsample = 1,
+  seed = NULL,
   index_res = "auto",
   n_threads = NULL
 )
@@ -79,18 +80,6 @@ analog_search(
 
   For stat = NULL/"none" (pairs mode), value columns are included in
   output for each analog pair.
-
-- coord_type:
-
-  Coordinate system type:
-
-  - `"auto"` (default): Automatically detect from coordinate ranges.
-
-  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
-    distance; assumes `max_geog` is in km).
-
-  - `"projected"`: Projected XY coordinates (uses planar distance;
-    assumes `max_geog` is in projection units).
 
 - max_clim:
 
@@ -216,6 +205,31 @@ analog_search(
   weights. For `weight = "uniform"` or for non-weighted aggregations,
   `theta` must be `NULL`.
 
+- coord_type:
+
+  Coordinate system type:
+
+  - `"auto"` (default): Automatically detect from coordinate ranges.
+
+  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
+    distance; assumes `max_geog` is in km).
+
+  - `"projected"`: Projected XY coordinates (uses planar distance;
+    assumes `max_geog` is in projection units).
+
+- downsample:
+
+  Optional downsampling rate (0-1) indicating the proportion of points
+  in `pool` to retain. Downsampling reduces memory use and improves
+  query speed at the cost of some precision; adaptive stratified
+  sampling is used to minimize loss of precision. The default is 1.0 (no
+  downsampling). See Details for more info.
+
+- seed:
+
+  Optional random seed for reproducible downsampling. If `NULL`
+  (default), uses current R random state.
+
 - index_res:
 
   Tuning parameter giving the number of bins per dimension of the
@@ -278,7 +292,7 @@ to view a formatted summary.
 
 ## Details
 
-Parameters fall into four categories:
+### Parameter categories
 
 - *Data parameters* (`x`, `pool`, `x_cov`, `values`, `coord_type`) give
   attributes of the data on which to operate.
@@ -289,15 +303,43 @@ Parameters fall into four categories:
 - *Aggregation parameters* (`stat`, `weight`, `theta`) control how
   selected analogs are summarized.
 
-- *Computation parameters* (`index_res`, `n_threads`) specify internal
-  behavior affecting compute performance.
+- *Computation parameters* (`n_threads`, `index_res`, `downsample`,
+  `seed`) specify behavior for optimizing compute performance.
 
-The function uses a spatial indexing structure (lattice-based) to
-quickly search through large reference datasets. Climate similarity is
-measured using Euclidean distance in climate space (ideally
-pre-whitened). Geographic distance can be computed for lon/lat
-coordinates (great-circle distance) or projected coordinates (planar
-distance).
+### Distance metrics
+
+Geographic distance can be computed for lon/lat coordinates
+(great-circle distance) or projected coordinates (planar distance).
+
+Climate similarity is measured using Euclidean or Mahalanobis distance
+in climate space. In general, when multiple climate variables are used,
+it is recommended to use pre-whitened (scaled) climate data, to avoid
+major artifacts from climate variables with different units.
+Pre-whitening can be done using
+[`scale()`](https://rdrr.io/r/base/scale.html) for dataset-wide
+Euclidean distances, or
+[`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md)
+for dataset-wide Mahalanobis distances.
+
+The function also supports climate distance calculations based on *local
+temporal* covariance structure at focal locations, via the `x_cov`
+parameter. These local covariance values need to be pre-calculated.
+
+### Computational optimization
+
+The analog search architecture is designed with compute performance in
+mind:
+
+- All internal computations are done in C++.
+
+- Searches use a lattice-based indexing structure to efficiently search
+  through large reference datasets.
+
+- Parallel processing is available via the `threads` parameter.
+
+- You can `downsample` very large reference pool datasets to further
+  improve speed and memory, using a stratified sampling scheme that
+  minimizes loss of precision relative to random sampling.
 
 ## References
 

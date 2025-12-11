@@ -47,7 +47,9 @@ avoiding the need to rebuild the lattice for each query.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_analog_index</span><span class="op">(</span></span>
 <span>  <span class="va">pool</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"lonlat"</span>, <span class="st">"projected"</span><span class="op">)</span>,</span>
-<span>  index_res <span class="op">=</span> <span class="fl">16</span></span>
+<span>  index_res <span class="op">=</span> <span class="fl">16</span>,</span>
+<span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -56,11 +58,9 @@ avoiding the need to rebuild the lattice for each query.</p>
 
 
 <dl><dt id="arg-pool">pool<a class="anchor" aria-label="anchor" href="#arg-pool"></a></dt>
-<dd><p>The reference dataset to search for analogs. Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and climate variables,
-or SpatRaster with climate variable layers, OR</p></li>
-<li><p>An <code>analog_index()</code> object created by
-<code>build_analog_index()</code> (for repeated queries).</p></li>
-</ul></dd>
+<dd><p>The reference dataset to search for analogs. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a SpatRaster
+with climate variable layers.</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
@@ -81,24 +81,57 @@ relatively few rows, auto-tuning is skipped and a default resolution of
 16 is used.</p></li>
 </ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
 
+
+<dt id="arg-downsample">downsample<a class="anchor" aria-label="anchor" href="#arg-downsample"></a></dt>
+<dd><p>Optional downsampling rate (0-1) indicating the proportion of
+points in <code>pool</code> to retain. Downsampling reduces memory use and improves
+query speed at the cost of some precision; adaptive stratified sampling is
+used to minimize loss of precision. The default is 1.0 (no downsampling).
+See Details for more info.</p></dd>
+
+
+<dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
+<dd><p>Optional random seed for reproducible downsampling. If <code>NULL</code>
+(default), uses current R random state.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An S3 object of class <code>"analog_index"</code> containing:</p><ul><li><p>The compiled lattice index (internal C++ structure)</p></li>
 <li><p>Reference data</p></li>
 <li><p>Metadata: coordinate type, dimensions, ranges, resolution</p></li>
-<li><p>Diagnostics: bin counts and occupancy statistics</p></li>
+<li><p>Diagnostics: bin counts, occupancy statistics, and downsampling info</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>The lattice index is built over both geographic and climate dimensions,
-allowing efficient spatial queries regardless of the constraint values used
-at query time. For lon/lat coordinates, the index uses ECEF (Earth-Centered
-Earth-Fixed) space internally for optimal performance.</p>
+    <p>The lattice index is a multidimensional grid of bins, built over both geographic
+and climate dimensions. This structure enables efficient analog searches by
+first filtering and sorting bins of similar points before computing exact
+results. For lon/lat coordinates, the index uses ECEF (Earth-Centered Earth-Fixed)
+space internally for optimal performance.</p>
 <p>Index resolution (<code>index_res</code>) controls the granularity of spatial
 binning. The optimal value depends on your data size and query patterns.
-Use <code><a href="tune_index_res.html">tune_index_res</a></code> to find the best resolution for your use case,
-or accept the default of 16 which works well for most applications.</p>
+Use <code><a href="tune_index_res.html">tune_index_res()</a></code> to find the best resolution for your use case,
+or accept the default of 16 which works well for many applications.</p><div class="section">
+<h3 id="downsampling">Downsampling<a class="anchor" aria-label="anchor" href="#downsampling"></a></h3>
+
+
+<p>For very large datasets, downsampling can significantly improve memory usage
+and query speed, at the cost of some precision. The <code>downsample</code> parameter controls
+the target fraction of the data points in <code>pool</code> that are retained in the index.
+Downsampling uses an adaptive stratified approach: densely-packed bins are thinned more
+aggressively while sparse bins are preserved, which helps reduce imprecision
+in sparse regions compared to fully random sampling. Note: The actual rate may be
+higher than requested if maintaining at least one point per occupied bin requires
+it (common with sparse data or fine-grained binning); check <code>index$downsample_actual</code>.</p>
+<p>Each remaining analog in the downsampled pool gets a <code>sample_weight</code> indicating
+the number of points it represents in the original pool; this weight is the inverse
+of the sampling rate in the analog's index bin. For pair queries (<code>stat = "none"</code>),
+results include each analog's <code>sample_weight</code>. For aggregation stats (count, sum,
+mean, etc.), sampling weights are used internally to automatically correct for
+the downsampling bias.</p>
+</div>
+
     </div>
 
     <div class="section level2">
@@ -109,6 +142,14 @@ or accept the default of 16 which works well for most applications.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Build with explicit resolution</span></span></span>
 <span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu">build_analog_index</span><span class="op">(</span><span class="va">climate_data</span>, index_res <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Build with downsampling for large datasets</span></span></span>
+<span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu">build_analog_index</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">large_climate_data</span>,</span></span>
+<span class="r-in"><span>  index_res <span class="op">=</span> <span class="fl">16</span>,</span></span>
+<span class="r-in"><span>  downsample <span class="op">=</span> <span class="fl">0.1</span>,  <span class="co"># Reduce max bin size to 10%</span></span></span>
+<span class="r-in"><span>  seed <span class="op">=</span> <span class="fl">123</span>         <span class="co"># Reproducible sampling</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Query the index multiple times</span></span></span>
 <span class="r-in"><span><span class="va">v1</span> <span class="op">&lt;-</span> <span class="fu"><a href="analog_velocity.html">analog_velocity</a></span><span class="op">(</span><span class="va">sites1</span>, pool <span class="op">=</span> <span class="va">index</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>

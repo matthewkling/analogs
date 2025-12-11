@@ -11,6 +11,8 @@ compute speed.
 tune_index_res(
   x,
   pool,
+  downsample = 1,
+  seed = NULL,
   select = "all",
   stat = NULL,
   max_clim = NULL,
@@ -45,6 +47,19 @@ tune_index_res(
   - An `analog_index()` object created by
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
+
+- downsample:
+
+  Optional downsampling rate (0-1) indicating the proportion of points
+  in `pool` to retain. Downsampling reduces memory use and improves
+  query speed at the cost of some precision; adaptive stratified
+  sampling is used to minimize loss of precision. The default is 1.0 (no
+  downsampling). See Details for more info.
+
+- seed:
+
+  Optional random seed for reproducible downsampling. If `NULL`
+  (default), uses current R random state.
 
 - select:
 
