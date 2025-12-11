@@ -22,7 +22,10 @@ analog_impact(
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
-  n_threads = NULL
+  n_threads = NULL,
+  downsample = 1,
+  seed = NULL,
+  progress = FALSE
 )
 ```
 
@@ -95,15 +98,9 @@ analog_impact(
   - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
     parameter (scalar; larger values = slower decay with distance).
 
-  - For `"gaussian_joint"`: 2-element vector c(sigma_clim, sigma_geog)
-    giving bandwidths for climate and geographic dimensions.
-
-  - For `"inverse_joint"`: 2-element vector c(eps_clim, eps_geog) giving
-    epsilon values for climate and geographic dimensions.
-
-  If `theta` is `NULL`, sensible defaults are used for single-parameter
-  weights. For `weight = "uniform"` or for non-weighted aggregations,
-  `theta` must be `NULL`.
+  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
+    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
+    geography).
 
 - stat:
 
@@ -157,6 +154,26 @@ analog_impact(
   Optional integer number of threads to use for the computation. If
   `NULL` (default), the global RcppParallel setting is used (see
   [`RcppParallel::setThreadOptions`](https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html)).
+
+- downsample:
+
+  Optional downsampling rate (0-1) for the reference pool, indicating
+  the proportion of points to retain. Values \< 1 reduce memory and
+  improve speed at some cost to precision. Default is 1.0 (no
+  downsampling). Ignored if `pool` is a pre-built index.
+
+- seed:
+
+  Optional random seed for reproducible downsampling. If `NULL`
+  (default), uses current R random state. Ignored if `pool` is a
+  pre-built index or `downsample = 1`.
+
+- progress:
+
+  Logical; if `TRUE`, display a progress bar during computation.
+  Progress tracking works by splitting the focal dataset into chunks and
+  processing them sequentially. Useful for large datasets. Default is
+  `FALSE`.
 
 ## Value
 

@@ -57,7 +57,10 @@ and is used for estimating analog-based climate velocity.</p>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  k <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  n_threads <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -148,6 +151,26 @@ relatively few rows, auto-tuning is skipped and a default resolution of
 <dd><p>Optional integer number of threads to use for the
 computation. If <code>NULL</code> (default), the global RcppParallel setting
 is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html" class="external-link">RcppParallel::setThreadOptions</a></code>).</p></dd>
+
+
+<dt id="arg-downsample">downsample<a class="anchor" aria-label="anchor" href="#arg-downsample"></a></dt>
+<dd><p>Optional downsampling rate (0-1) for the reference pool,
+indicating the proportion of points to retain. Values &lt; 1 reduce memory
+and improve speed at some cost to precision. Default is 1.0 (no downsampling).
+Ignored if <code>pool</code> is a pre-built index.</p></dd>
+
+
+<dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
+<dd><p>Optional random seed for reproducible downsampling. If <code>NULL</code>
+(default), uses current R random state. Ignored if <code>pool</code> is a pre-built
+index or <code>downsample = 1</code>.</p></dd>
+
+
+<dt id="arg-progress">progress<a class="anchor" aria-label="anchor" href="#arg-progress"></a></dt>
+<dd><p>Logical; if <code>TRUE</code>, display a progress bar during
+computation. Progress tracking works by splitting the focal dataset into
+chunks and processing them sequentially. Useful for large datasets. Default
+is <code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

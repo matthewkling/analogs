@@ -24,7 +24,8 @@ analog_search(
   downsample = 1,
   seed = NULL,
   index_res = "auto",
-  n_threads = NULL
+  n_threads = NULL,
+  progress = FALSE
 )
 ```
 
@@ -170,18 +171,13 @@ analog_search(
     exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
     `theta`.
 
-  - `"gaussian_joint"`: Joint Gaussian kernel, weight =
-    exp(-climate_distance^2/(2*sigma_c^2) -
-    geographic_distance^2/(2*sigma_g^2)), with sigma values given by
-    `theta` as a 2-element vector c(sigma_clim, sigma_geog).
+  - `"gaussian_joint"`: Gaussian kernel on combined distance, weight =
+    exp(-(clim_dist^2 / (2*sigma_clim^2) + geog_dist^2 /
+    (2*sigma_geog^2))), with sigmas given by `theta`.
 
-  - `"inverse_joint"`: Joint inverse distance, weight = 1 /
-    sqrt((climate_distance + eps_clim)^2 + (geographic_distance +
-    eps_geog)^2), with epsilon values given by `theta` as a 2-element
-    vector c(eps_clim, eps_geog).
-
-  For `stat` not including weighted aggregations, `weight` must be
-  `NULL`.
+  - `"inverse_joint"`: Inverse joint distance, weight = 1 /
+    (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
+    `theta`.
 
 - theta:
 
@@ -195,15 +191,9 @@ analog_search(
   - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
     parameter (scalar; larger values = slower decay with distance).
 
-  - For `"gaussian_joint"`: 2-element vector c(sigma_clim, sigma_geog)
-    giving bandwidths for climate and geographic dimensions.
-
-  - For `"inverse_joint"`: 2-element vector c(eps_clim, eps_geog) giving
-    epsilon values for climate and geographic dimensions.
-
-  If `theta` is `NULL`, sensible defaults are used for single-parameter
-  weights. For `weight = "uniform"` or for non-weighted aggregations,
-  `theta` must be `NULL`.
+  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
+    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
+    geography).
 
 - coord_type:
 
@@ -219,16 +209,16 @@ analog_search(
 
 - downsample:
 
-  Optional downsampling rate (0-1) indicating the proportion of points
-  in `pool` to retain. Downsampling reduces memory use and improves
-  query speed at the cost of some precision; adaptive stratified
-  sampling is used to minimize loss of precision. The default is 1.0 (no
-  downsampling). See Details for more info.
+  Optional downsampling rate (0-1) for the reference pool, indicating
+  the proportion of points to retain. Values \< 1 reduce memory and
+  improve speed at some cost to precision. Default is 1.0 (no
+  downsampling). Ignored if `pool` is a pre-built index.
 
 - seed:
 
   Optional random seed for reproducible downsampling. If `NULL`
-  (default), uses current R random state.
+  (default), uses current R random state. Ignored if `pool` is a
+  pre-built index or `downsample = 1`.
 
 - index_res:
 
@@ -249,6 +239,13 @@ analog_search(
   Optional integer number of threads to use for the computation. If
   `NULL` (default), the global RcppParallel setting is used (see
   [`RcppParallel::setThreadOptions`](https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html)).
+
+- progress:
+
+  Logical; if `TRUE`, display a progress bar during computation.
+  Progress tracking works by splitting the focal dataset into chunks and
+  processing them sequentially. Useful for large datasets. Default is
+  `FALSE`.
 
 ## Value
 
@@ -304,7 +301,8 @@ to view a formatted summary.
   selected analogs are summarized.
 
 - *Computation parameters* (`n_threads`, `index_res`, `downsample`,
-  `seed`) specify behavior for optimizing compute performance.
+  `seed`, `progress`) specify behavior for controlling compute
+  performance.
 
 ### Distance metrics
 
@@ -333,18 +331,22 @@ mind:
 - All internal computations are done in C++.
 
 - Searches use a lattice-based indexing structure to efficiently search
-  through large reference datasets.
+  through large reference datasets. By default, the lattice resolution
+  is tuned for optimal performance.
 
 - Parallel processing is available via the `threads` parameter.
 
-- You can `downsample` very large reference pool datasets to further
+- You can `downsample` prohibitively large reference pool datasets to
   improve speed and memory, using a stratified sampling scheme that
-  minimizes loss of precision relative to random sampling.
+  reduces loss of precision relative to random sampling.
+
+- For large datasets, enable `progress = TRUE` to display a progress bar
+  during computation.
 
 ## References
 
 Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
-climates: New methods and insights at continental to landscape scales."
+climates: new methods and insights at continental to landscape scales."
 *Global Change Biology*, **23**(9), 3934-3955.
 [doi:10.1111/gcb.13645](https://doi.org/10.1111/gcb.13645)
 
@@ -357,52 +359,3 @@ Grenier P, Parent A-C, Huard D, Anctil F, Chaumont D (2013). "An
 assessment of six dissimilarity metrics for climate analogs." *Journal
 of Applied Meteorology and Climatology*, **52**(4), 733-752.
 [doi:10.1175/JAMC-D-12-0170.1](https://doi.org/10.1175/JAMC-D-12-0170.1)
-
-## See also
-
-[`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
-to print a summary of search result metadata.
-
-## Examples
-
-``` r
-if (FALSE) { # \dontrun{
-# Basic pair queries
-analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
-analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
-
-# Single aggregation
-analog_search(x = focal, pool = ref, select = "all", stat = "count", max_clim = 0.5)
-
-# Multiple aggregations in one pass
-analog_search(x = focal, pool = ref, select = "all",
-              stat = c("count", "sum_weights", "mean_weights"),
-              max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
-
-# With pre-built index (for repeated queries)
-index <- build_analog_index(ref)
-analog_search(x = focal1, pool = index, select = "knn_geog", max_clim = 0.5, k = 1)
-analog_search(x = focal2, pool = index, select = "all", stat = "count", max_clim = 0.3)
-} # }
-
-# With user-defined values
-values_df <- data.frame(
-  biomass = runif(nrow(ref), 0, 100),
-  richness = rpois(nrow(ref), 20)
-)
-#> Error: object 'ref' not found
-
-analog_search(x = focal, pool = ref, values = values_df,
-              stat = c("count", "sum", "mean"),
-              max_clim = 0.5)
-#> Error: object 'ref' not found
-# Returns: index, x, y, count, sum_biomass, mean_biomass, sum_richness, mean_richness
-
-# Weighted aggregation of values
-analog_search(x = focal, pool = ref, values = values_df$biomass,
-              stat = c("weighted_sum", "weighted_mean"),
-              weight = "gaussian_clim", theta = 0.2,
-              max_clim = 0.5)
-#> Error: object 'ref' not found
-# Returns: index, x, y, weighted_sum, weighted_mean
-```

@@ -65,7 +65,10 @@ as climate changes.</p>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  n_threads <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -127,13 +130,9 @@ when <code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weight
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
 parameter (scalar; larger values = slower decay with distance).</p></li>
-<li><p>For <code>"gaussian_joint"</code>: 2-element vector c(sigma_clim, sigma_geog)
-giving bandwidths for climate and geographic dimensions.</p></li>
-<li><p>For <code>"inverse_joint"</code>: 2-element vector c(eps_clim, eps_geog)
-giving epsilon values for climate and geographic dimensions.</p></li>
-</ul><p>If <code>theta</code> is <code>NULL</code>, sensible defaults are used for single-parameter
-weights. For <code>weight = "uniform"</code> or for non-weighted aggregations, <code>theta</code>
-must be <code>NULL</code>.</p></dd>
+<li><p>For <code>"gaussian_joint"</code> or <code>"inverse_joint"</code>: 2-element vector
+<code>c(theta_clim, theta_geog)</code> (defaults: 1 for climate, 1 for geography).</p></li>
+</ul></dd>
 
 
 <dt id="arg-stat">stat<a class="anchor" aria-label="anchor" href="#arg-stat"></a></dt>
@@ -176,6 +175,26 @@ relatively few rows, auto-tuning is skipped and a default resolution of
 <dd><p>Optional integer number of threads to use for the
 computation. If <code>NULL</code> (default), the global RcppParallel setting
 is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html" class="external-link">RcppParallel::setThreadOptions</a></code>).</p></dd>
+
+
+<dt id="arg-downsample">downsample<a class="anchor" aria-label="anchor" href="#arg-downsample"></a></dt>
+<dd><p>Optional downsampling rate (0-1) for the reference pool,
+indicating the proportion of points to retain. Values &lt; 1 reduce memory
+and improve speed at some cost to precision. Default is 1.0 (no downsampling).
+Ignored if <code>pool</code> is a pre-built index.</p></dd>
+
+
+<dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
+<dd><p>Optional random seed for reproducible downsampling. If <code>NULL</code>
+(default), uses current R random state. Ignored if <code>pool</code> is a pre-built
+index or <code>downsample = 1</code>.</p></dd>
+
+
+<dt id="arg-progress">progress<a class="anchor" aria-label="anchor" href="#arg-progress"></a></dt>
+<dd><p>Logical; if <code>TRUE</code>, display a progress bar during
+computation. Progress tracking works by splitting the focal dataset into
+chunks and processing them sequentially. Useful for large datasets. Default
+is <code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

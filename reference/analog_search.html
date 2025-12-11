@@ -63,7 +63,8 @@ then optionally aggregating the results.</p>
 <span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  n_threads <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -172,13 +173,12 @@ weight = 1 / (geographic_distance + eps), with epsilon given by <code>theta</cod
 weight = exp(-climate_distance^2 / (2<em>sigma^2)), with sigma given by <code>theta</code>.
  <code>"gaussian_geog"</code>: Gaussian kernel on geographic distance,
 weight = exp(-geographic_distance^2 / (2</em>sigma^2)), with sigma given by <code>theta</code>.</p></li>
-<li><p><code>"gaussian_joint"</code>: Joint Gaussian kernel,
-weight = exp(-climate_distance^2/(2<em>sigma_c^2) - geographic_distance^2/(2</em>sigma_g^2)),
-with sigma values given by <code>theta</code> as a 2-element vector c(sigma_clim, sigma_geog).</p></li>
-<li><p><code>"inverse_joint"</code>: Joint inverse distance,
-weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
-with epsilon values given by <code>theta</code> as a 2-element vector c(eps_clim, eps_geog).</p></li>
-</ul><p>For <code>stat</code> not including weighted aggregations, <code>weight</code> must be <code>NULL</code>.</p></dd>
+<li><p><code>"gaussian_joint"</code>: Gaussian kernel on combined distance,
+weight = exp(-(clim_dist^2 / (2<em>sigma_clim^2) + geog_dist^2 / (2</em>sigma_geog^2))),
+with sigmas given by <code>theta</code>.</p></li>
+<li><p><code>"inverse_joint"</code>: Inverse joint distance,
+weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by <code>theta</code>.</p></li>
+</ul></dd>
 
 
 <dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
@@ -188,13 +188,9 @@ when <code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weight
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
 parameter (scalar; larger values = slower decay with distance).</p></li>
-<li><p>For <code>"gaussian_joint"</code>: 2-element vector c(sigma_clim, sigma_geog)
-giving bandwidths for climate and geographic dimensions.</p></li>
-<li><p>For <code>"inverse_joint"</code>: 2-element vector c(eps_clim, eps_geog)
-giving epsilon values for climate and geographic dimensions.</p></li>
-</ul><p>If <code>theta</code> is <code>NULL</code>, sensible defaults are used for single-parameter
-weights. For <code>weight = "uniform"</code> or for non-weighted aggregations, <code>theta</code>
-must be <code>NULL</code>.</p></dd>
+<li><p>For <code>"gaussian_joint"</code> or <code>"inverse_joint"</code>: 2-element vector
+<code>c(theta_clim, theta_geog)</code> (defaults: 1 for climate, 1 for geography).</p></li>
+</ul></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
@@ -207,16 +203,16 @@ assumes <code>max_geog</code> is in projection units).</p></li>
 
 
 <dt id="arg-downsample">downsample<a class="anchor" aria-label="anchor" href="#arg-downsample"></a></dt>
-<dd><p>Optional downsampling rate (0-1) indicating the proportion of
-points in <code>pool</code> to retain. Downsampling reduces memory use and improves
-query speed at the cost of some precision; adaptive stratified sampling is
-used to minimize loss of precision. The default is 1.0 (no downsampling).
-See Details for more info.</p></dd>
+<dd><p>Optional downsampling rate (0-1) for the reference pool,
+indicating the proportion of points to retain. Values &lt; 1 reduce memory
+and improve speed at some cost to precision. Default is 1.0 (no downsampling).
+Ignored if <code>pool</code> is a pre-built index.</p></dd>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Optional random seed for reproducible downsampling. If <code>NULL</code>
-(default), uses current R random state.</p></dd>
+(default), uses current R random state. Ignored if <code>pool</code> is a pre-built
+index or <code>downsample = 1</code>.</p></dd>
 
 
 <dt id="arg-index-res">index_res<a class="anchor" aria-label="anchor" href="#arg-index-res"></a></dt>
@@ -233,6 +229,13 @@ relatively few rows, auto-tuning is skipped and a default resolution of
 <dd><p>Optional integer number of threads to use for the
 computation. If <code>NULL</code> (default), the global RcppParallel setting
 is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html" class="external-link">RcppParallel::setThreadOptions</a></code>).</p></dd>
+
+
+<dt id="arg-progress">progress<a class="anchor" aria-label="anchor" href="#arg-progress"></a></dt>
+<dd><p>Logical; if <code>TRUE</code>, display a progress bar during
+computation. Progress tracking works by splitting the focal dataset into
+chunks and processing them sequentially. Useful for large datasets. Default
+is <code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -272,8 +275,8 @@ define which analogs to <code>select</code> from the <code>pool</code> for each 
 (<code>stat</code>, <code>weight</code>, <code>theta</code>)
 control how selected analogs are summarized.</p></li>
 <li><p><em>Computation parameters</em>
-(<code>n_threads</code>, <code>index_res</code>, <code>downsample</code>, <code>seed</code>)
-specify behavior for optimizing compute performance.</p></li>
+(<code>n_threads</code>, <code>index_res</code>, <code>downsample</code>, <code>seed</code>, <code>progress</code>)
+specify behavior for controlling compute performance.</p></li>
 </ul></div>
 
 <div class="section">
@@ -299,18 +302,21 @@ parameter. These local covariance values need to be pre-calculated.</p>
 
 <p>The analog search architecture is designed with compute performance in mind:</p><ul><li><p>All internal computations are done in C++.</p></li>
 <li><p>Searches use a lattice-based indexing structure to efficiently
-search through large reference datasets.</p></li>
+search through large reference datasets. By default, the lattice
+resolution is tuned for optimal performance.</p></li>
 <li><p>Parallel processing is available via the <code>threads</code> parameter.</p></li>
-<li><p>You can <code>downsample</code> very large reference pool datasets to
-further improve speed and memory, using a stratified sampling
-scheme that minimizes loss of precision relative to random sampling.</p></li>
+<li><p>You can <code>downsample</code> prohibitively large reference pool datasets
+to improve speed and memory, using a stratified sampling
+scheme that reduces loss of precision relative to random sampling.</p></li>
+<li><p>For large datasets, enable <code>progress = TRUE</code> to display
+a progress bar during computation.</p></li>
 </ul></div>
 
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p>Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
-climates: New methods and insights at continental to landscape scales."
+climates: new methods and insights at continental to landscape scales."
 <em>Global Change Biology</em>, <strong>23</strong>(9), 3934-3955.
 <a href="https://doi.org/10.1111/gcb.13645" class="external-link">doi:10.1111/gcb.13645</a></p>
 <p>Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of
@@ -322,55 +328,7 @@ of six dissimilarity metrics for climate analogs." <em>Journal of Applied
 Meteorology and Climatology</em>, <strong>52</strong>(4), 733-752.
 <a href="https://doi.org/10.1175/JAMC-D-12-0170.1" class="external-link">doi:10.1175/JAMC-D-12-0170.1</a></p>
     </div>
-    <div class="section level2">
-    <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="analog_summary.html">analog_summary()</a></code> to print a summary of search result metadata.</p></div>
-    </div>
 
-    <div class="section level2">
-    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># Basic pair queries</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"all"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"knn_geog"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Single aggregation</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"all"</span>, stat <span class="op">=</span> <span class="st">"count"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Multiple aggregations in one pass</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, select <span class="op">=</span> <span class="st">"all"</span>,</span></span>
-<span class="r-in"><span>              stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"sum_weights"</span>, <span class="st">"mean_weights"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>              max_clim <span class="op">=</span> <span class="fl">0.5</span>, weight <span class="op">=</span> <span class="st">"gaussian_clim"</span>, theta <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># With pre-built index (for repeated queries)</span></span></span>
-<span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">ref</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal1</span>, pool <span class="op">=</span> <span class="va">index</span>, select <span class="op">=</span> <span class="st">"knn_geog"</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal2</span>, pool <span class="op">=</span> <span class="va">index</span>, select <span class="op">=</span> <span class="st">"all"</span>, stat <span class="op">=</span> <span class="st">"count"</span>, max_clim <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># With user-defined values</span></span></span>
-<span class="r-in"><span><span class="va">values_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  biomass <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ref</span><span class="op">)</span>, <span class="fl">0</span>, <span class="fl">100</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  richness <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Poisson.html" class="external-link">rpois</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ref</span><span class="op">)</span>, <span class="fl">20</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error:</span> object 'ref' not found</span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, values <span class="op">=</span> <span class="va">values_df</span>,</span></span>
-<span class="r-in"><span>              stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"sum"</span>, <span class="st">"mean"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>              max_clim <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error:</span> object 'ref' not found</span>
-<span class="r-in"><span><span class="co"># Returns: index, x, y, count, sum_biomass, mean_biomass, sum_richness, mean_richness</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Weighted aggregation of values</span></span></span>
-<span class="r-in"><span><span class="fu">analog_search</span><span class="op">(</span>x <span class="op">=</span> <span class="va">focal</span>, pool <span class="op">=</span> <span class="va">ref</span>, values <span class="op">=</span> <span class="va">values_df</span><span class="op">$</span><span class="va">biomass</span>,</span></span>
-<span class="r-in"><span>              stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"weighted_sum"</span>, <span class="st">"weighted_mean"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>              weight <span class="op">=</span> <span class="st">"gaussian_clim"</span>, theta <span class="op">=</span> <span class="fl">0.2</span>,</span></span>
-<span class="r-in"><span>              max_clim <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error:</span> object 'ref' not found</span>
-<span class="r-in"><span><span class="co"># Returns: index, x, y, weighted_sum, weighted_mean</span></span></span>
-<span class="r-in"><span></span></span>
-</code></pre></div>
-    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

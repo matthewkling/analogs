@@ -19,7 +19,10 @@ analog_similarity(
   max_clim = NULL,
   k = 20,
   index_res = "auto",
-  n_threads = NULL
+  n_threads = NULL,
+  downsample = 1,
+  seed = NULL,
+  progress = FALSE
 )
 ```
 
@@ -135,6 +138,26 @@ analog_similarity(
   Optional integer number of threads to use for the computation. If
   `NULL` (default), the global RcppParallel setting is used (see
   [`RcppParallel::setThreadOptions`](https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html)).
+
+- downsample:
+
+  Optional downsampling rate (0-1) for the reference pool, indicating
+  the proportion of points to retain. Values \< 1 reduce memory and
+  improve speed at some cost to precision. Default is 1.0 (no
+  downsampling). Ignored if `pool` is a pre-built index.
+
+- seed:
+
+  Optional random seed for reproducible downsampling. If `NULL`
+  (default), uses current R random state. Ignored if `pool` is a
+  pre-built index or `downsample = 1`.
+
+- progress:
+
+  Logical; if `TRUE`, display a progress bar during computation.
+  Progress tracking works by splitting the focal dataset into chunks and
+  processing them sequentially. Useful for large datasets. Default is
+  `FALSE`.
 
 ## Value
 

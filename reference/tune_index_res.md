@@ -50,16 +50,16 @@ tune_index_res(
 
 - downsample:
 
-  Optional downsampling rate (0-1) indicating the proportion of points
-  in `pool` to retain. Downsampling reduces memory use and improves
-  query speed at the cost of some precision; adaptive stratified
-  sampling is used to minimize loss of precision. The default is 1.0 (no
-  downsampling). See Details for more info.
+  Optional downsampling rate (0-1) for the reference pool, indicating
+  the proportion of points to retain. Values \< 1 reduce memory and
+  improve speed at some cost to precision. Default is 1.0 (no
+  downsampling). Ignored if `pool` is a pre-built index.
 
 - seed:
 
   Optional random seed for reproducible downsampling. If `NULL`
-  (default), uses current R random state.
+  (default), uses current R random state. Ignored if `pool` is a
+  pre-built index or `downsample = 1`.
 
 - select:
 
@@ -150,18 +150,13 @@ tune_index_res(
     exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
     `theta`.
 
-  - `"gaussian_joint"`: Joint Gaussian kernel, weight =
-    exp(-climate_distance^2/(2*sigma_c^2) -
-    geographic_distance^2/(2*sigma_g^2)), with sigma values given by
-    `theta` as a 2-element vector c(sigma_clim, sigma_geog).
+  - `"gaussian_joint"`: Gaussian kernel on combined distance, weight =
+    exp(-(clim_dist^2 / (2*sigma_clim^2) + geog_dist^2 /
+    (2*sigma_geog^2))), with sigmas given by `theta`.
 
-  - `"inverse_joint"`: Joint inverse distance, weight = 1 /
-    sqrt((climate_distance + eps_clim)^2 + (geographic_distance +
-    eps_geog)^2), with epsilon values given by `theta` as a 2-element
-    vector c(eps_clim, eps_geog).
-
-  For `stat` not including weighted aggregations, `weight` must be
-  `NULL`.
+  - `"inverse_joint"`: Inverse joint distance, weight = 1 /
+    (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
+    `theta`.
 
 - theta:
 
@@ -175,15 +170,9 @@ tune_index_res(
   - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
     parameter (scalar; larger values = slower decay with distance).
 
-  - For `"gaussian_joint"`: 2-element vector c(sigma_clim, sigma_geog)
-    giving bandwidths for climate and geographic dimensions.
-
-  - For `"inverse_joint"`: 2-element vector c(eps_clim, eps_geog) giving
-    epsilon values for climate and geographic dimensions.
-
-  If `theta` is `NULL`, sensible defaults are used for single-parameter
-  weights. For `weight = "uniform"` or for non-weighted aggregations,
-  `theta` must be `NULL`.
+  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
+    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
+    geography).
 
 - x_cov:
 

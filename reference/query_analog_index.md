@@ -17,6 +17,7 @@ query_analog_index(
   k,
   weight,
   theta,
-  n_threads
+  n_threads,
+  show_progress = FALSE
 )
 ```
