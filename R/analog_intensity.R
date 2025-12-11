@@ -79,7 +79,10 @@ analog_intensity <- function(
             theta      = NULL,
 
             index_res = "auto",
-            n_threads = NULL
+            n_threads = NULL,
+            downsample = 1.0,
+            seed = NULL,
+            progress = FALSE
 ) {
       weight <- match.arg(weight)
 
@@ -97,6 +100,9 @@ analog_intensity <- function(
             values      = NULL, # not relevant for intensity
             coord_type  = coord_type,
             index_res   = index_res,
-            n_threads   = n_threads
+            n_threads   = n_threads,
+            downsample  = downsample,
+            seed        = seed,
+            progress    = progress
       )
 }

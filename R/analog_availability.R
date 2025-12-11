@@ -50,7 +50,10 @@ analog_availability <- function(
             max_geog = NULL,
 
             index_res = "auto",
-            n_threads = NULL
+            n_threads = NULL,
+            downsample = 1.0,
+            seed = NULL,
+            progress = FALSE
 ) {
       analog_search(
             x           = x,
@@ -66,6 +69,9 @@ analog_availability <- function(
             values      = NULL,
             coord_type  = coord_type,
             index_res   = index_res,
-            n_threads   = n_threads
+            n_threads   = n_threads,
+            downsample  = downsample,
+            seed        = seed,
+            progress    = progress
       )
 }

@@ -12,7 +12,10 @@ analog_availability(
   max_clim = NULL,
   max_geog = NULL,
   index_res = "auto",
-  n_threads = NULL
+  n_threads = NULL,
+  downsample = 1,
+  seed = NULL,
+  progress = FALSE
 )
 }
 \arguments{
@@ -74,6 +77,20 @@ Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
+
+\item{downsample}{Optional downsampling rate (0-1) for the reference pool,
+indicating the proportion of points to retain. Values < 1 reduce memory
+and improve speed at some cost to precision. Default is 1.0 (no downsampling).
+Ignored if \code{pool} is a pre-built index.}
+
+\item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
+(default), uses current R random state. Ignored if \code{pool} is a pre-built
+index or \code{downsample = 1}.}
+
+\item{progress}{Logical; if \code{TRUE}, display a progress bar during
+computation. Progress tracking works by splitting the focal dataset into
+chunks and processing them sequentially. Useful for large datasets. Default
+is \code{FALSE}.}
 }
 \value{
 Return type depends on input format and query mode.
@@ -98,7 +115,7 @@ with the following variables:
 \item \code{index}, \code{x}, \code{y}: Focal location
 \item One column per requested statistic. For \code{stat} with single \code{values} variable:
 column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
-variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
+variables: columns named \verb{{stat}_{varname}} (e.g., \code{sum_biomass}, \code{mean_richness})
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).

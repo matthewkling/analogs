@@ -199,16 +199,17 @@ tune_index_res <- function(x,
 
       # Optional: warn if timings are monotonic in a meaningful regime
       if (length(t_eval) >= 4L &&
+          r_eval[1] != 1 &&
           n_samp >= 300L &&
           !is_k1_velocity &&
           is_strict_monotonic(t_eval)) {
-
             warning(
                   "Auto-tuning of index_res did not detect an interior minimum; ",
                   "elapsed times were monotonic across tested values {",
                   paste(r_eval, collapse = ", "),
-                  "}. The optimal index_res may lie outside this range. ",
-                  "Consider manually specifying index_res."
+                  "} (fastest listed first). The optimal index_res may lie outside this range. ",
+                  "Consider manually specifying `index_res`, or re-running `tune_index_res()` ",
+                  "with `default_res = ", r_eval[1], "`."
             )
       }
 

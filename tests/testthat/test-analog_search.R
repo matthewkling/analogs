@@ -431,3 +431,39 @@ test_that("analog_search handles raster output correctly", {
                             names(result)))
 
 })
+
+
+
+test_that("chunking/progress bars work correctly", {
+
+      d <- sim_test_data(nref = 100, nfocal = 2000)
+
+      # test both agg and pair modes
+      for(stat in c("count", "none")){
+
+            # should print a progress bar
+            out <- capture.output(result <- analog_search(
+                  x = d$focal,
+                  pool = d$ref,
+                  select = "knn_geog", k = 5,
+                  stat = "count",
+                  max_clim = .1,
+                  index_res = 4,
+                  progress = TRUE
+            ))
+            expect_true(grepl("100%", out))
+
+            # should not affect results
+            result2 <- analog_search(
+                  x = d$focal,
+                  pool = d$ref,
+                  select = "knn_geog", k = 5,
+                  stat = "count",
+                  max_clim = .1,
+                  index_res = 4,
+                  progress = FALSE
+            )
+            expect_equal(result, result2)
+      }
+
+})

@@ -18,8 +18,8 @@
 #'       (`stat`, `weight`, `theta`)
 #'       control how selected analogs are summarized.
 #'     \item *Computation parameters*
-#'       (`n_threads`, `index_res`, `downsample`, `seed`)
-#'       specify behavior for optimizing compute performance.
+#'       (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
+#'       specify behavior for controlling compute performance.
 #' }
 #'
 #' ## Distance metrics
@@ -51,6 +51,8 @@
 #'     \item You can `downsample` prohibitively large reference pool datasets
 #'       to improve speed and memory, using a stratified sampling
 #'       scheme that reduces loss of precision relative to random sampling.
+#'     \item For large datasets, enable `progress = TRUE` to display
+#'       a progress bar during computation.
 #' }
 #'
 #' @param x Focal locations for which analogs will be found. Should be a
@@ -159,14 +161,12 @@
 #'       weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
 #'     \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
 #'       weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
-#'     \item \code{"gaussian_joint"}: Joint Gaussian kernel,
-#'       weight = exp(-climate_distance^2/(2*sigma_c^2) - geographic_distance^2/(2*sigma_g^2)),
-#'       with sigma values given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
-#'     \item \code{"inverse_joint"}: Joint inverse distance,
-#'       weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
-#'       with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
+#'     \item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
+#'       weight = exp(-(clim_dist^2 / (2*sigma_clim^2) + geog_dist^2 / (2*sigma_geog^2))),
+#'       with sigmas given by \code{theta}.
+#'     \item \code{"inverse_joint"}: Inverse joint distance,
+#'       weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
 #'   }
-#'   For \code{stat} not including weighted aggregations, \code{weight} must be \code{NULL}.
 #'
 #' @param theta Optional numeric parameter used by weighting functions
 #'   when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
@@ -176,96 +176,79 @@
 #'       added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
 #'     \item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
 #'       parameter (scalar; larger values = slower decay with distance).
-#'     \item For \code{"gaussian_joint"}: 2-element vector c(sigma_clim, sigma_geog)
-#'       giving bandwidths for climate and geographic dimensions.
-#'     \item For \code{"inverse_joint"}: 2-element vector c(eps_clim, eps_geog)
-#'       giving epsilon values for climate and geographic dimensions.
+#'     \item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
+#'       \code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
 #'   }
-#'   If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
-#'   weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
-#'   must be \code{NULL}.
 #'
+#' @param coord_type Coordinate system type:
+#'   \itemize{
+#'     \item \code{"auto"} (default): Automatically detect from coordinate ranges.
+#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+#'       assumes \code{max_geog} is in km).
+#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance;
+#'       assumes \code{max_geog} is in projection units).
+#'   }
 #'
+#' @param downsample Optional downsampling rate (0-1) for the reference pool,
+#'   indicating the proportion of points to retain. Values < 1 reduce memory
+#'   and improve speed at some cost to precision. Default is 1.0 (no downsampling).
+#'   Ignored if \code{pool} is a pre-built index.
 #'
+#' @param seed Optional random seed for reproducible downsampling. If \code{NULL}
+#'   (default), uses current R random state. Ignored if \code{pool} is a pre-built
+#'   index or \code{downsample = 1}.
+#'
+#' @param index_res Tuning parameter giving the number of bins per dimension
+#'   of the internally-used lattice search index. Either:
+#'   \itemize{
+#'     \item A positive integer.
+#'     \item \code{"auto"} (the default): Automatically tune the index resolution
+#'       by optimizing compute time on a subsample of focal points. If focal has
+#'       relatively few rows, auto-tuning is skipped and a default resolution of
+#'       16 is used.
+#'   }
+#'   Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).
 #'
 #' @param n_threads Optional integer number of threads to use for the
 #'   computation. If \code{NULL} (default), the global RcppParallel setting
 #'   is used (see \code{RcppParallel::setThreadOptions}).
 #'
-#' @inheritParams build_analog_index
+#' @param progress Logical; if \code{TRUE}, display a progress bar during
+#'   computation. Progress tracking works by splitting the focal dataset into
+#'   chunks and processing them sequentially. Useful for large datasets. Default
+#'   is \code{FALSE}.
 #'
-#' @return
-#' Return type depends on input format and query mode.
+#' @return Return type depends on input format and query mode.
 #'
-#' Returns a data.frame, unless `x` is a SpatRaster and results have exactly one record per
-#' input cell (aggregation mode, or pairwise with `k = 1`), in which case returns a
+#' Returns a data.frame, unless \code{x} is a SpatRaster and results have exactly one record per
+#' input cell (aggregation mode, or pairwise with \code{k = 1}), in which case returns a
 #' SpatRaster with one layer per output variable.
 #'
-#' Pairwise mode (`stat = NULL` or `"none"`) returns one row per focal-analog pair,
+#' Pairwise mode (\code{stat = NULL} or \code{"none"}) returns one row per focal-analog pair,
 #' with the following variables:
 #' \itemize{
-#'   \item `index`, `x`, `y`: Focal location (1-based index and coordinates) corresponding to input `x`
-#'   \item `analog_index`, `analog_x`, `analog_y`: Analog location corresponding to input `pool`
-#'   \item `clim_dist`: Climate distance (Euclidean or Mahalanobis)
-#'   \item `geog_dist`: Geographic distance (km for lonlat, projection units otherwise)
-#'   \item Value columns (if `values` provided): one per variable
+#'   \item \code{index}, \code{x}, \code{y}: Focal location (1-based index and coordinates) corresponding to input \code{x}
+#'   \item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
+#'   \item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
+#'   \item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
+#'   \item Value columns (if \code{values} provided): one per variable
 #' }
 #'
-#' Aggregation mode (one or more `stat` values) returns one row per focal location,
+#' Aggregation mode (one or more \code{stat} values) returns one row per focal location,
 #' with the following variables:
 #' \itemize{
-#'   \item `index`, `x`, `y`: Focal location
-#'   \item One column per requested statistic. For `stat` with single `values` variable:
-#'     column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `values`
-#'     variables: columns named `{stat}_{varname}` (e.g., `sum_biomass`, `mean_richness`)
+#'   \item \code{index}, \code{x}, \code{y}: Focal location
+#'   \item One column per requested statistic. For \code{stat} with single \code{values} variable:
+#'     column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
+#'     variables: columns named \verb{{stat}_{varname}} (e.g., \code{sum_biomass}, \code{mean_richness})
 #' }
 #'
-#' All results include metadata attributes (`select`, `stat`, `weight`, etc.).
+#' All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
 #' Use [analog_summary()] to view a formatted summary.
-#'
-#' @examples
-#' \dontrun{
-#' # Basic pair queries
-#' analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
-#' analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
-#'
-#' # Single aggregation
-#' analog_search(x = focal, pool = ref, select = "all", stat = "count", max_clim = 0.5)
-#'
-#' # Multiple aggregations in one pass
-#' analog_search(x = focal, pool = ref, select = "all",
-#'               stat = c("count", "sum_weights", "mean_weights"),
-#'               max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
-#'
-#' # With pre-built index (for repeated queries)
-#' index <- build_analog_index(ref)
-#' analog_search(x = focal1, pool = index, select = "knn_geog", max_clim = 0.5, k = 1)
-#' analog_search(x = focal2, pool = index, select = "all", stat = "count", max_clim = 0.3)
-#' }
-#'
-#' # With user-defined values
-#' values_df <- data.frame(
-#'   biomass = runif(nrow(ref), 0, 100),
-#'   richness = rpois(nrow(ref), 20)
-#' )
-#'
-#' analog_search(x = focal, pool = ref, values = values_df,
-#'               stat = c("count", "sum", "mean"),
-#'               max_clim = 0.5)
-#' # Returns: index, x, y, count, sum_biomass, mean_biomass, sum_richness, mean_richness
-#'
-#' # Weighted aggregation of values
-#' analog_search(x = focal, pool = ref, values = values_df$biomass,
-#'               stat = c("weighted_sum", "weighted_mean"),
-#'               weight = "gaussian_clim", theta = 0.2,
-#'               max_clim = 0.5)
-#' # Returns: index, x, y, weighted_sum, weighted_mean
-#'
-#' @seealso [analog_summary()] to print a summary of search result metadata.
 #'
 #' @references
 #' Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
-#' climates: New methods and insights at continental to landscape scales."
+#' climates: new methods and insights at continental to landscape scales."
 #' \emph{Global Change Biology}, \strong{23}(9), 3934-3955.
 #' \doi{10.1111/gcb.13645}
 #'
@@ -305,7 +288,8 @@ analog_search <- function(
       seed = NULL,
       index_res = "auto",
 
-      n_threads = NULL
+      n_threads = NULL,
+      progress = FALSE
 ) {
 
       # Check if pool is already an index
@@ -366,7 +350,7 @@ analog_search <- function(
             k = k,
             weight = weight,
             theta = theta,
-            n_threads = n_threads
+            n_threads = n_threads,
+            show_progress = progress
       ))
 }
-

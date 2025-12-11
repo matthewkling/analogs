@@ -37,14 +37,14 @@ or SpatRaster with climate variable layers, OR
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
-\item{downsample}{Optional downsampling rate (0-1) indicating the proportion of
-points in \code{pool} to retain. Downsampling reduces memory use and improves
-query speed at the cost of some precision; adaptive stratified sampling is
-used to minimize loss of precision. The default is 1.0 (no downsampling).
-See Details for more info.}
+\item{downsample}{Optional downsampling rate (0-1) for the reference pool,
+indicating the proportion of points to retain. Values < 1 reduce memory
+and improve speed at some cost to precision. Default is 1.0 (no downsampling).
+Ignored if \code{pool} is a pre-built index.}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
-(default), uses current R random state.}
+(default), uses current R random state. Ignored if \code{pool} is a pre-built
+index or \code{downsample = 1}.}
 
 \item{select}{Character string specifying the analog selection strategy.
 One of:
@@ -109,14 +109,12 @@ weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
 weight = exp(-climate_distance^2 / (2\emph{sigma^2)), with sigma given by \code{theta}.
 \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
 weight = exp(-geographic_distance^2 / (2}sigma^2)), with sigma given by \code{theta}.
-\item \code{"gaussian_joint"}: Joint Gaussian kernel,
-weight = exp(-climate_distance^2/(2\emph{sigma_c^2) - geographic_distance^2/(2}sigma_g^2)),
-with sigma values given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
-\item \code{"inverse_joint"}: Joint inverse distance,
-weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
-with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
-}
-For \code{stat} not including weighted aggregations, \code{weight} must be \code{NULL}.}
+\item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
+weight = exp(-(clim_dist^2 / (2\emph{sigma_clim^2) + geog_dist^2 / (2}sigma_geog^2))),
+with sigmas given by \code{theta}.
+\item \code{"inverse_joint"}: Inverse joint distance,
+weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
+}}
 
 \item{theta}{Optional numeric parameter used by weighting functions
 when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
@@ -126,14 +124,9 @@ when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
 \item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
 parameter (scalar; larger values = slower decay with distance).
-\item For \code{"gaussian_joint"}: 2-element vector c(sigma_clim, sigma_geog)
-giving bandwidths for climate and geographic dimensions.
-\item For \code{"inverse_joint"}: 2-element vector c(eps_clim, eps_geog)
-giving epsilon values for climate and geographic dimensions.
-}
-If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
-weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
-must be \code{NULL}.}
+\item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
+\code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
+}}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per

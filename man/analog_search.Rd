@@ -20,7 +20,8 @@ analog_search(
   downsample = 1,
   seed = NULL,
   index_res = "auto",
-  n_threads = NULL
+  n_threads = NULL,
+  progress = FALSE
 )
 }
 \arguments{
@@ -125,14 +126,12 @@ weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
 weight = exp(-climate_distance^2 / (2\emph{sigma^2)), with sigma given by \code{theta}.
 \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
 weight = exp(-geographic_distance^2 / (2}sigma^2)), with sigma given by \code{theta}.
-\item \code{"gaussian_joint"}: Joint Gaussian kernel,
-weight = exp(-climate_distance^2/(2\emph{sigma_c^2) - geographic_distance^2/(2}sigma_g^2)),
-with sigma values given by \code{theta} as a 2-element vector c(sigma_clim, sigma_geog).
-\item \code{"inverse_joint"}: Joint inverse distance,
-weight = 1 / sqrt((climate_distance + eps_clim)^2 + (geographic_distance + eps_geog)^2),
-with epsilon values given by \code{theta} as a 2-element vector c(eps_clim, eps_geog).
-}
-For \code{stat} not including weighted aggregations, \code{weight} must be \code{NULL}.}
+\item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
+weight = exp(-(clim_dist^2 / (2\emph{sigma_clim^2) + geog_dist^2 / (2}sigma_geog^2))),
+with sigmas given by \code{theta}.
+\item \code{"inverse_joint"}: Inverse joint distance,
+weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
+}}
 
 \item{theta}{Optional numeric parameter used by weighting functions
 when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
@@ -142,14 +141,9 @@ when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
 \item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
 parameter (scalar; larger values = slower decay with distance).
-\item For \code{"gaussian_joint"}: 2-element vector c(sigma_clim, sigma_geog)
-giving bandwidths for climate and geographic dimensions.
-\item For \code{"inverse_joint"}: 2-element vector c(eps_clim, eps_geog)
-giving epsilon values for climate and geographic dimensions.
-}
-If \code{theta} is \code{NULL}, sensible defaults are used for single-parameter
-weights. For \code{weight = "uniform"} or for non-weighted aggregations, \code{theta}
-must be \code{NULL}.}
+\item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
+\code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
+}}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -160,14 +154,14 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
-\item{downsample}{Optional downsampling rate (0-1) indicating the proportion of
-points in \code{pool} to retain. Downsampling reduces memory use and improves
-query speed at the cost of some precision; adaptive stratified sampling is
-used to minimize loss of precision. The default is 1.0 (no downsampling).
-See Details for more info.}
+\item{downsample}{Optional downsampling rate (0-1) for the reference pool,
+indicating the proportion of points to retain. Values < 1 reduce memory
+and improve speed at some cost to precision. Default is 1.0 (no downsampling).
+Ignored if \code{pool} is a pre-built index.}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
-(default), uses current R random state.}
+(default), uses current R random state. Ignored if \code{pool} is a pre-built
+index or \code{downsample = 1}.}
 
 \item{index_res}{Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:
@@ -183,6 +177,11 @@ Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
+
+\item{progress}{Logical; if \code{TRUE}, display a progress bar during
+computation. Progress tracking works by splitting the focal dataset into
+chunks and processing them sequentially. Useful for large datasets. Default
+is \code{FALSE}.}
 }
 \value{
 Return type depends on input format and query mode.
@@ -207,7 +206,7 @@ with the following variables:
 \item \code{index}, \code{x}, \code{y}: Focal location
 \item One column per requested statistic. For \code{stat} with single \code{values} variable:
 column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
-variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
+variables: columns named \verb{{stat}_{varname}} (e.g., \code{sum_biomass}, \code{mean_richness})
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
@@ -233,8 +232,8 @@ define which analogs to \code{select} from the \code{pool} for each \code{x}.
 (\code{stat}, \code{weight}, \code{theta})
 control how selected analogs are summarized.
 \item \emph{Computation parameters}
-(\code{n_threads}, \code{index_res}, \code{downsample}, \code{seed})
-specify behavior for optimizing compute performance.
+(\code{n_threads}, \code{index_res}, \code{downsample}, \code{seed}, \code{progress})
+specify behavior for controlling compute performance.
 }
 }
 
@@ -261,56 +260,20 @@ The analog search architecture is designed with compute performance in mind:
 \itemize{
 \item All internal computations are done in C++.
 \item Searches use a lattice-based indexing structure to efficiently
-search through large reference datasets.
+search through large reference datasets. By default, the lattice
+resolution is tuned for optimal performance.
 \item Parallel processing is available via the \code{threads} parameter.
-\item You can \code{downsample} very large reference pool datasets to
-further improve speed and memory, using a stratified sampling
-scheme that minimizes loss of precision relative to random sampling.
+\item You can \code{downsample} prohibitively large reference pool datasets
+to improve speed and memory, using a stratified sampling
+scheme that reduces loss of precision relative to random sampling.
+\item For large datasets, enable \code{progress = TRUE} to display
+a progress bar during computation.
 }
 }
-}
-\examples{
-\dontrun{
-# Basic pair queries
-analog_search(x = focal, pool = ref, select = "all", max_clim = 0.5)
-analog_search(x = focal, pool = ref, select = "knn_geog", max_clim = 0.5, k = 1)
-
-# Single aggregation
-analog_search(x = focal, pool = ref, select = "all", stat = "count", max_clim = 0.5)
-
-# Multiple aggregations in one pass
-analog_search(x = focal, pool = ref, select = "all",
-              stat = c("count", "sum_weights", "mean_weights"),
-              max_clim = 0.5, weight = "gaussian_clim", theta = 0.1)
-
-# With pre-built index (for repeated queries)
-index <- build_analog_index(ref)
-analog_search(x = focal1, pool = index, select = "knn_geog", max_clim = 0.5, k = 1)
-analog_search(x = focal2, pool = index, select = "all", stat = "count", max_clim = 0.3)
-}
-
-# With user-defined values
-values_df <- data.frame(
-  biomass = runif(nrow(ref), 0, 100),
-  richness = rpois(nrow(ref), 20)
-)
-
-analog_search(x = focal, pool = ref, values = values_df,
-              stat = c("count", "sum", "mean"),
-              max_clim = 0.5)
-# Returns: index, x, y, count, sum_biomass, mean_biomass, sum_richness, mean_richness
-
-# Weighted aggregation of values
-analog_search(x = focal, pool = ref, values = values_df$biomass,
-              stat = c("weighted_sum", "weighted_mean"),
-              weight = "gaussian_clim", theta = 0.2,
-              max_clim = 0.5)
-# Returns: index, x, y, weighted_sum, weighted_mean
-
 }
 \references{
 Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
-climates: New methods and insights at continental to landscape scales."
+climates: new methods and insights at continental to landscape scales."
 \emph{Global Change Biology}, \strong{23}(9), 3934-3955.
 \doi{10.1111/gcb.13645}
 
@@ -323,7 +286,4 @@ Grenier P, Parent A-C, Huard D, Anctil F, Chaumont D (2013). "An assessment
 of six dissimilarity metrics for climate analogs." \emph{Journal of Applied
 Meteorology and Climatology}, \strong{52}(4), 733-752.
 \doi{10.1175/JAMC-D-12-0170.1}
-}
-\seealso{
-\code{\link[=analog_summary]{analog_summary()}} to print a summary of search result metadata.
 }

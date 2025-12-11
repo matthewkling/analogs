@@ -11,7 +11,8 @@ query_analog_index <- function(x,
                                k,
                                weight,
                                theta,
-                               n_threads) {
+                               n_threads,
+                               show_progress = FALSE) {
 
       # Validate index
       .validate_analog_index(index)
@@ -64,9 +65,12 @@ query_analog_index <- function(x,
             "weighted_mean"  = 7L
       )
       aggregate_codes <- stat_name_to_code[stat]
-      names(aggregate_codes) <- NULL  # Remove names for C++
+      names(aggregate_codes) <- NULL
 
-      # Weight code (only used when stat includes weighted stats)
+      # Map weight function for C++
+      # Weight codes: 0=none, 1=uniform, 2=inverse_clim, 3=inverse_geog,
+      #               4=gaussian_clim, 5=gaussian_geog,
+      #               6=gaussian_joint, 7=inverse_joint
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean"))
       weight_code <- if (has_weighted_stat) {
@@ -84,27 +88,29 @@ query_analog_index <- function(x,
             0L
       }
 
-      # Handle theta: convert to numeric vector (length 1 or 2)
+      # Convert theta to numeric vector (use NA_real_ for NULL so C++ can apply defaults)
       theta_vec <- if (is.null(theta)) {
             NA_real_
       } else {
             as.numeric(theta)
       }
 
+      # Transform k for C++ (0L for "all", integer otherwise)
       k_core <- if (select %in% c("knn_clim", "knn_geog")) as.integer(k) else 0L
 
-      # Thread control
+      # If n_threads explicitly provided, set RcppParallel threads
+      # This needs to happen before calling C++
       if (!is.null(n_threads)) {
-            if (!requireNamespace("RcppParallel", quietly = TRUE)) {
-                  stop("Package 'RcppParallel' is required to control 'n_threads'.",
+            if (!is.numeric(n_threads) || n_threads < 1) {
+                  stop("`n_threads` must be a positive integer",
                        call. = FALSE)
             }
             RcppParallel::setThreadOptions(numThreads = as.integer(n_threads)[1L])
       }
 
-      # Call C++ query function with vector of aggregate codes and values
-      res <- query_analog_index_cpp(
-            index_list = index,
+      # Call C++ query function (with optional chunking/progress)
+      res <- .query_cpp_chunked(
+            index = index,
             focal = focal,
             ref_mm = index$ref_data,
             k = k_core,
@@ -115,7 +121,8 @@ query_analog_index <- function(x,
             weight_code = weight_code,
             theta = theta_vec,
             x_cov = x_cov_mat,
-            values = values_mat
+            values = values_mat,
+            show_progress = show_progress
       )
 
       # Capture diagnostic attributes (before they get lost)
@@ -160,57 +167,175 @@ query_analog_index <- function(x,
             stop("Internal error: stat result rows do not match number of focals.")
       }
 
-      # Build output data.frame with named columns for each stat
+      # Build output data.frame
       out <- data.frame(
             index = seq_len(nrow(focal)),
-            x     = focal[, 1],
-            y     = focal[, 2],
-            stringsAsFactors = FALSE
+            x = focal[, 1],
+            y = focal[, 2]
       )
 
-      # Determine which stats are value-based
-      value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
+      # Determine column structure based on stats requested and values provided
+      # Regular stats (count, sum_weights, mean_weights): 1 column each
+      # Value-based stats (sum, mean, weighted_sum, weighted_mean): n_values columns each
       regular_stats <- c("count", "sum_weights", "mean_weights")
-
-      regular_stat_list <- intersect(stat, regular_stats)
-      value_stat_list <- intersect(stat, value_stats)
-
-      n_regular <- length(regular_stat_list)
-      n_value <- length(value_stat_list)
-      n_vars <- if (!is.null(values_mat)) ncol(values_mat) else 0
-
-      # Expected number of columns
-      expected_cols <- n_regular + n_value * n_vars
-      if (ncol(res) != expected_cols) {
-            stop("Internal error: stat result columns (", ncol(res),
-                 ") do not match expected (", expected_cols, ")")
-      }
+      value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
 
       col_idx <- 1
+      for (s in stat) {
+            if (s %in% regular_stats) {
+                  # Single column for this stat
+                  out[[s]] <- res[, col_idx]
+                  col_idx <- col_idx + 1
+            } else if (s %in% value_stats) {
+                  # One column per value variable
+                  n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
+                  if (n_vals == 0) {
+                        stop("Internal error: value stat requested but no values provided")
+                  }
 
-      # Add regular stats (apply to all focals, not variable-specific)
-      for (s in regular_stat_list) {
-            out[[s]] <- res[, col_idx]
-            col_idx <- col_idx + 1
-      }
-
-      # Add value stats (one column per stat per variable)
-      if (n_value > 0 && n_vars > 0) {
-            for (var_idx in seq_len(n_vars)) {
-                  var_name <- values_names[var_idx]
-                  for (s in value_stat_list) {
-                        col_name <- paste(s, var_name, sep = "_")
-                        out[[col_name]] <- res[, col_idx]
+                  if (n_vals == 1) {
+                        # Single value variable: column named by stat
+                        out[[s]] <- res[, col_idx]
                         col_idx <- col_idx + 1
+                  } else {
+                        # Multiple value variables: columns named {stat}_{varname}
+                        for (j in seq_len(n_vals)) {
+                              var_name <- if (!is.null(values_names)) {
+                                    values_names[j]
+                              } else {
+                                    paste0("var", j)
+                              }
+                              col_name <- paste0(s, "_", var_name)
+                              out[[col_name]] <- res[, col_idx]
+                              col_idx <- col_idx + 1
+                        }
                   }
             }
       }
 
-      # Add attributes to data.frame
+      # Add C++ diagnostic attributes
       for (nm in names(cpp_attrs)) {
             attr(out, nm) <- cpp_attrs[[nm]]
       }
 
-      return(.format_output(out, focal, stat, select,
-                            k, weight, theta, x_cov_mat))
+      # Format and return
+      return(.format_output(out, focal, stat, select, k, weight, theta, x_cov_mat))
+}
+
+
+#' Internal helper: Query C++ with optional chunking and progress tracking
+#'
+#' Wraps query_analog_index_cpp with optional chunking for progress bars.
+#' Handles merging of chunked results.
+#'
+#' @keywords internal
+.query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
+                               select_code, aggregate_codes, weight_code, theta,
+                               x_cov, values, show_progress = FALSE) {
+
+      # If progress not requested or dataset too small, just call C++ directly
+      if (!show_progress || nrow(focal) < 100) {
+            return(query_analog_index_cpp(
+                  index_list = index,
+                  focal_mm = focal,
+                  ref_mm = ref_mm,
+                  k = k,
+                  max_clim = max_clim,
+                  max_geog = max_geog,
+                  select_code = select_code,
+                  aggregate_codes = aggregate_codes,
+                  weight_code = weight_code,
+                  theta = theta,
+                  x_cov_sexp = x_cov,
+                  values_sexp = values
+            ))
+      }
+
+      # Split focal into chunks
+      n_chunks <- min(100, nrow(focal))
+      chunk_size <- ceiling(nrow(focal) / n_chunks)
+
+      # Progress bar
+      pb <- txtProgressBar(min = 0, max = n_chunks, style = 3)
+      on.exit(close(pb), add = TRUE)
+
+      # Collect results per chunk
+      results <- vector("list", n_chunks)
+
+      for (i in seq_len(n_chunks)) {
+            start_idx <- (i - 1) * chunk_size + 1
+            end_idx <- min(i * chunk_size, nrow(focal))
+            focal_chunk <- focal[start_idx:end_idx, , drop = FALSE]
+
+            # Get x_cov chunk if provided
+            x_cov_chunk <- if (!is.null(x_cov)) {
+                  x_cov[start_idx:end_idx, , drop = FALSE]
+            } else {
+                  NULL
+            }
+
+            # Query this chunk
+            results[[i]] <- query_analog_index_cpp(
+                  index_list = index,
+                  focal_mm = focal_chunk,
+                  ref_mm = ref_mm,
+                  k = k,
+                  max_clim = max_clim,
+                  max_geog = max_geog,
+                  select_code = select_code,
+                  aggregate_codes = aggregate_codes,
+                  weight_code = weight_code,
+                  theta = theta,
+                  x_cov_sexp = x_cov_chunk,
+                  values_sexp = values  # Note: values are NOT chunked (they're for ref pool)
+            )
+
+            setTxtProgressBar(pb, i)
+      }
+
+      # Merge results based on type
+      first <- results[[1]]
+
+      if (is.list(first) && !is.matrix(first)) {
+            # Pairs mode: concatenate vectors in list
+            # Pre-allocate based on total lengths
+            total_len <- sum(vapply(results, function(x) length(x[[1]]), integer(1)))
+            merged <- list()
+
+            for (nm in names(first)) {
+                  merged[[nm]] <- vector(typeof(first[[nm]]), total_len)
+                  pos <- 1
+                  for (chunk_res in results) {
+                        chunk_vec <- chunk_res[[nm]]
+                        len <- length(chunk_vec)
+                        merged[[nm]][pos:(pos + len - 1)] <- chunk_vec
+                        pos <- pos + len
+                  }
+            }
+      } else {
+            # Aggregation mode: rbind matrices
+            # Pre-allocate full result matrix
+            total_rows <- sum(vapply(results, nrow, integer(1)))
+            merged <- matrix(0, nrow = total_rows, ncol = ncol(first))
+            colnames(merged) <- colnames(first)
+
+            pos <- 1
+            for (chunk_res in results) {
+                  nrows <- nrow(chunk_res)
+                  merged[pos:(pos + nrows - 1), ] <- chunk_res
+                  pos <- pos + nrows
+            }
+      }
+
+      # Preserve attributes from first chunk (diagnostics are constant across chunks)
+      attrs <- attributes(first)
+      attrs$dim <- NULL
+      attrs$dimnames <- NULL
+      attrs$names <- NULL
+      for (nm in names(attrs)) {
+            attr(merged, nm) <- attrs[[nm]]
+      }
+      attr(merged, "n_focal") <- nrow(focal)
+
+      return(merged)
 }
