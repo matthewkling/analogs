@@ -195,7 +195,10 @@ A data.frame with one row per focal location containing:
 This function implements the "reverse analog" approach from the climate
 change ecology literature. It addresses the question, "For a location's
 future climate, what ecological conditions exist in current locations
-with similar climates that are within dispersal range?"
+with similar climates that are within dispersal range?" This function is
+a wrapper that calls
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+with particular requirements for `weight` and `values` parameters.
 
 The methodology:
 

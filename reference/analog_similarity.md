@@ -1,10 +1,9 @@
 # Analog similarity: best climate analogs within a geographic envelope
 
-Computes, for each focal location, the climate–nearest neighbor(s) in a
+Finds, for each focal location, the climate–nearest neighbor(s) in a
 reference dataset that satisfy a specified geographic distance
-threshold. This helper wraps
-[`analog_search`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-using `select = "knn_clim"`.
+threshold. Among other uses, this operation is often the first step in a
+traditional analog impact modeling (AIM) analysis.
 
 ## Usage
 
@@ -200,6 +199,10 @@ etc.). Use
 to view a formatted summary.
 
 ## Details
+
+This function is a wrapper that calls
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+using `select = "knn_clim"`.
 
 For each focal location, `analog_similarity()`:
 

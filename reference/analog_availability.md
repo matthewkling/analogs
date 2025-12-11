@@ -163,6 +163,12 @@ etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
 
+## Details
+
+This function is a wrapper that calls
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+using `select = "all"` and `stat = "count"`.
+
 ## References
 
 Stralberg D, Carroll C, Pedlar JH, Wilsey CB, McKenney DW, Nielsen SE

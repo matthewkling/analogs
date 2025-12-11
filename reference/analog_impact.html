@@ -215,7 +215,9 @@ is <code>FALSE</code>.</p></dd>
 <p>This function implements the "reverse analog" approach from the climate
 change ecology literature. It addresses the question, "For a location's
 future climate, what ecological conditions exist in current locations with
-similar climates that are within dispersal range?"</p>
+similar climates that are within dispersal range?" This function is a wrapper
+that calls <code><a href="analog_search.html">analog_search()</a></code> with particular requirements for <code>weight</code> and
+<code>values</code> parameters.</p>
 <p>The methodology:</p><ol><li><p>For each focal location's future climate conditions</p></li>
 <li><p>Find all current locations with similar climates (within <code>max_clim</code>)</p></li>
 <li><p>Constrain to dispersal-reachable distance (within <code>max_geog</code>)</p></li>

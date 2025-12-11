@@ -2,10 +2,8 @@
 
 Computes, for each focal location, the geographic nearest neighbor(s) in
 a reference dataset that satisfy a specified maximum climate distance
-threshold. This helper wraps
-[`analog_search`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-using `select = "knn_geog"` and is used for estimating analog-based
-climate velocity.
+threshold. This implements analog-based climate velocity (Hamann et al.
+2015; Dobrowski and Parks 2016).
 
 ## Usage
 
@@ -199,6 +197,13 @@ All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
+
+## Details
+
+This function is a wrapper that calls
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+using `select = "knn_geog"`. and is used for estimating analog-based
+climate velocity.
 
 ## References
 

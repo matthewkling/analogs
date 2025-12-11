@@ -1,6 +1,6 @@
 # Analog intensity: weighted sum of analogs within climate/geographic limits
 
-Computes, for each focal location, the weighted sum of all reference
+Computes, for each focal location, the sum of weights of all reference
 locations that satisfy the supplied climate and geographic constraints.
 The weights are controlled by the `weight` and `theta` arguments and are
 applied after filtering.
@@ -209,6 +209,12 @@ All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
+
+## Details
+
+This function is a wrapper that calls
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+using `select = "all"` and `stat = "sum_weights"`.
 
 ## References
 
