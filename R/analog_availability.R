@@ -4,6 +4,9 @@
 #' the supplied climate and geographic constraints. This is useful for
 #' mapping analog "availability" or environmental similarity density.
 #'
+#' This function is a wrapper that calls [analog_search()] using
+#' `select = "all"` and `stat = "count"`.
+#'
 #' @inheritParams analog_search
 #' @inherit analog_search return
 #'

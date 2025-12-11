@@ -1,9 +1,12 @@
 #' Analog intensity: weighted sum of analogs within climate/geographic limits
 #'
-#' Computes, for each focal location, the weighted sum of all reference locations
+#' Computes, for each focal location, the sum of weights of all reference locations
 #' that satisfy the supplied climate and geographic constraints. The weights are
 #' controlled by the \code{weight} and \code{theta} arguments and are applied
 #' after filtering.
+#'
+#' This function is a wrapper that calls [analog_search()] using `select = "all"`
+#' and `stat = "sum_weights"`.
 #'
 #' @inheritParams analog_search
 #' @inherit analog_search return

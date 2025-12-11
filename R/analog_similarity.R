@@ -1,8 +1,11 @@
 #' Analog similarity: best climate analogs within a geographic envelope
 #'
-#' Computes, for each focal location, the climate–nearest neighbor(s) in a
+#' Finds, for each focal location, the climate–nearest neighbor(s) in a
 #' reference dataset that satisfy a specified geographic distance threshold.
-#' This helper wraps \code{\link{analog_search}} using \code{select = "knn_clim"}.
+#' Among other uses, this operation is often the first step in a traditional
+#' analog impact modeling (AIM) analysis.
+#'
+#' This function is a wrapper that calls [analog_search()] using `select = "knn_clim"`.
 #'
 #' @inheritParams analog_search
 #' @inherit analog_search return

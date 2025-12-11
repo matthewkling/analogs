@@ -53,6 +53,9 @@ for(var in names(clim1)){
       scales[[var]]$sd <- s
 }
 
+clim1 <- aggregate(clim1, 5)
+clim2 <- aggregate(clim2, 5)
+
 # export
 writeRaster(
       clim1,

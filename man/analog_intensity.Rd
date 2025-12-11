@@ -156,10 +156,14 @@ All results include metadata attributes (\code{select}, \code{stat}, \code{weigh
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
-Computes, for each focal location, the weighted sum of all reference locations
+Computes, for each focal location, the sum of weights of all reference locations
 that satisfy the supplied climate and geographic constraints. The weights are
 controlled by the \code{weight} and \code{theta} arguments and are applied
 after filtering.
+}
+\details{
+This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using \code{select = "all"}
+and \code{stat = "sum_weights"}.
 }
 \examples{
 \dontrun{

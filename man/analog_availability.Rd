@@ -126,6 +126,10 @@ Computes, for each focal location, how many reference locations satisfy
 the supplied climate and geographic constraints. This is useful for
 mapping analog "availability" or environmental similarity density.
 }
+\details{
+This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using
+\code{select = "all"} and \code{stat = "count"}.
+}
 \examples{
 \dontrun{
 # One-shot query

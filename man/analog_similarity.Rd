@@ -148,11 +148,14 @@ All results include metadata attributes (\code{select}, \code{stat}, \code{weigh
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
-Computes, for each focal location, the climate–nearest neighbor(s) in a
+Finds, for each focal location, the climate–nearest neighbor(s) in a
 reference dataset that satisfy a specified geographic distance threshold.
-This helper wraps \code{\link{analog_search}} using \code{select = "knn_clim"}.
+Among other uses, this operation is often the first step in a traditional
+analog impact modeling (AIM) analysis.
 }
 \details{
+This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using \code{select = "knn_clim"}.
+
 For each focal location, \code{analog_similarity()}:
 \enumerate{
 \item Identifies all reference points within \code{max_geog} km (and

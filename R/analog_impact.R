@@ -52,7 +52,9 @@
 #' This function implements the "reverse analog" approach from the climate
 #' change ecology literature. It addresses the question, "For a location's
 #' future climate, what ecological conditions exist in current locations with
-#' similar climates that are within dispersal range?"
+#' similar climates that are within dispersal range?" This function is a wrapper
+#' that calls [analog_search()] with particular requirements for `weight` and
+#' `values` parameters.
 #'
 #' The methodology:
 #' 1. For each focal location's future climate conditions
@@ -187,6 +189,9 @@ analog_impact <- function(
             progress = FALSE
 ) {
       weight <- match.arg(weight)
+      if(is.null(values) | is.null(weight)){
+            stop("`values` and `weight` are required for analog impact compuation.")
+      }
 
       analog_search(
             x           = x,
