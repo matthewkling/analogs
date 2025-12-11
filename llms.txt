@@ -79,6 +79,8 @@ documentation](https://matthewkling.github.io/analogs/reference/index.html).
   : Climate velocity: geographically nearest climate analogs
 - [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
   : Build Analog Index
+- [`example_rasters()`](https://matthewkling.github.io/analogs/reference/example_rasters.md)
+  : Example spatiotemporal climate rasters
 - [`is_analog_index()`](https://matthewkling.github.io/analogs/reference/is_analog_index.md)
   : Check if Object is an Analog Index
 - [`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md)
