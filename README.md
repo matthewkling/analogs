@@ -14,7 +14,7 @@ geographic proximity.
 ## Core Functions
 
 The package supports a range of analysis types. The core workhorse
-function is `analog_search()`, which supports a range of methods for
+function is `analog_search()`, which implements a range of methods for
 selecting and summarizing analogs for each query location. Common query
 types are supported via simplified wrapper functions:
 
@@ -43,7 +43,7 @@ patterns based on historic temporal climate variability.
 
 ## Computational optimization
 
-Various aspects of the search architecture are designed to optimize
+Various aspects of the search architecture are designed to maximize
 performance:
 
 - The core search architecture is built in optimized C++.
