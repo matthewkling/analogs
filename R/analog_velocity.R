@@ -46,6 +46,9 @@
 #' climate change exposure in mountainous regions." \emph{Nature Communications},
 #' \strong{7}, 12349. \doi{10.1038/ncomms12349}
 #'
+#' @seealso [analog_search()] for the underlying flexible analog search function;
+#'   [tiled_analog_search()] for memory-safe searches on large raster datasets.
+#'
 #' @export
 analog_velocity <- function(
             x,

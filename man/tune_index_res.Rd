@@ -130,29 +130,20 @@ parameter (scalar; larger values = slower decay with distance).
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component. For n climate
-variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row).}
+focal location and one column per unique covariance component, or a
+SpatRaster with a layer for each component. For n climate variables,
+there are n*(n+1)/2 unique components, ordered as: variances first
+(diagonals), then covariances (upper triangle by row).}
 
-\item{values}{Optional user-defined variables for each reference location to
-aggregate across selected analogs. Can be:
-\itemize{
-\item A numeric vector (single variable)
-\item A matrix or data.frame with numeric columns (multiple variables)
-}
-Must have exactly \code{nrow(pool)} rows (or number of reference locations
-if pool is an index). Each row corresponds to a reference location.
+\item{values}{Optional user-defined variables for each reference location
+in \code{pool} to aggregate across selected analogs. Can be a numeric vector
+(single variable), matrix or data.frame with numeric columns (multiple
+variables), or a SpatRaster with one or more numeic layers. Must have
+exactly the same number of reference locations as \code{pool}.
 
-When provided, enables value-based aggregation stats:
-\itemize{
-\item \code{"sum"}: Sum of values across analogs
-\item \code{"mean"}: Mean of values across analogs
-\item \code{"weighted_sum"}: Sum of (value × weight) - requires \code{weight}
-\item \code{"weighted_mean"}: Sum of (value × weight) / sum of weights - requires \code{weight}
-}
-
-For stat = NULL/"none" (pairs mode), value columns are included in output
-for each analog pair.}
+When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
+\code{"weighted_sum"}, and \code{"weighted_mean"}. For stat = NULL/"none" (pairs
+mode), value columns are included in output for each analog pair.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{

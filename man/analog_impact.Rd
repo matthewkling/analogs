@@ -86,9 +86,10 @@ The default statistics provide a complete picture:
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component. For n climate
-variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row).}
+focal location and one column per unique covariance component, or a
+SpatRaster with a layer for each component. For n climate variables,
+there are n*(n+1)/2 unique components, ordered as: variances first
+(diagonals), then covariances (upper triangle by row).}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -274,5 +275,6 @@ undermined by climate change-driven shifts in ecoregions and biomes."
 \doi{10.1038/s43247-021-00270-z}
 }
 \seealso{
-\code{\link[=analog_search]{analog_search()}} for the underlying flexible analog search function.
+\code{\link[=analog_search]{analog_search()}} for the underlying flexible analog search function;
+\code{\link[=tiled_analog_search]{tiled_analog_search()}} for memory-safe searches on large raster datasets.
 }

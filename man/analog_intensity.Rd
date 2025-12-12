@@ -36,9 +36,10 @@ or SpatRaster with climate variable layers, OR
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component. For n climate
-variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row).}
+focal location and one column per unique covariance component, or a
+SpatRaster with a layer for each component. For n climate variables,
+there are n*(n+1)/2 unique components, ordered as: variances first
+(diagonals), then covariances (upper triangle by row).}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -220,4 +221,8 @@ Williams JW, Jackson ST, Kutzbach JE (2007). "Projected distributions of
 novel and disappearing climates by 2100 AD." \emph{Proceedings of the
 National Academy of Sciences}, \strong{104}(14), 5738-5742.
 \doi{10.1073/pnas.0606292104}
+}
+\seealso{
+\code{\link[=analog_search]{analog_search()}} for the underlying flexible analog search function;
+\code{\link[=tiled_analog_search]{tiled_analog_search()}} for memory-safe searches on large raster datasets.
 }

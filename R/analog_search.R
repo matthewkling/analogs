@@ -53,6 +53,8 @@
 #'       scheme that reduces loss of precision relative to random sampling.
 #'     \item For large datasets, enable `progress = TRUE` to display
 #'       a progress bar during computation.
+#'     \item For raster datasets that are too large to fit in memory,
+#'       `tiled_analog_search()` offers a memory-safe option.
 #' }
 #'
 #' @param x Focal locations for which analogs will be found. Should be a
@@ -69,29 +71,20 @@
 #'
 #' @param x_cov Optional focal-specific covariance matrices for Mahalanobis
 #'   distance calculations. Should be a matrix or data.frame with one row per
-#'   focal location and one column per unique covariance component. For n climate
-#'   variables, there are n*(n+1)/2 unique components, ordered as: variances
-#'   first (diagonals), then covariances (upper triangle by row).
+#'   focal location and one column per unique covariance component, or a
+#'   SpatRaster with a layer for each component. For n climate variables,
+#'   there are n*(n+1)/2 unique components, ordered as: variances first
+#'   (diagonals), then covariances (upper triangle by row).
 #'
-#' @param values Optional user-defined variables for each reference location to
-#'   aggregate across selected analogs. Can be:
-#'   \itemize{
-#'     \item A numeric vector (single variable)
-#'     \item A matrix or data.frame with numeric columns (multiple variables)
-#'   }
-#'   Must have exactly `nrow(pool)` rows (or number of reference locations
-#'   if pool is an index). Each row corresponds to a reference location.
+#' @param values Optional user-defined variables for each reference location
+#'   in `pool` to aggregate across selected analogs. Can be a numeric vector
+#'   (single variable), matrix or data.frame with numeric columns (multiple
+#'   variables), or a SpatRaster with one or more numeic layers. Must have
+#'   exactly the same number of reference locations as `pool`.
 #'
-#'   When provided, enables value-based aggregation stats:
-#'   \itemize{
-#'     \item `"sum"`: Sum of values across analogs
-#'     \item `"mean"`: Mean of values across analogs
-#'     \item `"weighted_sum"`: Sum of (value × weight) - requires `weight`
-#'     \item `"weighted_mean"`: Sum of (value × weight) / sum of weights - requires `weight`
-#'   }
-#'
-#'   For stat = NULL/"none" (pairs mode), value columns are included in output
-#'   for each analog pair.
+#'   When provided, enables value-based aggregation stats `"sum"`, `"mean"`,
+#'   `"weighted_sum"`, and `"weighted_mean"`. For stat = NULL/"none" (pairs
+#'   mode), value columns are included in output for each analog pair.
 #'
 #'
 #'
@@ -261,6 +254,10 @@
 #' of six dissimilarity metrics for climate analogs." \emph{Journal of Applied
 #' Meteorology and Climatology}, \strong{52}(4), 733-752.
 #' \doi{10.1175/JAMC-D-12-0170.1}
+#'
+#' @seealso [tiled_analog_search()] offers memory-safe searches on large raster
+#'   datasets. Helper functions such as [analog_impact()], [analog_velocity()],
+#'   and [analog_intensity()] offer simpler interfaces for common search types.
 #'
 #' @export
 analog_search <- function(

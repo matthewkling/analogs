@@ -95,7 +95,8 @@
 #'     from analog locations.
 #' }
 #'
-#' @seealso [analog_search()] for the underlying flexible analog search function.
+#' @seealso [analog_search()] for the underlying flexible analog search function;
+#'   [tiled_analog_search()] for memory-safe searches on large raster datasets.
 #'
 #' @references
 #' Parks SA, Holsinger LM, Miller C, Parisien MA (2018). "Analog-based fire

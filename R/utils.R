@@ -188,17 +188,40 @@
 
       n_ref <- nrow(ref)
 
-      # Convert to matrix if needed
-      if (is.vector(values)) {
+      # Handle SpatRaster input
+      if (inherits(values, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster values", call. = FALSE)
+            }
+
+            # Convert to data.frame (keeps all cells including NA)
+            df <- terra::as.data.frame(values, xy = FALSE, na.rm = FALSE)
+
+            # Check dimensions match ref
+            if (nrow(df) != n_ref) {
+                  stop(sprintf(
+                        "values SpatRaster has %d cells but reference data has %d rows. They must match.",
+                        nrow(df), n_ref
+                  ))
+            }
+
+            values_names <- names(df)
+            values <- as.matrix(df)
+
+      } else if (is.vector(values)) {
+            # Convert vector to single-column matrix
             values <- matrix(values, ncol = 1)
             values_names <- "value_1"
+
       } else if (is.data.frame(values)) {
             values_names <- colnames(values)
             values <- as.matrix(values)
+
       } else if (is.matrix(values)) {
             values_names <- colnames(values)
+
       } else {
-            stop("values must be a vector, matrix, or data.frame")
+            stop("values must be a vector, matrix, data.frame, or SpatRaster")
       }
 
       # Validate dimensions
@@ -249,7 +272,9 @@
             if (!requireNamespace("terra", quietly = TRUE)) {
                   stop("Package 'terra' is required for SpatRaster x_cov", call. = FALSE)
             }
-            x_cov <- terra::as.matrix(x_cov, wide = TRUE)
+            # Convert to data.frame (keeps all cells including NA) to match .format_data behavior
+            df <- terra::as.data.frame(x_cov, xy = FALSE, na.rm = FALSE)
+            x_cov <- as.matrix(df)
       } else if (is.data.frame(x_cov)) {
             x_cov <- as.matrix(x_cov)
       } else if (!is.matrix(x_cov)) {

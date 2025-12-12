@@ -39,29 +39,20 @@ or SpatRaster with climate variable layers, OR
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component. For n climate
-variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row).}
+focal location and one column per unique covariance component, or a
+SpatRaster with a layer for each component. For n climate variables,
+there are n*(n+1)/2 unique components, ordered as: variances first
+(diagonals), then covariances (upper triangle by row).}
 
-\item{values}{Optional user-defined variables for each reference location to
-aggregate across selected analogs. Can be:
-\itemize{
-\item A numeric vector (single variable)
-\item A matrix or data.frame with numeric columns (multiple variables)
-}
-Must have exactly \code{nrow(pool)} rows (or number of reference locations
-if pool is an index). Each row corresponds to a reference location.
+\item{values}{Optional user-defined variables for each reference location
+in \code{pool} to aggregate across selected analogs. Can be a numeric vector
+(single variable), matrix or data.frame with numeric columns (multiple
+variables), or a SpatRaster with one or more numeic layers. Must have
+exactly the same number of reference locations as \code{pool}.
 
-When provided, enables value-based aggregation stats:
-\itemize{
-\item \code{"sum"}: Sum of values across analogs
-\item \code{"mean"}: Mean of values across analogs
-\item \code{"weighted_sum"}: Sum of (value × weight) - requires \code{weight}
-\item \code{"weighted_mean"}: Sum of (value × weight) / sum of weights - requires \code{weight}
-}
-
-For stat = NULL/"none" (pairs mode), value columns are included in output
-for each analog pair.}
+When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
+\code{"weighted_sum"}, and \code{"weighted_mean"}. For stat = NULL/"none" (pairs
+mode), value columns are included in output for each analog pair.}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
@@ -268,6 +259,8 @@ to improve speed and memory, using a stratified sampling
 scheme that reduces loss of precision relative to random sampling.
 \item For large datasets, enable \code{progress = TRUE} to display
 a progress bar during computation.
+\item For raster datasets that are too large to fit in memory,
+\code{tiled_analog_search()} offers a memory-safe option.
 }
 }
 }
@@ -286,4 +279,9 @@ Grenier P, Parent A-C, Huard D, Anctil F, Chaumont D (2013). "An assessment
 of six dissimilarity metrics for climate analogs." \emph{Journal of Applied
 Meteorology and Climatology}, \strong{52}(4), 733-752.
 \doi{10.1175/JAMC-D-12-0170.1}
+}
+\seealso{
+\code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large raster
+datasets. Helper functions such as \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_velocity]{analog_velocity()}},
+and \code{\link[=analog_intensity]{analog_intensity()}} offer simpler interfaces for common search types.
 }

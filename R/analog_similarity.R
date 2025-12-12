@@ -38,6 +38,9 @@
 #' i2 <- analog_similarity(x = sites2, pool = index, max_geog = 50, k = 10)
 #' }
 #'
+#' @seealso [analog_search()] for the underlying flexible analog search function;
+#'   [tiled_analog_search()] for memory-safe searches on large raster datasets.
+#'
 #' @export
 analog_similarity <- function(
             x,
