@@ -10,9 +10,9 @@ geographic proximity.
 The package supports a range of analysis types. The core workhorse
 function is
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md),
-which supports a range of methods for selecting and summarizing analogs
-for each query location. Common query types are supported via simplified
-wrapper functions:
+which implements a range of methods for selecting and summarizing
+analogs for each query location. Common query types are supported via
+simplified wrapper functions:
 
 - [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
   predicts ecological state variables using analog impact models (AIMs)
@@ -40,7 +40,7 @@ covariance patterns based on historic temporal climate variability.
 
 ## Computational optimization
 
-Various aspects of the search architecture are designed to optimize
+Various aspects of the search architecture are designed to maximize
 performance:
 
 - The core search architecture is built in optimized C++.
