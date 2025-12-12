@@ -45,9 +45,10 @@ analog_availability(
 
   Optional focal-specific covariance matrices for Mahalanobis distance
   calculations. Should be a matrix or data.frame with one row per focal
-  location and one column per unique covariance component. For n climate
-  variables, there are n\*(n+1)/2 unique components, ordered as:
-  variances first (diagonals), then covariances (upper triangle by row).
+  location and one column per unique covariance component, or a
+  SpatRaster with a layer for each component. For n climate variables,
+  there are n\*(n+1)/2 unique components, ordered as: variances first
+  (diagonals), then covariances (upper triangle by row).
 
 - coord_type:
 
@@ -187,6 +188,13 @@ Parks SA, Holsinger LM, Abatzoglou JT, Littlefield CE, Zeller KA (2023).
 undergoing climate-induced range shifts." *Global Change Biology*,
 **29**(10), 2681-2696.
 [doi:10.1111/gcb.16629](https://doi.org/10.1111/gcb.16629)
+
+## See also
+
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+for the underlying flexible analog search function;
+[`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
+for memory-safe searches on large raster datasets.
 
 ## Examples
 

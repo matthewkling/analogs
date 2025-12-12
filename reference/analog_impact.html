@@ -147,9 +147,10 @@ The default statistics provide a complete picture:</p><ul><li><p><code>"count"</
 <dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
 <dd><p>Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component. For n climate
-variables, there are n*(n+1)/2 unique components, ordered as: variances
-first (diagonals), then covariances (upper triangle by row).</p></dd>
+focal location and one column per unique covariance component, or a
+SpatRaster with a layer for each component. For n climate variables,
+there are n*(n+1)/2 unique components, ordered as: variances first
+(diagonals), then covariances (upper triangle by row).</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
@@ -279,7 +280,8 @@ undermined by climate change-driven shifts in ecoregions and biomes."
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code> for the underlying flexible analog search function.</p></div>
+    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code> for the underlying flexible analog search function;
+<code><a href="tiled_analog_search.html">tiled_analog_search()</a></code> for memory-safe searches on large raster datasets.</p></div>
     </div>
 
     <div class="section level2">

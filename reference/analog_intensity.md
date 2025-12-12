@@ -49,9 +49,10 @@ analog_intensity(
 
   Optional focal-specific covariance matrices for Mahalanobis distance
   calculations. Should be a matrix or data.frame with one row per focal
-  location and one column per unique covariance component. For n climate
-  variables, there are n\*(n+1)/2 unique components, ordered as:
-  variances first (diagonals), then covariances (upper triangle by row).
+  location and one column per unique covariance component, or a
+  SpatRaster with a layer for each component. For n climate variables,
+  there are n\*(n+1)/2 unique components, ordered as: variances first
+  (diagonals), then covariances (upper triangle by row).
 
 - coord_type:
 
@@ -232,6 +233,13 @@ Williams JW, Jackson ST, Kutzbach JE (2007). "Projected distributions of
 novel and disappearing climates by 2100 AD." *Proceedings of the
 National Academy of Sciences*, **104**(14), 5738-5742.
 [doi:10.1073/pnas.0606292104](https://doi.org/10.1073/pnas.0606292104)
+
+## See also
+
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+for the underlying flexible analog search function;
+[`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
+for memory-safe searches on large raster datasets.
 
 ## Examples
 
