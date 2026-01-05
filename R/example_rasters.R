@@ -16,6 +16,6 @@ example_rasters <- function(){
             stop("the `terra` package is required for this function.")
       }
 
-      list(historic = rast("inst/extdata/historic_climate.tif"),
-           future = rast("inst/extdata/future_climate.tif"))
+      list(historic = terra::rast(system.file("extdata/historic_climate.tif", package = "analogs")),
+           future = terra::rast(system.file("extdata/future_climate.tif", package = "analogs")))
 }
