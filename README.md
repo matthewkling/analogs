@@ -14,7 +14,7 @@ geographic proximity.
 ## Core Functions
 
 The package supports a range of analysis types. The core workhorse
-function is `analog_search()`, which implements a range of methods for
+function is `analog_search()`, which implements various methods for
 selecting and summarizing analogs for each query location. Common query
 types are supported via simplified wrapper functions:
 
@@ -43,8 +43,7 @@ patterns based on historic temporal climate variability.
 
 ## Computational optimization
 
-Various aspects of the search architecture are designed to maximize
-performance:
+The package is designed to maximize performance in various ways:
 
 - The core search architecture is built in optimized C++.
 - Parallel processing is available via the `n_threads` parameter.
@@ -53,11 +52,11 @@ performance:
 - For repeated queries against the same candidate pool,
   `build_analog_index()` can be used to pre-build a reusable search
   index.
-- Use the `tune_index_res()` function to identify optimal index
-  parameters for your specific data.
+- Optimal index parameters for your specific data can be identified with
+  `tune_index_res()`, which is used internally by default.
 - Memory-safe queries for large raster datasets are available via
   `tiled_analog_search()`.
-- To increase speed at the cost of some precision, you can optionally
+- To increase speed at the cost of some precision, you can adaptively
   `downsample` your reference data.
 
 ## Installation

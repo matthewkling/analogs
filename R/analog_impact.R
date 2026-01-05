@@ -30,6 +30,7 @@
 #'     \item `"count"`: Analog availability (number of analogs)
 #'     \item `"sum_weights"`: Analog intensity
 #'     \item `"weighted_mean"`: Expected ecological state
+#'     \item `"ess"`: Effective sample size
 #'   }
 #' @param weight Function for weighting analogs during aggregation. Only
 #'   weight options that are based on *climate* are allowed:
@@ -91,8 +92,14 @@
 #'   \item `sum_weights`: Total analog intensity. Low values indicate sparse
 #'     or distant climate matches. This metric captures both the number and quality
 #'     of analogs. Interpretation details vary based on the `weight` parameter.
+#'   \item `ess`: Effective sample size quantifying how many "independent" analogs
+#'     contribute to weighted statistics. Ranges from ~1 (one analog dominates) to
+#'     `count` (all analogs equally weighted). Low values suggest weighted results
+#'     are driven by a few locations and may be sensitive to their specific conditions.
+#'     High values indicate weights are well-distributed across many analogs, increasing
+#'     confidence in ensemble predictions.
 #'   \item `weighted_mean`: Expected ecosystem state if colonized by species
-#'     from analog locations.
+#'     from analog locations. Interpret alongside `ess` to assess confidence.
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
@@ -180,7 +187,7 @@ analog_impact <- function(
             weight = c("gaussian_clim", "inverse_clim",
                        "gaussian_joint", "inverse_joint"),
             theta = .25,
-            stat = c("count", "sum_weights", "weighted_mean"),
+            stat = c("count", "sum_weights", "weighted_mean", "ess"),
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",

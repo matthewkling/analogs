@@ -18,7 +18,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_geo = tls.q_geo;
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
-      auto& cand_weights = tls.cand_weights;  // NEW
+      auto& cand_weights = tls.cand_weights;
 
       // Pre-compute inverse covariance matrices if using Mahalanobis
       std::vector< std::vector<double> > inv_cov_matrices;
@@ -93,7 +93,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   // Expanded KNN search (Euclidean)
                   // Reuse cand vector for results
                   cand.clear();
-                  cand_weights.clear();  // NEW
+                  cand_weights.clear();
 
                   const double geog_thresh = use_ecef ?
                   max_geog_chord : max_geog;
@@ -111,18 +111,18 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                               max_clim_scalar,
                               k,
                               cand,
-                              cand_weights  // NEW
+                              cand_weights
                   );
 
                   // Convert 0-based indices to 1-based for R and store weights
                   std::vector<int> keep(cand.size());
-                  std::vector<double> weights(cand.size());  // NEW
+                  std::vector<double> weights(cand.size());
                   for (std::size_t t = 0; t < cand.size(); ++t) {
                         keep[t] = static_cast<int>(cand[t]) + 1;
-                        weights[t] = cand_weights[t];  // NEW
+                        weights[t] = cand_weights[t];
                   }
                   out_indices[i] = std::move(keep);
-                  out_weights[i] = std::move(weights);  // NEW
+                  out_weights[i] = std::move(weights);
                   continue;
             }
 
@@ -131,7 +131,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             // (Used for: Haversine, Mahalanobis, or ALL mode)
             // -----------------------------------------------------------------
             cand.clear();
-            cand_weights.clear();  // NEW
+            cand_weights.clear();
 
             if (use_lattice && lattice_ptr != nullptr) {
                   const size_tu n_geo = lattice_ptr->n_geo_dims;
@@ -174,11 +174,11 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                               max_clim_pervar,
                               effective_max_clim,
                               cand,
-                              cand_weights  // NEW
+                              cand_weights
                   );
             } else {
                   cand.resize(n_ref);
-                  cand_weights.resize(n_ref, 1.0);  // NEW: all weights = 1.0 for full scan
+                  cand_weights.resize(n_ref, 1.0);
                   for (size_t j = 0; j < static_cast<size_t>(n_ref); ++j) {
                         cand[j] = static_cast<index_t>(j);
                   }
@@ -187,9 +187,9 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             // Filter and collect results from candidates
             if (scode == SelectCode::ALL) {
                   std::vector<int> keep;
-                  std::vector<double> weights;  // NEW
+                  std::vector<double> weights;
                   keep.reserve(cand.size());
-                  weights.reserve(cand.size());  // NEW
+                  weights.reserve(cand.size());
 
                   double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
                   if (use_ecef) {
@@ -204,7 +204,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
                   for (size_t t = 0; t < cand.size(); ++t) {
                         const index_t j = cand[t];
-                        const double weight = cand_weights[t];  // NEW
+                        const double weight = cand_weights[t];
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
@@ -253,11 +253,11 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         if (!ok) continue;
 
                         keep.push_back(j + 1); // 1-based
-                        weights.push_back(weight);  // NEW
+                        weights.push_back(weight);
                   }
 
                   out_indices[i] = std::move(keep);
-                  out_weights[i] = std::move(weights);  // NEW
+                  out_weights[i] = std::move(weights);
                   continue;
             }
 
@@ -268,7 +268,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             std::priority_queue<Neighbor, std::vector<Neighbor>, decltype(cmp)> pq(cmp);
 
             // Build map from candidate index to weight for later lookup
-            std::unordered_map<index_t, double> idx_to_weight;  // NEW
+            std::unordered_map<index_t, double> idx_to_weight;
             for (size_t t = 0; t < cand.size(); ++t) {
                   idx_to_weight[cand[t]] = cand_weights[t];
             }
@@ -350,19 +350,19 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             const int m = static_cast<int>(pq.size());
             std::vector<int> idx_vec(m);
-            std::vector<double> wgt_vec(m);  // NEW
+            std::vector<double> wgt_vec(m);
             for (int pos = m - 1; pos >= 0; --pos) {
                   const Neighbor& nb = pq.top();
                   idx_vec[pos] = nb.second;
 
                   // Look up weight for this analog (nb.second is 1-based)
                   index_t idx_0based = static_cast<index_t>(nb.second - 1);
-                  wgt_vec[pos] = idx_to_weight[idx_0based];  // NEW
+                  wgt_vec[pos] = idx_to_weight[idx_0based];
 
                   pq.pop();
             }
             out_indices[i] = std::move(idx_vec);
-            out_weights[i] = std::move(wgt_vec);  // NEW
+            out_weights[i] = std::move(wgt_vec);
       }
 }
 
@@ -372,7 +372,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& q_geo = tls.q_geo;
       auto& q_clim = tls.q_clim;
       auto& cand = tls.cand;
-      auto& cand_weights = tls.cand_weights;  // NEW
+      auto& cand_weights = tls.cand_weights;
 
       // Determine which stats are regular vs value-based
       std::vector<int> regular_stat_positions;
@@ -385,7 +385,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                 acodes[s] == AggregateCode::WEIGHTED_MEAN) {
                   value_stat_positions.push_back(s);
             } else {
-                  regular_stat_positions.push_back(s);
+                  regular_stat_positions.push_back(s);  // COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS
             }
       }
 
@@ -398,7 +398,8 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             if (acodes[s] == AggregateCode::SUM_WEIGHTS ||
                 acodes[s] == AggregateCode::MEAN_WEIGHTS ||
                 acodes[s] == AggregateCode::WEIGHTED_SUM ||
-                acodes[s] == AggregateCode::WEIGHTED_MEAN) {
+                acodes[s] == AggregateCode::WEIGHTED_MEAN ||
+                acodes[s] == AggregateCode::ESS) {
                   need_weights = true;
                   break;
             }
@@ -443,7 +444,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
             // Gather candidates
             cand.clear();
-            cand_weights.clear();  // NEW
+            cand_weights.clear();
 
             if (use_lattice && lattice_ptr != nullptr) {
                   const size_tu n_geo = lattice_ptr->n_geo_dims;
@@ -483,11 +484,11 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                               max_clim_pervar,
                               effective_max_clim,
                               cand,
-                              cand_weights  // NEW
+                              cand_weights
                   );
             } else {
                   cand.resize(n_ref);
-                  cand_weights.resize(n_ref, 1.0);  // NEW: all weights = 1.0 for full scan
+                  cand_weights.resize(n_ref, 1.0);
                   for (size_t j = 0; j < static_cast<size_t>(n_ref); ++j) {
                         cand[j] = static_cast<index_t>(j);
                   }
@@ -502,6 +503,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
             int count = 0;
             double sum_weights = 0.0;
+            double sum_weights_squared = 0.0;
 
             double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
             if (use_ecef) {
@@ -517,7 +519,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             // Iterate over candidates once
             for (size_t t = 0; t < cand.size(); ++t) {
                   const index_t j = cand[t];
-                  const double sample_weight = cand_weights[t];  // NEW
+                  const double sample_weight = cand_weights[t];
                   const double rx = ref_ptr[j];
                   const double ry = ref_ptr[j + stride_r];
 
@@ -575,8 +577,10 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         : 1.0;
 
                   // Apply sample weight to count and sum_weights
-                  count += static_cast<int>(sample_weight);  // MODIFIED: weighted count
-                  sum_weights += (dist_weight * sample_weight);  // MODIFIED: combine both weights
+                  count += static_cast<int>(sample_weight);
+                  const double combined_weight = dist_weight * sample_weight;
+                  sum_weights += combined_weight;
+                  sum_weights_squared += (combined_weight * combined_weight);
 
                   // Update regular stat accumulators
                   for (int idx = 0; idx < n_regular; ++idx) {
@@ -585,9 +589,12 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         if (acodes[s] == AggregateCode::COUNT) {
                               // Count tracked separately
                         } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
-                              regular_accum[idx] += (dist_weight * sample_weight);  // MODIFIED
+                              regular_accum[idx] += combined_weight;
                         } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
-                              regular_accum[idx] += (dist_weight * sample_weight);  // MODIFIED
+                              regular_accum[idx] += combined_weight;
+                        } else if (acodes[s] == AggregateCode::ESS) {
+                              // ESS accumulates sum_weights and sum_weights_squared
+                              // Will compute final ESS in finalization step
                         }
                   }
 
@@ -601,13 +608,13 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     int accum_idx = v * n_value + idx;
 
                                     if (acodes[s] == AggregateCode::SUM) {
-                                          value_accum[accum_idx] += (val * sample_weight);  // MODIFIED
+                                          value_accum[accum_idx] += (val * sample_weight);
                                     } else if (acodes[s] == AggregateCode::MEAN) {
-                                          value_accum[accum_idx] += (val * sample_weight);  // MODIFIED
+                                          value_accum[accum_idx] += (val * sample_weight);
                                     } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
-                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);  // MODIFIED
+                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);
                                     } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
-                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);  // MODIFIED
+                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);
                                     }
                               }
                         }
@@ -629,6 +636,12 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
                         result = (count > 0) ?
                         (regular_accum[idx] / count) : NA_REAL;
+                  } else if (acodes[s] == AggregateCode::ESS) {
+                        if (sum_weights_squared > 0.0 && sum_weights > 0.0) {
+                              result = (sum_weights * sum_weights) / sum_weights_squared;
+                        } else {
+                              result = 0.0;
+                        }
                   }
 
                   agg[i * n_stats + col_idx] = result;

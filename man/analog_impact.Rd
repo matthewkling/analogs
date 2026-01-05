@@ -12,7 +12,7 @@ analog_impact(
   max_clim = 1,
   weight = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
-  stat = c("count", "sum_weights", "weighted_mean"),
+  stat = c("count", "sum_weights", "weighted_mean", "ess"),
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -82,6 +82,7 @@ The default statistics provide a complete picture:
 \item \code{"count"}: Analog availability (number of analogs)
 \item \code{"sum_weights"}: Analog intensity
 \item \code{"weighted_mean"}: Expected ecological state
+\item \code{"ess"}: Effective sample size
 }}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
@@ -196,8 +197,14 @@ that are novel within the geographic search radius.
 \item \code{sum_weights}: Total analog intensity. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
 of analogs. Interpretation details vary based on the \code{weight} parameter.
+\item \code{ess}: Effective sample size quantifying how many "independent" analogs
+contribute to weighted statistics. Ranges from ~1 (one analog dominates) to
+\code{count} (all analogs equally weighted). Low values suggest weighted results
+are driven by a few locations and may be sensitive to their specific conditions.
+High values indicate weights are well-distributed across many analogs, increasing
+confidence in ensemble predictions.
 \item \code{weighted_mean}: Expected ecosystem state if colonized by species
-from analog locations.
+from analog locations. Interpret alongside \code{ess} to assess confidence.
 }
 }
 }

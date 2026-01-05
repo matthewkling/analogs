@@ -23,7 +23,7 @@ The **analogs** package provides fast, flexible tools for climate analog analyse
 
 ## Core Functions
 
-The package supports a range of analysis types. The core workhorse function is `analog_search()`, which supports a range of methods for selecting and summarizing analogs for each query location. Common query types are supported via simplified wrapper functions:
+The package supports a range of analysis types. The core workhorse function is `analog_search()`, which implements various methods for selecting and summarizing analogs for each query location. Common query types are supported via simplified wrapper functions:
 
 - `analog_impact()` predicts ecological state variables using analog impact models (AIMs)
 - `analog_velocity()` finds the k nearest geographic analogs under a hard climate constraint
@@ -41,15 +41,15 @@ Climate similarity is measured using Euclidean or Mahalanobis distance in climat
 
 ## Computational optimization
 
-Various aspects of the search architecture are designed to optimize performance:
+The package is designed to maximize performance in various ways:
 
 - The core search architecture is built in optimized C++.
 - Parallel processing is available via the `n_threads` parameter. 
 - The package uses a lattice search index to efficiently query large candidate pools.
 - For repeated queries against the same candidate pool, `build_analog_index()` can be used to pre-build a reusable search index.
-- Use the `tune_index_res()` function to identify optimal index parameters for your specific data.
+- Optimal index parameters for your specific data can be identified with `tune_index_res()`, which is used internally by default.
 - Memory-safe queries for large raster datasets are available via `tiled_analog_search()`.
-- To increase speed at the cost of some precision, you can optionally `downsample` your reference data.
+- To increase speed at the cost of some precision, you can adaptively `downsample` your reference data.
 
 
 ## Installation

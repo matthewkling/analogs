@@ -225,7 +225,8 @@ test_that("tiled_analog_search works with x_cov and values", {
                                           values = vals, x_cov = x_cov,
                                           max_clim = 1, max_geog = 50,
                                           progress = FALSE)))
-      expect_equal(names(result), c("count", "sum_weights", "weighted_mean_v1", "weighted_mean_v2"))
+      expect_equal(sort(names(result)),
+                   sort(c("count", "sum_weights", "weighted_mean_v1", "weighted_mean_v2", "ess")))
 })
 
 test_that("optimize_tile_grid creates square-ish tiles", {

@@ -137,6 +137,9 @@
 #'       (requires \code{values} and \code{weight}).
 #'     \item \code{"weighted_mean"}: Weighted mean of values across analogs
 #'       (requires \code{values} and \code{weight}).
+#'     \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
+#'       squared sum of weights divided by the sum of squared weights
+#'       (requires \code{weight}).
 #'     \item A character vector combining multiple stats (e.g.,
 #'       \code{c("count", "sum", "mean")}).
 #'       Note: \code{"none"} cannot be combined with other stats.

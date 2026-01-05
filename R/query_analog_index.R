@@ -62,7 +62,8 @@ query_analog_index <- function(x,
             "sum"            = 4L,
             "mean"           = 5L,
             "weighted_sum"   = 6L,
-            "weighted_mean"  = 7L
+            "weighted_mean"  = 7L,
+            "ess"            = 8L
       )
       aggregate_codes <- stat_name_to_code[stat]
       names(aggregate_codes) <- NULL
@@ -175,18 +176,27 @@ query_analog_index <- function(x,
       )
 
       # Determine column structure based on stats requested and values provided
-      # Regular stats (count, sum_weights, mean_weights): 1 column each
+      # Regular stats (count, sum_weights, mean_weights, ess): 1 column each
       # Value-based stats (sum, mean, weighted_sum, weighted_mean): n_values columns each
-      regular_stats <- c("count", "sum_weights", "mean_weights")
+      regular_stats <- c("count", "sum_weights", "mean_weights", "ess")
       value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
 
       col_idx <- 1
+
+      # IMPORTANT: C++ writes columns grouped by type (regular first, then value)
+      # So we must read in that order, NOT in request order
+
+      # Read all regular stats first
       for (s in stat) {
             if (s %in% regular_stats) {
-                  # Single column for this stat
                   out[[s]] <- res[, col_idx]
                   col_idx <- col_idx + 1
-            } else if (s %in% value_stats) {
+            }
+      }
+
+      # Then read all value stats
+      for (s in stat) {
+            if (s %in% value_stats) {
                   # One column per value variable
                   n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
                   if (n_vals == 0) {

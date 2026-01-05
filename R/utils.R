@@ -44,7 +44,7 @@
       } else if (is.character(stat)) {
             # Validate each stat value
             valid_stats <- c("none", "count", "sum_weights", "mean_weights",
-                             "sum", "mean", "weighted_sum", "weighted_mean")
+                             "sum", "mean", "weighted_sum", "weighted_mean", "ess")
             invalid <- setdiff(stat, valid_stats)
             if (length(invalid) > 0) {
                   stop("Invalid stat value(s): ", paste(invalid, collapse = ", "),
@@ -95,7 +95,7 @@
 
       # Validate stat/weight/theta combinations
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
-                                           "weighted_sum", "weighted_mean"))
+                                           "weighted_sum", "weighted_mean", "ess"))
 
       if (has_weighted_stat) {
             # Weighted aggregation modes require weight
