@@ -154,6 +154,9 @@ analogs.</p></li>
 (requires <code>values</code> and <code>weight</code>).</p></li>
 <li><p><code>"weighted_mean"</code>: Weighted mean of values across analogs
 (requires <code>values</code> and <code>weight</code>).</p></li>
+<li><p><code>"ess"</code>: Kish's effective sample size (ESS), computed as the
+squared sum of weights divided by the sum of squared weights
+(requires <code>weight</code>).</p></li>
 <li><p>A character vector combining multiple stats (e.g.,
 <code>c("count", "sum", "mean")</code>).
 Note: <code>"none"</code> cannot be combined with other stats.</p></li>

@@ -18,7 +18,7 @@ analog_impact(
   max_clim = 1,
   weight = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
-  stat = c("count", "sum_weights", "weighted_mean"),
+  stat = c("count", "sum_weights", "weighted_mean", "ess"),
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -114,6 +114,8 @@ analog_impact(
   - `"sum_weights"`: Analog intensity
 
   - `"weighted_mean"`: Expected ecological state
+
+  - `"ess"`: Effective sample size
 
 - x_cov:
 
@@ -245,8 +247,16 @@ lets the weight function (via `theta`) naturally control influence.
   quality of analogs. Interpretation details vary based on the `weight`
   parameter.
 
+- `ess`: Effective sample size quantifying how many "independent"
+  analogs contribute to weighted statistics. Ranges from ~1 (one analog
+  dominates) to `count` (all analogs equally weighted). Low values
+  suggest weighted results are driven by a few locations and may be
+  sensitive to their specific conditions. High values indicate weights
+  are well-distributed across many analogs, increasing confidence in
+  ensemble predictions.
+
 - `weighted_mean`: Expected ecosystem state if colonized by species from
-  analog locations.
+  analog locations. Interpret alongside `ess` to assess confidence.
 
 ## References
 

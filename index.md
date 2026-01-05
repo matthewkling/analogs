@@ -10,9 +10,9 @@ geographic proximity.
 The package supports a range of analysis types. The core workhorse
 function is
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md),
-which implements a range of methods for selecting and summarizing
-analogs for each query location. Common query types are supported via
-simplified wrapper functions:
+which implements various methods for selecting and summarizing analogs
+for each query location. Common query types are supported via simplified
+wrapper functions:
 
 - [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
   predicts ecological state variables using analog impact models (AIMs)
@@ -40,8 +40,7 @@ covariance patterns based on historic temporal climate variability.
 
 ## Computational optimization
 
-Various aspects of the search architecture are designed to maximize
-performance:
+The package is designed to maximize performance in various ways:
 
 - The core search architecture is built in optimized C++.
 - Parallel processing is available via the `n_threads` parameter.
@@ -50,12 +49,12 @@ performance:
 - For repeated queries against the same candidate pool,
   [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
   can be used to pre-build a reusable search index.
-- Use the
-  [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md)
-  function to identify optimal index parameters for your specific data.
+- Optimal index parameters for your specific data can be identified with
+  [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md),
+  which is used internally by default.
 - Memory-safe queries for large raster datasets are available via
   [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md).
-- To increase speed at the cost of some precision, you can optionally
+- To increase speed at the cost of some precision, you can adaptively
   `downsample` your reference data.
 
 ## Installation

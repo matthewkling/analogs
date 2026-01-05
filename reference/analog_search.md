@@ -136,6 +136,10 @@ analog_search(
   - `"weighted_mean"`: Weighted mean of values across analogs (requires
     `values` and `weight`).
 
+  - `"ess"`: Kish's effective sample size (ESS), computed as the squared
+    sum of weights divided by the sum of squared weights (requires
+    `weight`).
+
   - A character vector combining multiple stats (e.g.,
     `c("count", "sum", "mean")`). Note: `"none"` cannot be combined with
     other stats.
