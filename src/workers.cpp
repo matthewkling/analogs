@@ -7,6 +7,25 @@ namespace analogs {
 thread_local PairWorker::ThreadLocalStorage PairWorker::tls;
 thread_local AggWorker::ThreadLocalStorage AggWorker::tls;
 
+// ---------------------------------------------------------------------------
+// Helper: Check if focal point has NA in coordinates or any climate variable
+// Returns true if any value is NA/NaN, meaning this focal should be skipped.
+// ---------------------------------------------------------------------------
+inline bool focal_has_na(const double* focal_ptr, std::size_t i,
+                         int stride_f, int n_clim) {
+      // Check coordinates
+      if (ISNAN(focal_ptr[i]) || ISNAN(focal_ptr[i + stride_f])) {
+            return true;
+      }
+      // Check climate values (strided access)
+      for (int d = 0; d < n_clim; ++d) {
+            if (ISNAN(focal_ptr[i + (2 + d) * stride_f])) {
+                  return true;
+            }
+      }
+      return false;
+}
+
 void PairWorker::operator()(std::size_t begin, std::size_t end) {
       const bool knn_mode      = (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG);
       const bool rank_by_clim  = (scode == SelectCode::KNN_CLIM);
@@ -27,6 +46,11 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             for (std::size_t i = begin; i < end; ++i) {
                   const size_t local_idx = i - begin;
+
+                  // Skip NA focals - leave inv_cov empty (won't be used)
+                  if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+                        continue;
+                  }
 
                   // Extract covariance components for focal i from column-major x_cov matrix
                   // x_cov is n_focal × n_cov_components stored column-major
@@ -56,6 +80,16 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             const double fx = focal_ptr[i];
             const double fy = focal_ptr[i + stride_f];
             const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+
+            // -----------------------------------------------------------------
+            // Check for NA in focal coordinates or climate values.
+            // If NA, leave out_indices[i] and out_weights[i] empty.
+            // Post-processing in core.cpp handles k=1 case by inserting 0 sentinel.
+            // -----------------------------------------------------------------
+            if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+                  // out_indices[i] and out_weights[i] are already empty
+                  continue;
+            }
 
             // -----------------------------------------------------------------
             // Fast path: KNN modes + lattice + (planar OR ECEF)
@@ -413,6 +447,11 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             for (std::size_t i = begin; i < end; ++i) {
                   const size_t local_idx = i - begin;
 
+                  // Skip NA focals - leave inv_cov empty (won't be used)
+                  if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+                        continue;
+                  }
+
                   // Extract covariance components for focal i from column-major x_cov matrix
                   // x_cov is n_focal × n_cov_components stored column-major
                   // Row i, col j is at: x_cov_ptr[i + j * x_cov_stride]
@@ -441,6 +480,14 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             const double fx = focal_ptr[i];
             const double fy = focal_ptr[i + stride_f];
             const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+
+            // -----------------------------------------------------------------
+            // Check for NA in focal coordinates or climate values.
+            // If NA, skip processing - agg values are pre-initialized to NA_REAL.
+            // -----------------------------------------------------------------
+            if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+                  continue;
+            }
 
             // Gather candidates
             cand.clear();
