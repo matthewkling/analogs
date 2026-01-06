@@ -61,13 +61,11 @@ as climate changes.</p>
 <span>  max_clim <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  weight <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gaussian_clim"</span>, <span class="st">"inverse_clim"</span>, <span class="st">"gaussian_joint"</span>, <span class="st">"inverse_joint"</span><span class="op">)</span>,</span>
 <span>  theta <span class="op">=</span> <span class="fl">0.25</span>,</span>
-<span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"sum_weights"</span>, <span class="st">"weighted_mean"</span>, <span class="st">"ess"</span><span class="op">)</span>,</span>
+<span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"sum_weights"</span>, <span class="st">"weighted_mean"</span><span class="op">)</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -141,7 +139,6 @@ parameter (scalar; larger values = slower decay with distance).</p></li>
 The default statistics provide a complete picture:</p><ul><li><p><code>"count"</code>: Analog availability (number of analogs)</p></li>
 <li><p><code>"sum_weights"</code>: Analog intensity</p></li>
 <li><p><code>"weighted_mean"</code>: Expected ecological state</p></li>
-<li><p><code>"ess"</code>: Effective sample size</p></li>
 </ul></dd>
 
 
@@ -179,19 +176,6 @@ computation. If <code>NULL</code> (default), the global RcppParallel setting
 is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html" class="external-link">RcppParallel::setThreadOptions</a></code>).</p></dd>
 
 
-<dt id="arg-downsample">downsample<a class="anchor" aria-label="anchor" href="#arg-downsample"></a></dt>
-<dd><p>Optional downsampling rate (0-1) for the reference pool,
-indicating the proportion of points to retain. Values &lt; 1 reduce memory
-and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-Ignored if <code>pool</code> is a pre-built index.</p></dd>
-
-
-<dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Optional random seed for reproducible downsampling. If <code>NULL</code>
-(default), uses current R random state. Ignored if <code>pool</code> is a pre-built
-index or <code>downsample = 1</code>.</p></dd>
-
-
 <dt id="arg-progress">progress<a class="anchor" aria-label="anchor" href="#arg-progress"></a></dt>
 <dd><p>Logical; if <code>TRUE</code>, display a progress bar during
 computation. Progress tracking works by splitting the focal dataset into
@@ -217,9 +201,7 @@ is <code>FALSE</code>.</p></dd>
 <p>This function implements the "reverse analog" approach from the climate
 change ecology literature. It addresses the question, "For a location's
 future climate, what ecological conditions exist in current locations with
-similar climates that are within dispersal range?" This function is a wrapper
-that calls <code><a href="analog_search.html">analog_search()</a></code> with particular requirements for <code>weight</code> and
-<code>values</code> parameters.</p>
+similar climates that are within dispersal range?"</p>
 <p>The methodology:</p><ol><li><p>For each focal location's future climate conditions</p></li>
 <li><p>Find all current locations with similar climates (within <code>max_clim</code>)</p></li>
 <li><p>Constrain to dispersal-reachable distance (within <code>max_geog</code>)</p></li>
@@ -256,39 +238,14 @@ that are novel within the geographic search radius.</p></li>
 <li><p><code>sum_weights</code>: Total analog intensity. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
 of analogs. Interpretation details vary based on the <code>weight</code> parameter.</p></li>
-<li><p><code>ess</code>: Effective sample size quantifying how many "independent" analogs
-contribute to weighted statistics. Ranges from ~1 (one analog dominates) to
-<code>count</code> (all analogs equally weighted). Low values suggest weighted results
-are driven by a few locations and may be sensitive to their specific conditions.
-High values indicate weights are well-distributed across many analogs, increasing
-confidence in ensemble predictions.</p></li>
 <li><p><code>weighted_mean</code>: Expected ecosystem state if colonized by species
-from analog locations. Interpret alongside <code>ess</code> to assess confidence.</p></li>
+from analog locations.</p></li>
 </ul></div>
 
     </div>
     <div class="section level2">
-    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Parks SA, Holsinger LM, Miller C, Parisien MA (2018). "Analog-based fire
-regime and vegetation shifts in mountainous regions of the western US."
-<em>Ecography</em>, <strong>41</strong>(6), 910-921. <a href="https://doi.org/10.1111/ecog.03378" class="external-link">doi:10.1111/ecog.03378</a></p>
-<p>Parks SA, Dobrowski SZ, Shaw JD, Miller C (2019). "Living on the edge:
-Trailing edge forests at risk of fire-facilitated conversion to non-forest."
-<em>Ecosphere</em>, <strong>10</strong>(3), e02651. <a href="https://doi.org/10.1002/ecs2.2651" class="external-link">doi:10.1002/ecs2.2651</a></p>
-<p>Holsinger L, Parks SA, Parisien MA, Miller C, Batllori E, Moritz MA (2019).
-"Climate change likely to reshape vegetation in North America's largest
-protected areas." <em>Conservation Science and Practice</em>, <strong>1</strong>(7),
-e50. <a href="https://doi.org/10.1111/csp2.50" class="external-link">doi:10.1111/csp2.50</a></p>
-<p>Dobrowski SZ, Littlefield CE, Lyons DS, Hollenberg CH, Carroll C, Parks SA,
-Abatzoglou JT, Hegewisch K, Gage J (2021). "Protected-area targets could be
-undermined by climate change-driven shifts in ecoregions and biomes."
-<em>Communications Earth &amp; Environment</em>, <strong>2</strong>(1), 198.
-<a href="https://doi.org/10.1038/s43247-021-00270-z" class="external-link">doi:10.1038/s43247-021-00270-z</a></p>
-    </div>
-    <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code> for the underlying flexible analog search function;
-<code><a href="tiled_analog_search.html">tiled_analog_search()</a></code> for memory-safe searches on large raster datasets.</p></div>
+    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code> for the underlying flexible analog search function.</p></div>
     </div>
 
     <div class="section level2">
