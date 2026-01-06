@@ -38,6 +38,12 @@ v <- c("CWD", "AET")
 clim1 <- rast(hst[[v]])
 clim2 <- rast(fut[[v]])
 
+# mask water
+land <- rast("/Volumes/T7/CHELSA/v2/raw//CHELSA_ai_1981-2010_V.2.1.tif") %>%
+      crop(clim1)
+clim1 <- mask(clim1, land)
+clim2 <- mask(clim2, land)
+
 # scale data
 scales <- list()
 for(var in names(clim1)){
