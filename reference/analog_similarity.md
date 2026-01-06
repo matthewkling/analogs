@@ -40,7 +40,7 @@ analog_similarity(
   - Matrix/data.frame with columns x, y, and climate variables, or
     SpatRaster with climate variable layers, OR
 
-  - An `analog_index()` object created by
+  - An `analog_index` object created by
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
 
