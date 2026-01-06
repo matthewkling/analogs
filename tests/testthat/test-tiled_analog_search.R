@@ -221,12 +221,12 @@ test_that("tiled_analog_search works with x_cov and values", {
       terra::values(vals) <- rnorm(3200, mean = 10, sd = 2)
 
       expect_no_error(result <- suppressWarnings(
-            result <- tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_impact,
-                                          values = vals, x_cov = x_cov,
-                                          max_clim = 1, max_geog = 50,
-                                          progress = FALSE)))
+            tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_impact,
+                                values = vals, x_cov = x_cov,
+                                max_clim = 1, max_geog = 50,
+                                progress = FALSE)))
       expect_equal(sort(names(result)),
-                   sort(c("count", "sum_weights", "weighted_mean_v1", "weighted_mean_v2", "ess")))
+                   sort(c("count", "sum_weights", "weighted_mean_v1", "weighted_mean_v2")))
 })
 
 test_that("optimize_tile_grid creates square-ish tiles", {

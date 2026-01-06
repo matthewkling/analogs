@@ -161,7 +161,8 @@ analog_impact <- function(
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
-            n_threads = NULL
+            n_threads = NULL,
+            progress = FALSE
 ) {
       weight <- match.arg(weight)
 
@@ -179,6 +180,7 @@ analog_impact <- function(
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,
-            n_threads   = n_threads
+            n_threads   = n_threads,
+            progress    = progress
       )
 }

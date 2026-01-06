@@ -12,13 +12,11 @@ analog_impact(
   max_clim = 1,
   weight = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
-  stat = c("count", "sum_weights", "weighted_mean", "ess"),
+  stat = c("count", "sum_weights", "weighted_mean"),
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
   n_threads = NULL,
-  downsample = 1,
-  seed = NULL,
   progress = FALSE
 )
 }
@@ -82,7 +80,6 @@ The default statistics provide a complete picture:
 \item \code{"count"}: Analog availability (number of analogs)
 \item \code{"sum_weights"}: Analog intensity
 \item \code{"weighted_mean"}: Expected ecological state
-\item \code{"ess"}: Effective sample size
 }}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
@@ -116,15 +113,6 @@ Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
 
-\item{downsample}{Optional downsampling rate (0-1) for the reference pool,
-indicating the proportion of points to retain. Values < 1 reduce memory
-and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-Ignored if \code{pool} is a pre-built index.}
-
-\item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
-(default), uses current R random state. Ignored if \code{pool} is a pre-built
-index or \code{downsample = 1}.}
-
 \item{progress}{Logical; if \code{TRUE}, display a progress bar during
 computation. Progress tracking works by splitting the focal dataset into
 chunks and processing them sequentially. Useful for large datasets. Default
@@ -154,9 +142,7 @@ as climate changes.
 This function implements the "reverse analog" approach from the climate
 change ecology literature. It addresses the question, "For a location's
 future climate, what ecological conditions exist in current locations with
-similar climates that are within dispersal range?" This function is a wrapper
-that calls \code{\link[=analog_search]{analog_search()}} with particular requirements for \code{weight} and
-\code{values} parameters.
+similar climates that are within dispersal range?"
 
 The methodology:
 \enumerate{
@@ -197,14 +183,8 @@ that are novel within the geographic search radius.
 \item \code{sum_weights}: Total analog intensity. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
 of analogs. Interpretation details vary based on the \code{weight} parameter.
-\item \code{ess}: Effective sample size quantifying how many "independent" analogs
-contribute to weighted statistics. Ranges from ~1 (one analog dominates) to
-\code{count} (all analogs equally weighted). Low values suggest weighted results
-are driven by a few locations and may be sensitive to their specific conditions.
-High values indicate weights are well-distributed across many analogs, increasing
-confidence in ensemble predictions.
 \item \code{weighted_mean}: Expected ecosystem state if colonized by species
-from analog locations. Interpret alongside \code{ess} to assess confidence.
+from analog locations.
 }
 }
 }
@@ -261,27 +241,6 @@ impact_ssp585 <- analog_impact(future_ssp585, current_index,
 }
 
 }
-\references{
-Parks SA, Holsinger LM, Miller C, Parisien MA (2018). "Analog-based fire
-regime and vegetation shifts in mountainous regions of the western US."
-\emph{Ecography}, \strong{41}(6), 910-921. \doi{10.1111/ecog.03378}
-
-Parks SA, Dobrowski SZ, Shaw JD, Miller C (2019). "Living on the edge:
-Trailing edge forests at risk of fire-facilitated conversion to non-forest."
-\emph{Ecosphere}, \strong{10}(3), e02651. \doi{10.1002/ecs2.2651}
-
-Holsinger L, Parks SA, Parisien MA, Miller C, Batllori E, Moritz MA (2019).
-"Climate change likely to reshape vegetation in North America's largest
-protected areas." \emph{Conservation Science and Practice}, \strong{1}(7),
-e50. \doi{10.1111/csp2.50}
-
-Dobrowski SZ, Littlefield CE, Lyons DS, Hollenberg CH, Carroll C, Parks SA,
-Abatzoglou JT, Hegewisch K, Gage J (2021). "Protected-area targets could be
-undermined by climate change-driven shifts in ecoregions and biomes."
-\emph{Communications Earth & Environment}, \strong{2}(1), 198.
-\doi{10.1038/s43247-021-00270-z}
-}
 \seealso{
-\code{\link[=analog_search]{analog_search()}} for the underlying flexible analog search function;
-\code{\link[=tiled_analog_search]{tiled_analog_search()}} for memory-safe searches on large raster datasets.
+\code{\link[=analog_search]{analog_search()}} for the underlying flexible analog search function.
 }
