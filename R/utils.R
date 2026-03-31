@@ -8,12 +8,12 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates select/stat/k/weight/theta/x_cov/values/covariates/lambda
+#' Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda
 #' combinations and normalizes values. Returns a list with normalized parameters.
 #'
 #' @keywords internal
 .validate_query_params <- function(focal = NULL, ref = NULL,
-                                   x_cov = NULL, values = NULL,
+                                   x_cov = NULL, y = NULL,
                                    covariates = NULL,
                                    max_clim, max_geog,
                                    select, k,
@@ -88,19 +88,19 @@
       value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
       has_value_stat <- any(stat %in% value_stats)
 
-      # If value stats requested, values must be provided
-      if (has_value_stat && is.null(values)) {
+      # If y value stats requested, y must be provided
+      if (has_value_stat && is.null(y)) {
             requested_value_stats <- intersect(stat, value_stats)
             stop("stat includes ", paste(requested_value_stats, collapse = ", "),
-                 " but 'values' parameter is NULL. ",
-                 "These stats require 'values' to be provided.")
+                 " but 'y' parameter is NULL. ",
+                 "These stats require 'y' to be provided.")
       }
 
       # Validate regression stat requirements
       if ("regression" %in% stat) {
-            if (is.null(values)) {
-                  stop("stat includes 'regression' but 'values' parameter is NULL. ",
-                       "Regression requires 'values' to be provided.")
+            if (is.null(y)) {
+                  stop("stat includes 'regression' but 'y' parameter is NULL. ",
+                       "Regression requires 'y' to be provided.")
             }
             if (is.null(covariates)) {
                   stop("stat includes 'regression' but 'covariates' parameter is NULL. ",
@@ -183,15 +183,15 @@
             x_cov_mat <- .validate_and_format_x_cov(x_cov, focal)
       }
 
-      # Validate and format values if provided
+      # Validate and format y values if provided
       values_mat <- NULL
       values_names <- NULL
-      if (!is.null(values)) {
+      if (!is.null(y)) {
             if (is.null(ref)) {
-                  stop("Internal error: ref required for values validation")
+                  stop("Internal error: ref required for y validation")
             }
 
-            result <- .validate_and_format_values(values, ref)
+            result <- .validate_and_format_values(y, ref)
             values_mat <- result$matrix
             values_names <- result$names
       }
@@ -218,7 +218,7 @@
             theta = theta,
             lambda = lambda,
             x_cov = x_cov_mat,
-            values = values_mat,
+            y = values_mat,
             values_names = values_names,
             covariates = covariates_mat,
             covariates_names = covariates_names
@@ -305,76 +305,76 @@
       list(matrix = mat, names = cov_names)
 }
 
-#' Validate and format values parameter
+#' Validate and format y parameter
 #' @keywords internal
-.validate_and_format_values <- function(values, ref) {
+.validate_and_format_values <- function(y, ref) {
 
       n_ref <- nrow(ref)
 
       # Handle SpatRaster input
-      if (inherits(values, "SpatRaster")) {
+      if (inherits(y, "SpatRaster")) {
             if (!requireNamespace("terra", quietly = TRUE)) {
-                  stop("Package 'terra' is required for SpatRaster values", call. = FALSE)
+                  stop("Package 'terra' is required for SpatRaster 'y'", call. = FALSE)
             }
 
             # Convert to data.frame (keeps all cells including NA)
-            df <- terra::as.data.frame(values, xy = FALSE, na.rm = FALSE)
+            df <- terra::as.data.frame(y, xy = FALSE, na.rm = FALSE)
 
             # Check dimensions match ref
             if (nrow(df) != n_ref) {
                   stop(sprintf(
-                        "values SpatRaster has %d cells but reference data has %d rows. They must match.",
+                        "y SpatRaster has %d cells but reference data has %d rows. They must match.",
                         nrow(df), n_ref
                   ))
             }
 
             values_names <- names(df)
-            values <- as.matrix(df)
+            y <- as.matrix(df)
 
-      } else if (is.vector(values)) {
+      } else if (is.vector(y)) {
             # Convert vector to single-column matrix
-            values <- matrix(values, ncol = 1)
+            y <- matrix(y, ncol = 1)
             values_names <- "value_1"
 
-      } else if (is.data.frame(values)) {
-            values_names <- colnames(values)
-            values <- as.matrix(values)
+      } else if (is.data.frame(y)) {
+            values_names <- colnames(y)
+            y <- as.matrix(y)
 
-      } else if (is.matrix(values)) {
-            values_names <- colnames(values)
+      } else if (is.matrix(y)) {
+            values_names <- colnames(y)
 
       } else {
-            stop("values must be a vector, matrix, data.frame, or SpatRaster")
+            stop("'y' must be a vector, matrix, data.frame, or SpatRaster")
       }
 
       # Validate dimensions
-      if (nrow(values) != n_ref) {
+      if (nrow(y) != n_ref) {
             stop(sprintf(
-                  "values must have same number of rows as reference data (%d), but has %d rows",
-                  n_ref, nrow(values)
+                  "'y' must have same number of rows as reference data (%d), but has %d rows",
+                  n_ref, nrow(y)
             ))
       }
 
       # Check for numeric
-      if (!is.numeric(values)) {
-            stop("values must be numeric")
+      if (!is.numeric(y)) {
+            stop("'y' must be numeric")
       }
 
       # Generate names if missing
       if (is.null(values_names)) {
-            n_vars <- ncol(values)
+            n_vars <- ncol(y)
             values_names <- if (n_vars == 1) {
-                  "value_1"
+                  "y1"
             } else {
-                  paste0("value_", seq_len(n_vars))
+                  paste0("y", seq_len(n_vars))
             }
       }
 
       # Ensure storage mode is double
-      storage.mode(values) <- "double"
+      storage.mode(y) <- "double"
 
       list(
-            matrix = values,
+            matrix = y,
             names = values_names
       )
 }

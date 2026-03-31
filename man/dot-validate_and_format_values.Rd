@@ -2,11 +2,11 @@
 % Please edit documentation in R/utils.R
 \name{.validate_and_format_values}
 \alias{.validate_and_format_values}
-\title{Validate and format values parameter}
+\title{Validate and format y parameter}
 \usage{
-.validate_and_format_values(values, ref)
+.validate_and_format_values(y, ref)
 }
 \description{
-Validate and format values parameter
+Validate and format y parameter
 }
 \keyword{internal}

@@ -7,7 +7,7 @@
 analog_regression(
   x,
   pool,
-  values,
+  y,
   covariates,
   max_geog = NULL,
   max_clim = NULL,
@@ -38,7 +38,7 @@ or SpatRaster with climate variable layers, OR
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
-\item{values}{Response variable(s) to model via local regression.
+\item{y}{Response variable(s) to model via local regression.
 Can be a numeric vector, matrix, data.frame, or SpatRaster.
 Must have exactly the same number of rows/cells as \code{pool}.
 A separate regression is fit for each variable.}
@@ -168,12 +168,12 @@ row per focal location containing:
 \item \code{intercept}: Regression intercept (predicted value when all
 covariates equal zero)
 \item One column per covariate: regression slope coefficients
-\item With multiple \code{values} variables: columns are named
+\item With multiple \code{y} variables: columns are named
 \verb{\{coeff\}_\{varname\}} (e.g., \code{intercept_biomass}, \code{slope_biomass})
 }
 }
 \description{
-Fits a weighted local regression of \code{values} on \code{covariates} within
+Fits a weighted local regression of \code{y} on \code{covariates} within
 each focal location's analog neighborhood. Analog neighborhoods are
 defined by climatic similarity, geographic proximity, or both, while
 covariates capture additional predictors that influence outcomes within
@@ -194,7 +194,7 @@ For each focal location, the function:
 \enumerate{
 \item Selects analog pool locations based on \code{select}, \code{max_clim}, \code{max_geog}, and \code{k}
 \item Computes distance-based weights for each analog (via \code{weight} and \code{theta})
-\item Fits a weighted least squares regression of \code{values} on \code{covariates}
+\item Fits a weighted least squares regression of \code{y} on \code{covariates}
 using these weights, with optional ridge penalty \code{lambda}
 \item Returns the regression coefficients (intercept + slopes)
 }
@@ -244,7 +244,7 @@ prediction <- intercept + beta_1 * covariate_1 + beta_2 * covariate_2
 gwr_result <- analog_regression(
   x = sites,
   pool = sites,
-  values = sites$income,
+  y = sites$income,
   covariates = data.frame(education = sites$edu, access = sites$access),
   select = "knn_geog",
   k = 50,

@@ -10,7 +10,7 @@ tiled_analog_search(
   n_tiles,
   fun,
   max_geog,
-  values = NULL,
+  y = NULL,
   x_cov = NULL,
   ...,
   output_file = NULL,
@@ -37,7 +37,7 @@ within this distance are considered. Radius units should be specified in
 kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
 if \code{coord_type = "projected"}.}
 
-\item{values}{Optional SpatRaster with values to aggregate across analogs.
+\item{y}{Optional SpatRaster with values to aggregate across analogs.
 Must have spatial properties matching pool.}
 
 \item{x_cov}{Optional SpatRaster with covariates for focal points. Must have

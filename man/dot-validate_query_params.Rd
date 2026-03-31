@@ -8,7 +8,7 @@
   focal = NULL,
   ref = NULL,
   x_cov = NULL,
-  values = NULL,
+  y = NULL,
   covariates = NULL,
   max_clim,
   max_geog,
@@ -21,7 +21,7 @@
 )
 }
 \description{
-Validates select/stat/k/weight/theta/x_cov/values/covariates/lambda
+Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda
 combinations and normalizes values. Returns a list with normalized parameters.
 }
 \keyword{internal}

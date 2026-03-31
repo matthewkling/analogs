@@ -9,7 +9,7 @@
 #'
 #' \itemize{
 #'     \item *Data parameters*
-#'       (`x`, `pool`, `x_cov`, `values`, `covariates`, `coord_type`)
+#'       (`x`, `pool`, `x_cov`, `y`, `covariates`, `coord_type`)
 #'       give attributes of the data on which to operate.
 #'     \item *Selection parameters*
 #'       (`select`, `max_clim`, `max_geog`, `k`)
@@ -76,7 +76,7 @@
 #'   there are n*(n+1)/2 unique components, ordered as: variances first
 #'   (diagonals), then covariances (upper triangle by row).
 #'
-#' @param values Optional user-defined variables for each reference location
+#' @param y Optional user-defined variables for each reference location
 #'   in `pool` to aggregate across selected analogs. Can be a numeric vector
 #'   (single variable), matrix or data.frame with numeric columns (multiple
 #'   variables), or a SpatRaster with one or more numeric layers. Must have
@@ -84,7 +84,7 @@
 #'
 #'   When provided, enables value-based aggregation stats `"sum"`, `"mean"`,
 #'   `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For stat =
-#'   NULL/"none" (pairs mode), value columns are included in output for each
+#'   NULL/"none" (pairs mode), y value columns are included in output for each
 #'   analog pair.
 #'
 #' @param covariates Optional auxiliary predictor variables for each reference
@@ -136,18 +136,18 @@
 #'       analogs (see \code{weight} and \code{theta}).
 #'     \item \code{"mean_weights"}: For each focal, mean of weights of selected
 #'       analogs.
-#'     \item \code{"sum"}: Sum of values across analogs (requires \code{values}).
-#'     \item \code{"mean"}: Mean of values across analogs (requires \code{values}).
-#'     \item \code{"weighted_sum"}: Sum of (value × weight) across analogs
-#'       (requires \code{values} and \code{weight}).
-#'     \item \code{"weighted_mean"}: Weighted mean of values across analogs
-#'       (requires \code{values} and \code{weight}).
+#'     \item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
+#'     \item \code{"mean"}: Mean of \code{y} values across analogs (requires \code{y}).
+#'     \item \code{"weighted_sum"}: Sum of (\code{y} × weight) across analogs
+#'       (requires \code{y} and \code{weight}).
+#'     \item \code{"weighted_mean"}: Weighted mean of \code{y} values across analogs
+#'       (requires \code{y} and \code{weight}).
 #'     \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
 #'       squared sum of weights divided by the sum of squared weights
 #'       (requires \code{weight}).
 #'     \item \code{"regression"}: Weighted least squares (or ridge) regression
-#'       of \code{values} on \code{covariates} within each analog neighborhood.
-#'       Returns intercept and slope coefficients. Requires \code{values},
+#'       of \code{y} on \code{covariates} within each analog neighborhood.
+#'       Returns intercept and slope coefficients. Requires \code{y},
 #'       \code{covariates}, and \code{weight}. See \code{lambda} for
 #'       regularization.
 #'     \item A character vector combining multiple stats (e.g.,
@@ -243,18 +243,18 @@
 #'     \item `analog_index`, `analog_x`, `analog_y`: Analog location corresponding to input `pool`
 #'     \item `clim_dist`: Climate distance (Euclidean or Mahalanobis)
 #'     \item `geog_dist`: Geographic distance (km for lonlat, projection units otherwise)
-#'     \item Value columns (if `values` provided): one per variable
+#'     \item Value columns (if `y` provided): one per variable
 #' }
 #'
 #' Aggregation mode (one or more `stat` values) returns one row per focal location,
 #' with the following variables:
 #' \itemize{
 #'     \item `index`, `x`, `y`: Focal location
-#'     \item One column per requested statistic. For `stat` with single `values` variable:
-#'       column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `values`
+#'     \item One column per requested statistic. For `stat` with single `y` variable:
+#'       column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `y`
 #'       variables: columns named `{stat}_{varname}` (e.g., `sum_biomass`, `mean_richness`)
 #'     \item For `stat = "regression"`: columns for `intercept` and each covariate name,
-#'       or `intercept_{varname}` and `{covariate}_{varname}` with multiple values variables.
+#'       or `intercept_{varname}` and `{covariate}_{varname}` with multiple `y` variables.
 #' }
 #'
 #' All results include metadata attributes (`select`, `stat`, `weight`, etc.).
@@ -287,7 +287,7 @@ analog_search <- function(
       x,
       pool,
       x_cov = NULL,
-      values = NULL,
+      y = NULL,
       covariates = NULL,
 
       # candidate filtering
@@ -327,7 +327,7 @@ analog_search <- function(
                         x = x,
                         pool = pool,
                         x_cov = x_cov,
-                        values = values,
+                        y = y,
                         covariates = covariates,
                         select = select,
                         stat = stat,
@@ -368,7 +368,7 @@ analog_search <- function(
             max_clim = max_clim,
             max_geog = max_geog,
             x_cov = x_cov,
-            values = values,
+            y = y,
             covariates = covariates,
             k = k,
             weight = weight,

@@ -3,7 +3,7 @@ test_that("regression stat runs without error and returns correct columns", {
       d <- sim_test_data()
       n_ref <- nrow(d$ref)
 
-      values <- runif(n_ref)
+      y <- runif(n_ref)
       covariates <- matrix(rnorm(n_ref * 2), ncol = 2,
                            dimnames = list(NULL, c("northness", "eastness")))
 
@@ -12,7 +12,7 @@ test_that("regression stat runs without error and returns correct columns", {
             pool = d$ref,
             select = "all",
             stat = "regression",
-            values = values,
+            y = y,
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
@@ -43,7 +43,7 @@ test_that("regression recovers known coefficients on synthetic data", {
       x2 <- rnorm(n)
       covariates <- cbind(x1 = x1, x2 = x2)
 
-      values <- 2 + 3 * x1 - 1 * x2 + rnorm(n, sd = 0.01)
+      y <- 2 + 3 * x1 - 1 * x2 + rnorm(n, sd = 0.01)
 
       # Focal point at the center with matching climate
       focal <- matrix(c(5, 5, 0, 0), nrow = 1)
@@ -53,7 +53,7 @@ test_that("regression recovers known coefficients on synthetic data", {
             pool = ref,
             select = "all",
             stat = "regression",
-            values = values,
+            y = y,
             covariates = covariates,
             max_clim = NULL,  # no climate filter: use all pool points
             max_geog = NULL,  # no geog filter
@@ -74,7 +74,7 @@ test_that("large lambda makes intercept approach weighted mean", {
       d <- sim_test_data()
       n_ref <- nrow(d$ref)
 
-      values <- rnorm(n_ref)
+      y <- rnorm(n_ref)
       covariates <- matrix(rnorm(n_ref * 2), ncol = 2,
                            dimnames = list(NULL, c("c1", "c2")))
 
@@ -84,7 +84,7 @@ test_that("large lambda makes intercept approach weighted mean", {
             pool = d$ref,
             select = "all",
             stat = c("weighted_mean", "regression"),
-            values = values,
+            y = y,
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
@@ -118,7 +118,7 @@ test_that("zero analogs returns NA for regression coefficients", {
       d <- sim_test_data()
       n_ref <- nrow(d$ref)
 
-      values <- rnorm(n_ref)
+      y <- rnorm(n_ref)
       covariates <- matrix(rnorm(n_ref), ncol = 1,
                            dimnames = list(NULL, "cov1"))
 
@@ -128,7 +128,7 @@ test_that("zero analogs returns NA for regression coefficients", {
             pool = d$ref,
             select = "all",
             stat = c("count", "regression"),
-            values = values,
+            y = y,
             covariates = covariates,
             max_clim = 0.0001,
             max_geog = 0.0001,
@@ -151,7 +151,7 @@ test_that("regression works with multiple values variables", {
       d <- sim_test_data()
       n_ref <- nrow(d$ref)
 
-      values <- matrix(rnorm(n_ref * 2), ncol = 2,
+      y <- matrix(rnorm(n_ref * 2), ncol = 2,
                        dimnames = list(NULL, c("biomass", "richness")))
       covariates <- matrix(rnorm(n_ref * 2), ncol = 2,
                            dimnames = list(NULL, c("slope", "aspect")))
@@ -161,7 +161,7 @@ test_that("regression works with multiple values variables", {
             pool = d$ref,
             select = "all",
             stat = "regression",
-            values = values,
+            y = y,
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
@@ -170,7 +170,7 @@ test_that("regression works with multiple values variables", {
             index_res = 10
       )
 
-      # Should have 3 columns per values variable: intercept, slope, aspect
+      # Should have 3 columns per y variable: intercept, slope, aspect
       expected_cols <- c("intercept_biomass", "slope_biomass", "aspect_biomass",
                          "intercept_richness", "slope_richness", "aspect_richness")
       expect_true(all(expected_cols %in% names(result)))
@@ -182,7 +182,7 @@ test_that("regression combines with other stats correctly", {
       d <- sim_test_data()
       n_ref <- nrow(d$ref)
 
-      values <- rnorm(n_ref)
+      y <- rnorm(n_ref)
       covariates <- matrix(rnorm(n_ref), ncol = 1,
                            dimnames = list(NULL, "topo"))
 
@@ -191,7 +191,7 @@ test_that("regression combines with other stats correctly", {
             pool = d$ref,
             select = "all",
             stat = c("count", "ess", "weighted_mean", "regression"),
-            values = values,
+            y = y,
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
@@ -207,7 +207,7 @@ test_that("regression combines with other stats correctly", {
 })
 
 
-test_that("regression validation: requires values", {
+test_that("regression validation: requires y", {
 
       d <- sim_test_data()
       covariates <- matrix(rnorm(nrow(d$ref)), ncol = 1)
@@ -221,7 +221,7 @@ test_that("regression validation: requires values", {
                   weight = "uniform",
                   coord_type = "projected"
             ),
-            "values"
+            "y"
       )
 })
 
@@ -229,13 +229,13 @@ test_that("regression validation: requires values", {
 test_that("regression validation: requires covariates", {
 
       d <- sim_test_data()
-      values <- rnorm(nrow(d$ref))
+      y <- rnorm(nrow(d$ref))
 
       expect_error(
             analog_search(
                   x = d$focal, pool = d$ref,
                   stat = "regression",
-                  values = values,
+                  y = y,
                   max_clim = 2,
                   weight = "uniform",
                   coord_type = "projected"
@@ -254,7 +254,7 @@ test_that("regression validation: requires weight", {
             analog_search(
                   x = d$focal, pool = d$ref,
                   stat = "regression",
-                  values = rnorm(n_ref),
+                  y = rnorm(n_ref),
                   covariates = matrix(rnorm(n_ref), ncol = 1),
                   max_clim = 2,
                   coord_type = "projected"
@@ -273,7 +273,7 @@ test_that("regression validation: lambda must be non-negative", {
             analog_search(
                   x = d$focal, pool = d$ref,
                   stat = "regression",
-                  values = rnorm(n_ref),
+                  y = rnorm(n_ref),
                   covariates = matrix(rnorm(n_ref), ncol = 1),
                   max_clim = 2,
                   weight = "uniform",
@@ -290,14 +290,14 @@ test_that("analog_impact passes covariates and lambda through", {
       d <- sim_test_data()
       n_ref <- nrow(d$ref)
 
-      values <- rnorm(n_ref)
+      y <- rnorm(n_ref)
       covariates <- matrix(rnorm(n_ref * 2), ncol = 2,
                            dimnames = list(NULL, c("north", "east")))
 
       result <- analog_impact(
             x = d$focal,
             pool = d$ref,
-            values = values,
+            y = y,
             covariates = covariates,
             stat = c("count", "weighted_mean", "regression"),
             max_geog = 2,
@@ -324,7 +324,7 @@ test_that("regression with lambda = 0 returns NA for singular systems", {
       ref <- matrix(rnorm(n_ref * 4), ncol = 4)
       focal <- matrix(c(100, 100, 0, 0), nrow = 1)  # far from all pool points
 
-      values <- rnorm(n_ref)
+      y <- rnorm(n_ref)
       # 3 covariates — need at least 4 analogs for full rank
       covariates <- matrix(rnorm(n_ref * 3), ncol = 3,
                            dimnames = list(NULL, c("a", "b", "c")))
@@ -334,7 +334,7 @@ test_that("regression with lambda = 0 returns NA for singular systems", {
             pool = ref,
             select = "all",
             stat = c("count", "regression"),
-            values = values,
+            y = y,
             covariates = covariates,
             max_clim = 0.01,  # very tight — may get 0 or very few analogs
             max_geog = 0.01,

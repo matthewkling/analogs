@@ -353,9 +353,9 @@ test_that("analog_search handles user-supplied values correctly", {
 
       d <- sim_test_data(lonlat = TRUE)
 
-      values <- matrix(runif(nrow(d$ref)*2), ncol = 2)
+      y <- matrix(runif(nrow(d$ref)*2), ncol = 2)
       vars <- c("var1", "var2")
-      colnames(values) <- vars
+      colnames(y) <- vars
 
       stats <- c("count", "sum", "weighted_mean")
 
@@ -364,7 +364,7 @@ test_that("analog_search handles user-supplied values correctly", {
             pool = d$ref,
             select = "all",
             stat = stats,
-            values = values,
+            y = y,
             max_clim = NULL,
             max_geog = NULL,
             weight = "gaussian_clim",
@@ -376,7 +376,7 @@ test_that("analog_search handles user-supplied values correctly", {
                       %in% names(results)))
 
       # with both filters NULL, all focals should match global for sums
-      expect_true(all(results$sum_var1 == sum(values[,"var1"])))
+      expect_true(all(results$sum_var1 == sum(y[,"var1"])))
 
 })
 

@@ -18,7 +18,7 @@
 #'     \item An [analog_index()] object created by
 #'       [build_analog_index()] (for repeated queries).
 #'   }
-#' @param values Ecological or environmental variable(s) for the same era as `pool`, to
+#' @param y Ecological or environmental variable(s) for the same era as `pool`, to
 #'   aggregate across climate analogs. Examples include occupancy of focal species, species
 #'   richness, biomass, or any other ecological state variable. Can be a numeric vector
 #'   (single variable), matrix or data.frame with numeric columns (multiple
@@ -103,7 +103,7 @@
 #' impact <- analog_impact(
 #'   x = future_climate,
 #'   pool = current_climate,
-#'   values = current$habitat,
+#'   y = current$habitat,
 #'   max_geog = 100,    # 100 km dispersal range
 #'   max_clim = 0.5     # Climate analog threshold
 #' )
@@ -113,7 +113,7 @@
 analog_impact <- function(
             x,
             pool,
-            values,
+            y,
             covariates = NULL,
             max_geog = NULL,
             max_clim = 1.0,
@@ -135,7 +135,7 @@ analog_impact <- function(
             pool        = pool,
             select      = "all",
             stat        = stat,
-            values      = values,
+            y           = y,
             covariates  = covariates,
             max_clim    = max_clim,
             max_geog    = max_geog,

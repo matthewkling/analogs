@@ -103,7 +103,7 @@ analog_intensity <- function(
             weight      = weight,
             theta       = theta,
             x_cov       = x_cov,
-            values      = NULL, # not relevant for intensity
+            y           = NULL, # not relevant for intensity
             coord_type  = coord_type,
             index_res   = index_res,
             n_threads   = n_threads,

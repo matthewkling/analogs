@@ -72,7 +72,7 @@ analog_availability <- function(
             weight      = NULL,
             theta       = NULL,
             x_cov       = x_cov,
-            values      = NULL,
+            y           = NULL,
             coord_type  = coord_type,
             index_res   = index_res,
             n_threads   = n_threads,

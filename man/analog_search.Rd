@@ -8,7 +8,7 @@ analog_search(
   x,
   pool,
   x_cov = NULL,
-  values = NULL,
+  y = NULL,
   covariates = NULL,
   max_clim = NULL,
   max_geog = NULL,
@@ -46,7 +46,7 @@ SpatRaster with a layer for each component. For n climate variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
-\item{values}{Optional user-defined variables for each reference location
+\item{y}{Optional user-defined variables for each reference location
 in \code{pool} to aggregate across selected analogs. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
 variables), or a SpatRaster with one or more numeric layers. Must have
@@ -54,7 +54,7 @@ exactly the same number of reference locations as \code{pool}.
 
 When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
 \code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For stat =
-NULL/"none" (pairs mode), value columns are included in output for each
+NULL/"none" (pairs mode), y value columns are included in output for each
 analog pair.}
 
 \item{covariates}{Optional auxiliary predictor variables for each reference
@@ -106,18 +106,18 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 analogs (see \code{weight} and \code{theta}).
 \item \code{"mean_weights"}: For each focal, mean of weights of selected
 analogs.
-\item \code{"sum"}: Sum of values across analogs (requires \code{values}).
-\item \code{"mean"}: Mean of values across analogs (requires \code{values}).
-\item \code{"weighted_sum"}: Sum of (value × weight) across analogs
-(requires \code{values} and \code{weight}).
-\item \code{"weighted_mean"}: Weighted mean of values across analogs
-(requires \code{values} and \code{weight}).
+\item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
+\item \code{"mean"}: Mean of \code{y} values across analogs (requires \code{y}).
+\item \code{"weighted_sum"}: Sum of (\code{y} × weight) across analogs
+(requires \code{y} and \code{weight}).
+\item \code{"weighted_mean"}: Weighted mean of \code{y} values across analogs
+(requires \code{y} and \code{weight}).
 \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
 squared sum of weights divided by the sum of squared weights
 (requires \code{weight}).
 \item \code{"regression"}: Weighted least squares (or ridge) regression
-of \code{values} on \code{covariates} within each analog neighborhood.
-Returns intercept and slope coefficients. Requires \code{values},
+of \code{y} on \code{covariates} within each analog neighborhood.
+Returns intercept and slope coefficients. Requires \code{y},
 \code{covariates}, and \code{weight}. See \code{lambda} for
 regularization.
 \item A character vector combining multiple stats (e.g.,
@@ -214,18 +214,18 @@ with the following variables:
 \item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
 \item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
 \item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
-\item Value columns (if \code{values} provided): one per variable
+\item Value columns (if \code{y} provided): one per variable
 }
 
 Aggregation mode (one or more \code{stat} values) returns one row per focal location,
 with the following variables:
 \itemize{
 \item \code{index}, \code{x}, \code{y}: Focal location
-\item One column per requested statistic. For \code{stat} with single \code{values} variable:
-column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
+\item One column per requested statistic. For \code{stat} with single \code{y} variable:
+column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{y}
 variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
 \item For \code{stat = "regression"}: columns for \code{intercept} and each covariate name,
-or \verb{intercept_\{varname\}} and \verb{\{covariate\}_\{varname\}} with multiple values variables.
+or \verb{intercept_\{varname\}} and \verb{\{covariate\}_\{varname\}} with multiple \code{y} variables.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
@@ -242,7 +242,7 @@ then optionally aggregating the results.
 
 \itemize{
 \item \emph{Data parameters}
-(\code{x}, \code{pool}, \code{x_cov}, \code{values}, \code{covariates}, \code{coord_type})
+(\code{x}, \code{pool}, \code{x_cov}, \code{y}, \code{covariates}, \code{coord_type})
 give attributes of the data on which to operate.
 \item \emph{Selection parameters}
 (\code{select}, \code{max_clim}, \code{max_geog}, \code{k})

@@ -200,7 +200,7 @@ test_that("tiled_analog_search warns for ineffective tiling", {
       )
 })
 
-test_that("tiled_analog_search works with x_cov and values", {
+test_that("tiled_analog_search works with x_cov and y", {
 
       focal <- terra::rast(ncol = 20, nrow = 20, xmin = 0, xmax = 100, ymin = 0, ymax = 100)
       terra::crs(focal) <- "EPSG:32611"  # UTM zone 11N
@@ -216,17 +216,17 @@ test_that("tiled_analog_search works with x_cov and values", {
       vals <- c(ref, ref)
       ref <- c(ref, ref)
       names(ref) <- c("temp", "prec")
-      names(vals) <- c("v1", "v2")
+      names(vals) <- c("var1", "var2")
       terra::values(ref) <- rnorm(3200, mean = 10, sd = 2)
       terra::values(vals) <- rnorm(3200, mean = 10, sd = 2)
 
       expect_no_error(result <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_impact,
-                                values = vals, x_cov = x_cov,
+                                y = vals, x_cov = x_cov,
                                 max_clim = 1, max_geog = 50,
                                 progress = FALSE)))
       expect_equal(sort(names(result)),
-                   sort(c("count", "sum_weights", "weighted_mean_v1", "weighted_mean_v2")))
+                   sort(c("count", "sum_weights", "weighted_mean_var1", "weighted_mean_var2")))
 })
 
 test_that("optimize_tile_grid creates square-ish tiles", {

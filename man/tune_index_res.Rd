@@ -17,7 +17,7 @@ tune_index_res(
   weight = NULL,
   theta = NULL,
   x_cov = NULL,
-  values = NULL,
+  y = NULL,
   covariates = NULL,
   lambda = 0,
   coord_type = c("auto", "lonlat", "projected"),
@@ -67,18 +67,18 @@ with smallest geographic distance, subject to filters.
 analogs (see \code{weight} and \code{theta}).
 \item \code{"mean_weights"}: For each focal, mean of weights of selected
 analogs.
-\item \code{"sum"}: Sum of values across analogs (requires \code{values}).
-\item \code{"mean"}: Mean of values across analogs (requires \code{values}).
-\item \code{"weighted_sum"}: Sum of (value × weight) across analogs
-(requires \code{values} and \code{weight}).
-\item \code{"weighted_mean"}: Weighted mean of values across analogs
-(requires \code{values} and \code{weight}).
+\item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
+\item \code{"mean"}: Mean of \code{y} values across analogs (requires \code{y}).
+\item \code{"weighted_sum"}: Sum of (\code{y} × weight) across analogs
+(requires \code{y} and \code{weight}).
+\item \code{"weighted_mean"}: Weighted mean of \code{y} values across analogs
+(requires \code{y} and \code{weight}).
 \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
 squared sum of weights divided by the sum of squared weights
 (requires \code{weight}).
 \item \code{"regression"}: Weighted least squares (or ridge) regression
-of \code{values} on \code{covariates} within each analog neighborhood.
-Returns intercept and slope coefficients. Requires \code{values},
+of \code{y} on \code{covariates} within each analog neighborhood.
+Returns intercept and slope coefficients. Requires \code{y},
 \code{covariates}, and \code{weight}. See \code{lambda} for
 regularization.
 \item A character vector combining multiple stats (e.g.,
@@ -145,7 +145,7 @@ SpatRaster with a layer for each component. For n climate variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
-\item{values}{Optional user-defined variables for each reference location
+\item{y}{Optional user-defined variables for each reference location
 in \code{pool} to aggregate across selected analogs. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
 variables), or a SpatRaster with one or more numeric layers. Must have
@@ -153,7 +153,7 @@ exactly the same number of reference locations as \code{pool}.
 
 When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
 \code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For stat =
-NULL/"none" (pairs mode), value columns are included in output for each
+NULL/"none" (pairs mode), y value columns are included in output for each
 analog pair.}
 
 \item{covariates}{Optional auxiliary predictor variables for each reference

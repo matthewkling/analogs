@@ -46,7 +46,7 @@ analog_similarity <- function(
             x,
             pool,
             x_cov = NULL,
-            values = NULL,
+            y = NULL,
             coord_type = "auto",
 
             max_geog,
@@ -67,7 +67,7 @@ analog_similarity <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             x_cov       = x_cov,
-            values      = values,
+            y           = y,
             k           = k,
             weight      = NULL,
             theta       = NULL,

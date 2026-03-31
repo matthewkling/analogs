@@ -14,7 +14,7 @@
 #'   memory constraints.
 #' @param fun An analog_* function to apply to each tile (e.g., analog_velocity,
 #'   analog_impact).
-#' @param values Optional SpatRaster with values to aggregate across analogs.
+#' @param y Optional SpatRaster with values to aggregate across analogs.
 #'   Must have spatial properties matching pool.
 #' @param x_cov Optional SpatRaster with covariates for focal points. Must have
 #'   spatial properties matching x.
@@ -57,7 +57,7 @@ tiled_analog_search <- function(
             n_tiles,
             fun,
             max_geog,
-            values = NULL,
+            y = NULL,
             x_cov = NULL,
             ...,
             output_file = NULL,
@@ -83,16 +83,16 @@ tiled_analog_search <- function(
             stop("tiled_analog_search requires a valid max_geog value")
       }
 
-      # Validate and check values if provided
-      if (!is.null(values)) {
-            if (!inherits(values, "SpatRaster")) {
-                  stop("values must be a SpatRaster for tiled_analog_search")
+      # Validate and check y values if provided
+      if (!is.null(y)) {
+            if (!inherits(y, "SpatRaster")) {
+                  stop("y must be a SpatRaster for tiled_analog_search")
             }
-            if (!terra::same.crs(values, pool)) {
-                  stop("values must have the same CRS as pool")
+            if (!terra::same.crs(y, pool)) {
+                  stop("y must have the same CRS as pool")
             }
-            if (!all(terra::ext(values) == terra::ext(pool))) {
-                  stop("values must have the same extent as pool")
+            if (!all(terra::ext(y) == terra::ext(pool))) {
+                  stop("y must have the same extent as pool")
             }
       }
 
@@ -179,9 +179,9 @@ tiled_analog_search <- function(
                         progress = FALSE
                   )
 
-                  # Add values if provided
-                  if (!is.null(values)) {
-                        fun_args$values <- terra::crop(values, halo_bbox)
+                  # Add y values if provided
+                  if (!is.null(y)) {
+                        fun_args$y <- terra::crop(y, halo_bbox)
                   }
 
                   # Add x_cov if provided

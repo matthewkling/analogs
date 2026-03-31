@@ -7,7 +7,7 @@
 analog_impact(
   x,
   pool,
-  values,
+  y,
   covariates = NULL,
   max_geog = NULL,
   max_clim = 1,
@@ -36,7 +36,7 @@ or SpatRaster with climate variable layers, OR
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
-\item{values}{Ecological or environmental variable(s) for the same era as \code{pool}, to
+\item{y}{Ecological or environmental variable(s) for the same era as \code{pool}, to
 aggregate across climate analogs. Examples include occupancy of focal species, species
 richness, biomass, or any other ecological state variable. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
@@ -214,7 +214,7 @@ from analog locations.
 impact <- analog_impact(
   x = future_climate,
   pool = current_climate,
-  values = current$habitat,
+  y = current$habitat,
   max_geog = 100,    # 100 km dispersal range
   max_clim = 0.5     # Climate analog threshold
 )

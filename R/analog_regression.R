@@ -1,6 +1,6 @@
 #' Local weighted regression across analog neighborhoods
 #'
-#' Fits a weighted local regression of `values` on `covariates` within
+#' Fits a weighted local regression of `y` on `covariates` within
 #' each focal location's analog neighborhood. Analog neighborhoods are
 #' defined by climatic similarity, geographic proximity, or both, while
 #' covariates capture additional predictors that influence outcomes within
@@ -25,7 +25,7 @@
 #'     \item An `analog_index` object created by
 #'       [build_analog_index()] (for repeated queries).
 #'   }
-#' @param values Response variable(s) to model via local regression.
+#' @param y Response variable(s) to model via local regression.
 #'   Can be a numeric vector, matrix, data.frame, or SpatRaster.
 #'   Must have exactly the same number of rows/cells as `pool`.
 #'   A separate regression is fit for each variable.
@@ -53,7 +53,7 @@
 #'     \item `intercept`: Regression intercept (predicted value when all
 #'       covariates equal zero)
 #'     \item One column per covariate: regression slope coefficients
-#'     \item With multiple `values` variables: columns are named
+#'     \item With multiple `y` variables: columns are named
 #'       `{coeff}_{varname}` (e.g., `intercept_biomass`, `slope_biomass`)
 #'   }
 #'
@@ -63,7 +63,7 @@
 #' For each focal location, the function:
 #' 1. Selects analog pool locations based on `select`, `max_clim`, `max_geog`, and `k`
 #' 2. Computes distance-based weights for each analog (via `weight` and `theta`)
-#' 3. Fits a weighted least squares regression of `values` on `covariates`
+#' 3. Fits a weighted least squares regression of `y` on `covariates`
 #'    using these weights, with optional ridge penalty `lambda`
 #' 4. Returns the regression coefficients (intercept + slopes)
 #'
@@ -108,7 +108,7 @@
 #' gwr_result <- analog_regression(
 #'   x = sites,
 #'   pool = sites,
-#'   values = sites$income,
+#'   y = sites$income,
 #'   covariates = data.frame(education = sites$edu, access = sites$access),
 #'   select = "knn_geog",
 #'   k = 50,
@@ -125,7 +125,7 @@
 analog_regression <- function(
             x,
             pool,
-            values,
+            y,
             covariates,
             max_geog = NULL,
             max_clim = NULL,
@@ -156,7 +156,7 @@ analog_regression <- function(
             pool        = pool,
             select      = select,
             stat        = stat,
-            values      = values,
+            y           = y,
             covariates  = covariates,
             max_clim    = max_clim,
             max_geog    = max_geog,

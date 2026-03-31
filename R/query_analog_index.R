@@ -7,7 +7,7 @@ query_analog_index <- function(x,
                                max_clim,
                                max_geog,
                                x_cov,
-                               values,
+                               y,
                                covariates,
                                k,
                                weight,
@@ -27,7 +27,7 @@ query_analog_index <- function(x,
 
       # Validate and normalize query parameters
       params <- .validate_query_params(focal, index$ref_data,
-                                       x_cov, values, covariates,
+                                       x_cov, y, covariates,
                                        max_clim, max_geog,
                                        select, k,
                                        stat, weight, theta, lambda)
@@ -38,7 +38,7 @@ query_analog_index <- function(x,
       theta <- params$theta
       lambda <- params$lambda
       x_cov_mat <- params$x_cov
-      values_mat <- params$values
+      values_mat <- params$y
       values_names <- params$values_names
       covariates_mat <- params$covariates
       covariates_names <- params$covariates_names
@@ -130,7 +130,7 @@ query_analog_index <- function(x,
             weight_code = weight_code,
             theta = theta_vec,
             x_cov = x_cov_mat,
-            values = values_mat,
+            y = values_mat,
             covariates = covariates_mat,
             lambda = lambda,
             show_progress = show_progress
@@ -185,7 +185,7 @@ query_analog_index <- function(x,
             y = focal[, 2]
       )
 
-      # Determine column structure based on stats requested and values provided
+      # Determine column structure based on stats requested and y values provided
       # Regular stats (count, sum_weights, mean_weights, ess): 1 column each
       # Value-based stats (sum, mean, weighted_sum, weighted_mean): n_values columns each
       # Regression: (n_covariates + 1) columns per value variable
@@ -211,7 +211,7 @@ query_analog_index <- function(x,
                   # One column per value variable
                   n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
                   if (n_vals == 0) {
-                        stop("Internal error: value stat requested but no values provided")
+                        stop("Internal error: value stat requested but no y values provided")
                   }
 
                   if (n_vals == 1) {
@@ -224,7 +224,7 @@ query_analog_index <- function(x,
                               var_name <- if (!is.null(values_names)) {
                                     values_names[j]
                               } else {
-                                    paste0("var", j)
+                                    paste0("y", j)
                               }
                               col_name <- paste0(s, "_", var_name)
                               out[[col_name]] <- res[, col_idx]
@@ -255,7 +255,7 @@ query_analog_index <- function(x,
                         var_name <- if (!is.null(values_names)) {
                               values_names[j]
                         } else {
-                              paste0("var", j)
+                              paste0("y", j)
                         }
                         for (d in seq_len(reg_dim)) {
                               col_name <- paste0(coeff_names[d], "_", var_name)
@@ -284,7 +284,7 @@ query_analog_index <- function(x,
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
                                select_code, aggregate_codes, weight_code, theta,
-                               x_cov, values, covariates, lambda,
+                               x_cov, y, covariates, lambda,
                                show_progress = FALSE) {
 
       # If progress not requested or dataset too small, just call C++ directly
@@ -301,7 +301,7 @@ query_analog_index <- function(x,
                   weight_code = weight_code,
                   theta = theta,
                   x_cov_sexp = x_cov,
-                  values_sexp = values,
+                  values_sexp = y,
                   covariates_sexp = covariates,
                   lambda = lambda
             ))
@@ -343,7 +343,7 @@ query_analog_index <- function(x,
                   weight_code = weight_code,
                   theta = theta,
                   x_cov_sexp = x_cov_chunk,
-                  values_sexp = values,     # Not chunked (ref pool)
+                  values_sexp = y,     # Not chunked (ref pool)
                   covariates_sexp = covariates,  # Not chunked (ref pool)
                   lambda = lambda
             )
