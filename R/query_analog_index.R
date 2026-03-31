@@ -392,6 +392,7 @@ query_analog_index <- function(x,
                         attr(merged, nm) <- attr(first, nm)
                   }
             }
+            attr(merged, "n_focal") <- nrow(focal)
 
             return(merged)
       } else {
@@ -404,6 +405,7 @@ query_analog_index <- function(x,
                         attr(merged, nm) <- attr(first, nm)
                   }
             }
+            attr(merged, "n_focal") <- nrow(focal)
 
             return(merged)
       }
