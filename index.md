@@ -1,31 +1,37 @@
 # analogs
 
-The **analogs** package provides fast, flexible tools for climate analog
-analyses. It efficiently searches large reference datasets to find
-locations that best match query sites based on climate similarity and
-geographic proximity.
+The **analogs** package implements a general framework for
+distance-based neighborhood models, where analogs are selected using
+climate and/or geographic distance constraints, then summarized via
+weighted statistics or local regression. Common methods like climate
+analog impact models, climate velocity, and geographically weighted
+regression are all specific configurations of this framework.
+
+Every analysis follows the same two-stage pattern: (1) select a
+neighborhood of analog locations from a reference pool based on climate
+similarity, geographic proximity, or both; and (2) summarize the
+neighborhood using counts, weighted means, regression coefficients, or
+other statistics.
 
 ## Core Functions
 
-The package supports a range of analysis types. The core workhorse
-function is
+The core engine is
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md),
-which implements various methods for selecting and summarizing analogs
-for each query location. Common query types are supported via simplified
-wrapper functions:
+which exposes the full flexibility of the framework. Simplified wrapper
+functions configure it for common analysis types:
 
 - [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
   predicts ecological state variables using analog impact models (AIMs)
+- [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
+  fits local weighted regressions across analog neighborhoods
 - [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md)
-  finds the k nearest geographic analogs under a hard climate constraint
+  finds the nearest geographic analogs under a climate constraint
 - [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md)
-  finds the k nearest climate analogs within a geographic constraint  
+  finds the nearest climate analogs within a geographic constraint
 - [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md)
-  counts analogs that meet both climate and distance thresholds
+  counts analogs that meet climate and distance thresholds
 - [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
   computes distance-weighted aggregations of analog properties
-- [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
-  fits climatically and/or geographically weighted regressions
 
 ## Distance metrics
 

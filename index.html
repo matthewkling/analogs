@@ -50,25 +50,25 @@
 </h1></div>
 <!-- badges: start -->
 <!-- badges: end -->
-<p>The <strong>analogs</strong> package provides fast, flexible tools for climate analog analyses. It efficiently searches large reference datasets to find locations that best match query sites based on climate similarity and geographic proximity.</p>
+<p>The <strong>analogs</strong> package implements a general framework for distance-based neighborhood models, where analogs are selected using climate and/or geographic distance constraints, then summarized via weighted statistics or local regression. Common methods like climate analog impact models, climate velocity, and geographically weighted regression are all specific configurations of this framework.</p>
+<p>Every analysis follows the same two-stage pattern: (1) select a neighborhood of analog locations from a reference pool based on climate similarity, geographic proximity, or both; and (2) summarize the neighborhood using counts, weighted means, regression coefficients, or other statistics.</p>
 <div class="section level2">
 <h2 id="core-functions">Core Functions<a class="anchor" aria-label="anchor" href="#core-functions"></a>
 </h2>
-<p>The package supports a range of analysis types. The core workhorse function is <code><a href="reference/analog_search.html">analog_search()</a></code>, which implements various methods for selecting and summarizing analogs for each query location. Common query types are supported via simplified wrapper functions:</p>
+<p>The core engine is <code><a href="reference/analog_search.html">analog_search()</a></code>, which exposes the full flexibility of the framework. Simplified wrapper functions configure it for common analysis types:</p>
 <ul>
 <li>
 <code><a href="reference/analog_impact.html">analog_impact()</a></code> predicts ecological state variables using analog impact models (AIMs)</li>
 <li>
-<code><a href="reference/analog_velocity.html">analog_velocity()</a></code> finds the k nearest geographic analogs under a hard climate constraint</li>
+<code><a href="reference/analog_regression.html">analog_regression()</a></code> fits local weighted regressions across analog neighborhoods</li>
 <li>
-<code><a href="reference/analog_similarity.html">analog_similarity()</a></code> finds the k nearest climate analogs within a geographic constraint<br>
-</li>
+<code><a href="reference/analog_velocity.html">analog_velocity()</a></code> finds the nearest geographic analogs under a climate constraint</li>
 <li>
-<code><a href="reference/analog_availability.html">analog_availability()</a></code> counts analogs that meet both climate and distance thresholds</li>
+<code><a href="reference/analog_similarity.html">analog_similarity()</a></code> finds the nearest climate analogs within a geographic constraint</li>
+<li>
+<code><a href="reference/analog_availability.html">analog_availability()</a></code> counts analogs that meet climate and distance thresholds</li>
 <li>
 <code><a href="reference/analog_intensity.html">analog_intensity()</a></code> computes distance-weighted aggregations of analog properties</li>
-<li>
-<code><a href="reference/analog_regression.html">analog_regression()</a></code> fits climatically and/or geographically weighted regressions</li>
 </ul>
 </div>
 <div class="section level2">
