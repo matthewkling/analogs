@@ -28,6 +28,8 @@ types are supported via simplified wrapper functions:
   distance thresholds
 - `analog_intensity()` computes distance-weighted aggregations of analog
   properties
+- `analog_regression()` fits climatically and/or geographically weighted
+  regressions
 
 ## Distance metrics
 

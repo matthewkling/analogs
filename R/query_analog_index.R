@@ -8,9 +8,11 @@ query_analog_index <- function(x,
                                max_geog,
                                x_cov,
                                values,
+                               covariates,
                                k,
                                weight,
                                theta,
+                               lambda,
                                n_threads,
                                show_progress = FALSE) {
 
@@ -25,18 +27,21 @@ query_analog_index <- function(x,
 
       # Validate and normalize query parameters
       params <- .validate_query_params(focal, index$ref_data,
-                                       x_cov, values,
+                                       x_cov, values, covariates,
                                        max_clim, max_geog,
                                        select, k,
-                                       stat, weight, theta)
+                                       stat, weight, theta, lambda)
       select <- params$select
       stat <- params$stat
       k <- params$k
       weight <- params$weight
       theta <- params$theta
+      lambda <- params$lambda
       x_cov_mat <- params$x_cov
       values_mat <- params$values
       values_names <- params$values_names
+      covariates_mat <- params$covariates
+      covariates_names <- params$covariates_names
 
       # Parse constraints
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
@@ -53,7 +58,8 @@ query_analog_index <- function(x,
 
       # Map stat(s) for C++
       # Aggregate codes: 0=none, 1=count, 2=sum_weights, 3=mean_weights,
-      #                  4=sum, 5=mean, 6=weighted_sum, 7=weighted_mean
+      #                  4=sum, 5=mean, 6=weighted_sum, 7=weighted_mean,
+      #                  8=ess, 9=regression
       stat_name_to_code <- c(
             "none"           = 0L,
             "count"          = 1L,
@@ -63,7 +69,8 @@ query_analog_index <- function(x,
             "mean"           = 5L,
             "weighted_sum"   = 6L,
             "weighted_mean"  = 7L,
-            "ess"            = 8L
+            "ess"            = 8L,
+            "regression"     = 9L
       )
       aggregate_codes <- stat_name_to_code[stat]
       names(aggregate_codes) <- NULL
@@ -73,7 +80,8 @@ query_analog_index <- function(x,
       #               4=gaussian_clim, 5=gaussian_geog,
       #               6=gaussian_joint, 7=inverse_joint
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
-                                           "weighted_sum", "weighted_mean"))
+                                           "weighted_sum", "weighted_mean",
+                                           "ess", "regression"))
       weight_code <- if (has_weighted_stat) {
             switch(
                   weight,
@@ -123,6 +131,8 @@ query_analog_index <- function(x,
             theta = theta_vec,
             x_cov = x_cov_mat,
             values = values_mat,
+            covariates = covariates_mat,
+            lambda = lambda,
             show_progress = show_progress
       )
 
@@ -159,7 +169,7 @@ query_analog_index <- function(x,
       }
 
       # Aggregation mode(s)
-      # res is a matrix with n_focal rows and (n_regular_stats + n_value_stats * n_vars) columns
+      # res is a matrix with n_focal rows and variable number of columns
       if (!is.matrix(res)) {
             stop("Internal error: expected matrix result from C++ for aggregation stats")
       }
@@ -178,12 +188,13 @@ query_analog_index <- function(x,
       # Determine column structure based on stats requested and values provided
       # Regular stats (count, sum_weights, mean_weights, ess): 1 column each
       # Value-based stats (sum, mean, weighted_sum, weighted_mean): n_values columns each
+      # Regression: (n_covariates + 1) columns per value variable
       regular_stats <- c("count", "sum_weights", "mean_weights", "ess")
       value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
 
       col_idx <- 1
 
-      # IMPORTANT: C++ writes columns grouped by type (regular first, then value)
+      # IMPORTANT: C++ writes columns grouped by type (regular first, then value, then regression)
       # So we must read in that order, NOT in request order
 
       # Read all regular stats first
@@ -223,6 +234,38 @@ query_analog_index <- function(x,
             }
       }
 
+      # Then read regression coefficients (if requested)
+      if ("regression" %in% stat) {
+            n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
+            n_covs <- if (is.null(covariates_mat)) 0 else ncol(covariates_mat)
+            reg_dim <- n_covs + 1  # intercept + covariates
+
+            # Coefficient names: intercept, then covariate names
+            coeff_names <- c("intercept", covariates_names %||% paste0("cov", seq_len(n_covs)))
+
+            if (n_vals == 1) {
+                  # Single value variable: columns named by coefficient
+                  for (d in seq_len(reg_dim)) {
+                        out[[coeff_names[d]]] <- res[, col_idx]
+                        col_idx <- col_idx + 1
+                  }
+            } else {
+                  # Multiple value variables: columns named {coeff}_{varname}
+                  for (j in seq_len(n_vals)) {
+                        var_name <- if (!is.null(values_names)) {
+                              values_names[j]
+                        } else {
+                              paste0("var", j)
+                        }
+                        for (d in seq_len(reg_dim)) {
+                              col_name <- paste0(coeff_names[d], "_", var_name)
+                              out[[col_name]] <- res[, col_idx]
+                              col_idx <- col_idx + 1
+                        }
+                  }
+            }
+      }
+
       # Add C++ diagnostic attributes
       for (nm in names(cpp_attrs)) {
             attr(out, nm) <- cpp_attrs[[nm]]
@@ -241,7 +284,8 @@ query_analog_index <- function(x,
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
                                select_code, aggregate_codes, weight_code, theta,
-                               x_cov, values, show_progress = FALSE) {
+                               x_cov, values, covariates, lambda,
+                               show_progress = FALSE) {
 
       # If progress not requested or dataset too small, just call C++ directly
       if (!show_progress || nrow(focal) < 100) {
@@ -257,7 +301,9 @@ query_analog_index <- function(x,
                   weight_code = weight_code,
                   theta = theta,
                   x_cov_sexp = x_cov,
-                  values_sexp = values
+                  values_sexp = values,
+                  covariates_sexp = covariates,
+                  lambda = lambda
             ))
       }
 
@@ -297,7 +343,9 @@ query_analog_index <- function(x,
                   weight_code = weight_code,
                   theta = theta,
                   x_cov_sexp = x_cov_chunk,
-                  values_sexp = values  # Note: values are NOT chunked (they're for ref pool)
+                  values_sexp = values,     # Not chunked (ref pool)
+                  covariates_sexp = covariates,  # Not chunked (ref pool)
+                  lambda = lambda
             )
 
             setTxtProgressBar(pb, i)
@@ -308,44 +356,55 @@ query_analog_index <- function(x,
 
       if (is.list(first) && !is.matrix(first)) {
             # Pairs mode: concatenate vectors in list
-            # Pre-allocate based on total lengths
             total_len <- sum(vapply(results, function(x) length(x[[1]]), integer(1)))
-            merged <- list()
 
-            for (nm in names(first)) {
-                  merged[[nm]] <- vector(typeof(first[[nm]]), total_len)
-                  pos <- 1
-                  for (chunk_res in results) {
-                        chunk_vec <- chunk_res[[nm]]
-                        len <- length(chunk_vec)
-                        merged[[nm]][pos:(pos + len - 1)] <- chunk_vec
-                        pos <- pos + len
+            merged <- lapply(seq_along(first), function(j) {
+                  if (is.integer(first[[j]])) {
+                        out <- integer(total_len)
+                  } else {
+                        out <- numeric(total_len)
+                  }
+                  pos <- 1L
+                  for (r in results) {
+                        n <- length(r[[j]])
+                        out[pos:(pos + n - 1)] <- r[[j]]
+                        pos <- pos + n
+                  }
+                  out
+            })
+            names(merged) <- names(first)
+
+            # Adjust focal indices for chunks
+            # (indices need offset for each chunk)
+            offset <- 0L
+            pos <- 1L
+            for (ch in seq_len(n_chunks)) {
+                  n <- length(results[[ch]][[1]])
+                  chunk_start <- (ch - 1) * chunk_size
+                  # Focal indices in results are 1-based within chunk; add offset
+                  # (Already handled by emit_pairs_cpp returning per-chunk indices)
+                  pos <- pos + n
+            }
+
+            # Copy attributes from first result
+            for (nm in names(attributes(first))) {
+                  if (!nm %in% c("names")) {
+                        attr(merged, nm) <- attr(first, nm)
                   }
             }
+
+            return(merged)
       } else {
             # Aggregation mode: rbind matrices
-            # Pre-allocate full result matrix
-            total_rows <- sum(vapply(results, nrow, integer(1)))
-            merged <- matrix(0, nrow = total_rows, ncol = ncol(first))
-            colnames(merged) <- colnames(first)
+            merged <- do.call(rbind, results)
 
-            pos <- 1
-            for (chunk_res in results) {
-                  nrows <- nrow(chunk_res)
-                  merged[pos:(pos + nrows - 1), ] <- chunk_res
-                  pos <- pos + nrows
+            # Copy attributes from first result
+            for (nm in names(attributes(first))) {
+                  if (!nm %in% c("dim", "dimnames")) {
+                        attr(merged, nm) <- attr(first, nm)
+                  }
             }
-      }
 
-      # Preserve attributes from first chunk (diagnostics are constant across chunks)
-      attrs <- attributes(first)
-      attrs$dim <- NULL
-      attrs$dimnames <- NULL
-      attrs$names <- NULL
-      for (nm in names(attrs)) {
-            attr(merged, nm) <- attrs[[nm]]
+            return(merged)
       }
-      attr(merged, "n_focal") <- nrow(focal)
-
-      return(merged)
 }

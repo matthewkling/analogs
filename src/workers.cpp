@@ -1,5 +1,6 @@
 // src/workers.cpp
 #include "workers.hpp"
+#include "ridge_solve.hpp"
 
 namespace analogs {
 
@@ -408,9 +409,10 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& cand = tls.cand;
       auto& cand_weights = tls.cand_weights;
 
-      // Determine which stats are regular vs value-based
+      // Determine which stats are regular vs value-based vs regression
       std::vector<int> regular_stat_positions;
       std::vector<int> value_stat_positions;
+      bool has_regression = false;  // REGRESSION: track if regression requested
 
       for (int s = 0; s < static_cast<int>(acodes.size()); ++s) {
             if (acodes[s] == AggregateCode::SUM ||
@@ -418,6 +420,9 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                 acodes[s] == AggregateCode::WEIGHTED_SUM ||
                 acodes[s] == AggregateCode::WEIGHTED_MEAN) {
                   value_stat_positions.push_back(s);
+            } else if (acodes[s] == AggregateCode::REGRESSION) {
+                  // REGRESSION: regression is handled separately, not in regular or value
+                  has_regression = true;
             } else {
                   regular_stat_positions.push_back(s);  // COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS
             }
@@ -433,7 +438,8 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                 acodes[s] == AggregateCode::MEAN_WEIGHTS ||
                 acodes[s] == AggregateCode::WEIGHTED_SUM ||
                 acodes[s] == AggregateCode::WEIGHTED_MEAN ||
-                acodes[s] == AggregateCode::ESS) {
+                acodes[s] == AggregateCode::ESS ||
+                acodes[s] == AggregateCode::REGRESSION) {  // REGRESSION: needs weights
                   need_weights = true;
                   break;
             }
@@ -453,8 +459,6 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   }
 
                   // Extract covariance components for focal i from column-major x_cov matrix
-                  // x_cov is n_focal × n_cov_components stored column-major
-                  // Row i, col j is at: x_cov_ptr[i + j * x_cov_stride]
                   std::vector<double> cov_vec(n_cov_components);
                   for (int comp = 0; comp < n_cov_components; ++comp) {
                         cov_vec[comp] = x_cov_ptr[i + comp * x_cov_stride];
@@ -476,63 +480,42 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             }
       }
 
+      // REGRESSION: pre-compute regression output dimension
+      const int reg_dim = has_covariates ? (n_covs + 1) : 0;
+
       for (std::size_t i = begin; i < end; ++i) {
+            // Skip focal points with NA
+            if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+                  // Leave all output as NA_REAL (pre-initialized)
+                  continue;
+            }
+
             const double fx = focal_ptr[i];
             const double fy = focal_ptr[i + stride_f];
             const double* f_clim_col = focal_ptr + i + 2 * stride_f;
 
-            // -----------------------------------------------------------------
-            // Check for NA in focal coordinates or climate values.
-            // If NA, skip processing - agg values are pre-initialized to NA_REAL.
-            // -----------------------------------------------------------------
-            if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
-                  continue;
-            }
+            // Get candidates from lattice
+            if (use_lattice) {
+                  q_geo.resize(use_ecef ? 3 : 2);
+                  q_clim.resize(n_clim);
 
-            // Gather candidates
-            cand.clear();
-            cand_weights.clear();
-
-            if (use_lattice && lattice_ptr != nullptr) {
-                  const size_tu n_geo = lattice_ptr->n_geo_dims;
-                  q_geo.resize(n_geo);
-
-                  if (use_ecef && n_geo == 3) {
-                        double X, Y, Z;
-                        lonlat_to_ecef(fx, fy, R_earth, X, Y, Z);
-                        q_geo[0] = X;
-                        q_geo[1] = Y;
-                        q_geo[2] = Z;
+                  if (use_ecef) {
+                        lonlat_to_ecef(fx, fy, R_earth, q_geo[0], q_geo[1], q_geo[2]);
                   } else {
                         q_geo[0] = fx;
                         q_geo[1] = fy;
                   }
 
-                  q_clim.resize(n_clim);
                   for (int d = 0; d < n_clim; ++d) {
                         q_clim[d] = f_clim_col[d * stride_f];
                   }
 
-                  // Adjust climate bounds if using Mahalanobis
-                  double effective_max_clim = max_clim_scalar;
-                  std::vector<double> mahal_bounds;
-
-                  if (use_mahalanobis && std::isfinite(max_clim_scalar)) {
-                        const std::vector<double>& inv_cov = inv_cov_matrices[i - begin];
-                        mahalanobis_bounding_box(q_clim.data(), inv_cov, n_clim,
-                                                 max_clim_scalar, mahal_bounds);
-                  }
-
-                  lattice_ptr->query(
-                              q_geo.data(),
-                              q_clim.data(),
-                              max_geog,
-                              use_scalar_clim,
-                              max_clim_pervar,
-                              effective_max_clim,
-                              cand,
-                              cand_weights
-                  );
+                  lattice_ptr->query(q_geo.data(), q_clim.data(),
+                                     use_geog_filter ? max_geog : -1.0,
+                                     use_scalar_clim,
+                                     max_clim_pervar,
+                                     max_clim_scalar,
+                                     cand, cand_weights);
             } else {
                   cand.resize(n_ref);
                   cand_weights.resize(n_ref, 1.0);
@@ -561,6 +544,14 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             const std::vector<double>* inv_cov_ptr = nullptr;
             if (use_mahalanobis) {
                   inv_cov_ptr = &inv_cov_matrices[i - begin];
+            }
+
+            // REGRESSION: collect analog indices and combined weights for regression solve
+            std::vector<std::size_t> reg_analog_indices;
+            std::vector<double> reg_combined_weights;
+            if (has_regression) {
+                  reg_analog_indices.reserve(cand.size());
+                  reg_combined_weights.reserve(cand.size());
             }
 
             // Iterate over candidates once
@@ -666,6 +657,12 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                               }
                         }
                   }
+
+                  // REGRESSION: collect this analog for post-loop regression solve
+                  if (has_regression) {
+                        reg_analog_indices.push_back(static_cast<std::size_t>(j));
+                        reg_combined_weights.push_back(combined_weight);
+                  }
             }
 
             // Finalize and store results
@@ -715,6 +712,40 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                               agg[i * n_stats + col_idx] = result;
                               col_idx++;
+                        }
+                  }
+            }
+
+            // REGRESSION: solve and write regression coefficients
+            if (has_regression && has_covariates && has_values) {
+                  if (reg_analog_indices.empty()) {
+                        // Zero analogs: write NAs for all coefficients
+                        for (int v = 0; v < n_vars; ++v) {
+                              for (int d = 0; d < reg_dim; ++d) {
+                                    agg[i * n_stats + col_idx] = NA_REAL;
+                                    col_idx++;
+                              }
+                        }
+                  } else {
+                        // Solve ridge regression
+                        std::vector<double> coeffs(n_vars * reg_dim);
+                        solve_ridge(reg_analog_indices,
+                                    reg_combined_weights,
+                                    values_ptr,
+                                    values_stride,
+                                    n_vars,
+                                    covariates_ptr,
+                                    covariates_stride,
+                                    n_covs,
+                                    lambda,
+                                    coeffs.data());
+
+                        // Write coefficients: for each variable, write intercept then covariate slopes
+                        for (int v = 0; v < n_vars; ++v) {
+                              for (int d = 0; d < reg_dim; ++d) {
+                                    agg[i * n_stats + col_idx] = coeffs[v * reg_dim + d];
+                                    col_idx++;
+                              }
                         }
                   }
             }

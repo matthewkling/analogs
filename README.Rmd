@@ -30,6 +30,7 @@ The package supports a range of analysis types. The core workhorse function is `
 - `analog_similarity()` finds the k nearest climate analogs within a geographic constraint  
 - `analog_availability()` counts analogs that meet both climate and distance thresholds
 - `analog_intensity()` computes distance-weighted aggregations of analog properties
+- `analog_regression()` fits climatically and/or geographically weighted regressions
 
 
 ## Distance metrics

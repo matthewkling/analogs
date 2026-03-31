@@ -60,7 +60,7 @@ struct PairWorker : public Worker {
       int n_cov_components;                           // n_clim * (n_clim + 1) / 2
 
       std::vector< std::vector<int> >& out_indices;
-      std::vector< std::vector<double> >& out_weights;  // NEW: sample weights
+      std::vector< std::vector<double> >& out_weights;  // sample weights
 
       // Thread-local storage for reusable allocations
       struct ThreadLocalStorage {
@@ -69,7 +69,7 @@ struct PairWorker : public Worker {
             std::vector<double> q_geo;
             std::vector<double> q_clim;
             std::vector<index_t> cand;
-            std::vector<double> cand_weights;  // NEW: weights for candidates
+            std::vector<double> cand_weights;
 
             ThreadLocalStorage() {
                   // Pre-allocate with reasonable sizes
@@ -78,7 +78,7 @@ struct PairWorker : public Worker {
                   q_geo.reserve(3);
                   q_clim.reserve(16);
                   cand.reserve(256);     // typical candidate count
-                  cand_weights.reserve(256);  // NEW
+                  cand_weights.reserve(256);
             }
       };
 
@@ -107,7 +107,7 @@ struct PairWorker : public Worker {
                  int x_cov_stride_,
                  int n_cov_components_,
                  std::vector< std::vector<int> >& out_indices_,
-                 std::vector< std::vector<double> >& out_weights_)  // NEW parameter
+                 std::vector< std::vector<double> >& out_weights_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
               ref_latt_ptr(ref_latt_ptr_),
@@ -136,7 +136,7 @@ struct PairWorker : public Worker {
               x_cov_stride(x_cov_stride_),
               n_cov_components(n_cov_components_),
               out_indices(out_indices_),
-              out_weights(out_weights_)  // NEW initialization
+              out_weights(out_weights_)
       {}
 
       void operator()(std::size_t begin, std::size_t end);
@@ -144,7 +144,7 @@ struct PairWorker : public Worker {
 
 
 // -------------------------------------------------------------------------
-// Worker for aggregate modes: COUNT / SUM / MEAN (potentially multiple)
+// Worker for aggregate modes: COUNT / SUM / MEAN / REGRESSION (potentially multiple)
 // Writes into agg[i * n_stats + s] the scalar aggregate for focal i, stat s.
 // -------------------------------------------------------------------------
 struct AggWorker : public Worker {
@@ -180,16 +180,23 @@ struct AggWorker : public Worker {
       double R_earth;
 
       // Mahalanobis distance support
-      bool use_mahalanobis;                           // true if x_cov provided
-      const double* x_cov_ptr;                        // pointer to x_cov matrix
-      int x_cov_stride;                               // stride for x_cov
-      int n_cov_components;                           // n_clim * (n_clim + 1) / 2
+      bool use_mahalanobis;
+      const double* x_cov_ptr;
+      int x_cov_stride;
+      int n_cov_components;
 
       // Values support for user-provided aggregation variables
-      bool has_values;                                // true if values provided
-      const double* values_ptr;                       // pointer to values matrix (n_ref × n_vars)
-      int values_stride;                              // stride for values (n_ref)
-      int n_vars;                                     // number of value variables
+      bool has_values;
+      const double* values_ptr;
+      int values_stride;
+      int n_vars;
+
+      // Covariates support for regression stat
+      bool has_covariates;
+      const double* covariates_ptr;
+      int covariates_stride;
+      int n_covs;
+      double lambda;
 
       std::vector<double>& agg; // flat output: size = n_focal * n_stats
       int n_stats;              // number of stats to compute (total columns in output)
@@ -199,13 +206,13 @@ struct AggWorker : public Worker {
             std::vector<double> q_geo;
             std::vector<double> q_clim;
             std::vector<index_t> cand;
-            std::vector<double> cand_weights;  // NEW: weights for candidates
+            std::vector<double> cand_weights;
 
             ThreadLocalStorage() {
                   q_geo.reserve(3);
                   q_clim.reserve(16);
                   cand.reserve(256);
-                  cand_weights.reserve(256);  // NEW
+                  cand_weights.reserve(256);
             }
       };
 
@@ -240,6 +247,11 @@ struct AggWorker : public Worker {
                 const double* values_ptr_,
                 int values_stride_,
                 int n_vars_,
+                bool has_covariates_,
+                const double* covariates_ptr_,
+                int covariates_stride_,
+                int n_covs_,
+                double lambda_,
                 std::vector<double>& agg_,
                 int n_stats_)
             : focal_ptr(REAL(focal_mm)),
@@ -276,6 +288,11 @@ struct AggWorker : public Worker {
               values_ptr(values_ptr_),
               values_stride(values_stride_),
               n_vars(n_vars_),
+              has_covariates(has_covariates_),
+              covariates_ptr(covariates_ptr_),
+              covariates_stride(covariates_stride_),
+              n_covs(n_covs_),
+              lambda(lambda_),
               agg(agg_),
               n_stats(n_stats_)
       {}

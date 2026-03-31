@@ -9,17 +9,19 @@
   ref = NULL,
   x_cov = NULL,
   values = NULL,
+  covariates = NULL,
   max_clim,
   max_geog,
   select,
   k,
   stat,
   weight,
-  theta
+  theta,
+  lambda = 0
 )
 }
 \description{
-Validates select/stat/k/weight/theta/x_cov/values combinations and normalizes values.
-Returns a list with normalized parameters.
+Validates select/stat/k/weight/theta/x_cov/values/covariates/lambda
+combinations and normalizes values. Returns a list with normalized parameters.
 }
 \keyword{internal}

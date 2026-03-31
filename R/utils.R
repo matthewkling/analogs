@@ -8,15 +8,17 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates select/stat/k/weight/theta/x_cov/values combinations and normalizes values.
-#' Returns a list with normalized parameters.
+#' Validates select/stat/k/weight/theta/x_cov/values/covariates/lambda
+#' combinations and normalizes values. Returns a list with normalized parameters.
 #'
 #' @keywords internal
 .validate_query_params <- function(focal = NULL, ref = NULL,
                                    x_cov = NULL, values = NULL,
+                                   covariates = NULL,
                                    max_clim, max_geog,
                                    select, k,
-                                   stat, weight, theta) {
+                                   stat, weight, theta,
+                                   lambda = 0) {
 
       # Validate select
       select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
@@ -44,7 +46,8 @@
       } else if (is.character(stat)) {
             # Validate each stat value
             valid_stats <- c("none", "count", "sum_weights", "mean_weights",
-                             "sum", "mean", "weighted_sum", "weighted_mean", "ess")
+                             "sum", "mean", "weighted_sum", "weighted_mean",
+                             "ess", "regression")
             invalid <- setdiff(stat, valid_stats)
             if (length(invalid) > 0) {
                   stop("Invalid stat value(s): ", paste(invalid, collapse = ", "),
@@ -93,9 +96,33 @@
                  "These stats require 'values' to be provided.")
       }
 
+      # Validate regression stat requirements
+      if ("regression" %in% stat) {
+            if (is.null(values)) {
+                  stop("stat includes 'regression' but 'values' parameter is NULL. ",
+                       "Regression requires 'values' to be provided.")
+            }
+            if (is.null(covariates)) {
+                  stop("stat includes 'regression' but 'covariates' parameter is NULL. ",
+                       "Regression requires 'covariates' to be provided.")
+            }
+            if (is.null(weight)) {
+                  stop("stat includes 'regression' but 'weight' is NULL. ",
+                       "Regression requires a weighting function. ",
+                       "Valid options: uniform, gaussian_clim, gaussian_geog, ",
+                       "gaussian_joint, inverse_clim, inverse_geog, inverse_joint")
+            }
+      }
+
+      # Validate lambda
+      if (!is.numeric(lambda) || length(lambda) != 1L || lambda < 0) {
+            stop("lambda must be a single non-negative numeric value.")
+      }
+
       # Validate stat/weight/theta combinations
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
-                                           "weighted_sum", "weighted_mean", "ess"))
+                                           "weighted_sum", "weighted_mean",
+                                           "ess", "regression"))
 
       if (has_weighted_stat) {
             # Weighted aggregation modes require weight
@@ -169,6 +196,19 @@
             values_names <- result$names
       }
 
+      # Validate and format covariates if provided
+      covariates_mat <- NULL
+      covariates_names <- NULL
+      if (!is.null(covariates)) {
+            if (is.null(ref)) {
+                  stop("Internal error: ref required for covariates validation")
+            }
+
+            result <- .validate_and_format_covariates(covariates, ref)
+            covariates_mat <- result$matrix
+            covariates_names <- result$names
+      }
+
       # Return normalized parameters
       list(
             select = select,
@@ -176,10 +216,93 @@
             k = k,
             weight = weight,
             theta = theta,
+            lambda = lambda,
             x_cov = x_cov_mat,
             values = values_mat,
-            values_names = values_names
+            values_names = values_names,
+            covariates = covariates_mat,
+            covariates_names = covariates_names
       )
+}
+
+
+#' Validate and format covariates parameter
+#' @keywords internal
+.validate_and_format_covariates <- function(covariates, ref) {
+
+      n_ref <- nrow(ref)
+
+      # Handle SpatRaster input
+      if (inherits(covariates, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster covariates", call. = FALSE)
+            }
+
+            df <- terra::as.data.frame(covariates, xy = FALSE, na.rm = FALSE)
+
+            if (nrow(df) != n_ref) {
+                  stop(sprintf(
+                        "covariates SpatRaster has %d cells but reference data has %d rows. They must match.",
+                        nrow(df), n_ref
+                  ))
+            }
+
+            cov_names <- names(df)
+            mat <- as.matrix(df)
+
+      } else if (is.data.frame(covariates)) {
+            if (nrow(covariates) != n_ref) {
+                  stop(sprintf(
+                        "covariates has %d rows but reference data has %d rows. They must match.",
+                        nrow(covariates), n_ref
+                  ))
+            }
+
+            # Check all columns are numeric
+            non_numeric <- names(covariates)[!vapply(covariates, is.numeric, logical(1))]
+            if (length(non_numeric) > 0) {
+                  stop("All covariates columns must be numeric. Non-numeric: ",
+                       paste(non_numeric, collapse = ", "))
+            }
+
+            cov_names <- names(covariates)
+            mat <- as.matrix(covariates)
+
+      } else if (is.matrix(covariates)) {
+            if (nrow(covariates) != n_ref) {
+                  stop(sprintf(
+                        "covariates has %d rows but reference data has %d rows. They must match.",
+                        nrow(covariates), n_ref
+                  ))
+            }
+            if (!is.numeric(covariates)) {
+                  stop("covariates matrix must be numeric.")
+            }
+
+            cov_names <- colnames(covariates)
+            mat <- covariates
+
+      } else if (is.numeric(covariates) && is.null(dim(covariates))) {
+            # Numeric vector — single covariate
+            if (length(covariates) != n_ref) {
+                  stop(sprintf(
+                        "covariates has length %d but reference data has %d rows. They must match.",
+                        length(covariates), n_ref
+                  ))
+            }
+
+            cov_names <- "covariate"
+            mat <- matrix(covariates, ncol = 1)
+      } else {
+            stop("covariates must be a numeric vector, matrix, data.frame, or SpatRaster.")
+      }
+
+      # Ensure names exist
+      if (is.null(cov_names)) {
+            cov_names <- paste0("cov", seq_len(ncol(mat)))
+      }
+
+      list(matrix = mat, names = cov_names)
 }
 
 #' Validate and format values parameter

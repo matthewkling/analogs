@@ -193,7 +193,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             int weight_code,
                             const NumericVector& theta,
                             SEXP x_cov_sexp,
-                            SEXP values_sexp)
+                            SEXP values_sexp,
+                            SEXP covariates_sexp,
+                            double lambda)
 {
       // Extract lattice and metadata from index
       List idx = as<List>(index_list);
@@ -316,6 +318,26 @@ SEXP query_analog_index_cpp(SEXP index_list,
             values_ptr = REAL(values_mat);
             values_stride = n_ref;  // Column-major stride
             n_vars = values_mat.ncol();
+      }
+
+      // Parse covariates parameter (for regression stat)
+      bool has_covariates = false;
+      const double* covariates_ptr = nullptr;
+      int covariates_stride = 0;
+      int n_covs = 0;
+
+      if (!Rf_isNull(covariates_sexp) && covariates_sexp != R_NilValue) {
+            NumericMatrix covariates_mat = as<NumericMatrix>(covariates_sexp);
+
+            // Validate dimensions
+            if (covariates_mat.nrow() != n_ref) {
+                  stop("covariates must have same number of rows as reference data");
+            }
+
+            has_covariates = true;
+            covariates_ptr = REAL(covariates_mat);
+            covariates_stride = n_ref;  // Column-major stride
+            n_covs = covariates_mat.ncol();
       }
 
       // Get ECEF data pointer if applicable
@@ -448,6 +470,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
       // Count regular vs value stats to calculate total columns
       int n_regular_stats = 0;
       int n_value_stats = 0;
+      bool has_regression_stat = false;
 
       for (int i = 0; i < n_stats; ++i) {
             if (acodes[i] == AggregateCode::SUM ||
@@ -455,13 +478,19 @@ SEXP query_analog_index_cpp(SEXP index_list,
                 acodes[i] == AggregateCode::WEIGHTED_SUM ||
                 acodes[i] == AggregateCode::WEIGHTED_MEAN) {
                   n_value_stats++;
+            } else if (acodes[i] == AggregateCode::REGRESSION) {
+                  has_regression_stat = true;
             } else {
                   n_regular_stats++;
             }
       }
 
-      // Total columns = regular stats + (value stats × n_vars)
-      const int n_total_cols = n_regular_stats + (n_value_stats * n_vars);
+      // Regression produces (n_covs + 1) columns per value variable
+      const int n_regression_cols = has_regression_stat ?
+      (n_vars * (n_covs + 1)) : 0;
+
+      // Total columns = regular stats + (value stats × n_vars) + regression cols
+      const int n_total_cols = n_regular_stats + (n_value_stats * n_vars) + n_regression_cols;
 
       // Allocate flat vector for all stats
       // Layout: [focal0_stat0, focal0_stat1, ..., focal1_stat0, focal1_stat1, ...]
@@ -496,6 +525,11 @@ SEXP query_analog_index_cpp(SEXP index_list,
                         values_ptr,
                         values_stride,
                         n_vars,
+                        has_covariates,
+                        covariates_ptr,
+                        covariates_stride,
+                        n_covs,
+                        lambda,
                         agg_vals,
                         n_total_cols);
 

@@ -1,4 +1,3 @@
-
 #' Climate impact assessment via analog impact model
 #'
 #' Assesses potential climate change impacts using the analog impact model (AIM)
@@ -20,9 +19,11 @@
 #'       [build_analog_index()] (for repeated queries).
 #'   }
 #' @param values Ecological or environmental variable(s) for the same era as `pool`, to
-#'   aggregate across climate analogs. Must have exactly `nrow(pool)` rows.
-#'   Examples include occupancy of focal species, species richness, biomass,
-#'   or any other ecological state variable.
+#'   aggregate across climate analogs. Examples include occupancy of focal species, species
+#'   richness, biomass, or any other ecological state variable. Can be a numeric vector
+#'   (single variable), matrix or data.frame with numeric columns (multiple
+#'   variables), or a SpatRaster with one or more numeric layers. Must have
+#'   exactly the same number of reference locations as `pool`.
 #' @param stat Statistic(s) to compute across analogs (default: c("count",
 #'   "sum_weights", "weighted_mean")). See [analog_search()] for options.
 #'   The default statistics provide a complete picture:
@@ -44,6 +45,7 @@
 #'     \item One column per requested statistic
 #'     \item For value statistics with multiple variables: `{stat}_{varname}`
 #'       (e.g., `weighted_mean_habitat_quality`)
+#'     \item For `"regression"`: `intercept` and covariate coefficient columns
 #'   }
 #'
 #' @details
@@ -105,46 +107,6 @@
 #'   max_geog = 100,    # 100 km dispersal range
 #'   max_clim = 0.5     # Climate analog threshold
 #' )
-#'
-#' # Multiple ecosystem variables
-#' values_df <- data.frame(
-#'   habitat_quality = current$habitat,
-#'   species_richness = current$richness,
-#'   forest_cover = current$forest
-#' )
-#' impact_multi <- analog_impact(
-#'   x = future_climate,
-#'   pool = current_climate,
-#'   values = values_df,
-#'   max_geog = 150,
-#'   max_clim = 0.4,
-#'   theta = 0.25
-#' )
-#'
-#' # Custom statistics and weighting
-#' impact_custom <- analog_impact(
-#'   x = future_climate,
-#'   pool = current_climate,
-#'   values = current$biomass,
-#'   stat = c("count", "weighted_mean", "weighted_sum"),
-#'   max_clim = 0.6,
-#'   max_geog = 200,
-#'   weight = "gaussian_joint",    # Weight by both climate and geography
-#'   theta = c(0.2, 50)           # Climate and geographic decay
-#' )
-#'
-#' # With pre-built index for multiple scenarios
-#' current_index <- build_analog_index(current_climate)
-#'
-#' impact_current <- analog_impact(current_climate, current_index,
-#'                                  values = current$quality,
-#'                                  max_geog = 100)
-#' impact_ssp126 <- analog_impact(future_ssp126, current_index,
-#'                                  values = current$quality,
-#'                                  max_geog = 100)
-#' impact_ssp585 <- analog_impact(future_ssp585, current_index,
-#'                                  values = current$quality,
-#'                                  max_geog = 100)
 #' }
 #'
 #' @export
@@ -152,12 +114,14 @@ analog_impact <- function(
             x,
             pool,
             values,
+            covariates = NULL,
             max_geog = NULL,
             max_clim = 1.0,
             weight = c("gaussian_clim", "inverse_clim",
                        "gaussian_joint", "inverse_joint"),
             theta = .25,
             stat = c("count", "sum_weights", "weighted_mean"),
+            lambda = 0,
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
@@ -172,11 +136,13 @@ analog_impact <- function(
             select      = "all",
             stat        = stat,
             values      = values,
+            covariates  = covariates,
             max_clim    = max_clim,
             max_geog    = max_geog,
             k           = NULL,
             weight      = weight,
             theta       = theta,
+            lambda      = lambda,
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,

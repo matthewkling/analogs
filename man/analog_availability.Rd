@@ -116,7 +116,9 @@ with the following variables:
 \item \code{index}, \code{x}, \code{y}: Focal location
 \item One column per requested statistic. For \code{stat} with single \code{values} variable:
 column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
-variables: columns named \verb{{stat}_{varname}} (e.g., \code{sum_biomass}, \code{mean_richness})
+variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
+\item For \code{stat = "regression"}: columns for \code{intercept} and each covariate name,
+or \verb{intercept_\{varname\}} and \verb{\{covariate\}_\{varname\}} with multiple values variables.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).

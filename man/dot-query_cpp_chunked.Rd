@@ -17,6 +17,8 @@
   theta,
   x_cov,
   values,
+  covariates,
+  lambda,
   show_progress = FALSE
 )
 }

@@ -43,12 +43,13 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 \item{values}{Optional user-defined variables for each reference location
 in \code{pool} to aggregate across selected analogs. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeic layers. Must have
+variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as \code{pool}.
 
 When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, and \code{"weighted_mean"}. For stat = NULL/"none" (pairs
-mode), value columns are included in output for each analog pair.}
+\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For stat =
+NULL/"none" (pairs mode), value columns are included in output for each
+analog pair.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -132,7 +133,9 @@ with the following variables:
 \item \code{index}, \code{x}, \code{y}: Focal location
 \item One column per requested statistic. For \code{stat} with single \code{values} variable:
 column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
-variables: columns named \verb{{stat}_{varname}} (e.g., \code{sum_biomass}, \code{mean_richness})
+variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
+\item For \code{stat = "regression"}: columns for \code{intercept} and each covariate name,
+or \verb{intercept_\{varname\}} and \verb{\{covariate\}_\{varname\}} with multiple values variables.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).

@@ -9,6 +9,7 @@ analog_search(
   pool,
   x_cov = NULL,
   values = NULL,
+  covariates = NULL,
   max_clim = NULL,
   max_geog = NULL,
   select = "all",
@@ -16,6 +17,7 @@ analog_search(
   stat = NULL,
   weight = NULL,
   theta = NULL,
+  lambda = 0,
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
@@ -47,12 +49,22 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 \item{values}{Optional user-defined variables for each reference location
 in \code{pool} to aggregate across selected analogs. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeic layers. Must have
+variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as \code{pool}.
 
 When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, and \code{"weighted_mean"}. For stat = NULL/"none" (pairs
-mode), value columns are included in output for each analog pair.}
+\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For stat =
+NULL/"none" (pairs mode), value columns are included in output for each
+analog pair.}
+
+\item{covariates}{Optional auxiliary predictor variables for each reference
+location in \code{pool}, used with \code{stat = "regression"}. Can be a numeric
+vector (single covariate), matrix or data.frame with numeric columns
+(multiple covariates), or a SpatRaster with one or more numeric layers.
+Must have exactly the same number of rows/cells as \code{pool}. Column names
+are used for output layer naming. These variables are NOT used for the
+analog search itself -- only for local regression within each analog
+neighborhood.}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
@@ -103,8 +115,13 @@ analogs.
 \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
 squared sum of weights divided by the sum of squared weights
 (requires \code{weight}).
+\item \code{"regression"}: Weighted least squares (or ridge) regression
+of \code{values} on \code{covariates} within each analog neighborhood.
+Returns intercept and slope coefficients. Requires \code{values},
+\code{covariates}, and \code{weight}. See \code{lambda} for
+regularization.
 \item A character vector combining multiple stats (e.g.,
-\code{c("count", "sum", "mean")}).
+\code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.
 }}
 
@@ -138,6 +155,12 @@ parameter (scalar; larger values = slower decay with distance).
 \item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
 \code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
 }}
+
+\item{lambda}{Ridge penalty parameter for \code{stat = "regression"}
+(default: 0, giving ordinary weighted least squares). Higher values
+shrink covariate coefficients toward zero, with the intercept
+approaching the weighted mean as \code{lambda -> Inf}. Ignored when
+\code{"regression"} is not in \code{stat}.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -200,7 +223,9 @@ with the following variables:
 \item \code{index}, \code{x}, \code{y}: Focal location
 \item One column per requested statistic. For \code{stat} with single \code{values} variable:
 column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
-variables: columns named \verb{{stat}_{varname}} (e.g., \code{sum_biomass}, \code{mean_richness})
+variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
+\item For \code{stat = "regression"}: columns for \code{intercept} and each covariate name,
+or \verb{intercept_\{varname\}} and \verb{\{covariate\}_\{varname\}} with multiple values variables.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
@@ -217,13 +242,13 @@ then optionally aggregating the results.
 
 \itemize{
 \item \emph{Data parameters}
-(\code{x}, \code{pool}, \code{x_cov}, \code{values}, \code{coord_type})
+(\code{x}, \code{pool}, \code{x_cov}, \code{values}, \code{covariates}, \code{coord_type})
 give attributes of the data on which to operate.
 \item \emph{Selection parameters}
 (\code{select}, \code{max_clim}, \code{max_geog}, \code{k})
 define which analogs to \code{select} from the \code{pool} for each \code{x}.
 \item \emph{Aggregation parameters}
-(\code{stat}, \code{weight}, \code{theta})
+(\code{stat}, \code{weight}, \code{theta}, \code{lambda})
 control how selected analogs are summarized.
 \item \emph{Computation parameters}
 (\code{n_threads}, \code{index_res}, \code{downsample}, \code{seed}, \code{progress})

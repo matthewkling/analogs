@@ -18,6 +18,8 @@ tune_index_res(
   theta = NULL,
   x_cov = NULL,
   values = NULL,
+  covariates = NULL,
+  lambda = 0,
   coord_type = c("auto", "lonlat", "projected"),
   n_threads = NULL,
   default_res = 16L,
@@ -74,8 +76,13 @@ analogs.
 \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
 squared sum of weights divided by the sum of squared weights
 (requires \code{weight}).
+\item \code{"regression"}: Weighted least squares (or ridge) regression
+of \code{values} on \code{covariates} within each analog neighborhood.
+Returns intercept and slope coefficients. Requires \code{values},
+\code{covariates}, and \code{weight}. See \code{lambda} for
+regularization.
 \item A character vector combining multiple stats (e.g.,
-\code{c("count", "sum", "mean")}).
+\code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.
 }}
 
@@ -141,12 +148,28 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 \item{values}{Optional user-defined variables for each reference location
 in \code{pool} to aggregate across selected analogs. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeic layers. Must have
+variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as \code{pool}.
 
 When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, and \code{"weighted_mean"}. For stat = NULL/"none" (pairs
-mode), value columns are included in output for each analog pair.}
+\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For stat =
+NULL/"none" (pairs mode), value columns are included in output for each
+analog pair.}
+
+\item{covariates}{Optional auxiliary predictor variables for each reference
+location in \code{pool}, used with \code{stat = "regression"}. Can be a numeric
+vector (single covariate), matrix or data.frame with numeric columns
+(multiple covariates), or a SpatRaster with one or more numeric layers.
+Must have exactly the same number of rows/cells as \code{pool}. Column names
+are used for output layer naming. These variables are NOT used for the
+analog search itself -- only for local regression within each analog
+neighborhood.}
+
+\item{lambda}{Ridge penalty parameter for \code{stat = "regression"}
+(default: 0, giving ordinary weighted least squares). Higher values
+shrink covariate coefficients toward zero, with the intercept
+approaching the weighted mean as \code{lambda -> Inf}. Ignored when
+\code{"regression"} is not in \code{stat}.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{

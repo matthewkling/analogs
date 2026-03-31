@@ -9,13 +9,13 @@
 #'
 #' \itemize{
 #'     \item *Data parameters*
-#'       (`x`, `pool`, `x_cov`, `values`, `coord_type`)
+#'       (`x`, `pool`, `x_cov`, `values`, `covariates`, `coord_type`)
 #'       give attributes of the data on which to operate.
 #'     \item *Selection parameters*
 #'       (`select`, `max_clim`, `max_geog`, `k`)
 #'       define which analogs to `select` from the `pool` for each `x`.
 #'     \item *Aggregation parameters*
-#'       (`stat`, `weight`, `theta`)
+#'       (`stat`, `weight`, `theta`, `lambda`)
 #'       control how selected analogs are summarized.
 #'     \item *Computation parameters*
 #'       (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
@@ -79,14 +79,22 @@
 #' @param values Optional user-defined variables for each reference location
 #'   in `pool` to aggregate across selected analogs. Can be a numeric vector
 #'   (single variable), matrix or data.frame with numeric columns (multiple
-#'   variables), or a SpatRaster with one or more numeic layers. Must have
+#'   variables), or a SpatRaster with one or more numeric layers. Must have
 #'   exactly the same number of reference locations as `pool`.
 #'
 #'   When provided, enables value-based aggregation stats `"sum"`, `"mean"`,
-#'   `"weighted_sum"`, and `"weighted_mean"`. For stat = NULL/"none" (pairs
-#'   mode), value columns are included in output for each analog pair.
+#'   `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For stat =
+#'   NULL/"none" (pairs mode), value columns are included in output for each
+#'   analog pair.
 #'
-#'
+#' @param covariates Optional auxiliary predictor variables for each reference
+#'   location in `pool`, used with `stat = "regression"`. Can be a numeric
+#'   vector (single covariate), matrix or data.frame with numeric columns
+#'   (multiple covariates), or a SpatRaster with one or more numeric layers.
+#'   Must have exactly the same number of rows/cells as `pool`. Column names
+#'   are used for output layer naming. These variables are NOT used for the
+#'   analog search itself -- only for local regression within each analog
+#'   neighborhood.
 #'
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
 #'   climate constraint). Can be either:
@@ -120,9 +128,6 @@
 #'   selection modes. Required when \code{select} is \code{"knn_geog"} or
 #'   \code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.
 #'
-#'
-#'
-#'
 #' @param stat Statistic(s) used to aggregate selected analogs. Either:
 #'   \itemize{
 #'     \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
@@ -140,8 +145,13 @@
 #'     \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
 #'       squared sum of weights divided by the sum of squared weights
 #'       (requires \code{weight}).
+#'     \item \code{"regression"}: Weighted least squares (or ridge) regression
+#'       of \code{values} on \code{covariates} within each analog neighborhood.
+#'       Returns intercept and slope coefficients. Requires \code{values},
+#'       \code{covariates}, and \code{weight}. See \code{lambda} for
+#'       regularization.
 #'     \item A character vector combining multiple stats (e.g.,
-#'       \code{c("count", "sum", "mean")}).
+#'       \code{c("count", "weighted_mean", "regression")}).
 #'       Note: \code{"none"} cannot be combined with other stats.
 #'   }
 #'
@@ -176,6 +186,12 @@
 #'       \code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
 #'   }
 #'
+#' @param lambda Ridge penalty parameter for \code{stat = "regression"}
+#'   (default: 0, giving ordinary weighted least squares). Higher values
+#'   shrink covariate coefficients toward zero, with the intercept
+#'   approaching the weighted mean as \code{lambda -> Inf}. Ignored when
+#'   \code{"regression"} is not in \code{stat}.
+#'
 #' @param coord_type Coordinate system type:
 #'   \itemize{
 #'     \item \code{"auto"} (default): Automatically detect from coordinate ranges.
@@ -198,48 +214,50 @@
 #'   of the internally-used lattice search index. Either:
 #'   \itemize{
 #'     \item A positive integer.
-#'     \item \code{"auto"} (the default): Automatically tune the index resolution
+#'     \item `"auto"` (the default): Automatically tune the index resolution
 #'       by optimizing compute time on a subsample of focal points. If focal has
 #'       relatively few rows, auto-tuning is skipped and a default resolution of
 #'       16 is used.
 #'   }
-#'   Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).
+#'   Ignored if `pool` is an `analog_index` (uses index's resolution).
 #'
 #' @param n_threads Optional integer number of threads to use for the
-#'   computation. If \code{NULL} (default), the global RcppParallel setting
-#'   is used (see \code{RcppParallel::setThreadOptions}).
+#'   computation. If `NULL` (default), the global RcppParallel setting
+#'   is used (see `RcppParallel::setThreadOptions`).
 #'
-#' @param progress Logical; if \code{TRUE}, display a progress bar during
+#' @param progress Logical; if `TRUE`, display a progress bar during
 #'   computation. Progress tracking works by splitting the focal dataset into
 #'   chunks and processing them sequentially. Useful for large datasets. Default
-#'   is \code{FALSE}.
+#'   is `FALSE`.
 #'
 #' @return Return type depends on input format and query mode.
 #'
-#' Returns a data.frame, unless \code{x} is a SpatRaster and results have exactly one record per
-#' input cell (aggregation mode, or pairwise with \code{k = 1}), in which case returns a
+#' Returns a data.frame, unless `x` is a SpatRaster and results have exactly one record per
+#' input cell (aggregation mode, or pairwise with `k = 1`), in which case returns a
 #' SpatRaster with one layer per output variable.
 #'
-#' Pairwise mode (\code{stat = NULL} or \code{"none"}) returns one row per focal-analog pair,
+#' Pairwise mode (`stat = NULL` or `"none"`) returns one row per focal-analog pair,
 #' with the following variables:
 #' \itemize{
-#'   \item \code{index}, \code{x}, \code{y}: Focal location (1-based index and coordinates) corresponding to input \code{x}
-#'   \item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
-#'   \item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
-#'   \item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
-#'   \item Value columns (if \code{values} provided): one per variable
+#'     \item `index`, `x`, `y`: Focal location (1-based index and coordinates) corresponding to input `x`
+#'     \item `analog_index`, `analog_x`, `analog_y`: Analog location corresponding to input `pool`
+#'     \item `clim_dist`: Climate distance (Euclidean or Mahalanobis)
+#'     \item `geog_dist`: Geographic distance (km for lonlat, projection units otherwise)
+#'     \item Value columns (if `values` provided): one per variable
 #' }
 #'
-#' Aggregation mode (one or more \code{stat} values) returns one row per focal location,
+#' Aggregation mode (one or more `stat` values) returns one row per focal location,
 #' with the following variables:
 #' \itemize{
-#'   \item \code{index}, \code{x}, \code{y}: Focal location
-#'   \item One column per requested statistic. For \code{stat} with single \code{values} variable:
-#'     column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{values}
-#'     variables: columns named \verb{{stat}_{varname}} (e.g., \code{sum_biomass}, \code{mean_richness})
+#'     \item `index`, `x`, `y`: Focal location
+#'     \item One column per requested statistic. For `stat` with single `values` variable:
+#'       column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `values`
+#'       variables: columns named `{stat}_{varname}` (e.g., `sum_biomass`, `mean_richness`)
+#'     \item For `stat = "regression"`: columns for `intercept` and each covariate name,
+#'       or `intercept_{varname}` and `{covariate}_{varname}` with multiple values variables.
 #' }
 #'
-#' All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+#' All results include metadata attributes (`select`, `stat`, `weight`, etc.).
 #' Use [analog_summary()] to view a formatted summary.
 #'
 #' @references
@@ -270,6 +288,7 @@ analog_search <- function(
       pool,
       x_cov = NULL,
       values = NULL,
+      covariates = NULL,
 
       # candidate filtering
       max_clim = NULL,
@@ -281,6 +300,7 @@ analog_search <- function(
       stat = NULL,
       weight = NULL,
       theta = NULL,
+      lambda = 0,
 
       # args passed to build_lattice_index
       coord_type = c("auto", "lonlat", "projected"),
@@ -308,6 +328,7 @@ analog_search <- function(
                         pool = pool,
                         x_cov = x_cov,
                         values = values,
+                        covariates = covariates,
                         select = select,
                         stat = stat,
                         max_clim = max_clim,
@@ -315,6 +336,7 @@ analog_search <- function(
                         k = k,
                         weight = weight,
                         theta = theta,
+                        lambda = lambda,
                         coord_type = coord_type,
                         n_threads = n_threads,
                         verbose = FALSE,
@@ -347,9 +369,11 @@ analog_search <- function(
             max_geog = max_geog,
             x_cov = x_cov,
             values = values,
+            covariates = covariates,
             k = k,
             weight = weight,
             theta = theta,
+            lambda = lambda,
             n_threads = n_threads,
             show_progress = progress
       ))
