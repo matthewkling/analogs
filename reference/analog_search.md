@@ -12,7 +12,7 @@ analog_search(
   x,
   pool,
   x_cov = NULL,
-  values = NULL,
+  y = NULL,
   covariates = NULL,
   max_clim = NULL,
   max_geog = NULL,
@@ -59,7 +59,7 @@ analog_search(
   there are n\*(n+1)/2 unique components, ordered as: variances first
   (diagonals), then covariances (upper triangle by row).
 
-- values:
+- y:
 
   Optional user-defined variables for each reference location in `pool`
   to aggregate across selected analogs. Can be a numeric vector (single
@@ -69,8 +69,8 @@ analog_search(
 
   When provided, enables value-based aggregation stats `"sum"`,
   `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
-  stat = NULL/"none" (pairs mode), value columns are included in output
-  for each analog pair.
+  stat = NULL/"none" (pairs mode), y value columns are included in
+  output for each analog pair.
 
 - covariates:
 
@@ -139,24 +139,24 @@ analog_search(
   - `"mean_weights"`: For each focal, mean of weights of selected
     analogs.
 
-  - `"sum"`: Sum of values across analogs (requires `values`).
+  - `"sum"`: Sum of `y` values across analogs (requires `y`).
 
-  - `"mean"`: Mean of values across analogs (requires `values`).
+  - `"mean"`: Mean of `y` values across analogs (requires `y`).
 
-  - `"weighted_sum"`: Sum of (value × weight) across analogs (requires
-    `values` and `weight`).
+  - `"weighted_sum"`: Sum of (`y` × weight) across analogs (requires `y`
+    and `weight`).
 
-  - `"weighted_mean"`: Weighted mean of values across analogs (requires
-    `values` and `weight`).
+  - `"weighted_mean"`: Weighted mean of `y` values across analogs
+    (requires `y` and `weight`).
 
   - `"ess"`: Kish's effective sample size (ESS), computed as the squared
     sum of weights divided by the sum of squared weights (requires
     `weight`).
 
-  - `"regression"`: Weighted least squares (or ridge) regression of
-    `values` on `covariates` within each analog neighborhood. Returns
-    intercept and slope coefficients. Requires `values`, `covariates`,
-    and `weight`. See `lambda` for regularization.
+  - `"regression"`: Weighted least squares (or ridge) regression of `y`
+    on `covariates` within each analog neighborhood. Returns intercept
+    and slope coefficients. Requires `y`, `covariates`, and `weight`.
+    See `lambda` for regularization.
 
   - A character vector combining multiple stats (e.g.,
     `c("count", "weighted_mean", "regression")`). Note: `"none"` cannot
@@ -287,21 +287,21 @@ focal-analog pair, with the following variables:
 - `geog_dist`: Geographic distance (km for lonlat, projection units
   otherwise)
 
-- Value columns (if `values` provided): one per variable
+- Value columns (if `y` provided): one per variable
 
 Aggregation mode (one or more `stat` values) returns one row per focal
 location, with the following variables:
 
 - `index`, `x`, `y`: Focal location
 
-- One column per requested statistic. For `stat` with single `values`
+- One column per requested statistic. For `stat` with single `y`
   variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
-  multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
+  multiple `y` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
 - For `stat = "regression"`: columns for `intercept` and each covariate
   name, or `intercept_{varname}` and `{covariate}_{varname}` with
-  multiple values variables.
+  multiple `y` variables.
 
 All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use
@@ -312,7 +312,7 @@ to view a formatted summary.
 
 ### Parameter categories
 
-- *Data parameters* (`x`, `pool`, `x_cov`, `values`, `covariates`,
+- *Data parameters* (`x`, `pool`, `x_cov`, `y`, `covariates`,
   `coord_type`) give attributes of the data on which to operate.
 
 - *Selection parameters* (`select`, `max_clim`, `max_geog`, `k`) define

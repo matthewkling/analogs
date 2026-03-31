@@ -13,7 +13,7 @@ query_analog_index(
   max_clim,
   max_geog,
   x_cov,
-  values,
+  y,
   covariates,
   k,
   weight,

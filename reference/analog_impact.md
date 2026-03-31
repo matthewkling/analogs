@@ -13,7 +13,7 @@ accessible via dispersal as climate changes.
 analog_impact(
   x,
   pool,
-  values,
+  y,
   covariates = NULL,
   max_geog = NULL,
   max_clim = 1,
@@ -49,7 +49,7 @@ analog_impact(
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
     (for repeated queries).
 
-- values:
+- y:
 
   Ecological or environmental variable(s) for the same era as `pool`, to
   aggregate across climate analogs. Examples include occupancy of focal
@@ -268,7 +268,7 @@ if (FALSE) { # \dontrun{
 impact <- analog_impact(
   x = future_climate,
   pool = current_climate,
-  values = current$habitat,
+  y = current$habitat,
   max_geog = 100,    # 100 km dispersal range
   max_clim = 0.5     # Climate analog threshold
 )

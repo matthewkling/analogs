@@ -57,7 +57,7 @@ different resolutions and recommends the one with the fastest compute speed.</p>
 <span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  theta <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  values <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"lonlat"</span>, <span class="st">"projected"</span><span class="op">)</span>,</span>
@@ -116,18 +116,18 @@ with smallest geographic distance, subject to filters.</p></li>
 analogs (see <code>weight</code> and <code>theta</code>).</p></li>
 <li><p><code>"mean_weights"</code>: For each focal, mean of weights of selected
 analogs.</p></li>
-<li><p><code>"sum"</code>: Sum of values across analogs (requires <code>values</code>).</p></li>
-<li><p><code>"mean"</code>: Mean of values across analogs (requires <code>values</code>).</p></li>
-<li><p><code>"weighted_sum"</code>: Sum of (value × weight) across analogs
-(requires <code>values</code> and <code>weight</code>).</p></li>
-<li><p><code>"weighted_mean"</code>: Weighted mean of values across analogs
-(requires <code>values</code> and <code>weight</code>).</p></li>
+<li><p><code>"sum"</code>: Sum of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
+<li><p><code>"mean"</code>: Mean of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
+<li><p><code>"weighted_sum"</code>: Sum of (<code>y</code> × weight) across analogs
+(requires <code>y</code> and <code>weight</code>).</p></li>
+<li><p><code>"weighted_mean"</code>: Weighted mean of <code>y</code> values across analogs
+(requires <code>y</code> and <code>weight</code>).</p></li>
 <li><p><code>"ess"</code>: Kish's effective sample size (ESS), computed as the
 squared sum of weights divided by the sum of squared weights
 (requires <code>weight</code>).</p></li>
 <li><p><code>"regression"</code>: Weighted least squares (or ridge) regression
-of <code>values</code> on <code>covariates</code> within each analog neighborhood.
-Returns intercept and slope coefficients. Requires <code>values</code>,
+of <code>y</code> on <code>covariates</code> within each analog neighborhood.
+Returns intercept and slope coefficients. Requires <code>y</code>,
 <code>covariates</code>, and <code>weight</code>. See <code>lambda</code> for
 regularization.</p></li>
 <li><p>A character vector combining multiple stats (e.g.,
@@ -200,7 +200,7 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).</p></dd>
 
 
-<dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
+<dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
 <dd><p>Optional user-defined variables for each reference location
 in <code>pool</code> to aggregate across selected analogs. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
@@ -208,7 +208,7 @@ variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as <code>pool</code>.</p>
 <p>When provided, enables value-based aggregation stats <code>"sum"</code>, <code>"mean"</code>,
 <code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>. For stat =
-NULL/"none" (pairs mode), value columns are included in output for each
+NULL/"none" (pairs mode), y value columns are included in output for each
 analog pair.</p></dd>
 
 

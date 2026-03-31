@@ -160,14 +160,14 @@ with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, 
 <li><p><code>analog_index</code>, <code>analog_x</code>, <code>analog_y</code>: Analog location corresponding to input <code>pool</code></p></li>
 <li><p><code>clim_dist</code>: Climate distance (Euclidean or Mahalanobis)</p></li>
 <li><p><code>geog_dist</code>: Geographic distance (km for lonlat, projection units otherwise)</p></li>
-<li><p>Value columns (if <code>values</code> provided): one per variable</p></li>
+<li><p>Value columns (if <code>y</code> provided): one per variable</p></li>
 </ul><p>Aggregation mode (one or more <code>stat</code> values) returns one row per focal location,
 with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location</p></li>
-<li><p>One column per requested statistic. For <code>stat</code> with single <code>values</code> variable:
-column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>values</code>
+<li><p>One column per requested statistic. For <code>stat</code> with single <code>y</code> variable:
+column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>y</code>
 variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass</code>, <code>mean_richness</code>)</p></li>
 <li><p>For <code>stat = "regression"</code>: columns for <code>intercept</code> and each covariate name,
-or <code>intercept_{varname}</code> and <code>{covariate}_{varname}</code> with multiple values variables.</p></li>
+or <code>intercept_{varname}</code> and <code>{covariate}_{varname}</code> with multiple <code>y</code> variables.</p></li>
 </ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>weight</code>, etc.).
 Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a formatted summary.</p>
     </div>

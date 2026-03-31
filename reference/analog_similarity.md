@@ -12,7 +12,7 @@ analog_similarity(
   x,
   pool,
   x_cov = NULL,
-  values = NULL,
+  y = NULL,
   coord_type = "auto",
   max_geog,
   max_clim = NULL,
@@ -53,7 +53,7 @@ analog_similarity(
   there are n\*(n+1)/2 unique components, ordered as: variances first
   (diagonals), then covariances (upper triangle by row).
 
-- values:
+- y:
 
   Optional user-defined variables for each reference location in `pool`
   to aggregate across selected analogs. Can be a numeric vector (single
@@ -63,8 +63,8 @@ analog_similarity(
 
   When provided, enables value-based aggregation stats `"sum"`,
   `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
-  stat = NULL/"none" (pairs mode), value columns are included in output
-  for each analog pair.
+  stat = NULL/"none" (pairs mode), y value columns are included in
+  output for each analog pair.
 
 - coord_type:
 
@@ -169,21 +169,21 @@ focal-analog pair, with the following variables:
 - `geog_dist`: Geographic distance (km for lonlat, projection units
   otherwise)
 
-- Value columns (if `values` provided): one per variable
+- Value columns (if `y` provided): one per variable
 
 Aggregation mode (one or more `stat` values) returns one row per focal
 location, with the following variables:
 
 - `index`, `x`, `y`: Focal location
 
-- One column per requested statistic. For `stat` with single `values`
+- One column per requested statistic. For `stat` with single `y`
   variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
-  multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
+  multiple `y` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
 - For `stat = "regression"`: columns for `intercept` and each covariate
   name, or `intercept_{varname}` and `{covariate}_{varname}` with
-  multiple values variables.
+  multiple `y` variables.
 
 All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use

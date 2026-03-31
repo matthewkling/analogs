@@ -194,21 +194,21 @@ focal-analog pair, with the following variables:
 - `geog_dist`: Geographic distance (km for lonlat, projection units
   otherwise)
 
-- Value columns (if `values` provided): one per variable
+- Value columns (if `y` provided): one per variable
 
 Aggregation mode (one or more `stat` values) returns one row per focal
 location, with the following variables:
 
 - `index`, `x`, `y`: Focal location
 
-- One column per requested statistic. For `stat` with single `values`
+- One column per requested statistic. For `stat` with single `y`
   variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
-  multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
+  multiple `y` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
 - For `stat = "regression"`: columns for `intercept` and each covariate
   name, or `intercept_{varname}` and `{covariate}_{varname}` with
-  multiple values variables.
+  multiple `y` variables.
 
 All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use

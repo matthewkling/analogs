@@ -51,7 +51,7 @@ then optionally aggregating the results.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  <span class="va">pool</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  values <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -97,7 +97,7 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).</p></dd>
 
 
-<dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
+<dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
 <dd><p>Optional user-defined variables for each reference location
 in <code>pool</code> to aggregate across selected analogs. Can be a numeric vector
 (single variable), matrix or data.frame with numeric columns (multiple
@@ -105,7 +105,7 @@ variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as <code>pool</code>.</p>
 <p>When provided, enables value-based aggregation stats <code>"sum"</code>, <code>"mean"</code>,
 <code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>. For stat =
-NULL/"none" (pairs mode), value columns are included in output for each
+NULL/"none" (pairs mode), y value columns are included in output for each
 analog pair.</p></dd>
 
 
@@ -162,18 +162,18 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 analogs (see <code>weight</code> and <code>theta</code>).</p></li>
 <li><p><code>"mean_weights"</code>: For each focal, mean of weights of selected
 analogs.</p></li>
-<li><p><code>"sum"</code>: Sum of values across analogs (requires <code>values</code>).</p></li>
-<li><p><code>"mean"</code>: Mean of values across analogs (requires <code>values</code>).</p></li>
-<li><p><code>"weighted_sum"</code>: Sum of (value × weight) across analogs
-(requires <code>values</code> and <code>weight</code>).</p></li>
-<li><p><code>"weighted_mean"</code>: Weighted mean of values across analogs
-(requires <code>values</code> and <code>weight</code>).</p></li>
+<li><p><code>"sum"</code>: Sum of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
+<li><p><code>"mean"</code>: Mean of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
+<li><p><code>"weighted_sum"</code>: Sum of (<code>y</code> × weight) across analogs
+(requires <code>y</code> and <code>weight</code>).</p></li>
+<li><p><code>"weighted_mean"</code>: Weighted mean of <code>y</code> values across analogs
+(requires <code>y</code> and <code>weight</code>).</p></li>
 <li><p><code>"ess"</code>: Kish's effective sample size (ESS), computed as the
 squared sum of weights divided by the sum of squared weights
 (requires <code>weight</code>).</p></li>
 <li><p><code>"regression"</code>: Weighted least squares (or ridge) regression
-of <code>values</code> on <code>covariates</code> within each analog neighborhood.
-Returns intercept and slope coefficients. Requires <code>values</code>,
+of <code>y</code> on <code>covariates</code> within each analog neighborhood.
+Returns intercept and slope coefficients. Requires <code>y</code>,
 <code>covariates</code>, and <code>weight</code>. See <code>lambda</code> for
 regularization.</p></li>
 <li><p>A character vector combining multiple stats (e.g.,
@@ -277,14 +277,14 @@ with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, 
 <li><p><code>analog_index</code>, <code>analog_x</code>, <code>analog_y</code>: Analog location corresponding to input <code>pool</code></p></li>
 <li><p><code>clim_dist</code>: Climate distance (Euclidean or Mahalanobis)</p></li>
 <li><p><code>geog_dist</code>: Geographic distance (km for lonlat, projection units otherwise)</p></li>
-<li><p>Value columns (if <code>values</code> provided): one per variable</p></li>
+<li><p>Value columns (if <code>y</code> provided): one per variable</p></li>
 </ul><p>Aggregation mode (one or more <code>stat</code> values) returns one row per focal location,
 with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location</p></li>
-<li><p>One column per requested statistic. For <code>stat</code> with single <code>values</code> variable:
-column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>values</code>
+<li><p>One column per requested statistic. For <code>stat</code> with single <code>y</code> variable:
+column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>y</code>
 variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass</code>, <code>mean_richness</code>)</p></li>
 <li><p>For <code>stat = "regression"</code>: columns for <code>intercept</code> and each covariate name,
-or <code>intercept_{varname}</code> and <code>{covariate}_{varname}</code> with multiple values variables.</p></li>
+or <code>intercept_{varname}</code> and <code>{covariate}_{varname}</code> with multiple <code>y</code> variables.</p></li>
 </ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>weight</code>, etc.).
 Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a formatted summary.</p>
     </div>
@@ -296,7 +296,7 @@ Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a fo
 
 
 <ul><li><p><em>Data parameters</em>
-(<code>x</code>, <code>pool</code>, <code>x_cov</code>, <code>values</code>, <code>covariates</code>, <code>coord_type</code>)
+(<code>x</code>, <code>pool</code>, <code>x_cov</code>, <code>y</code>, <code>covariates</code>, <code>coord_type</code>)
 give attributes of the data on which to operate.</p></li>
 <li><p><em>Selection parameters</em>
 (<code>select</code>, <code>max_clim</code>, <code>max_geog</code>, <code>k</code>)

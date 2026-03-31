@@ -18,7 +18,7 @@ Handles merging of chunked results.
   weight_code,
   theta,
   x_cov,
-  values,
+  y,
   covariates,
   lambda,
   show_progress = FALSE

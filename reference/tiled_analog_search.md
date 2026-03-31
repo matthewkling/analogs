@@ -14,7 +14,7 @@ tiled_analog_search(
   n_tiles,
   fun,
   max_geog,
-  values = NULL,
+  y = NULL,
   x_cov = NULL,
   ...,
   output_file = NULL,
@@ -53,7 +53,7 @@ tiled_analog_search(
   kilometers if `coord_type = "lonlat"`, or in projected coordinate
   units if `coord_type = "projected"`.
 
-- values:
+- y:
 
   Optional SpatRaster with values to aggregate across analogs. Must have
   spatial properties matching pool.
