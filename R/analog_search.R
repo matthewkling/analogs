@@ -164,11 +164,11 @@
 #'     \item \code{"inverse_geog"}: Inverse geographic distance,
 #'       weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
 #'     \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-#'       weight = exp(-climate_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
+#'       weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
 #'     \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-#'       weight = exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by \code{theta}.
+#'       weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
 #'     \item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
-#'       weight = exp(-(clim_dist^2 / (2*sigma_clim^2) + geog_dist^2 / (2*sigma_geog^2))),
+#'       weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
 #'       with sigmas given by \code{theta}.
 #'     \item \code{"inverse_joint"}: Inverse joint distance,
 #'       weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
