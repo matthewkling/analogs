@@ -16,6 +16,8 @@ knitr::opts_chunk$set(
 # analogs
 
 <!-- badges: start -->
+[![R-CMD-check](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml)
+[![Codecov test coverage](https://codecov.io/gh/matthewkling/analogs/graph/badge.svg)](https://app.codecov.io/gh/matthewkling/analogs)
 <!-- badges: end -->
 
 The **analogs** package implements a general framework for distance-based neighborhood models, where analogs are selected using climate and/or geographic distance constraints, then summarized via weighted statistics or local regression. Common methods like climate analog impact models, climate velocity, and geographically weighted regression are all specific configurations of this framework.

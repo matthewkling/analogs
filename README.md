@@ -4,6 +4,10 @@
 # analogs
 
 <!-- badges: start -->
+
+[![R-CMD-check](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml)
+[![Codecov test
+coverage](https://codecov.io/gh/matthewkling/analogs/graph/badge.svg)](https://app.codecov.io/gh/matthewkling/analogs)
 <!-- badges: end -->
 
 The **analogs** package implements a general framework for
