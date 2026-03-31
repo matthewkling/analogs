@@ -14,9 +14,12 @@ LinkingTo: Rcpp, RcppParallel
 Depends: R (>= 3.5.0), RcppParallel (>= 5.0.0)
 Imports: Rcpp (>= 1.0.0)
 Suggests: 
+    knitr,
+    rmarkdown,
     terra,
     testthat (>= 3.0.0)
 SystemRequirements: C++17
 Config/testthat/edition: 3
 URL: https://github.com/matthewkling/analogs, https://matthewkling.github.io/analogs/
 BugReports: https://github.com/matthewkling/analogs/issues
+VignetteBuilder: knitr
