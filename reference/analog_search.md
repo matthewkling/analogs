@@ -13,6 +13,7 @@ analog_search(
   pool,
   x_cov = NULL,
   values = NULL,
+  covariates = NULL,
   max_clim = NULL,
   max_geog = NULL,
   select = "all",
@@ -20,6 +21,7 @@ analog_search(
   stat = NULL,
   weight = NULL,
   theta = NULL,
+  lambda = 0,
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
@@ -62,13 +64,24 @@ analog_search(
   Optional user-defined variables for each reference location in `pool`
   to aggregate across selected analogs. Can be a numeric vector (single
   variable), matrix or data.frame with numeric columns (multiple
-  variables), or a SpatRaster with one or more numeic layers. Must have
+  variables), or a SpatRaster with one or more numeric layers. Must have
   exactly the same number of reference locations as `pool`.
 
   When provided, enables value-based aggregation stats `"sum"`,
-  `"mean"`, `"weighted_sum"`, and `"weighted_mean"`. For stat =
-  NULL/"none" (pairs mode), value columns are included in output for
-  each analog pair.
+  `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
+  stat = NULL/"none" (pairs mode), value columns are included in output
+  for each analog pair.
+
+- covariates:
+
+  Optional auxiliary predictor variables for each reference location in
+  `pool`, used with `stat = "regression"`. Can be a numeric vector
+  (single covariate), matrix or data.frame with numeric columns
+  (multiple covariates), or a SpatRaster with one or more numeric
+  layers. Must have exactly the same number of rows/cells as `pool`.
+  Column names are used for output layer naming. These variables are NOT
+  used for the analog search itself – only for local regression within
+  each analog neighborhood.
 
 - max_clim:
 
@@ -140,9 +153,14 @@ analog_search(
     sum of weights divided by the sum of squared weights (requires
     `weight`).
 
+  - `"regression"`: Weighted least squares (or ridge) regression of
+    `values` on `covariates` within each analog neighborhood. Returns
+    intercept and slope coefficients. Requires `values`, `covariates`,
+    and `weight`. See `lambda` for regularization.
+
   - A character vector combining multiple stats (e.g.,
-    `c("count", "sum", "mean")`). Note: `"none"` cannot be combined with
-    other stats.
+    `c("count", "weighted_mean", "regression")`). Note: `"none"` cannot
+    be combined with other stats.
 
 - weight:
 
@@ -186,6 +204,13 @@ analog_search(
   - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
     `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
     geography).
+
+- lambda:
+
+  Ridge penalty parameter for `stat = "regression"` (default: 0, giving
+  ordinary weighted least squares). Higher values shrink covariate
+  coefficients toward zero, with the intercept approaching the weighted
+  mean as `lambda -> Inf`. Ignored when `"regression"` is not in `stat`.
 
 - coord_type:
 
@@ -274,6 +299,10 @@ location, with the following variables:
   multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
+- For `stat = "regression"`: columns for `intercept` and each covariate
+  name, or `intercept_{varname}` and `{covariate}_{varname}` with
+  multiple values variables.
+
 All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
@@ -283,14 +312,14 @@ to view a formatted summary.
 
 ### Parameter categories
 
-- *Data parameters* (`x`, `pool`, `x_cov`, `values`, `coord_type`) give
-  attributes of the data on which to operate.
+- *Data parameters* (`x`, `pool`, `x_cov`, `values`, `covariates`,
+  `coord_type`) give attributes of the data on which to operate.
 
 - *Selection parameters* (`select`, `max_clim`, `max_geog`, `k`) define
   which analogs to `select` from the `pool` for each `x`.
 
-- *Aggregation parameters* (`stat`, `weight`, `theta`) control how
-  selected analogs are summarized.
+- *Aggregation parameters* (`stat`, `weight`, `theta`, `lambda`) control
+  how selected analogs are summarized.
 
 - *Computation parameters* (`n_threads`, `index_res`, `downsample`,
   `seed`, `progress`) specify behavior for controlling compute

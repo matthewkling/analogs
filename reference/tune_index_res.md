@@ -22,6 +22,8 @@ tune_index_res(
   theta = NULL,
   x_cov = NULL,
   values = NULL,
+  covariates = NULL,
+  lambda = 0,
   coord_type = c("auto", "lonlat", "projected"),
   n_threads = NULL,
   default_res = 16L,
@@ -103,9 +105,14 @@ tune_index_res(
     sum of weights divided by the sum of squared weights (requires
     `weight`).
 
+  - `"regression"`: Weighted least squares (or ridge) regression of
+    `values` on `covariates` within each analog neighborhood. Returns
+    intercept and slope coefficients. Requires `values`, `covariates`,
+    and `weight`. See `lambda` for regularization.
+
   - A character vector combining multiple stats (e.g.,
-    `c("count", "sum", "mean")`). Note: `"none"` cannot be combined with
-    other stats.
+    `c("count", "weighted_mean", "regression")`). Note: `"none"` cannot
+    be combined with other stats.
 
 - max_clim:
 
@@ -192,13 +199,31 @@ tune_index_res(
   Optional user-defined variables for each reference location in `pool`
   to aggregate across selected analogs. Can be a numeric vector (single
   variable), matrix or data.frame with numeric columns (multiple
-  variables), or a SpatRaster with one or more numeic layers. Must have
+  variables), or a SpatRaster with one or more numeric layers. Must have
   exactly the same number of reference locations as `pool`.
 
   When provided, enables value-based aggregation stats `"sum"`,
-  `"mean"`, `"weighted_sum"`, and `"weighted_mean"`. For stat =
-  NULL/"none" (pairs mode), value columns are included in output for
-  each analog pair.
+  `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
+  stat = NULL/"none" (pairs mode), value columns are included in output
+  for each analog pair.
+
+- covariates:
+
+  Optional auxiliary predictor variables for each reference location in
+  `pool`, used with `stat = "regression"`. Can be a numeric vector
+  (single covariate), matrix or data.frame with numeric columns
+  (multiple covariates), or a SpatRaster with one or more numeric
+  layers. Must have exactly the same number of rows/cells as `pool`.
+  Column names are used for output layer naming. These variables are NOT
+  used for the analog search itself – only for local regression within
+  each analog neighborhood.
+
+- lambda:
+
+  Ridge penalty parameter for `stat = "regression"` (default: 0, giving
+  ordinary weighted least squares). Higher values shrink covariate
+  coefficients toward zero, with the intercept approaching the weighted
+  mean as `lambda -> Inf`. Ignored when `"regression"` is not in `stat`.
 
 - coord_type:
 

@@ -14,9 +14,11 @@ query_analog_index(
   max_geog,
   x_cov,
   values,
+  covariates,
   k,
   weight,
   theta,
+  lambda,
   n_threads,
   show_progress = FALSE
 )

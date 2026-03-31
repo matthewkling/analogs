@@ -19,6 +19,8 @@ Handles merging of chunked results.
   theta,
   x_cov,
   values,
+  covariates,
+  lambda,
   show_progress = FALSE
 )
 ```

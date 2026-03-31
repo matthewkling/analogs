@@ -166,6 +166,8 @@ with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, 
 <li><p>One column per requested statistic. For <code>stat</code> with single <code>values</code> variable:
 column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>values</code>
 variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass</code>, <code>mean_richness</code>)</p></li>
+<li><p>For <code>stat = "regression"</code>: columns for <code>intercept</code> and each covariate name,
+or <code>intercept_{varname}</code> and <code>{covariate}_{varname}</code> with multiple values variables.</p></li>
 </ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>weight</code>, etc.).
 Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a formatted summary.</p>
     </div>

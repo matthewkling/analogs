@@ -57,11 +57,13 @@ as climate changes.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  <span class="va">pool</span>,</span>
 <span>  <span class="va">values</span>,</span>
+<span>  covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  weight <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gaussian_clim"</span>, <span class="st">"inverse_clim"</span>, <span class="st">"gaussian_joint"</span>, <span class="st">"inverse_joint"</span><span class="op">)</span>,</span>
 <span>  theta <span class="op">=</span> <span class="fl">0.25</span>,</span>
 <span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"sum_weights"</span>, <span class="st">"weighted_mean"</span><span class="op">)</span>,</span>
+<span>  lambda <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
@@ -91,9 +93,22 @@ or SpatRaster with climate variable layers, OR</p></li>
 
 <dt id="arg-values">values<a class="anchor" aria-label="anchor" href="#arg-values"></a></dt>
 <dd><p>Ecological or environmental variable(s) for the same era as <code>pool</code>, to
-aggregate across climate analogs. Must have exactly <code>nrow(pool)</code> rows.
-Examples include occupancy of focal species, species richness, biomass,
-or any other ecological state variable.</p></dd>
+aggregate across climate analogs. Examples include occupancy of focal species, species
+richness, biomass, or any other ecological state variable. Can be a numeric vector
+(single variable), matrix or data.frame with numeric columns (multiple
+variables), or a SpatRaster with one or more numeric layers. Must have
+exactly the same number of reference locations as <code>pool</code>.</p></dd>
+
+
+<dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
+<dd><p>Optional auxiliary predictor variables for each reference
+location in <code>pool</code>, used with <code>stat = "regression"</code>. Can be a numeric
+vector (single covariate), matrix or data.frame with numeric columns
+(multiple covariates), or a SpatRaster with one or more numeric layers.
+Must have exactly the same number of rows/cells as <code>pool</code>. Column names
+are used for output layer naming. These variables are NOT used for the
+analog search itself – only for local regression within each analog
+neighborhood.</p></dd>
 
 
 <dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
@@ -140,6 +155,14 @@ The default statistics provide a complete picture:</p><ul><li><p><code>"count"</
 <li><p><code>"sum_weights"</code>: Analog intensity</p></li>
 <li><p><code>"weighted_mean"</code>: Expected ecological state</p></li>
 </ul></dd>
+
+
+<dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
+<dd><p>Ridge penalty parameter for <code>stat = "regression"</code>
+(default: 0, giving ordinary weighted least squares). Higher values
+shrink covariate coefficients toward zero, with the intercept
+approaching the weighted mean as <code>lambda -&gt; Inf</code>. Ignored when
+<code>"regression"</code> is not in <code>stat</code>.</p></dd>
 
 
 <dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
@@ -190,6 +213,7 @@ is <code>FALSE</code>.</p></dd>
 <li><p>One column per requested statistic</p></li>
 <li><p>For value statistics with multiple variables: <code>{stat}_{varname}</code>
 (e.g., <code>weighted_mean_habitat_quality</code>)</p></li>
+<li><p>For <code>"regression"</code>: <code>intercept</code> and covariate coefficient columns</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -259,46 +283,6 @@ from analog locations.</p></li>
 <span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">100</span>,    <span class="co"># 100 km dispersal range</span></span></span>
 <span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>     <span class="co"># Climate analog threshold</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Multiple ecosystem variables</span></span></span>
-<span class="r-in"><span><span class="va">values_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  habitat_quality <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">habitat</span>,</span></span>
-<span class="r-in"><span>  species_richness <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">richness</span>,</span></span>
-<span class="r-in"><span>  forest_cover <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">forest</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">impact_multi</span> <span class="op">&lt;-</span> <span class="fu">analog_impact</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  x <span class="op">=</span> <span class="va">future_climate</span>,</span></span>
-<span class="r-in"><span>  pool <span class="op">=</span> <span class="va">current_climate</span>,</span></span>
-<span class="r-in"><span>  values <span class="op">=</span> <span class="va">values_df</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">150</span>,</span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.4</span>,</span></span>
-<span class="r-in"><span>  theta <span class="op">=</span> <span class="fl">0.25</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Custom statistics and weighting</span></span></span>
-<span class="r-in"><span><span class="va">impact_custom</span> <span class="op">&lt;-</span> <span class="fu">analog_impact</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  x <span class="op">=</span> <span class="va">future_climate</span>,</span></span>
-<span class="r-in"><span>  pool <span class="op">=</span> <span class="va">current_climate</span>,</span></span>
-<span class="r-in"><span>  values <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">biomass</span>,</span></span>
-<span class="r-in"><span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"weighted_mean"</span>, <span class="st">"weighted_sum"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.6</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">200</span>,</span></span>
-<span class="r-in"><span>  weight <span class="op">=</span> <span class="st">"gaussian_joint"</span>,    <span class="co"># Weight by both climate and geography</span></span></span>
-<span class="r-in"><span>  theta <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.2</span>, <span class="fl">50</span><span class="op">)</span>           <span class="co"># Climate and geographic decay</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># With pre-built index for multiple scenarios</span></span></span>
-<span class="r-in"><span><span class="va">current_index</span> <span class="op">&lt;-</span> <span class="fu"><a href="build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">current_climate</span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">impact_current</span> <span class="op">&lt;-</span> <span class="fu">analog_impact</span><span class="op">(</span><span class="va">current_climate</span>, <span class="va">current_index</span>,</span></span>
-<span class="r-in"><span>                                 values <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">quality</span>,</span></span>
-<span class="r-in"><span>                                 max_geog <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">impact_ssp126</span> <span class="op">&lt;-</span> <span class="fu">analog_impact</span><span class="op">(</span><span class="va">future_ssp126</span>, <span class="va">current_index</span>,</span></span>
-<span class="r-in"><span>                                 values <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">quality</span>,</span></span>
-<span class="r-in"><span>                                 max_geog <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">impact_ssp585</span> <span class="op">&lt;-</span> <span class="fu">analog_impact</span><span class="op">(</span><span class="va">future_ssp585</span>, <span class="va">current_index</span>,</span></span>
-<span class="r-in"><span>                                 values <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">quality</span>,</span></span>
-<span class="r-in"><span>                                 max_geog <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

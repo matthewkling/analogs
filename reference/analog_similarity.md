@@ -58,13 +58,13 @@ analog_similarity(
   Optional user-defined variables for each reference location in `pool`
   to aggregate across selected analogs. Can be a numeric vector (single
   variable), matrix or data.frame with numeric columns (multiple
-  variables), or a SpatRaster with one or more numeic layers. Must have
+  variables), or a SpatRaster with one or more numeric layers. Must have
   exactly the same number of reference locations as `pool`.
 
   When provided, enables value-based aggregation stats `"sum"`,
-  `"mean"`, `"weighted_sum"`, and `"weighted_mean"`. For stat =
-  NULL/"none" (pairs mode), value columns are included in output for
-  each analog pair.
+  `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
+  stat = NULL/"none" (pairs mode), value columns are included in output
+  for each analog pair.
 
 - coord_type:
 
@@ -180,6 +180,10 @@ location, with the following variables:
   variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
   multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
+
+- For `stat = "regression"`: columns for `intercept` and each covariate
+  name, or `intercept_{varname}` and `{covariate}_{varname}` with
+  multiple values variables.
 
 All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use

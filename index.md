@@ -24,6 +24,8 @@ wrapper functions:
   counts analogs that meet both climate and distance thresholds
 - [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
   computes distance-weighted aggregations of analog properties
+- [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
+  fits climatically and/or geographically weighted regressions
 
 ## Distance metrics
 

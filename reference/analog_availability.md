@@ -159,6 +159,10 @@ location, with the following variables:
   multiple `values` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
+- For `stat = "regression"`: columns for `intercept` and each covariate
+  name, or `intercept_{varname}` and `{covariate}_{varname}` with
+  multiple values variables.
+
 All results include metadata attributes (`select`, `stat`, `weight`,
 etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)

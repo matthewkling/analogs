@@ -14,11 +14,13 @@ analog_impact(
   x,
   pool,
   values,
+  covariates = NULL,
   max_geog = NULL,
   max_clim = 1,
   weight = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
   stat = c("count", "sum_weights", "weighted_mean"),
+  lambda = 0,
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -50,9 +52,23 @@ analog_impact(
 - values:
 
   Ecological or environmental variable(s) for the same era as `pool`, to
-  aggregate across climate analogs. Must have exactly `nrow(pool)` rows.
-  Examples include occupancy of focal species, species richness,
-  biomass, or any other ecological state variable.
+  aggregate across climate analogs. Examples include occupancy of focal
+  species, species richness, biomass, or any other ecological state
+  variable. Can be a numeric vector (single variable), matrix or
+  data.frame with numeric columns (multiple variables), or a SpatRaster
+  with one or more numeric layers. Must have exactly the same number of
+  reference locations as `pool`.
+
+- covariates:
+
+  Optional auxiliary predictor variables for each reference location in
+  `pool`, used with `stat = "regression"`. Can be a numeric vector
+  (single covariate), matrix or data.frame with numeric columns
+  (multiple covariates), or a SpatRaster with one or more numeric
+  layers. Must have exactly the same number of rows/cells as `pool`.
+  Column names are used for output layer naming. These variables are NOT
+  used for the analog search itself – only for local regression within
+  each analog neighborhood.
 
 - max_geog:
 
@@ -112,6 +128,13 @@ analog_impact(
   - `"sum_weights"`: Analog intensity
 
   - `"weighted_mean"`: Expected ecological state
+
+- lambda:
+
+  Ridge penalty parameter for `stat = "regression"` (default: 0, giving
+  ordinary weighted least squares). Higher values shrink covariate
+  coefficients toward zero, with the intercept approaching the weighted
+  mean as `lambda -> Inf`. Ignored when `"regression"` is not in `stat`.
 
 - x_cov:
 
@@ -173,6 +196,8 @@ A data.frame with one row per focal location containing:
 
 - For value statistics with multiple variables: `{stat}_{varname}`
   (e.g., `weighted_mean_habitat_quality`)
+
+- For `"regression"`: `intercept` and covariate coefficient columns
 
 ## Details
 
@@ -247,45 +272,5 @@ impact <- analog_impact(
   max_geog = 100,    # 100 km dispersal range
   max_clim = 0.5     # Climate analog threshold
 )
-
-# Multiple ecosystem variables
-values_df <- data.frame(
-  habitat_quality = current$habitat,
-  species_richness = current$richness,
-  forest_cover = current$forest
-)
-impact_multi <- analog_impact(
-  x = future_climate,
-  pool = current_climate,
-  values = values_df,
-  max_geog = 150,
-  max_clim = 0.4,
-  theta = 0.25
-)
-
-# Custom statistics and weighting
-impact_custom <- analog_impact(
-  x = future_climate,
-  pool = current_climate,
-  values = current$biomass,
-  stat = c("count", "weighted_mean", "weighted_sum"),
-  max_clim = 0.6,
-  max_geog = 200,
-  weight = "gaussian_joint",    # Weight by both climate and geography
-  theta = c(0.2, 50)           # Climate and geographic decay
-)
-
-# With pre-built index for multiple scenarios
-current_index <- build_analog_index(current_climate)
-
-impact_current <- analog_impact(current_climate, current_index,
-                                 values = current$quality,
-                                 max_geog = 100)
-impact_ssp126 <- analog_impact(future_ssp126, current_index,
-                                 values = current$quality,
-                                 max_geog = 100)
-impact_ssp585 <- analog_impact(future_ssp585, current_index,
-                                 values = current$quality,
-                                 max_geog = 100)
 } # }
 ```
