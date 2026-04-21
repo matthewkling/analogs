@@ -185,7 +185,7 @@ query_analog_index <- function(x,
             y = focal[, 2]
       )
 
-      # Determine column structure based on stats requested and y values provided
+      # Determine column structure based on stats requested and values provided
       # Regular stats (count, sum_weights, mean_weights, ess): 1 column each
       # Value-based stats (sum, mean, weighted_sum, weighted_mean): n_values columns each
       # Regression: (n_covariates + 1) columns per value variable
@@ -224,7 +224,7 @@ query_analog_index <- function(x,
                               var_name <- if (!is.null(values_names)) {
                                     values_names[j]
                               } else {
-                                    paste0("y", j)
+                                    paste0("var", j)
                               }
                               col_name <- paste0(s, "_", var_name)
                               out[[col_name]] <- res[, col_idx]
@@ -234,31 +234,48 @@ query_analog_index <- function(x,
             }
       }
 
-      # Then read regression coefficients (if requested)
+      # Then read regression coefficients and standard errors (if requested)
       if ("regression" %in% stat) {
             n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
             n_covs <- if (is.null(covariates_mat)) 0 else ncol(covariates_mat)
             reg_dim <- n_covs + 1  # intercept + covariates
 
-            # Coefficient names: intercept, then covariate names
-            coeff_names <- c("intercept", covariates_names %||% paste0("cov", seq_len(n_covs)))
+            # Base names: intercept, then covariate names
+            base_names <- c("intercept", covariates_names %||% paste0("cov", seq_len(n_covs)))
 
             if (n_vals == 1) {
-                  # Single value variable: columns named by coefficient
+                  # Single value variable: read coefficients then SEs
                   for (d in seq_len(reg_dim)) {
-                        out[[coeff_names[d]]] <- res[, col_idx]
+                        out[[paste0("coef_", base_names[d])]] <- res[, col_idx]
+                        col_idx <- col_idx + 1
+                  }
+                  for (d in seq_len(reg_dim)) {
+                        out[[paste0("se_", base_names[d])]] <- res[, col_idx]
                         col_idx <- col_idx + 1
                   }
             } else {
-                  # Multiple value variables: columns named {coeff}_{varname}
+                  # Multiple value variables: {prefix}_{coeff}_{varname}
+                  # First all coefficients, then all SEs
                   for (j in seq_len(n_vals)) {
                         var_name <- if (!is.null(values_names)) {
                               values_names[j]
                         } else {
-                              paste0("y", j)
+                              paste0("var", j)
                         }
                         for (d in seq_len(reg_dim)) {
-                              col_name <- paste0(coeff_names[d], "_", var_name)
+                              col_name <- paste0("coef_", base_names[d], "_", var_name)
+                              out[[col_name]] <- res[, col_idx]
+                              col_idx <- col_idx + 1
+                        }
+                  }
+                  for (j in seq_len(n_vals)) {
+                        var_name <- if (!is.null(values_names)) {
+                              values_names[j]
+                        } else {
+                              paste0("var", j)
+                        }
+                        for (d in seq_len(reg_dim)) {
+                              col_name <- paste0("se_", base_names[d], "_", var_name)
                               out[[col_name]] <- res[, col_idx]
                               col_idx <- col_idx + 1
                         }

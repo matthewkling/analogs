@@ -329,14 +329,13 @@ SEXP query_analog_index_cpp(SEXP index_list,
       if (!Rf_isNull(covariates_sexp) && covariates_sexp != R_NilValue) {
             NumericMatrix covariates_mat = as<NumericMatrix>(covariates_sexp);
 
-            // Validate dimensions
             if (covariates_mat.nrow() != n_ref) {
                   stop("covariates must have same number of rows as reference data");
             }
 
             has_covariates = true;
             covariates_ptr = REAL(covariates_mat);
-            covariates_stride = n_ref;  // Column-major stride
+            covariates_stride = n_ref;
             n_covs = covariates_mat.ncol();
       }
 
@@ -485,9 +484,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
             }
       }
 
-      // Regression produces (n_covs + 1) columns per value variable
+      // Regression produces 2 * (n_covs + 1) columns per value variable
+      // (coefficients + standard errors)
       const int n_regression_cols = has_regression_stat ?
-      (n_vars * (n_covs + 1)) : 0;
+      (n_vars * 2 * (n_covs + 1)) : 0;
 
       // Total columns = regular stats + (value stats × n_vars) + regression cols
       const int n_total_cols = n_regular_stats + (n_value_stats * n_vars) + n_regression_cols;

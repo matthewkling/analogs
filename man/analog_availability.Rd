@@ -117,8 +117,9 @@ with the following variables:
 \item One column per requested statistic. For \code{stat} with single \code{y} variable:
 column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{y}
 variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
-\item For \code{stat = "regression"}: columns for \code{intercept} and each covariate name,
-or \verb{intercept_\{varname\}} and \verb{\{covariate\}_\{varname\}} with multiple \code{y} variables.
+\item For \code{stat = "regression"}: columns for \code{coef_intercept} and \verb{coef_\{covariate\}},
+or \verb{coef_intercept_\{varname\}} and  \verb{coef_\{covariate\}_\{varname\}} with multiple \code{y}
+variables.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).

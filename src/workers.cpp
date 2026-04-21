@@ -716,10 +716,16 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   }
             }
 
-            // REGRESSION: solve and write regression coefficients
+            // REGRESSION: solve and write regression coefficients and standard errors
             if (has_regression && has_covariates && has_values) {
                   if (reg_analog_indices.empty()) {
-                        // Zero analogs: write NAs for all coefficients
+                        // Zero analogs: write NAs for all coefficients and SEs
+                        for (int v = 0; v < n_vars; ++v) {
+                              for (int d = 0; d < reg_dim; ++d) {
+                                    agg[i * n_stats + col_idx] = NA_REAL;
+                                    col_idx++;
+                              }
+                        }
                         for (int v = 0; v < n_vars; ++v) {
                               for (int d = 0; d < reg_dim; ++d) {
                                     agg[i * n_stats + col_idx] = NA_REAL;
@@ -727,8 +733,9 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                               }
                         }
                   } else {
-                        // Solve ridge regression
+                        // Solve ridge regression (returns coefficients and SEs)
                         std::vector<double> coeffs(n_vars * reg_dim);
+                        std::vector<double> se(n_vars * reg_dim);
                         solve_ridge(reg_analog_indices,
                                     reg_combined_weights,
                                     values_ptr,
@@ -738,12 +745,20 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     covariates_stride,
                                     n_covs,
                                     lambda,
-                                    coeffs.data());
+                                    coeffs.data(),
+                                    se.data());
 
                         // Write coefficients: for each variable, write intercept then covariate slopes
                         for (int v = 0; v < n_vars; ++v) {
                               for (int d = 0; d < reg_dim; ++d) {
                                     agg[i * n_stats + col_idx] = coeffs[v * reg_dim + d];
+                                    col_idx++;
+                              }
+                        }
+                        // Write standard errors: same layout as coefficients
+                        for (int v = 0; v < n_vars; ++v) {
+                              for (int d = 0; d < reg_dim; ++d) {
+                                    agg[i * n_stats + col_idx] = se[v * reg_dim + d];
                                     col_idx++;
                               }
                         }

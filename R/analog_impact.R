@@ -45,7 +45,8 @@
 #'     \item One column per requested statistic
 #'     \item For value statistics with multiple variables: `{stat}_{varname}`
 #'       (e.g., `weighted_mean_habitat_quality`)
-#'     \item For `"regression"`: `intercept` and covariate coefficient columns
+#'     \item For `"regression"`: `coef_intercept` and `coef_{covariate}`
+#'       coefficient columns
 #'   }
 #'
 #' @details

@@ -23,7 +23,7 @@ test_that("regression stat runs without error and returns correct columns", {
 
       expect_s3_class(result, "data.frame")
       expect_equal(nrow(result), nrow(d$focal))
-      expect_true(all(c("intercept", "northness", "eastness") %in% names(result)))
+      expect_true(all(c("coef_intercept", "coef_northness", "coef_eastness") %in% names(result)))
 })
 
 
@@ -63,9 +63,9 @@ test_that("regression recovers known coefficients on synthetic data", {
       )
 
       # With uniform weights and all points used, should closely recover true coefficients
-      expect_equal(result$intercept, 2, tolerance = 0.1)
-      expect_equal(result$x1, 3, tolerance = 0.1)
-      expect_equal(result$x2, -1, tolerance = 0.1)
+      expect_equal(result$coef_intercept, 2, tolerance = 0.1)
+      expect_equal(result$coef_x1, 3, tolerance = 0.1)
+      expect_equal(result$coef_x2, -1, tolerance = 0.1)
 })
 
 
@@ -98,17 +98,17 @@ test_that("large lambda makes intercept approach weighted mean", {
       # Intercept should be very close to weighted_mean
       # (Not exact because covariates aren't centered, but with huge lambda
       # the covariate coefficients are ~0 so intercept ≈ weighted mean)
-      has_analogs <- !is.na(result_ridge$weighted_mean) & !is.na(result_ridge$intercept)
+      has_analogs <- !is.na(result_ridge$weighted_mean) & !is.na(result_ridge$coef_intercept)
       if (any(has_analogs)) {
             expect_equal(
-                  result_ridge$intercept[has_analogs],
+                  result_ridge$coef_intercept[has_analogs],
                   result_ridge$weighted_mean[has_analogs],
                   tolerance = 0.01
             )
 
             # Covariate coefficients should be near zero
-            expect_true(all(abs(result_ridge$c1[has_analogs]) < 0.01))
-            expect_true(all(abs(result_ridge$c2[has_analogs]) < 0.01))
+            expect_true(all(abs(result_ridge$coef_c1[has_analogs]) < 0.01))
+            expect_true(all(abs(result_ridge$coef_c2[has_analogs]) < 0.01))
       }
 })
 
@@ -171,8 +171,8 @@ test_that("regression works with multiple values variables", {
       )
 
       # Should have 3 columns per y variable: intercept, slope, aspect
-      expected_cols <- c("intercept_biomass", "slope_biomass", "aspect_biomass",
-                         "intercept_richness", "slope_richness", "aspect_richness")
+      expected_cols <- c("coef_intercept_biomass", "coef_slope_biomass", "coef_aspect_biomass",
+                         "coef_intercept_richness", "coef_slope_richness", "coef_aspect_richness")
       expect_true(all(expected_cols %in% names(result)))
 })
 
@@ -202,7 +202,7 @@ test_that("regression combines with other stats correctly", {
       )
 
       expect_true(all(c("count", "ess", "weighted_mean",
-                        "intercept", "topo") %in% names(result)))
+                        "coef_intercept", "coef_topo") %in% names(result)))
       expect_equal(nrow(result), nrow(d$focal))
 })
 
@@ -310,7 +310,7 @@ test_that("analog_impact passes covariates and lambda through", {
       )
 
       expect_true(all(c("count", "weighted_mean",
-                        "intercept", "north", "east") %in% names(result)))
+                        "coef_intercept", "coef_north", "coef_east") %in% names(result)))
 })
 
 
@@ -346,9 +346,9 @@ test_that("regression with lambda = 0 returns NA for singular systems", {
 
       # If count is 0, all coefficients should be NA
       if (result$count == 0) {
-            expect_true(is.na(result$intercept))
-            expect_true(is.na(result$a))
-            expect_true(is.na(result$b))
-            expect_true(is.na(result$c))
+            expect_true(is.na(result$coef_intercept))
+            expect_true(is.na(result$coef_a))
+            expect_true(is.na(result$coef_b))
+            expect_true(is.na(result$coef_c))
       }
 })

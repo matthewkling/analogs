@@ -165,11 +165,12 @@ row per focal location containing:
 \itemize{
 \item \code{index}, \code{x}, \code{y}: Focal location identifiers
 \item Columns for any additional stats requested (e.g., \code{count}, \code{ess})
-\item \code{intercept}: Regression intercept (predicted value when all
-covariates equal zero)
-\item One column per covariate: regression slope coefficients
+\item \code{coef_intercept}: Regression intercept
+\item \verb{coef_\{name\}}: Regression slope for each covariate
+\item \code{se_intercept}: Standard error of the intercept
+\item \verb{se_\{name\}}: Standard error of each covariate slope
 \item With multiple \code{y} variables: columns are named
-\verb{\{coeff\}_\{varname\}} (e.g., \code{intercept_biomass}, \code{slope_biomass})
+\verb{coef_\{coeff\}_\{varname\}} and \verb{se_\{coeff\}_\{varname\}}
 }
 }
 \description{
@@ -230,11 +231,10 @@ climates within geographic range.
 \subsection{Prediction}{
 
 The function returns coefficients only. Prediction at new covariate values
-(e.g., a fine-resolution topography grid) can be done via regression algebra,
-e.g.:
+can be done via regression algebra, e.g.:
 
 \preformatted{
-prediction <- intercept + beta_1 * covariate_1 + beta_2 * covariate_2
+prediction <- coef_intercept + coef_cov1 * covariate_1 + coef_cov2 * covariate_2
 }
 }
 }

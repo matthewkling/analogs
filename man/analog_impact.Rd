@@ -145,7 +145,8 @@ A data.frame with one row per focal location containing:
 \item One column per requested statistic
 \item For value statistics with multiple variables: \verb{\{stat\}_\{varname\}}
 (e.g., \code{weighted_mean_habitat_quality})
-\item For \code{"regression"}: \code{intercept} and covariate coefficient columns
+\item For \code{"regression"}: \code{coef_intercept} and \verb{coef_\{covariate\}}
+coefficient columns
 }
 }
 \description{

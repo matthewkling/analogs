@@ -253,8 +253,9 @@
 #'     \item One column per requested statistic. For `stat` with single `y` variable:
 #'       column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `y`
 #'       variables: columns named `{stat}_{varname}` (e.g., `sum_biomass`, `mean_richness`)
-#'     \item For `stat = "regression"`: columns for `intercept` and each covariate name,
-#'       or `intercept_{varname}` and `{covariate}_{varname}` with multiple `y` variables.
+#'     \item For `stat = "regression"`: columns for `coef_intercept` and `coef_{covariate}`,
+#'       or `coef_intercept_{varname}` and  `coef_{covariate}_{varname}` with multiple `y`
+#'       variables.
 #' }
 #'
 #' All results include metadata attributes (`select`, `stat`, `weight`, etc.).
