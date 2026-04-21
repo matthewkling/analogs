@@ -2,7 +2,7 @@
 title: "Introduction to analogs"
 output: rmarkdown::html_vignette
 vignette: >
-%\VignetteIndexEntry{Introduction to analogs}
+  %\VignetteIndexEntry{Introduction to analogs}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -25,10 +25,10 @@ library(terra)
 
 The **analogs** package implements a general framework for distance-based neighborhood models. Every analysis follows a two-stage pattern:
 
-1. **Select** a neighborhood of analog locations from a reference pool, based on climate similarity, geographic proximity, or both.
-2. **Summarize** the neighborhood using counts, weighted means, regression coefficients, or other statistics.
+1. First, **select** a neighborhood of analog locations from a reference pool, based on climate similarity, geographic proximity, or both.
+2. Optionally, **summarize** the neighborhood using counts, weighted means, regression coefficients, or other statistics.
 
-Common methods in climate change ecology---climate velocity, analog impact models, analog availability---are all specific configurations of this framework. So are geographically weighted regression (GWR) and inverse distance-weighted (IDW) interpolation, which use purely geographic neighborhoods. The package provides a flexible core function, `analog_search()`, along with simplified wrappers for common analysis types.
+Common methods in climate change ecology---climate velocity, analog impact models, analog availability---are all specific configurations of this framework. So are geographically weighted regression (GWR) and inverse distance-weighted (IDW) interpolation, which use purely geographic neighborhoods. The package implements these via a flexible core function, `analog_search()`, along with simplified wrappers for common analysis types.
 
 The table below shows how each wrapper maps to the framework:
 
