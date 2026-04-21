@@ -11,6 +11,7 @@
 #include "weights.hpp"
 #include "workers.hpp"
 #include "mahalanobis.hpp"
+#include "se_code.hpp"
 
 #include <vector>
 #include <limits>
@@ -195,7 +196,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             SEXP x_cov_sexp,
                             SEXP values_sexp,
                             SEXP covariates_sexp,
-                            double lambda)
+                            double lambda,
+                            int se_code)
 {
       // Extract lattice and metadata from index
       List idx = as<List>(index_list);
@@ -270,6 +272,12 @@ SEXP query_analog_index_cpp(SEXP index_list,
       const bool return_pairs = (n_stats == 1 && acodes[0] == AggregateCode::NONE);
 
       const WeightCode wcode = static_cast<WeightCode>(weight_code);
+
+      // Validate and parse SE code
+      if (se_code < 0 || se_code > 2) {
+            stop("se_code must be 0 (none), 1 (ess), or 2 (design)");
+      }
+      const SeCode scode_se = static_cast<SeCode>(se_code);
 
       // Pre-compute weight parameters for efficiency
       auto weight_params = precompute_weight_params(wcode, theta);
@@ -364,7 +372,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
             const int k_knn = (scode == SelectCode::ALL ? 0 : k);
             // Pair mode
             std::vector< std::vector<int> > out_indices(n_focal);
-            std::vector< std::vector<double> > out_weights(n_focal);  // NEW
+            std::vector< std::vector<double> > out_weights(n_focal);
 
             PairWorker worker(focal_mm,
                               ref_mm,
@@ -389,7 +397,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               x_cov_stride,
                               n_cov_components,
                               out_indices,
-                              out_weights);  // NEW: Added weight parameter
+                              out_weights);
 
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
 
@@ -398,7 +406,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                   for (int i = 0; i < n_focal; ++i) {
                         if (out_indices[i].empty()) {
                               out_indices[i].push_back(0);
-                              out_weights[i].push_back(1.0);  // NEW: NA gets weight 1.0
+                              out_weights[i].push_back(1.0);
                         }
                   }
             }
@@ -469,6 +477,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
       // Count regular vs value stats to calculate total columns
       int n_regular_stats = 0;
       int n_value_stats = 0;
+      bool has_weighted_mean_stat = false;
       bool has_regression_stat = false;
 
       for (int i = 0; i < n_stats; ++i) {
@@ -477,6 +486,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
                 acodes[i] == AggregateCode::WEIGHTED_SUM ||
                 acodes[i] == AggregateCode::WEIGHTED_MEAN) {
                   n_value_stats++;
+                  if (acodes[i] == AggregateCode::WEIGHTED_MEAN) {
+                        has_weighted_mean_stat = true;
+                  }
             } else if (acodes[i] == AggregateCode::REGRESSION) {
                   has_regression_stat = true;
             } else {
@@ -484,91 +496,106 @@ SEXP query_analog_index_cpp(SEXP index_list,
             }
       }
 
-      // Regression produces 2 * (n_covs + 1) columns per value variable
-      // (coefficients + standard errors)
-      const int n_regression_cols = has_regression_stat ?
-      (n_vars * 2 * (n_covs + 1)) : 0;
+      // Column counts
+      // - Value stats: n_value_stats × n_vars columns
+      // - Regression: reg_dim columns per var for coefficients,
+      //               plus reg_dim columns per var for SEs if se != NONE
+      // - weighted_mean SE: one additional column per var if se != NONE AND
+      //                    weighted_mean is among requested stats
+      const bool want_se = (scode_se != SeCode::NONE);
 
-      // Total columns = regular stats + (value stats × n_vars) + regression cols
-      const int n_total_cols = n_regular_stats + (n_value_stats * n_vars) + n_regression_cols;
+      const int reg_dim = has_regression_stat ? (n_covs + 1) : 0;
+      const int reg_cols_per_var = reg_dim + (want_se ? reg_dim : 0);
+      const int n_regression_cols = has_regression_stat
+      ? (n_vars * reg_cols_per_var)
+            : 0;
 
-      // Allocate flat vector for all stats
-      // Layout: [focal0_stat0, focal0_stat1, ..., focal1_stat0, focal1_stat1, ...]
-      std::vector<double> agg_vals(n_focal * n_total_cols, NA_REAL);
+      const int wm_se_cols = (want_se && has_weighted_mean_stat) ? n_vars : 0;
 
-      AggWorker aworker(focal_mm,
-                        ref_mm,
-                        ref_latt_ptr,
-                        stride_latt_r,
-                        true,  // use_lattice
-                        use_geog_filter,
-                        use_haversine,
-                        use_scalar_clim,
-                        use_pervar_clim,
-                        max_clim_scalar,
-                        max_geog,
-                        max_geog_chord,
-                        max_clim_pervar_std,
-                        scode,
-                        acodes,
-                        wcode,
-                        weight_param1,
-                        weight_param2,
-                        lattice_ptr,
-                        use_ecef,
-                        R_earth,
-                        use_mahalanobis,
-                        x_cov_ptr,
-                        x_cov_stride,
-                        n_cov_components,
-                        has_values,
-                        values_ptr,
-                        values_stride,
-                        n_vars,
-                        has_covariates,
-                        covariates_ptr,
-                        covariates_stride,
-                        n_covs,
-                        lambda,
-                        agg_vals,
-                        n_total_cols);
+      // Total columns = regular stats + (value stats × n_vars) + wm SE cols + regression cols
+      const int n_total_cols = n_regular_stats
+      + (n_value_stats * n_vars)
+            + wm_se_cols
+            + n_regression_cols;
 
-      parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
+            // Allocate flat vector for all stats
+            // Layout: [focal0_stat0, focal0_stat1, ..., focal1_stat0, focal1_stat1, ...]
+            std::vector<double> agg_vals(n_focal * n_total_cols, NA_REAL);
 
-      // Convert flat vector to matrix: n_focal rows x n_total_cols columns
-      NumericMatrix agg(n_focal, n_total_cols);
-      for (int i = 0; i < n_focal; ++i) {
-            for (int s = 0; s < n_total_cols; ++s) {
-                  agg(i, s) = agg_vals[i * n_total_cols + s];
+            AggWorker aworker(focal_mm,
+                              ref_mm,
+                              ref_latt_ptr,
+                              stride_latt_r,
+                              true,  // use_lattice
+                              use_geog_filter,
+                              use_haversine,
+                              use_scalar_clim,
+                              use_pervar_clim,
+                              max_clim_scalar,
+                              max_geog,
+                              max_geog_chord,
+                              max_clim_pervar_std,
+                              scode,
+                              acodes,
+                              wcode,
+                              weight_param1,
+                              weight_param2,
+                              lattice_ptr,
+                              use_ecef,
+                              R_earth,
+                              use_mahalanobis,
+                              x_cov_ptr,
+                              x_cov_stride,
+                              n_cov_components,
+                              has_values,
+                              values_ptr,
+                              values_stride,
+                              n_vars,
+                              has_covariates,
+                              covariates_ptr,
+                              covariates_stride,
+                              n_covs,
+                              lambda,
+                              scode_se,
+                              agg_vals,
+                              n_total_cols);
+
+            parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
+
+            // Convert flat vector to matrix: n_focal rows x n_total_cols columns
+            NumericMatrix agg(n_focal, n_total_cols);
+            for (int i = 0; i < n_focal; ++i) {
+                  for (int s = 0; s < n_total_cols; ++s) {
+                        agg(i, s) = agg_vals[i * n_total_cols + s];
+                  }
             }
-      }
 
-      // Add diagnostics as attributes
-      agg.attr("n_focal") = n_focal;
-      agg.attr("n_ref") = n_ref;
-      agg.attr("n_clim") = n_clim;
-      agg.attr("max_dist") = max_geog;
-      agg.attr("max_clim") = max_clim;
-      agg.attr("geo_mode") = coord_type;
-      agg.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";
-      agg.attr("total_bins") = static_cast<double>(lattice_ptr->total_bins);
-      agg.attr("n_bins_nonempty") = static_cast<double>(lattice_ptr->n_cells_nonempty);
-      agg.attr("min_bin_occupancy") = static_cast<double>(lattice_ptr->min_cell_occ);
-      agg.attr("max_bin_occupancy") = static_cast<double>(lattice_ptr->max_cell_occ);
+            // Add diagnostics as attributes
+            agg.attr("n_focal") = n_focal;
+            agg.attr("n_ref") = n_ref;
+            agg.attr("n_clim") = n_clim;
+            agg.attr("max_dist") = max_geog;
+            agg.attr("max_clim") = max_clim;
+            agg.attr("geo_mode") = coord_type;
+            agg.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";
+            agg.attr("total_bins") = static_cast<double>(lattice_ptr->total_bins);
+            agg.attr("n_bins_nonempty") = static_cast<double>(lattice_ptr->n_cells_nonempty);
+            agg.attr("min_bin_occupancy") = static_cast<double>(lattice_ptr->min_cell_occ);
+            agg.attr("max_bin_occupancy") = static_cast<double>(lattice_ptr->max_cell_occ);
 
-      double avg_bin_occupancy = 0.0;
-      if (lattice_ptr->total_bins > 0) {
-            avg_bin_occupancy = static_cast<double>(lattice_ptr->n_points) /
-                  static_cast<double>(lattice_ptr->total_bins);
-      }
-      agg.attr("avg_bin_occupancy") = avg_bin_occupancy;
+            double avg_bin_occupancy = 0.0;
+            if (lattice_ptr->total_bins > 0) {
+                  avg_bin_occupancy = static_cast<double>(lattice_ptr->n_points) /
+                        static_cast<double>(lattice_ptr->total_bins);
+            }
+            agg.attr("avg_bin_occupancy") = avg_bin_occupancy;
 
-      double avg_nonempty_bin_occupancy = 0.0;
-      if (lattice_ptr->n_cells_nonempty > 0) {
-            avg_nonempty_bin_occupancy = static_cast<double>(lattice_ptr->n_points) /
-                  static_cast<double>(lattice_ptr->n_cells_nonempty);
-      }
-      agg.attr("avg_nonempty_bin_occupancy") = avg_nonempty_bin_occupancy;
+            double avg_nonempty_bin_occupancy = 0.0;
+            if (lattice_ptr->n_cells_nonempty > 0) {
+                  avg_nonempty_bin_occupancy = static_cast<double>(lattice_ptr->n_points) /
+                        static_cast<double>(lattice_ptr->n_cells_nonempty);
+            }
+            agg.attr("avg_nonempty_bin_occupancy") = avg_nonempty_bin_occupancy;
 
-      return agg;
+            return agg;
 }

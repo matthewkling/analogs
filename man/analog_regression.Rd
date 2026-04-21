@@ -18,6 +18,7 @@ analog_regression(
   theta = NULL,
   lambda = 0,
   stat = c("count", "ess", "regression"),
+  se = c("none", "ess", "design"),
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -123,6 +124,28 @@ Additional stats like \code{"count"}, \code{"ess"}, and \code{"weighted_mean"} c
 be requested alongside regression coefficients. Default includes
 \code{"count"} and \code{"ess"} for diagnostics.}
 
+\item{se}{Standard-error framing to apply to SE-supporting stats
+(\code{"weighted_mean"} and \code{"regression"}). One of:
+\itemize{
+\item \code{"none"} (default): no SE columns are returned.
+\item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
+\code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
+effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
+\verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
+using \code{n_eff - p} degrees of freedom.
+\item \code{"design"}: design-based framing (no assumption that weights are
+precisions). For \code{weighted_mean},
+\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}. For regression, the sandwich
+estimator \verb{(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹} with
+\verb{M = Σ w² r² x xᵀ} (Huber-White / heteroskedasticity-consistent).
+}
+
+Both variants are scale-invariant in the weights when \code{lambda = 0}.
+When \code{se != "none"} but no requested stat supports SE, a warning is
+issued and no SE columns are produced. SE-supporting stat columns are
+named \code{se_weighted_mean} / \verb{se_weighted_mean_\{varname\}} and
+\verb{se_\{intercept|covname\}} / \verb{se_\{intercept|covname\}_\{varname\}}.}
+
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
@@ -167,10 +190,11 @@ row per focal location containing:
 \item Columns for any additional stats requested (e.g., \code{count}, \code{ess})
 \item \code{coef_intercept}: Regression intercept
 \item \verb{coef_\{name\}}: Regression slope for each covariate
-\item \code{se_intercept}: Standard error of the intercept
-\item \verb{se_\{name\}}: Standard error of each covariate slope
+\item When \code{se != "none"}: \code{se_intercept} and \verb{se_\{name\}} giving
+standard errors of each coefficient
 \item With multiple \code{y} variables: columns are named
-\verb{coef_\{coeff\}_\{varname\}} and \verb{se_\{coeff\}_\{varname\}}
+\verb{coef_\{coeff\}_\{varname\}} (and \verb{se_\{coeff\}_\{varname\}} when SEs
+are returned)
 }
 }
 \description{
@@ -197,7 +221,8 @@ For each focal location, the function:
 \item Computes distance-based weights for each analog (via \code{weight} and \code{theta})
 \item Fits a weighted least squares regression of \code{y} on \code{covariates}
 using these weights, with optional ridge penalty \code{lambda}
-\item Returns the regression coefficients (intercept + slopes)
+\item Returns the regression coefficients (intercept + slopes), and
+optionally their standard errors (see \code{se} in \code{\link[=analog_search]{analog_search()}}).
 }
 
 The math: \verb{beta = (X'WX + lambda * I_p)^\{-1\} X'Wy}, where \code{W} is diagonal
@@ -250,7 +275,8 @@ gwr_result <- analog_regression(
   k = 50,
   max_clim = NULL,
   weight = "gaussian_geog",
-  theta = 20
+  theta = 20,
+  se = "ess"
 )
 }
 

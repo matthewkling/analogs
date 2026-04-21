@@ -8,7 +8,7 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda
+#' Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda/se
 #' combinations and normalizes values. Returns a list with normalized parameters.
 #'
 #' @keywords internal
@@ -18,7 +18,8 @@
                                    max_clim, max_geog,
                                    select, k,
                                    stat, weight, theta,
-                                   lambda = 0) {
+                                   lambda = 0,
+                                   se = "none") {
 
       # Validate select
       select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
@@ -119,6 +120,22 @@
             stop("lambda must be a single non-negative numeric value.")
       }
 
+      # Validate se
+      # Accept a single string; normalize to one of "none"/"ess"/"design".
+      se <- match.arg(se, c("none", "ess", "design"))
+
+      # If se != "none" but no requested stat supports SE, warn.
+      # SE-supporting stats: weighted_mean, regression.
+      if (!identical(se, "none")) {
+            se_stats <- c("weighted_mean", "regression")
+            if (!any(stat %in% se_stats)) {
+                  warning("`se = \"", se, "\"` was requested but no requested stat supports SE ",
+                          "(SE is currently defined for: ",
+                          paste(se_stats, collapse = ", "), "). ",
+                          "No SE columns will be produced.")
+            }
+      }
+
       # Validate stat/weight/theta combinations
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean",
@@ -217,6 +234,7 @@
             weight = weight,
             theta = theta,
             lambda = lambda,
+            se = se,
             x_cov = x_cov_mat,
             y = values_mat,
             values_names = values_names,

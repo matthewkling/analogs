@@ -8,6 +8,7 @@
 #include "climate.hpp"
 #include "weights.hpp"
 #include "mahalanobis.hpp"
+#include "se_code.hpp"
 
 #include <vector>
 #include <queue>
@@ -54,10 +55,10 @@ struct PairWorker : public Worker {
       double R_earth;               // Earth radius (km)
 
       // Mahalanobis distance support
-      bool use_mahalanobis;                           // true if x_cov provided
-      const double* x_cov_ptr;                        // pointer to x_cov matrix (n_focal × n_cov_components)
-      int x_cov_stride;                               // stride for x_cov
-      int n_cov_components;                           // n_clim * (n_clim + 1) / 2
+      bool use_mahalanobis;
+      const double* x_cov_ptr;
+      int x_cov_stride;
+      int n_cov_components;
 
       std::vector< std::vector<int> >& out_indices;
       std::vector< std::vector<double> >& out_weights;  // sample weights
@@ -72,12 +73,11 @@ struct PairWorker : public Worker {
             std::vector<double> cand_weights;
 
             ThreadLocalStorage() {
-                  // Pre-allocate with reasonable sizes
-                  fgeo_vec.reserve(3);   // max 3 for ECEF
-                  fclim_vec.reserve(16); // typical climate dims
+                  fgeo_vec.reserve(3);
+                  fclim_vec.reserve(16);
                   q_geo.reserve(3);
                   q_clim.reserve(16);
-                  cand.reserve(256);     // typical candidate count
+                  cand.reserve(256);
                   cand_weights.reserve(256);
             }
       };
@@ -163,18 +163,18 @@ struct AggWorker : public Worker {
       bool use_haversine;
       bool use_scalar_clim;
       bool use_pervar_clim;
-      bool use_ecef;                // use ECEF for geog filtering
+      bool use_ecef;
 
       double max_clim_scalar;
       double max_geog;
-      double max_geog_chord;        // chord threshold for ECEF
+      double max_geog_chord;
       std::vector<double> max_clim_pervar;
 
-      SelectCode scode;             // Selection strategy
-      std::vector<AggregateCode> acodes;  // Which aggregations to perform
-      WeightCode wcode;             // Weight function (for sum/mean)
-      double weight_param1;         // Pre-computed weight parameter 1
-      double weight_param2;         // Pre-computed weight parameter 2
+      SelectCode scode;
+      std::vector<AggregateCode> acodes;
+      WeightCode wcode;
+      double weight_param1;
+      double weight_param2;
 
       Lattice* lattice_ptr;
       double R_earth;
@@ -197,6 +197,9 @@ struct AggWorker : public Worker {
       int covariates_stride;
       int n_covs;
       double lambda;
+
+      // SE variant (applies to weighted_mean and regression)
+      SeCode se_code;
 
       std::vector<double>& agg; // flat output: size = n_focal * n_stats
       int n_stats;              // number of stats to compute (total columns in output)
@@ -252,6 +255,7 @@ struct AggWorker : public Worker {
                 int covariates_stride_,
                 int n_covs_,
                 double lambda_,
+                SeCode se_code_,
                 std::vector<double>& agg_,
                 int n_stats_)
             : focal_ptr(REAL(focal_mm)),
@@ -293,6 +297,7 @@ struct AggWorker : public Worker {
               covariates_stride(covariates_stride_),
               n_covs(n_covs_),
               lambda(lambda_),
+              se_code(se_code_),
               agg(agg_),
               n_stats(n_stats_)
       {}

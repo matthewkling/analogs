@@ -47,6 +47,8 @@
 #'       (e.g., `weighted_mean_habitat_quality`)
 #'     \item For `"regression"`: `coef_intercept` and `coef_{covariate}`
 #'       coefficient columns
+#'     \item When `se != "none"`: SE columns for SE-supporting stats
+#'       (e.g., `se_weighted_mean`)
 #'   }
 #'
 #' @details
@@ -108,6 +110,16 @@
 #'   max_geog = 100,    # 100 km dispersal range
 #'   max_clim = 0.5     # Climate analog threshold
 #' )
+#'
+#' # With uncertainty quantification on weighted_mean
+#' impact_se <- analog_impact(
+#'   x = future_climate,
+#'   pool = current_climate,
+#'   y = current$habitat,
+#'   max_geog = 100,
+#'   max_clim = 0.5,
+#'   se = "ess"
+#' )
 #' }
 #'
 #' @export
@@ -123,6 +135,7 @@ analog_impact <- function(
             theta = .25,
             stat = c("count", "sum_weights", "weighted_mean"),
             lambda = 0,
+            se = c("none", "ess", "design"),
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
@@ -130,6 +143,7 @@ analog_impact <- function(
             progress = FALSE
 ) {
       weight <- match.arg(weight)
+      se <- match.arg(se)
 
       analog_search(
             x           = x,
@@ -144,6 +158,7 @@ analog_impact <- function(
             weight      = weight,
             theta       = theta,
             lambda      = lambda,
+            se          = se,
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,

@@ -18,6 +18,7 @@ query_analog_index(
   weight,
   theta,
   lambda,
+  se,
   n_threads,
   show_progress = FALSE
 )

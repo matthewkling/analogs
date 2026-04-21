@@ -63,10 +63,13 @@ tune_index_res <- function(x,
                            y = NULL,
                            covariates = NULL,
                            lambda = 0,
+                           se = c("none", "ess", "design"),
                            coord_type = c("auto", "lonlat", "projected"),
                            n_threads = NULL,
                            default_res = 16L,
                            verbose = FALSE) {
+
+      se <- match.arg(se)
 
       if(is.null(seed)) seed <- .Random.seed[1]
       set.seed(seed)
@@ -131,6 +134,7 @@ tune_index_res <- function(x,
                         y = y,
                         covariates = covariates,
                         lambda = lambda,
+                        se = se,
                         k = k,
                         weight = weight,
                         theta = theta,

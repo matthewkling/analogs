@@ -15,6 +15,7 @@ analog_impact(
   theta = 0.25,
   stat = c("count", "sum_weights", "weighted_mean"),
   lambda = 0,
+  se = c("none", "ess", "design"),
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -101,6 +102,28 @@ shrink covariate coefficients toward zero, with the intercept
 approaching the weighted mean as \code{lambda -> Inf}. Ignored when
 \code{"regression"} is not in \code{stat}.}
 
+\item{se}{Standard-error framing to apply to SE-supporting stats
+(\code{"weighted_mean"} and \code{"regression"}). One of:
+\itemize{
+\item \code{"none"} (default): no SE columns are returned.
+\item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
+\code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
+effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
+\verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
+using \code{n_eff - p} degrees of freedom.
+\item \code{"design"}: design-based framing (no assumption that weights are
+precisions). For \code{weighted_mean},
+\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}. For regression, the sandwich
+estimator \verb{(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹} with
+\verb{M = Σ w² r² x xᵀ} (Huber-White / heteroskedasticity-consistent).
+}
+
+Both variants are scale-invariant in the weights when \code{lambda = 0}.
+When \code{se != "none"} but no requested stat supports SE, a warning is
+issued and no SE columns are produced. SE-supporting stat columns are
+named \code{se_weighted_mean} / \verb{se_weighted_mean_\{varname\}} and
+\verb{se_\{intercept|covname\}} / \verb{se_\{intercept|covname\}_\{varname\}}.}
+
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
@@ -147,6 +170,8 @@ A data.frame with one row per focal location containing:
 (e.g., \code{weighted_mean_habitat_quality})
 \item For \code{"regression"}: \code{coef_intercept} and \verb{coef_\{covariate\}}
 coefficient columns
+\item When \code{se != "none"}: SE columns for SE-supporting stats
+(e.g., \code{se_weighted_mean})
 }
 }
 \description{
@@ -218,6 +243,16 @@ impact <- analog_impact(
   y = current$habitat,
   max_geog = 100,    # 100 km dispersal range
   max_clim = 0.5     # Climate analog threshold
+)
+
+# With uncertainty quantification on weighted_mean
+impact_se <- analog_impact(
+  x = future_climate,
+  pool = current_climate,
+  y = current$habitat,
+  max_geog = 100,
+  max_clim = 0.5,
+  se = "ess"
 )
 }
 

@@ -3,11 +3,14 @@
 // Small dense Cholesky solver for weighted ridge regression.
 // Designed for p+1 <= ~10 (intercept + a few covariates).
 // No external linear algebra dependencies.
-// Returns coefficients and standard errors.
+//
+// Supports coefficient-only, ESS-based, and design-based (sandwich) SE
+// computation, selected via SeCode.
 
 #include <vector>
 #include <cmath>
 #include <limits>
+#include "se_code.hpp"
 
 namespace analogs {
 
@@ -55,16 +58,13 @@ inline void cholesky_solve(const std::vector<double>& A, int dim, std::vector<do
       }
 }
 
-// Compute diagonal of (X'WX + lambda*I)^{-1} from its Cholesky factor L.
-// Uses the identity: if A = L L', then A^{-1} = L^{-T} L^{-1},
-// and diag(A^{-1})_i = sum_k (L^{-1})_{ki}^2.
-// We compute L^{-1} column by column via forward substitution.
+// Compute diagonal of A^{-1} from Cholesky factor L (A = L L').
+// Uses: A^{-1} = L^{-T} L^{-1}, so diag(A^{-1})_j = sum_k (L^{-1})_{kj}^2.
+// We compute column j of L^{-1} by forward-solving L x = e_j.
 inline void cholesky_inv_diag(const std::vector<double>& L, int dim,
                               std::vector<double>& inv_diag) {
       inv_diag.resize(dim);
 
-      // For each column j of L^{-1}, solve L * col_j = e_j
-      // Then inv_diag[j] = sum of squared elements in col_j
       for (int j = 0; j < dim; ++j) {
             std::vector<double> col(dim, 0.0);
             col[j] = 1.0;
@@ -83,6 +83,42 @@ inline void cholesky_inv_diag(const std::vector<double>& L, int dim,
       }
 }
 
+// Compute full inverse A^{-1} from Cholesky factor L (A = L L'), stored
+// row-major in out_inv (dim x dim). Only the symmetric inverse is produced.
+// Used for the sandwich SE: needs full A^{-1}, not just diag.
+inline void cholesky_inverse(const std::vector<double>& L, int dim,
+                             std::vector<double>& out_inv) {
+      out_inv.assign(dim * dim, 0.0);
+
+      // Solve A x_col = e_j for each column j.
+      // This is a triangular solve L y = e_j (forward) then L' x = y (back).
+      std::vector<double> rhs(dim);
+      for (int j = 0; j < dim; ++j) {
+            std::fill(rhs.begin(), rhs.end(), 0.0);
+            rhs[j] = 1.0;
+
+            // Forward: L y = e_j
+            for (int i = 0; i < dim; ++i) {
+                  for (int k = 0; k < i; ++k) {
+                        rhs[i] -= L[i * dim + k] * rhs[k];
+                  }
+                  rhs[i] /= L[i * dim + i];
+            }
+            // Back: L' x = y
+            for (int i = dim - 1; i >= 0; --i) {
+                  for (int k = i + 1; k < dim; ++k) {
+                        rhs[i] -= L[k * dim + i] * rhs[k];
+                  }
+                  rhs[i] /= L[i * dim + i];
+            }
+
+            // Write column j of inverse (it's symmetric; fill whole column)
+            for (int i = 0; i < dim; ++i) {
+                  out_inv[i * dim + j] = rhs[i];
+            }
+      }
+}
+
 // Solve weighted ridge regression for one focal cell.
 //
 // Given n_analogs observations with:
@@ -91,8 +127,15 @@ inline void cholesky_inv_diag(const std::vector<double>& L, int dim,
 //   - weights w[j] (combined distance × sample weight)
 //   - ridge penalty lambda (applied to covariate coefficients only, not intercept)
 //
-// Writes output into out_coeffs and out_se, each of size n_vars * (n_covs + 1).
+// Writes output into out_coeffs (always) and out_se (only if se_code != NONE).
 // Layout: [intercept_v0, beta1_v0, ..., betap_v0, intercept_v1, ...].
+//
+// SE formulas:
+//   ESS:    Var(beta) = sigma2_ess * (X'WX + lambda I)^{-1}
+//           sigma2_ess = (RSS_w / sum_w) * n_eff / (n_eff - p)
+//           n_eff = (sum_w)^2 / sum_w_sq
+//   DESIGN: Var(beta) = A^{-1} M A^{-1}, A = X'WX + lambda I
+//           M_{ab} = sum_t w_t^2 r_t^2 x_{ta} x_{tb}
 //
 // Returns false if the system is singular (only possible when lambda == 0).
 inline bool solve_ridge(
@@ -105,11 +148,13 @@ inline bool solve_ridge(
             int cov_stride,                                  // stride for covariates (n_ref)
             int n_covs,                                      // number of covariate columns
             double lambda,                                   // ridge penalty
+            SeCode se_code,                                  // which SE variant (or NONE)
             double* out_coeffs,                              // output: n_vars * (n_covs + 1)
-            double* out_se                                   // output: n_vars * (n_covs + 1)
+            double* out_se                                   // output: n_vars * (n_covs + 1); ignored if se_code == NONE
 ) {
       const int dim = n_covs + 1;  // intercept + covariates
       const int n = static_cast<int>(analog_indices.size());
+      const bool want_se = (se_code != SeCode::NONE);
 
       // Build X'WX (symmetric, stored as flat row-major dim x dim)
       std::vector<double> XtWX(dim * dim, 0.0);
@@ -117,18 +162,20 @@ inline bool solve_ridge(
       // Build X'Wy for each value variable
       std::vector<double> XtWy(n_vars * dim, 0.0);
 
-      // Track sum of weights for sigma^2 denominator
+      // Running sums for SE support
       double sum_w = 0.0;
+      double sum_w_sq = 0.0;  // only used for SE
 
       for (int t = 0; t < n; ++t) {
             const std::size_t j = analog_indices[t];
             const double w = weights[t];
             sum_w += w;
+            if (want_se) sum_w_sq += w * w;
 
             // Intercept × intercept
             XtWX[0] += w;
 
-            // Intercept × covariates and covariates × intercept
+            // Intercept × covariates (symmetric)
             for (int p = 0; p < n_covs; ++p) {
                   double cp = cov_ptr[j + p * cov_stride];
                   double wcp = w * cp;
@@ -170,65 +217,144 @@ inline bool solve_ridge(
             XtWX[(p + 1) * dim + (p + 1)] += lambda;
       }
 
-      // Cholesky factorization
+      // Cholesky factorization of A = X'WX + lambda I_covs
       std::vector<double> L = XtWX;
       if (!cholesky_factor(L, dim)) {
-            // Singular system — write NAs for all coefficients and SEs
+            // Singular: write NAs for coefficients (and SEs if requested)
             for (int v = 0; v < n_vars; ++v) {
                   for (int d = 0; d < dim; ++d) {
                         out_coeffs[v * dim + d] = NA_REAL;
-                        out_se[v * dim + d] = NA_REAL;
+                        if (want_se) out_se[v * dim + d] = NA_REAL;
                   }
             }
             return false;
       }
 
-      // Compute diagonal of (X'WX + lambda*I)^{-1} — shared across all value variables
+      // ESS-based SE: one inv_diag suffices (shared across vars); sigma2 per var.
       std::vector<double> inv_diag;
-      cholesky_inv_diag(L, dim, inv_diag);
+      // DESIGN-based SE: full inverse of A needed to form A^{-1} M A^{-1}.
+      std::vector<double> A_inv;
+      if (want_se) {
+            if (se_code == SeCode::ESS) {
+                  cholesky_inv_diag(L, dim, inv_diag);
+            } else {  // DESIGN
+                  cholesky_inverse(L, dim, A_inv);
+            }
+      }
 
-      // Solve for each value variable and compute SEs
+      // n_eff for ESS variant
+      double n_eff = 0.0;
+      if (want_se && se_code == SeCode::ESS && sum_w_sq > 0.0) {
+            n_eff = (sum_w * sum_w) / sum_w_sq;
+      }
+
+      // Solve per variable, write coefficients, compute SEs if requested.
       for (int v = 0; v < n_vars; ++v) {
             // Solve for coefficients
             std::vector<double> rhs(XtWy.begin() + v * dim,
                                     XtWy.begin() + (v + 1) * dim);
             cholesky_solve(L, dim, rhs);
 
-            // Write coefficients
             for (int d = 0; d < dim; ++d) {
                   out_coeffs[v * dim + d] = rhs[d];
             }
 
-            // Compute weighted residual variance: sigma^2 = sum(w * e^2) / (sum(w) - dim)
-            double wss = 0.0;
+            if (!want_se) continue;
+
+            // ---- SE computation for this variable ----
+            // Both variants need a pass over analogs to compute residuals.
+            // ESS needs RSS_w = sum w * r^2.
+            // DESIGN needs M = sum w^2 * r^2 * x x' (symmetric dim×dim).
+            double rss_w = 0.0;
+            std::vector<double> M;  // only used for design
+            if (se_code == SeCode::DESIGN) {
+                  M.assign(dim * dim, 0.0);
+            }
+
+            bool any_valid = false;
+
             for (int t = 0; t < n; ++t) {
                   const std::size_t j = analog_indices[t];
                   const double w = weights[t];
                   double yv = values_ptr[j + v * values_stride];
                   if (ISNAN(yv)) continue;
+                  any_valid = true;
 
                   double fitted = rhs[0];
                   for (int p = 0; p < n_covs; ++p) {
                         fitted += rhs[p + 1] * cov_ptr[j + p * cov_stride];
                   }
-                  double resid = yv - fitted;
-                  wss += w * resid * resid;
-            }
+                  const double resid = yv - fitted;
 
-            double denom = sum_w - static_cast<double>(dim);
-            double sigma2;
-            if (denom > 0.0) {
-                  sigma2 = wss / denom;
-            } else {
-                  sigma2 = NA_REAL;
-            }
-
-            // Write standard errors: se_j = sqrt(sigma^2 * inv_diag_j)
-            for (int d = 0; d < dim; ++d) {
-                  if (ISNAN(sigma2) || sigma2 < 0.0) {
-                        out_se[v * dim + d] = NA_REAL;
+                  if (se_code == SeCode::ESS) {
+                        rss_w += w * resid * resid;
                   } else {
+                        // DESIGN: accumulate outer product w^2 r^2 x x'
+                        const double w2r2 = w * w * resid * resid;
+                        // Build x row implicitly: x = [1, cov1, cov2, ...]
+                        // M[0][0] += w2r2
+                        M[0] += w2r2;
+                        for (int p = 0; p < n_covs; ++p) {
+                              double cp = cov_ptr[j + p * cov_stride];
+                              double w2r2_cp = w2r2 * cp;
+                              M[0 * dim + (p + 1)] += w2r2_cp;
+                              M[(p + 1) * dim + 0] += w2r2_cp;
+                        }
+                        for (int p1 = 0; p1 < n_covs; ++p1) {
+                              double cp1 = cov_ptr[j + p1 * cov_stride];
+                              double w2r2_cp1 = w2r2 * cp1;
+                              for (int p2 = p1; p2 < n_covs; ++p2) {
+                                    double cp2 = cov_ptr[j + p2 * cov_stride];
+                                    double val = w2r2_cp1 * cp2;
+                                    M[(p1 + 1) * dim + (p2 + 1)] += val;
+                                    if (p2 != p1) {
+                                          M[(p2 + 1) * dim + (p1 + 1)] += val;
+                                    }
+                              }
+                        }
+                  }
+            }
+
+            if (!any_valid) {
+                  for (int d = 0; d < dim; ++d) out_se[v * dim + d] = NA_REAL;
+                  continue;
+            }
+
+            if (se_code == SeCode::ESS) {
+                  // sigma2_ess = (RSS_w / sum_w) * n_eff / (n_eff - p)
+                  const double df = n_eff - static_cast<double>(dim);
+                  if (sum_w <= 0.0 || n_eff <= 0.0 || df <= 0.0) {
+                        for (int d = 0; d < dim; ++d) out_se[v * dim + d] = NA_REAL;
+                        continue;
+                  }
+                  const double sigma2 = (rss_w / sum_w) * (n_eff / df);
+                  if (!(sigma2 >= 0.0) || !std::isfinite(sigma2)) {
+                        for (int d = 0; d < dim; ++d) out_se[v * dim + d] = NA_REAL;
+                        continue;
+                  }
+                  for (int d = 0; d < dim; ++d) {
                         out_se[v * dim + d] = std::sqrt(sigma2 * inv_diag[d]);
+                  }
+            } else {
+                  // DESIGN: diag(A^{-1} M A^{-1})_d = row_d(A^{-1} M) dot col_d(A^{-1})
+                  // Since A^{-1} is symmetric, row_d(A^{-1}) = col_d(A^{-1}).
+                  // Compute diag directly:
+                  //   diag_d = sum_{a,b} A^{-1}_{da} * M_{ab} * A^{-1}_{bd}
+                  for (int d = 0; d < dim; ++d) {
+                        double acc = 0.0;
+                        for (int a = 0; a < dim; ++a) {
+                              double Aid_da = A_inv[d * dim + a];
+                              double inner = 0.0;
+                              for (int b = 0; b < dim; ++b) {
+                                    inner += M[a * dim + b] * A_inv[b * dim + d];
+                              }
+                              acc += Aid_da * inner;
+                        }
+                        if (!(acc >= 0.0) || !std::isfinite(acc)) {
+                              out_se[v * dim + d] = NA_REAL;
+                        } else {
+                              out_se[v * dim + d] = std::sqrt(acc);
+                        }
                   }
             }
       }

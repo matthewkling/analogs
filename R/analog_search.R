@@ -15,7 +15,7 @@
 #'       (`select`, `max_clim`, `max_geog`, `k`)
 #'       define which analogs to `select` from the `pool` for each `x`.
 #'     \item *Aggregation parameters*
-#'       (`stat`, `weight`, `theta`, `lambda`)
+#'       (`stat`, `weight`, `theta`, `lambda`, `se`)
 #'       control how selected analogs are summarized.
 #'     \item *Computation parameters*
 #'       (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
@@ -192,6 +192,28 @@
 #'   approaching the weighted mean as \code{lambda -> Inf}. Ignored when
 #'   \code{"regression"} is not in \code{stat}.
 #'
+#' @param se Standard-error framing to apply to SE-supporting stats
+#'   (`"weighted_mean"` and `"regression"`). One of:
+#'   \itemize{
+#'     \item `"none"` (default): no SE columns are returned.
+#'     \item `"ess"`: effective-sample-size framing. For `weighted_mean`,
+#'       `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
+#'       effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For regression,
+#'       `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual variance corrected
+#'       using `n_eff - p` degrees of freedom.
+#'     \item `"design"`: design-based framing (no assumption that weights are
+#'       precisions). For `weighted_mean`,
+#'       `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`. For regression, the sandwich
+#'       estimator `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with
+#'       `M = Σ w² r² x xᵀ` (Huber-White / heteroskedasticity-consistent).
+#'   }
+#'
+#'   Both variants are scale-invariant in the weights when `lambda = 0`.
+#'   When `se != "none"` but no requested stat supports SE, a warning is
+#'   issued and no SE columns are produced. SE-supporting stat columns are
+#'   named `se_weighted_mean` / `se_weighted_mean_{varname}` and
+#'   `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
+#'
 #' @param coord_type Coordinate system type:
 #'   \itemize{
 #'     \item \code{"auto"} (default): Automatically detect from coordinate ranges.
@@ -256,6 +278,8 @@
 #'     \item For `stat = "regression"`: columns for `coef_intercept` and `coef_{covariate}`,
 #'       or `coef_intercept_{varname}` and  `coef_{covariate}_{varname}` with multiple `y`
 #'       variables.
+#'     \item When `se != "none"`: matching SE columns (`se_weighted_mean`,
+#'       `se_intercept`, etc.) for each SE-supporting stat.
 #' }
 #'
 #' All results include metadata attributes (`select`, `stat`, `weight`, etc.).
@@ -302,6 +326,7 @@ analog_search <- function(
       weight = NULL,
       theta = NULL,
       lambda = 0,
+      se = c("none", "ess", "design"),
 
       # args passed to build_lattice_index
       coord_type = c("auto", "lonlat", "projected"),
@@ -312,6 +337,8 @@ analog_search <- function(
       n_threads = NULL,
       progress = FALSE
 ) {
+
+      se <- match.arg(se)
 
       # Check if pool is already an index
       if (is_analog_index(pool)) {
@@ -338,6 +365,7 @@ analog_search <- function(
                         weight = weight,
                         theta = theta,
                         lambda = lambda,
+                        se = se,
                         coord_type = coord_type,
                         n_threads = n_threads,
                         verbose = FALSE,
@@ -375,6 +403,7 @@ analog_search <- function(
             weight = weight,
             theta = theta,
             lambda = lambda,
+            se = se,
             n_threads = n_threads,
             show_progress = progress
       ))

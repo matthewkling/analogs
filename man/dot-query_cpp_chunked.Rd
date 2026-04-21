@@ -19,6 +19,7 @@
   y,
   covariates,
   lambda,
+  se_code,
   show_progress = FALSE
 )
 }

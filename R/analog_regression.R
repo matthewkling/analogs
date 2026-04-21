@@ -52,10 +52,11 @@
 #'     \item Columns for any additional stats requested (e.g., `count`, `ess`)
 #'     \item `coef_intercept`: Regression intercept
 #'     \item `coef_{name}`: Regression slope for each covariate
-#'     \item `se_intercept`: Standard error of the intercept
-#'     \item `se_{name}`: Standard error of each covariate slope
+#'     \item When `se != "none"`: `se_intercept` and `se_{name}` giving
+#'       standard errors of each coefficient
 #'     \item With multiple `y` variables: columns are named
-#'       `coef_{coeff}_{varname}` and `se_{coeff}_{varname}`
+#'       `coef_{coeff}_{varname}` (and `se_{coeff}_{varname}` when SEs
+#'       are returned)
 #'   }
 #'
 #' @details
@@ -66,7 +67,8 @@
 #' 2. Computes distance-based weights for each analog (via `weight` and `theta`)
 #' 3. Fits a weighted least squares regression of `y` on `covariates`
 #'    using these weights, with optional ridge penalty `lambda`
-#' 4. Returns the regression coefficients (intercept + slopes)
+#' 4. Returns the regression coefficients (intercept + slopes), and
+#'    optionally their standard errors (see `se` in [analog_search()]).
 #'
 #' The math: `beta = (X'WX + lambda * I_p)^{-1} X'Wy`, where `W` is diagonal
 #' weights, `X` is the design matrix (intercept + covariates), and `I_p` penalizes
@@ -114,7 +116,8 @@
 #'   k = 50,
 #'   max_clim = NULL,
 #'   weight = "gaussian_geog",
-#'   theta = 20
+#'   theta = 20,
+#'   se = "ess"
 #' )
 #' }
 #'
@@ -138,6 +141,7 @@ analog_regression <- function(
             theta = NULL,
             lambda = 0,
             stat = c("count", "ess", "regression"),
+            se = c("none", "ess", "design"),
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
@@ -145,6 +149,7 @@ analog_regression <- function(
             progress = FALSE
 ) {
       weight <- match.arg(weight)
+      se <- match.arg(se)
 
       # Ensure "regression" is always in stat
       if (!"regression" %in% stat) {
@@ -164,6 +169,7 @@ analog_regression <- function(
             weight      = weight,
             theta       = theta,
             lambda      = lambda,
+            se          = se,
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,

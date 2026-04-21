@@ -134,14 +134,15 @@ test_that("zero analogs returns NA for regression coefficients", {
             max_geog = 0.0001,
             weight = "uniform",
             coord_type = "projected",
+            se = "ess",
             index_res = 10
       )
 
       # Rows with count == 0 should have NA coefficients
       zero_rows <- result$count == 0
       if (any(zero_rows)) {
-            expect_true(all(is.na(result$intercept[zero_rows])))
-            expect_true(all(is.na(result$cov1[zero_rows])))
+            expect_true(all(is.na(result$coef_intercept[zero_rows])))
+            expect_true(all(is.na(result$coef_cov1[zero_rows])))
       }
 })
 

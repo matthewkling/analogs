@@ -17,11 +17,12 @@
   stat,
   weight,
   theta,
-  lambda = 0
+  lambda = 0,
+  se = "none"
 )
 }
 \description{
-Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda
+Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda/se
 combinations and normalizes values. Returns a list with normalized parameters.
 }
 \keyword{internal}

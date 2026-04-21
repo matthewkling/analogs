@@ -18,6 +18,7 @@ analog_search(
   weight = NULL,
   theta = NULL,
   lambda = 0,
+  se = c("none", "ess", "design"),
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
@@ -162,6 +163,28 @@ shrink covariate coefficients toward zero, with the intercept
 approaching the weighted mean as \code{lambda -> Inf}. Ignored when
 \code{"regression"} is not in \code{stat}.}
 
+\item{se}{Standard-error framing to apply to SE-supporting stats
+(\code{"weighted_mean"} and \code{"regression"}). One of:
+\itemize{
+\item \code{"none"} (default): no SE columns are returned.
+\item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
+\code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
+effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
+\verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
+using \code{n_eff - p} degrees of freedom.
+\item \code{"design"}: design-based framing (no assumption that weights are
+precisions). For \code{weighted_mean},
+\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}. For regression, the sandwich
+estimator \verb{(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹} with
+\verb{M = Σ w² r² x xᵀ} (Huber-White / heteroskedasticity-consistent).
+}
+
+Both variants are scale-invariant in the weights when \code{lambda = 0}.
+When \code{se != "none"} but no requested stat supports SE, a warning is
+issued and no SE columns are produced. SE-supporting stat columns are
+named \code{se_weighted_mean} / \verb{se_weighted_mean_\{varname\}} and
+\verb{se_\{intercept|covname\}} / \verb{se_\{intercept|covname\}_\{varname\}}.}
+
 \item{coord_type}{Coordinate system type:
 \itemize{
 \item \code{"auto"} (default): Automatically detect from coordinate ranges.
@@ -227,6 +250,8 @@ variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, 
 \item For \code{stat = "regression"}: columns for \code{coef_intercept} and \verb{coef_\{covariate\}},
 or \verb{coef_intercept_\{varname\}} and  \verb{coef_\{covariate\}_\{varname\}} with multiple \code{y}
 variables.
+\item When \code{se != "none"}: matching SE columns (\code{se_weighted_mean},
+\code{se_intercept}, etc.) for each SE-supporting stat.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
@@ -249,7 +274,7 @@ give attributes of the data on which to operate.
 (\code{select}, \code{max_clim}, \code{max_geog}, \code{k})
 define which analogs to \code{select} from the \code{pool} for each \code{x}.
 \item \emph{Aggregation parameters}
-(\code{stat}, \code{weight}, \code{theta}, \code{lambda})
+(\code{stat}, \code{weight}, \code{theta}, \code{lambda}, \code{se})
 control how selected analogs are summarized.
 \item \emph{Computation parameters}
 (\code{n_threads}, \code{index_res}, \code{downsample}, \code{seed}, \code{progress})

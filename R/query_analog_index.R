@@ -13,6 +13,7 @@ query_analog_index <- function(x,
                                weight,
                                theta,
                                lambda,
+                               se,
                                n_threads,
                                show_progress = FALSE) {
 
@@ -30,13 +31,15 @@ query_analog_index <- function(x,
                                        x_cov, y, covariates,
                                        max_clim, max_geog,
                                        select, k,
-                                       stat, weight, theta, lambda)
+                                       stat, weight, theta, lambda,
+                                       se)
       select <- params$select
       stat <- params$stat
       k <- params$k
       weight <- params$weight
       theta <- params$theta
       lambda <- params$lambda
+      se <- params$se
       x_cov_mat <- params$x_cov
       values_mat <- params$y
       values_names <- params$values_names
@@ -97,6 +100,15 @@ query_analog_index <- function(x,
             0L
       }
 
+      # Map se for C++
+      # SE codes: 0=none, 1=ess, 2=design
+      se_code <- switch(
+            se,
+            "none"   = 0L,
+            "ess"    = 1L,
+            "design" = 2L
+      )
+
       # Convert theta to numeric vector (use NA_real_ for NULL so C++ can apply defaults)
       theta_vec <- if (is.null(theta)) {
             NA_real_
@@ -133,6 +145,7 @@ query_analog_index <- function(x,
             y = values_mat,
             covariates = covariates_mat,
             lambda = lambda,
+            se_code = se_code,
             show_progress = show_progress
       )
 
@@ -188,14 +201,20 @@ query_analog_index <- function(x,
       # Determine column structure based on stats requested and values provided
       # Regular stats (count, sum_weights, mean_weights, ess): 1 column each
       # Value-based stats (sum, mean, weighted_sum, weighted_mean): n_values columns each
-      # Regression: (n_covariates + 1) columns per value variable
+      # weighted_mean SE (when se != "none"): one column per value var, emitted
+      #   immediately after its weighted_mean column within each var's block.
+      # Regression: (n_covariates + 1) columns per value variable for coefs;
+      #   same again for SEs when se != "none".
       regular_stats <- c("count", "sum_weights", "mean_weights", "ess")
       value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
 
+      want_se <- !identical(se, "none")
+
       col_idx <- 1
 
-      # IMPORTANT: C++ writes columns grouped by type (regular first, then value, then regression)
-      # So we must read in that order, NOT in request order
+      # IMPORTANT: C++ writes columns grouped by type (regular first, then value
+      # stats grouped by variable, then regression). We must read in that order,
+      # NOT in request order.
 
       # Read all regular stats first
       for (s in stat) {
@@ -205,38 +224,51 @@ query_analog_index <- function(x,
             }
       }
 
-      # Then read all value stats
-      for (s in stat) {
-            if (s %in% value_stats) {
-                  # One column per value variable
-                  n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
-                  if (n_vals == 0) {
-                        stop("Internal error: value stat requested but no y values provided")
-                  }
+      # Then read all value stats, grouped by variable (v0_stat0, v0_stat1, ...,
+      # v1_stat0, ...). The order of stats within each variable's block matches
+      # the order they appear in `stat`, filtered to value stats. When se != "none"
+      # and weighted_mean is requested, an SE column is emitted right after the
+      # weighted_mean column within each variable's block.
+      n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
+      value_stats_in_order <- intersect(stat, value_stats)  # preserves user order
+      has_weighted_mean <- "weighted_mean" %in% value_stats_in_order
 
-                  if (n_vals == 1) {
-                        # Single value variable: column named by stat
-                        out[[s]] <- res[, col_idx]
-                        col_idx <- col_idx + 1
+      if (length(value_stats_in_order) > 0) {
+            if (n_vals == 0) {
+                  stop("Internal error: value stat requested but no y values provided")
+            }
+
+            for (j in seq_len(n_vals)) {
+                  var_name <- if (!is.null(values_names)) {
+                        values_names[j]
                   } else {
-                        # Multiple value variables: columns named {stat}_{varname}
-                        for (j in seq_len(n_vals)) {
-                              var_name <- if (!is.null(values_names)) {
-                                    values_names[j]
+                        paste0("var", j)
+                  }
+                  for (s in value_stats_in_order) {
+                        # Name for the stat column
+                        col_name_stat <- if (n_vals == 1) s else paste0(s, "_", var_name)
+                        out[[col_name_stat]] <- res[, col_idx]
+                        col_idx <- col_idx + 1
+
+                        # SE column follows immediately if applicable
+                        if (want_se && s == "weighted_mean") {
+                              col_name_se <- if (n_vals == 1) {
+                                    "se_weighted_mean"
                               } else {
-                                    paste0("var", j)
+                                    paste0("se_weighted_mean_", var_name)
                               }
-                              col_name <- paste0(s, "_", var_name)
-                              out[[col_name]] <- res[, col_idx]
+                              out[[col_name_se]] <- res[, col_idx]
                               col_idx <- col_idx + 1
                         }
                   }
             }
       }
 
-      # Then read regression coefficients and standard errors (if requested)
+      # Then read regression coefficients and (optionally) standard errors.
+      # Layout in C++: for each variable v, write reg_dim coefficients, then
+      # (if se != "none") a matching block of reg_dim SEs in a second pass
+      # that runs after all variable coefficient blocks.
       if ("regression" %in% stat) {
-            n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
             n_covs <- if (is.null(covariates_mat)) 0 else ncol(covariates_mat)
             reg_dim <- n_covs + 1  # intercept + covariates
 
@@ -244,18 +276,20 @@ query_analog_index <- function(x,
             base_names <- c("intercept", covariates_names %||% paste0("cov", seq_len(n_covs)))
 
             if (n_vals == 1) {
-                  # Single value variable: read coefficients then SEs
+                  # Single value variable
                   for (d in seq_len(reg_dim)) {
                         out[[paste0("coef_", base_names[d])]] <- res[, col_idx]
                         col_idx <- col_idx + 1
                   }
-                  for (d in seq_len(reg_dim)) {
-                        out[[paste0("se_", base_names[d])]] <- res[, col_idx]
-                        col_idx <- col_idx + 1
+                  if (want_se) {
+                        for (d in seq_len(reg_dim)) {
+                              out[[paste0("se_", base_names[d])]] <- res[, col_idx]
+                              col_idx <- col_idx + 1
+                        }
                   }
             } else {
                   # Multiple value variables: {prefix}_{coeff}_{varname}
-                  # First all coefficients, then all SEs
+                  # First all coefficients (per var), then all SEs (per var) if requested
                   for (j in seq_len(n_vals)) {
                         var_name <- if (!is.null(values_names)) {
                               values_names[j]
@@ -268,16 +302,18 @@ query_analog_index <- function(x,
                               col_idx <- col_idx + 1
                         }
                   }
-                  for (j in seq_len(n_vals)) {
-                        var_name <- if (!is.null(values_names)) {
-                              values_names[j]
-                        } else {
-                              paste0("var", j)
-                        }
-                        for (d in seq_len(reg_dim)) {
-                              col_name <- paste0("se_", base_names[d], "_", var_name)
-                              out[[col_name]] <- res[, col_idx]
-                              col_idx <- col_idx + 1
+                  if (want_se) {
+                        for (j in seq_len(n_vals)) {
+                              var_name <- if (!is.null(values_names)) {
+                                    values_names[j]
+                              } else {
+                                    paste0("var", j)
+                              }
+                              for (d in seq_len(reg_dim)) {
+                                    col_name <- paste0("se_", base_names[d], "_", var_name)
+                                    out[[col_name]] <- res[, col_idx]
+                                    col_idx <- col_idx + 1
+                              }
                         }
                   }
             }
@@ -301,7 +337,7 @@ query_analog_index <- function(x,
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
                                select_code, aggregate_codes, weight_code, theta,
-                               x_cov, y, covariates, lambda,
+                               x_cov, y, covariates, lambda, se_code,
                                show_progress = FALSE) {
 
       # If progress not requested or dataset too small, just call C++ directly
@@ -320,7 +356,8 @@ query_analog_index <- function(x,
                   x_cov_sexp = x_cov,
                   values_sexp = y,
                   covariates_sexp = covariates,
-                  lambda = lambda
+                  lambda = lambda,
+                  se_code = se_code
             ))
       }
 
@@ -362,7 +399,8 @@ query_analog_index <- function(x,
                   x_cov_sexp = x_cov_chunk,
                   values_sexp = y,     # Not chunked (ref pool)
                   covariates_sexp = covariates,  # Not chunked (ref pool)
-                  lambda = lambda
+                  lambda = lambda,
+                  se_code = se_code
             )
 
             setTxtProgressBar(pb, i)
