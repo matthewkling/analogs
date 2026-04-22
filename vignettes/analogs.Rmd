@@ -180,7 +180,7 @@ The analog framework is also useful for analyses outside climate change scenario
 The example below shows an interpolation informed by both climatic similarity and geographic proximity, with their relative importance determined by the `theta` parameters and the shape of the selected `weight` function.
 
 
-```{r intensity}
+```{r interpolation}
 # Simulate sparse field observations at 500 random locations
 set.seed(123)
 n_sites <- 500
