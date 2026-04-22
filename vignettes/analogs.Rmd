@@ -48,20 +48,20 @@ All functions in the package require two data inputs: `x` (the set of focal loca
 
 Most of the examples in this vignette are focused on climate change, and assume that `x` and `pool` come from different time periods with different climates. In these situations, you typically have a choice about which dataset to map to which of the two parameters, and swapping them can give different insights. For example, as shown in the climate velocity section below, swapping the parameter mapping switches the analysis from forward to reverse velocity; while it's only shown for velocity, this is also possible for the other climate change analyses. For non-climate-change applications like GWR and IDW shown toward the end of this vignette, `x` and `pool` can be from the same time period.
 
-The package includes an example dataset of climate rasters covering a portion of western North America at approximately 5 km resolution, with two scaled climate variables (climatic water deficit and actual evapotranspiration) for a historic baseline and a future projection (2041--2070, SSP585). These are used throughout this vignette.
+The package includes an example dataset of climate rasters covering a portion of western North America at approximately 5 km resolution, with two scaled climate variables (climatic water deficit and actual evapotranspiration) for a historical baseline (1981--2010) and a future projection (2041--2070, SSP585). These are used throughout this vignette.
 
 ```{r data}
 clim <- example_rasters()
 hist <- clim$historic
 fut <- clim$future
 
-plot(hist, main = c("Historic CWD", "Historic AET"))
+plot(hist, main = c("Historical CWD", "Historical AET"))
 ```
 
 
 ## Climate velocity
 
-Analog-based climate velocity metrics are widely used to assess dispersal constraints under climate change. Forward or outbound velocity, the distance from a site to the nearest location with a projected future climate similar to the site's historical/current climate, represents the migration required for current residents to track baseline climate conditions. Reverse or inbound velocity, the distance from a site to the nearest location with a historic climate similar to the site's projected future climate, represents constraints on the arrival of new residents adapted to the site's future conditions. 
+Analog-based climate velocity metrics are widely used to assess dispersal constraints under climate change. Forward or outbound velocity, the distance from a site to the nearest location with a projected future climate similar to the site's historical/current climate, represents the migration required for current residents to track baseline climate conditions. Reverse or inbound velocity, the distance from a site to the nearest location with a historical climate similar to the site's projected future climate, represents constraints on the arrival of new residents adapted to the site's future conditions. 
 
 These metrics are implemented as a geographic nearest-neighbor search under a hard climate constraint, with reverse velocity implemented by swapping the climate data for the two eras. For each focal site, the result returns data on its single nearest geographic analog (subject to the climate similarity threshold `max_clim`). The geographic distance to that analog, divided by the time elapsed, is the velocity. Sites with no analog in the reference pool have `NA` results. 
 
@@ -80,8 +80,10 @@ rev_vel <- analog_velocity(
       k = 1
 )
 
-plot(c(fwd_vel$geog_dist, rev_vel$geog_dist), 
-     main = c("Forward velocity (km)", "Reverse velocity (km)"))
+decades <- 6
+vel <- c(fwd_vel$geog_dist, rev_vel$geog_dist) / decades
+plot(vel, range = range(minmax(vel)),
+     main = c("Forward velocity (km/dec)", "Reverse velocity (km/dec)"))
 ```
 
 In addition to geographic and climatic distances, the result also includes the spatial coordinates of each site's nearest analog (as well as the analog's index in the `pool`). This can be used for a variety of downstream analyses, including visualizing the direction from a site to its analog location:
@@ -147,14 +149,11 @@ plot(intens, main = "Analog intensity")
 
 ## Analog impact models
 
-The analog impact model (AIM) predicts ecological outcomes under climate
-change. For each focal location's future climate, it finds current locations
-with similar climates within dispersal range, then computes a weighted
-average of their ecological characteristics. Here we use CWD values from
-the historic period as a stand-in for an ecological response variable.
+Analog impact models (AIMs) predict ecological outcomes under climate change. For each focal location's future climate, this approach finds locations
+with similar current climates within dispersal range, then computes a weighted average of their ecological characteristics. As an example, let's use CWD values from the historical period as a stand-in for an ecological response variable.
 
 ```{r impact}
-# Use historic CWD as a proxy ecological variable
+# Use historical CWD as a proxy ecological variable
 eco_var <- hist$CWD
 
 impact <- analog_impact(

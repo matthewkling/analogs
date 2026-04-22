@@ -1,12 +1,15 @@
 #' Climate velocity: geographically nearest climate analogs
 #'
-#' Computes, for each focal location, the geographic nearest neighbor(s) in a
+#' Finds, for each focal location, the geographic nearest neighbor(s) in a
 #' reference dataset that satisfy a specified maximum climate distance threshold.
-#' This implements analog-based climate velocity (Hamann et al. 2015;
-#' Dobrowski and Parks 2016).
+#' Distances to these analogs, divided by time elapsed, give analog-based climate
+#' velocity (Hamann et al. 2015; Dobrowski and Parks 2016).
 #'
-#' This function is a wrapper that calls [analog_search()] using `select = "knn_geog"`.
-#' and is used for estimating analog-based climate velocity.
+#' This function is a wrapper that calls [analog_search()] using `select = "knn_geog"`
+#' and `stat = "none"`. Note that it **does not return velocity per se**---it returns
+#' geographic and climatic distances to each focal site's nearest analog(s); to
+#' compute velocity, you can divide these geographic distances by the length of
+#' time elapsed between your `x` and `pool` datasets.
 #'
 #' @inheritParams analog_search
 #' @inherit analog_search return

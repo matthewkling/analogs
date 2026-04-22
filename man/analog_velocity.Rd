@@ -145,14 +145,17 @@ All results include metadata attributes (\code{select}, \code{stat}, \code{weigh
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
-Computes, for each focal location, the geographic nearest neighbor(s) in a
+Finds, for each focal location, the geographic nearest neighbor(s) in a
 reference dataset that satisfy a specified maximum climate distance threshold.
-This implements analog-based climate velocity (Hamann et al. 2015;
-Dobrowski and Parks 2016).
+Distances to these analogs, divided by time elapsed, give analog-based climate
+velocity (Hamann et al. 2015; Dobrowski and Parks 2016).
 }
 \details{
-This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using \code{select = "knn_geog"}.
-and is used for estimating analog-based climate velocity.
+This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using \code{select = "knn_geog"}
+and \code{stat = "none"}. Note that it \strong{does not return velocity per se}---it returns
+geographic and climatic distances to each focal site's nearest analog(s); to
+compute velocity, you can divide these geographic distances by the length of
+time elapsed between your \code{x} and \code{pool} datasets.
 }
 \examples{
 \dontrun{
