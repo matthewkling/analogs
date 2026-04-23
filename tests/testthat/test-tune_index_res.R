@@ -56,7 +56,7 @@ test_that("tune_index_res works with different modes", {
             stat = "sum_weights",
             max_clim = 1,
             max_geog = 2,
-            weight = "uniform",
+            kernel = "uniform",
             coord_type = "projected",
             verbose = FALSE
       )
@@ -252,7 +252,7 @@ test_that("tune_index_res works with all weight options", {
             stat = "sum_weights",
             max_clim = 1,
             max_geog = 2,
-            weight = "inverse_clim",
+            kernel = "inverse_clim",
             coord_type = "projected",
             verbose = FALSE
       )
@@ -266,7 +266,7 @@ test_that("tune_index_res works with all weight options", {
             stat = "sum_weights",
             max_clim = 1,
             max_geog = 2,
-            weight = "inverse_geog",
+            kernel = "inverse_geog",
             coord_type = "projected",
             verbose = FALSE
       )

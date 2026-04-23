@@ -69,7 +69,7 @@ analog_availability <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             k           = NULL,
-            weight      = NULL,
+            kernel      = NULL,
             theta       = NULL,
             x_cov       = x_cov,
             y           = NULL,

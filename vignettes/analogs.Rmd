@@ -139,7 +139,7 @@ intens <- analog_intensity(
       pool = hist,
       max_clim = 0.5,
       max_geog = 200,
-      weight = "gaussian_clim",
+      kernel = "gaussian_clim",
       theta = 0.15
 )
 
@@ -149,8 +149,7 @@ plot(intens, main = "Analog intensity")
 
 ## Analog impact models
 
-Analog impact models (AIMs) predict ecological outcomes under climate change. For each focal location's future climate, this approach finds locations
-with similar current climates within dispersal range, then computes a weighted average of their ecological characteristics. As an example, let's use CWD values from the historical period as a stand-in for an ecological response variable.
+Analog impact models (AIMs) predict ecological outcomes under climate change. For each focal site, this approach finds locations within dispersal range with current climates similar to the focal site's future climate, then computes an average of their ecological characteristics, weighted by climatic similarity. As an example, let's use CWD values from the historical period as a stand-in for an ecological response variable. To assess uncertainty in weighted means, let's also specify `se = "ess"` to compute standard errors based on effective sample size for each grid cell.
 
 ```{r impact}
 # Use historical CWD as a proxy ecological variable
@@ -162,21 +161,23 @@ impact <- analog_impact(
       y = eco_var,
       max_clim = 0.5,
       max_geog = 200,
-      weight = "gaussian_clim",
-      theta = 0.15
+      kernel = "gaussian_clim",
+      theta = 0.15,
+      se = "ess"
 )
 
-plot(impact$weighted_mean, main = "Predicted ecological state (AIM)")
+plot(impact[[c("weighted_mean", "se_weighted_mean")]], 
+     main = c("Predicted ecological state (AIM)", "Standard error"))
 ```
 
-The `weight` and `theta` parameters control how analog influence decays with climate distance. A Gaussian kernel with `theta = 0.15` means analogs at a climate distance of 0.15 receive about 60% weight, while those at 0.45 (= 3 × theta) receive almost none. The hard threshold `max_clim` provides an absolute cutoff.
+The `kernel` and `theta` parameters control how analog influence decays with climate distance. A Gaussian kernel with `theta = 0.15` means analogs at a climate distance of 0.15 receive about 60% weight, while those at 0.45 (= 3 × theta) receive almost none. The hard threshold `max_clim` provides an absolute cutoff.
 
 
 ## Spatial interpolation
 
-The analog framework is also useful for analyses outside climate change scenarios. When `x` and `pool` share the same climate era, `analog_impact()` performs climate- and/or geographically-informed interpolation: for each grid cell, it finds sample locations with similar climates or nearby locations, then computes a weighted average of their measured values. This is useful for mapping ecological variables from sparse field observations onto a continuous grid. Unlike purely geographic interpolation methods (inverse distance weighting, kriging), this approach can weight observations by climate similarity, so a distant site with matching climate can contribute more than a nearby site with different climate.
+The analog framework is also useful for analyses outside climate change scenarios. When `x` and `pool` share the same climate era, `analog_impact()` performs climate- and/or geographically-informed interpolation: for each grid cell, it finds sample locations with similar climates or nearby locations, then computes a weighted average of their measured values. This is useful for mapping ecological variables from sparse field observations onto a continuous grid. Unlike purely geographic interpolation methods (inverse distance weighting, kriging), this approach can also weight observations by climate similarity, so a distant site with matching climate can contribute more than a nearby site with different climate.
 
-The example below shows an interpolation informed by both climatic similarity and geographic proximity, with their relative importance determined by the `theta` parameters and the shape of the selected `weight` function.
+The example below shows an interpolation informed by both climatic similarity and geographic proximity, with their relative importance determined by the `theta` parameters and the shape of the selected `kernel` function.
 
 
 ```{r interpolation}
@@ -194,21 +195,24 @@ interp <- analog_impact(
   y = sites$observed,
   max_clim = 0.5,
   max_geog = 200,
-  weight = "gaussian_joint",
+  kernel = "gaussian_joint",
   theta = c(0.15, 100)
 )
 
-plot(interp[["weighted_mean"]], main = "Climate-informed interpolation")
+plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 # points(sites[, c("x", "y")], col = "red")
 ```
 
 
 ## Local regression
 
-When auxiliary covariates are available at pool locations, `analog_regression()` fits a weighted least squares regression within each analog neighborhood and returns the coefficients. This generalizes the weighted mean by resolving covariate-driven variation. The slope coefficients capture how much the response varies with the covariates within each neighborhood.
+`analog_regression()` fits a weighted linear regression model within each analog neighborhood and returns the coefficients. This is useful if your outcome variable `y` has important relationships with additional predictors beyond the variables (climate and geography) used to define the analog search kernel. In the example below we'll use AET and its square as covariates. 
+
+The `lambda` parameter controls the amount of ridge regularization. The default (`lambda = 0`) is ordinary weighted least squares regression, with no regularization. Setting `lambda > 0` adds regularization, which shrinks high-variance coefficients toward zero; this is useful for stabilizing predictions when some neighborhoods have few analogs relative to the number of covariates, or when covariates are strongly correlated. As `lambda -> Inf`, the intercept term approaches the weighted mean, i.e. the behavior of `analog_impact()`. The typical approach for choosing a `lambda` value is cross-validation, but here we'll arbitrarily pick a modest value.
+
 
 ```{r regression}
-# Simulate covariates for the pool (in practice these would be real measurements)
+# Simulate covariates for the pool (just using AET for expediency)
 set.seed(42)
 n_pool <- ncell(hist)
 pool_covariates <- data.frame(
@@ -223,24 +227,22 @@ reg <- analog_regression(
       covariates = pool_covariates,
       max_clim = 0.5,
       max_geog = 200,
-      weight = "gaussian_clim",
+      kernel = "gaussian_clim",
       theta = 0.15,
       lambda = 1
 )
 
-plot(reg$intercept, main = "Regression intercept")
-plot(reg$aet, main = "Coefficient: cov1")
+plot(reg[[c("coef_intercept", "coef_aet")]], 
+     main = c("Regression intercept", "Coefficient: cov1"))
 ```
-
-With `lambda = 0` (the default), this is ordinary weighted least squares. Setting `lambda > 0` adds ridge regularization, which shrinks covariate coefficients toward zero and the intercept toward the weighted mean. This is useful when some neighborhoods have few analogs relative to the number of covariates.
 
 
 ## Geographically weighted regression
 
-The same regression machinery supports geographically weighted regression (GWR) by using geographic neighborhoods and geographic distance weighting. This is a different configuration of the same underlying framework — no climate constraint, geographic kernel, local regression on covariates.
+The same regression machinery supports geographically weighted regression (GWR) by using geographic neighborhoods and geographic distance kernel weighting. This is a different configuration of the same underlying framework — no climate constraint, geographic kernel, local regression on covariates.
 
 ```{r gwr}
-# GWR: geographic neighborhood, geographic weighting
+# GWR: geographic neighborhood, geographic kernel weighting
 gwr <- analog_regression(
       x = hist,
       pool = hist,
@@ -249,13 +251,13 @@ gwr <- analog_regression(
       select = "all",
       max_geog = 100,
       max_clim = NULL,
-      weight = "inverse_geog",
+      kernel = "inverse_geog",
       theta = 30,
       lambda = 0
 )
 
-plot(gwr$intercept, main = "GWR intercept")
-plot(gwr$cov1, main = "GWR coefficient: cov1")
+plot(gwr[[c("coef_intercept", "coef_aet")]], 
+          main = c("GWR intercept", "GWR coefficient: cov1"))
 ```
 
 
@@ -284,9 +286,9 @@ vel_mahal <- analog_velocity(
 For site-specific covariance (e.g., based on local temporal climate variability), supply pre-computed covariance matrices via the `x_cov` parameter.
 
 
-## Weighting functions
+## Kernel functions
 
-The `weight` parameter controls how analog influence decays with distance. Available options:
+The `kernel` parameter controls how analog weights decay with distance. Available options:
 
 - `"uniform"` — all analogs weighted equally
 - `"gaussian_clim"` / `"gaussian_geog"` — Gaussian kernel on climate or geographic distance
@@ -295,7 +297,7 @@ The `weight` parameter controls how analog influence decays with distance. Avail
 
 The `theta` parameter controls the bandwidth. For Gaussian kernels, `theta` is the standard deviation of the kernel. A rule of thumb: set `theta` so that the weight decays to near zero at the `max_clim` or `max_geog` boundary (roughly `theta ≈ max / 3`).
 
-For joint weights, `theta` is a 2-element vector `c(theta_clim, theta_geog)`.
+For joint kernels, `theta` is a 2-element vector `c(theta_clim, theta_geog)`.
 
 
 ## Computational performance

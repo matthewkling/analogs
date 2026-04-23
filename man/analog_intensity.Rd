@@ -2,7 +2,7 @@
 % Please edit documentation in R/analog_intensity.R
 \name{analog_intensity}
 \alias{analog_intensity}
-\title{Analog intensity: weighted sum of analogs within climate/geographic limits}
+\title{Analog intensity: kernel-weighted sum of analogs within climate/geographic limits}
 \usage{
 analog_intensity(
   x,
@@ -11,7 +11,7 @@ analog_intensity(
   coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
-  weight = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
+  kernel = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
     "gaussian_joint", "inverse_joint"),
   theta = NULL,
   index_res = "auto",
@@ -57,6 +57,7 @@ climate constraint). Can be either:
 \item A vector: Per-variable absolute differences (length must equal
 number of climate variables)
 }
+
 Only reference locations within this climate distance are considered.
 When \code{x_cov} is provided, scalar thresholds are interpreted in
 Mahalanobis distance units.}
@@ -67,28 +68,30 @@ within this distance are considered. Radius units should be specified in
 kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
 if \code{coord_type = "projected"}.}
 
-\item{weight}{Weighting function for matches, used only when
-\code{stat} includes \code{"sum_weights"} or \code{"mean_weights"}. One of:
+\item{kernel}{Kernel decay function for weighting matches, used only when
+\code{stat} includes a weighted aggregation (\code{"sum_weights"}, \code{"mean_weights"},
+\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, or \code{"regression"}). One of:
 \itemize{
-\item \code{"uniform"}: All matches weighted equally (weight = 1.0).
+\item \code{"uniform"}: All matches weighted equally (kernel weight = 1.0).
 \item \code{"inverse_clim"}: Inverse climate distance,
-weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
+kernel weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
 \item \code{"inverse_geog"}: Inverse geographic distance,
-weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
+kernel weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
 \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
+kernel weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
 \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
+kernel weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
 \item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
-weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
+kernel weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
 with sigmas given by \code{theta}.
 \item \code{"inverse_joint"}: Inverse joint distance,
-weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
+kernel weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
 }}
 
-\item{theta}{Optional numeric parameter used by weighting functions
-when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
-\code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
+\item{theta}{Optional numeric parameter controlling the shape of the
+weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
+\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
+Interpretation depends on \code{kernel}:
 \itemize{
 \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -107,6 +110,7 @@ by optimizing compute time on a subsample of focal points. If focal has
 relatively few rows, auto-tuning is skipped and a default resolution of
 16 is used.
 }
+
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
 \item{n_threads}{Optional integer number of threads to use for the
@@ -158,7 +162,7 @@ variables.
 \code{se_intercept}, etc.) for each SE-supporting stat.
 }
 
-All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+All results include metadata attributes (\code{select}, \code{stat}, \code{kernel}, etc.).
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
@@ -173,13 +177,13 @@ and \code{stat = "sum_weights"}.
 }
 \examples{
 \dontrun{
-# One-shot query with inverse weighting
+# One-shot query with inverse kernel weighting
 intens <- analog_intensity(
   x = sites,
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
-  weight = "inverse_clim"
+  kernel = "inverse_clim"
 )
 
 # Gaussian weighting by climate distance
@@ -188,7 +192,7 @@ intens_gauss <- analog_intensity(
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
-  weight = "gaussian_clim",
+  kernel = "gaussian_clim",
   theta = 0.2  # bandwidth parameter
 )
 
@@ -198,16 +202,16 @@ intens_joint <- analog_intensity(
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
-  weight = "gaussian_joint",
+  kernel = "gaussian_joint",
   theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(climate_data)
 i1 <- analog_intensity(x = sites1, pool = index, max_clim = 0.5,
-                       weight = "inverse_clim")
+                       kernel = "inverse_clim")
 i2 <- analog_intensity(x = sites2, pool = index, max_geog = 100,
-                       weight = "inverse_geog")
+                       kernel = "inverse_geog")
 }
 
 }

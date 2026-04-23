@@ -54,6 +54,7 @@ climate constraint). Can be either:
 \item A vector: Per-variable absolute differences (length must equal
 number of climate variables)
 }
+
 Only reference locations within this climate distance are considered.
 When \code{x_cov} is provided, scalar thresholds are interpreted in
 Mahalanobis distance units.}
@@ -73,6 +74,7 @@ by optimizing compute time on a subsample of focal points. If focal has
 relatively few rows, auto-tuning is skipped and a default resolution of
 16 is used.
 }
+
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
 \item{n_threads}{Optional integer number of threads to use for the
@@ -124,7 +126,7 @@ variables.
 \code{se_intercept}, etc.) for each SE-supporting stat.
 }
 
-All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+All results include metadata attributes (\code{select}, \code{stat}, \code{kernel}, etc.).
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{

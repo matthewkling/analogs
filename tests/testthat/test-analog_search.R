@@ -141,7 +141,7 @@ test_that("analog_search works for all modes with new architecture", {
 
       # sum
       s <- analog_search(d$focal, d$ref, stat = "sum_weights", max_clim = 1,
-                         weight = "uniform", coord_type = "projected", index_res = 10)
+                         kernel = "uniform", coord_type = "projected", index_res = 10)
       expect_equal(nrow(s), nrow(d$focal))
 
       # all
@@ -229,7 +229,7 @@ test_that("analog_search with index works for different modes", {
 
       # sum
       s <- analog_search(d$focal, index, stat = "sum_weights", max_clim = 1, max_geog = 2,
-                         weight = "uniform")
+                         kernel = "uniform")
       expect_equal(nrow(s), nrow(d$focal))
 
       # all
@@ -299,7 +299,7 @@ test_that("analog_search index path handles all constraint combinations", {
 })
 
 
-test_that("analog_search runs error-free with all valid select-stat-weight combinations", {
+test_that("analog_search runs error-free with all valid select-stat-kernel combinations", {
 
       d <- sim_test_data()
 
@@ -319,7 +319,7 @@ test_that("analog_search runs error-free with all valid select-stat-weight combi
 
                         expect_no_error(
                               analog_search(d$focal, d$ref,
-                                            select = s, stat = a, weight = w, theta = theta,
+                                            select = s, stat = a, kernel = w, theta = theta,
                                             max_clim = 1, max_geog = 2)
                         )
                   }
@@ -342,7 +342,7 @@ test_that("analog_search handles multiple stats correctly", {
             stat = stats,
             max_clim = 0.5,
             max_geog = 100,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.2
       )
 
@@ -367,7 +367,7 @@ test_that("analog_search handles user-supplied values correctly", {
             y = y,
             max_clim = NULL,
             max_geog = NULL,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.2
       )
 
@@ -396,7 +396,7 @@ test_that("analog_search handles raster output correctly", {
             pool = ref,
             select = "all",
             stat = c("sum_weights", "count"),
-            weight = "inverse_geog",
+            kernel = "inverse_geog",
             max_clim = .1
       )
 

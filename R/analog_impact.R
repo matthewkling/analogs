@@ -32,8 +32,8 @@
 #'     \item `"sum_weights"`: Analog intensity
 #'     \item `"weighted_mean"`: Expected ecological state
 #'   }
-#' @param weight Function for weighting analogs during aggregation. Only
-#'   weight options that are based on *climate* are allowed:
+#' @param kernel Kernel decay function for weighting analogs during aggregation. Only
+#'   weighting options that are based on *climate* are allowed:
 #'   `"inverse_clim"` (default), `"gaussian_clim"`, `"inverse_joint"`,
 #'   `"gaussian_joint"`. See [analog_search()] for details.
 #' @inheritParams analog_search
@@ -63,13 +63,13 @@
 #' 1. For each focal location's future climate conditions
 #' 2. Find all current locations with similar climates (within `max_clim`)
 #' 3. Constrain to dispersal-reachable distance (within `max_geog`)
-#' 4. Weight each analog by climate similarity (via `weight` function)
+#' 4. Weight each analog by climate similarity (via `kernel` function)
 #' 5. Aggregate ecosystem characteristics across these weighted analogs
 #'
 #' Unlike traditional AIM implementations that select k nearest climate neighbors,
 #' this function uses all analogs within thresholds combined with climate-distance-based
-#' weighting. This approach eliminates arbitrary choice of k, provides smoother,
-#' more continuous results, and lets the weight function (via `theta`) naturally
+#' kernel weighting. This approach eliminates arbitrary choice of k, provides smoother,
+#' more continuous results, and lets the kernel function (via `theta`) naturally
 #' control influence. (Note that the traditional version can be implemented via
 #' `analog_search(select = "knn_clim", stat = "mean", ...))`.)
 #'
@@ -78,10 +78,10 @@
 #' \itemize{
 #'   \item `max_geog`: Set based on species dispersal ability (e.g., 5-500 km)
 #'   \item `max_clim`: Defines what counts as an "analog"
-#'   \item `theta`: Controls weight decay. The weight should decay to a small value
+#'   \item `theta`: Controls kernel decay. The weight should decay to a small value
 #'     at the `max_clim`/`max_geog` boundary. If `theta` is too large relative to
 #'     thresholds, the hard cutoffs do most of the filtering and weighting becomes
-#'     nearly uniform. For Gaussian weights with three or fewer climate variables,
+#'     nearly uniform. For Gaussian kernels with three or fewer climate variables,
 #'     a reasonable rule of thumb is to set `theta` to `max_* / 3`.
 #' }
 #'
@@ -93,7 +93,7 @@
 #'     that are novel within the geographic search radius.
 #'   \item `sum_weights`: Total analog intensity. Low values indicate sparse
 #'     or distant climate matches. This metric captures both the number and quality
-#'     of analogs. Interpretation details vary based on the `weight` parameter.
+#'     of analogs. Interpretation details vary based on the `kernel` parameter.
 #'   \item `weighted_mean`: Expected ecosystem state if colonized by species
 #'     from analog locations.
 #' }
@@ -130,7 +130,7 @@ analog_impact <- function(
             covariates = NULL,
             max_geog = NULL,
             max_clim = 1.0,
-            weight = c("gaussian_clim", "inverse_clim",
+            kernel = c("gaussian_clim", "inverse_clim",
                        "gaussian_joint", "inverse_joint"),
             theta = .25,
             stat = c("count", "sum_weights", "weighted_mean"),
@@ -142,7 +142,7 @@ analog_impact <- function(
             n_threads = NULL,
             progress = FALSE
 ) {
-      weight <- match.arg(weight)
+      kernel <- match.arg(kernel)
       se <- match.arg(se)
 
       analog_search(
@@ -155,7 +155,7 @@ analog_impact <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             k           = NULL,
-            weight      = weight,
+            kernel      = kernel,
             theta       = theta,
             lambda      = lambda,
             se          = se,

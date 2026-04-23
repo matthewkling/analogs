@@ -75,9 +75,9 @@ analog_summary <- function(x) {
             cat("  Stats:", paste(stat, collapse = ", "), "\n")
       }
 
-      weight <- attr(x, "weight", exact = TRUE)
-      if (!is.null(weight)) {
-            cat("  Weighting:", weight, "\n")
+      kernel <- attr(x, "kernel", exact = TRUE)
+      if (!is.null(kernel)) {
+            cat("  Distance kernel:", kernel, "\n")
             theta <- attr(x, "theta", exact = TRUE)
             if (!is.null(theta)) {
                   cat("    theta:", paste(theta, collapse = ", "), "\n")

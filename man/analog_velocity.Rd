@@ -47,9 +47,8 @@ variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as \code{pool}.
 
 When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For stat =
-NULL/"none" (pairs mode), y value columns are included in output for each
-analog pair.}
+\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For \code{stat = NULL}/\code{"none"} (pairs mode), y value columns are included in output for
+each analog pair.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -67,6 +66,7 @@ climate constraint). Can be either:
 \item A vector: Per-variable absolute differences (length must equal
 number of climate variables)
 }
+
 Only reference locations within this climate distance are considered.
 When \code{x_cov} is provided, scalar thresholds are interpreted in
 Mahalanobis distance units.}
@@ -90,6 +90,7 @@ by optimizing compute time on a subsample of focal points. If focal has
 relatively few rows, auto-tuning is skipped and a default resolution of
 16 is used.
 }
+
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
 \item{n_threads}{Optional integer number of threads to use for the
@@ -141,7 +142,7 @@ variables.
 \code{se_intercept}, etc.) for each SE-supporting stat.
 }
 
-All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+All results include metadata attributes (\code{select}, \code{stat}, \code{kernel}, etc.).
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{

@@ -35,10 +35,11 @@
 #'   names carry through to output. These variables are NOT used for the
 #'   analog search itself -- only for regression within each neighborhood.
 #' @param lambda Ridge penalty parameter (default: 0, giving ordinary
-#'   weighted least squares). Higher values shrink covariate coefficients
-#'   toward zero, with the intercept approaching the weighted mean as
+#'   weighted least squares). Higher values shrink high-variance coefficients
+#'   toward zero, causing the intercept to approach the weighted mean as
 #'   `lambda -> Inf`. Useful when some neighborhoods have few analogs
-#'   relative to the number of covariates.
+#'   relative to the number of covariates, or when covariates are strongly
+#'   inter-correlated.
 #' @param stat Statistic(s) to compute. `"regression"` is always included.
 #'   Additional stats like `"count"`, `"ess"`, and `"weighted_mean"` can
 #'   be requested alongside regression coefficients. Default includes
@@ -64,7 +65,7 @@
 #'
 #' For each focal location, the function:
 #' 1. Selects analog pool locations based on `select`, `max_clim`, `max_geog`, and `k`
-#' 2. Computes distance-based weights for each analog (via `weight` and `theta`)
+#' 2. Computes distance-based kernel weights for each analog (via `kernel` and `theta`)
 #' 3. Fits a weighted least squares regression of `y` on `covariates`
 #'    using these weights, with optional ridge penalty `lambda`
 #' 4. Returns the regression coefficients (intercept + slopes), and
@@ -115,7 +116,7 @@
 #'   select = "knn_geog",
 #'   k = 50,
 #'   max_clim = NULL,
-#'   weight = "gaussian_geog",
+#'   kernel = "gaussian_geog",
 #'   theta = 20,
 #'   se = "ess"
 #' )
@@ -134,7 +135,7 @@ analog_regression <- function(
             max_clim = NULL,
             select = "all",
             k = NULL,
-            weight = c("gaussian_clim", "inverse_clim",
+            kernel = c("gaussian_clim", "inverse_clim",
                        "gaussian_geog", "inverse_geog",
                        "gaussian_joint", "inverse_joint",
                        "uniform"),
@@ -148,7 +149,7 @@ analog_regression <- function(
             n_threads = NULL,
             progress = FALSE
 ) {
-      weight <- match.arg(weight)
+      kernel <- match.arg(kernel)
       se <- match.arg(se)
 
       # Ensure "regression" is always in stat
@@ -166,7 +167,7 @@ analog_regression <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             k           = k,
-            weight      = weight,
+            kernel      = kernel,
             theta       = theta,
             lambda      = lambda,
             se          = se,

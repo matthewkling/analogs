@@ -1,4 +1,4 @@
-#' Analog intensity: weighted sum of analogs within climate/geographic limits
+#' Analog intensity: kernel-weighted sum of analogs within climate/geographic limits
 #'
 #' Computes, for each focal location, the sum of weights of all reference locations
 #' that satisfy the supplied climate and geographic constraints. The weights are
@@ -29,13 +29,13 @@
 #'
 #' @examples
 #' \dontrun{
-#' # One-shot query with inverse weighting
+#' # One-shot query with inverse kernel weighting
 #' intens <- analog_intensity(
 #'   x = sites,
 #'   pool = climate_data,
 #'   max_clim = 0.5,
 #'   max_geog = 100,
-#'   weight = "inverse_clim"
+#'   kernel = "inverse_clim"
 #' )
 #'
 #' # Gaussian weighting by climate distance
@@ -44,7 +44,7 @@
 #'   pool = climate_data,
 #'   max_clim = 0.5,
 #'   max_geog = 100,
-#'   weight = "gaussian_clim",
+#'   kernel = "gaussian_clim",
 #'   theta = 0.2  # bandwidth parameter
 #' )
 #'
@@ -54,16 +54,16 @@
 #'   pool = climate_data,
 #'   max_clim = 0.5,
 #'   max_geog = 100,
-#'   weight = "gaussian_joint",
+#'   kernel = "gaussian_joint",
 #'   theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
 #' )
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(climate_data)
 #' i1 <- analog_intensity(x = sites1, pool = index, max_clim = 0.5,
-#'                        weight = "inverse_clim")
+#'                        kernel = "inverse_clim")
 #' i2 <- analog_intensity(x = sites2, pool = index, max_geog = 100,
-#'                        weight = "inverse_geog")
+#'                        kernel = "inverse_geog")
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
@@ -79,7 +79,7 @@ analog_intensity <- function(
             max_clim   = NULL,
             max_geog   = NULL,
 
-            weight     = c("uniform", "inverse_clim", "inverse_geog",
+            kernel     = c("uniform", "inverse_clim", "inverse_geog",
                            "gaussian_clim", "gaussian_geog",
                            "gaussian_joint", "inverse_joint"),
             theta      = NULL,
@@ -90,7 +90,7 @@ analog_intensity <- function(
             seed = NULL,
             progress = FALSE
 ) {
-      weight <- match.arg(weight)
+      kernel <- match.arg(kernel)
 
       analog_search(
             x           = x,
@@ -100,7 +100,7 @@ analog_intensity <- function(
             max_clim    = max_clim,
             max_geog    = max_geog,
             k           = NULL,
-            weight      = weight,
+            kernel      = kernel,
             theta       = theta,
             x_cov       = x_cov,
             y           = NULL, # not relevant for intensity

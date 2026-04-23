@@ -11,7 +11,7 @@ analog_impact(
   covariates = NULL,
   max_geog = NULL,
   max_clim = 1,
-  weight = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
+  kernel = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
   stat = c("count", "sum_weights", "weighted_mean"),
   lambda = 0,
@@ -66,18 +66,20 @@ climate constraint). Can be either:
 \item A vector: Per-variable absolute differences (length must equal
 number of climate variables)
 }
+
 Only reference locations within this climate distance are considered.
 When \code{x_cov} is provided, scalar thresholds are interpreted in
 Mahalanobis distance units.}
 
-\item{weight}{Function for weighting analogs during aggregation. Only
-weight options that are based on \emph{climate} are allowed:
+\item{kernel}{Kernel decay function for weighting analogs during aggregation. Only
+weighting options that are based on \emph{climate} are allowed:
 \code{"inverse_clim"} (default), \code{"gaussian_clim"}, \code{"inverse_joint"},
 \code{"gaussian_joint"}. See \code{\link[=analog_search]{analog_search()}} for details.}
 
-\item{theta}{Optional numeric parameter used by weighting functions
-when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
-\code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
+\item{theta}{Optional numeric parameter controlling the shape of the
+weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
+\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
+Interpretation depends on \code{kernel}:
 \itemize{
 \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -149,6 +151,7 @@ by optimizing compute time on a subsample of focal points. If focal has
 relatively few rows, auto-tuning is skipped and a default resolution of
 16 is used.
 }
+
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
 \item{n_threads}{Optional integer number of threads to use for the
@@ -195,14 +198,14 @@ The methodology:
 \item For each focal location's future climate conditions
 \item Find all current locations with similar climates (within \code{max_clim})
 \item Constrain to dispersal-reachable distance (within \code{max_geog})
-\item Weight each analog by climate similarity (via \code{weight} function)
+\item Weight each analog by climate similarity (via \code{kernel} function)
 \item Aggregate ecosystem characteristics across these weighted analogs
 }
 
 Unlike traditional AIM implementations that select k nearest climate neighbors,
 this function uses all analogs within thresholds combined with climate-distance-based
-weighting. This approach eliminates arbitrary choice of k, provides smoother,
-more continuous results, and lets the weight function (via \code{theta}) naturally
+kernel weighting. This approach eliminates arbitrary choice of k, provides smoother,
+more continuous results, and lets the kernel function (via \code{theta}) naturally
 control influence. (Note that the traditional version can be implemented via
 \verb{analog_search(select = "knn_clim", stat = "mean", ...))}.)
 }
@@ -212,10 +215,10 @@ control influence. (Note that the traditional version can be implemented via
 \itemize{
 \item \code{max_geog}: Set based on species dispersal ability (e.g., 5-500 km)
 \item \code{max_clim}: Defines what counts as an "analog"
-\item \code{theta}: Controls weight decay. The weight should decay to a small value
+\item \code{theta}: Controls kernel decay. The weight should decay to a small value
 at the \code{max_clim}/\code{max_geog} boundary. If \code{theta} is too large relative to
 thresholds, the hard cutoffs do most of the filtering and weighting becomes
-nearly uniform. For Gaussian weights with three or fewer climate variables,
+nearly uniform. For Gaussian kernels with three or fewer climate variables,
 a reasonable rule of thumb is to set \code{theta} to \verb{max_* / 3}.
 }
 }
@@ -228,7 +231,7 @@ indicate limited analog availability, while zero counts indicate climates
 that are novel within the geographic search radius.
 \item \code{sum_weights}: Total analog intensity. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
-of analogs. Interpretation details vary based on the \code{weight} parameter.
+of analogs. Interpretation details vary based on the \code{kernel} parameter.
 \item \code{weighted_mean}: Expected ecosystem state if colonized by species
 from analog locations.
 }

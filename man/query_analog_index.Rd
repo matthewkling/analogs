@@ -15,7 +15,7 @@ query_analog_index(
   y,
   covariates,
   k,
-  weight,
+  kernel,
   theta,
   lambda,
   se,

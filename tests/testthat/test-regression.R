@@ -16,7 +16,7 @@ test_that("regression stat runs without error and returns correct columns", {
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
-            weight = "uniform",
+            kernel = "uniform",
             coord_type = "projected",
             index_res = 10
       )
@@ -57,7 +57,7 @@ test_that("regression recovers known coefficients on synthetic data", {
             covariates = covariates,
             max_clim = NULL,  # no climate filter: use all pool points
             max_geog = NULL,  # no geog filter
-            weight = "uniform",
+            kernel = "uniform",
             coord_type = "projected",
             index_res = 10
       )
@@ -88,7 +88,7 @@ test_that("large lambda makes intercept approach weighted mean", {
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.5,
             lambda = 1e8,
             coord_type = "projected",
@@ -132,7 +132,7 @@ test_that("zero analogs returns NA for regression coefficients", {
             covariates = covariates,
             max_clim = 0.0001,
             max_geog = 0.0001,
-            weight = "uniform",
+            kernel = "uniform",
             coord_type = "projected",
             se = "ess",
             index_res = 10
@@ -166,7 +166,7 @@ test_that("regression works with multiple values variables", {
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
-            weight = "uniform",
+            kernel = "uniform",
             coord_type = "projected",
             index_res = 10
       )
@@ -196,7 +196,7 @@ test_that("regression combines with other stats correctly", {
             covariates = covariates,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.5,
             coord_type = "projected",
             index_res = 10
@@ -219,7 +219,7 @@ test_that("regression validation: requires y", {
                   stat = "regression",
                   covariates = covariates,
                   max_clim = 2,
-                  weight = "uniform",
+                  kernel = "uniform",
                   coord_type = "projected"
             ),
             "y"
@@ -238,7 +238,7 @@ test_that("regression validation: requires covariates", {
                   stat = "regression",
                   y = y,
                   max_clim = 2,
-                  weight = "uniform",
+                  kernel = "uniform",
                   coord_type = "projected"
             ),
             "covariates"
@@ -277,7 +277,7 @@ test_that("regression validation: lambda must be non-negative", {
                   y = rnorm(n_ref),
                   covariates = matrix(rnorm(n_ref), ncol = 1),
                   max_clim = 2,
-                  weight = "uniform",
+                  kernel = "uniform",
                   lambda = -1,
                   coord_type = "projected"
             ),
@@ -303,7 +303,7 @@ test_that("analog_impact passes covariates and lambda through", {
             stat = c("count", "weighted_mean", "regression"),
             max_geog = 2,
             max_clim = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.5,
             lambda = 0.1,
             coord_type = "projected",
@@ -339,7 +339,7 @@ test_that("regression with lambda = 0 returns NA for singular systems", {
             covariates = covariates,
             max_clim = 0.01,  # very tight — may get 0 or very few analogs
             max_geog = 0.01,
-            weight = "uniform",
+            kernel = "uniform",
             lambda = 0,
             coord_type = "projected",
             index_res = 10

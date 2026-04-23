@@ -7,20 +7,18 @@
 #'
 #' ## Parameter categories
 #'
-#' \itemize{
-#'     \item *Data parameters*
-#'       (`x`, `pool`, `x_cov`, `y`, `covariates`, `coord_type`)
-#'       give attributes of the data on which to operate.
-#'     \item *Selection parameters*
-#'       (`select`, `max_clim`, `max_geog`, `k`)
-#'       define which analogs to `select` from the `pool` for each `x`.
-#'     \item *Aggregation parameters*
-#'       (`stat`, `weight`, `theta`, `lambda`, `se`)
-#'       control how selected analogs are summarized.
-#'     \item *Computation parameters*
-#'       (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
-#'       specify behavior for controlling compute performance.
-#' }
+#' - *Data parameters*
+#'   (`x`, `pool`, `x_cov`, `y`, `covariates`, `coord_type`)
+#'   give attributes of the data on which to operate.
+#' - *Selection parameters*
+#'   (`select`, `max_clim`, `max_geog`, `k`)
+#'   define which analogs to `select` from the `pool` for each `x`.
+#' - *Aggregation parameters*
+#'   (`stat`, `kernel`, `theta`, `lambda`, `se`)
+#'   control how selected analogs are summarized.
+#' - *Computation parameters*
+#'   (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
+#'   specify behavior for controlling compute performance.
 #'
 #' ## Distance metrics
 #'
@@ -42,32 +40,30 @@
 #' ## Computational optimization
 #'
 #' The analog search architecture is designed with compute performance in mind:
-#' \itemize{
-#'     \item All internal computations are done in C++.
-#'     \item Searches use a lattice-based indexing structure to efficiently
-#'       search through large reference datasets. By default, the lattice
-#'       resolution is tuned for optimal performance.
-#'     \item Parallel processing is available via the `threads` parameter.
-#'     \item You can `downsample` prohibitively large reference pool datasets
-#'       to improve speed and memory, using a stratified sampling
-#'       scheme that reduces loss of precision relative to random sampling.
-#'     \item For large datasets, enable `progress = TRUE` to display
-#'       a progress bar during computation.
-#'     \item For raster datasets that are too large to fit in memory,
-#'       `tiled_analog_search()` offers a memory-safe option.
-#' }
+#'
+#' - All internal computations are done in C++.
+#' - Searches use a lattice-based indexing structure to efficiently
+#'   search through large reference datasets. By default, the lattice
+#'   resolution is tuned for optimal performance.
+#' - Parallel processing is available via the `threads` parameter.
+#' - You can `downsample` prohibitively large reference pool datasets
+#'   to improve speed and memory, using a stratified sampling
+#'   scheme that reduces loss of precision relative to random sampling.
+#' - For large datasets, enable `progress = TRUE` to display
+#'   a progress bar during computation.
+#' - For raster datasets that are too large to fit in memory,
+#'   `tiled_analog_search()` offers a memory-safe option.
 #'
 #' @param x Focal locations for which analogs will be found. Should be a
 #'   matrix/data.frame with columns x, y, and climate variables, or a
 #'   SpatRaster with climate variable layers.
 #'
 #' @param pool The reference dataset to search for analogs. Either:
-#'   \itemize{
-#'     \item Matrix/data.frame with columns x, y, and climate variables,
-#'       or SpatRaster with climate variable layers, OR
-#'     \item An `analog_index` object created by
-#'       [build_analog_index()] (for repeated queries).
-#'   }
+#'
+#'   - Matrix/data.frame with columns x, y, and climate variables,
+#'     or SpatRaster with climate variable layers, OR
+#'   - An `analog_index` object created by
+#'     [build_analog_index()] (for repeated queries).
 #'
 #' @param x_cov Optional focal-specific covariance matrices for Mahalanobis
 #'   distance calculations. Should be a matrix or data.frame with one row per
@@ -83,9 +79,9 @@
 #'   exactly the same number of reference locations as `pool`.
 #'
 #'   When provided, enables value-based aggregation stats `"sum"`, `"mean"`,
-#'   `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For stat =
-#'   NULL/"none" (pairs mode), y value columns are included in output for each
-#'   analog pair.
+#'   `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For `stat =
+#'   NULL`/`"none"` (pairs mode), y value columns are included in output for
+#'   each analog pair.
 #'
 #' @param covariates Optional auxiliary predictor variables for each reference
 #'   location in `pool`, used with `stat = "regression"`. Can be a numeric
@@ -98,115 +94,111 @@
 #'
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
 #'   climate constraint). Can be either:
-#'   \itemize{
-#'     \item A scalar: Euclidean radius in climate space (e.g., 0.5)
-#'     \item A vector: Per-variable absolute differences (length must equal
-#'       number of climate variables)
-#'   }
+#'
+#'   - A scalar: Euclidean radius in climate space (e.g., 0.5)
+#'   - A vector: Per-variable absolute differences (length must equal
+#'     number of climate variables)
+#'
 #'   Only reference locations within this climate distance are considered.
-#'   When \code{x_cov} is provided, scalar thresholds are interpreted in
+#'   When `x_cov` is provided, scalar thresholds are interpreted in
 #'   Mahalanobis distance units.
 #'
 #' @param max_geog Maximum geographic distance constraint (default:
 #'   NULL = no geographic constraint). When specified, only reference locations
 #'   within this distance are considered. Radius units should be specified in
-#'   kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-#'   if \code{coord_type = "projected"}.
+#'   kilometers if `coord_type = "lonlat"`, or in projected coordinate units
+#'   if `coord_type = "projected"`.
 #'
 #' @param select Character string specifying the analog selection strategy.
 #'   One of:
-#'   \itemize{
-#'     \item `"all"` (default): Select all analogs that satisfy the
-#'       `max_clim` and `max_geog` constraints.
-#'     \item `"knn_clim"`: For each focal, select up to `k` analogs
-#'       with smallest climate distance, subject to filters.
-#'     \item `"knn_geog"`: For each focal, select up to `k` analogs
-#'       with smallest geographic distance, subject to filters.
-#'   }
+#'
+#'   - `"all"` (default): Select all analogs that satisfy the
+#'     `max_clim` and `max_geog` constraints.
+#'   - `"knn_clim"`: For each focal, select up to `k` analogs
+#'     with smallest climate distance, subject to filters.
+#'   - `"knn_geog"`: For each focal, select up to `k` analogs
+#'     with smallest geographic distance, subject to filters.
 #'
 #' @param k Number of nearest analogs to return per focal location for kNN
-#'   selection modes. Required when \code{select} is \code{"knn_geog"} or
-#'   \code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.
+#'   selection modes. Required when `select` is `"knn_geog"` or
+#'   `"knn_clim"`; must be `NULL` for `select = "all"`.
 #'
 #' @param stat Statistic(s) used to aggregate selected analogs. Either:
-#'   \itemize{
-#'     \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
-#'     \item \code{"count"}: For each focal, count the number of selected analogs.
-#'     \item \code{"sum_weights"}: For each focal, sum the weights of selected
-#'       analogs (see \code{weight} and \code{theta}).
-#'     \item \code{"mean_weights"}: For each focal, mean of weights of selected
-#'       analogs.
-#'     \item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
-#'     \item \code{"mean"}: Mean of \code{y} values across analogs (requires \code{y}).
-#'     \item \code{"weighted_sum"}: Sum of (\code{y} × weight) across analogs
-#'       (requires \code{y} and \code{weight}).
-#'     \item \code{"weighted_mean"}: Weighted mean of \code{y} values across analogs
-#'       (requires \code{y} and \code{weight}).
-#'     \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
-#'       squared sum of weights divided by the sum of squared weights
-#'       (requires \code{weight}).
-#'     \item \code{"regression"}: Weighted least squares (or ridge) regression
-#'       of \code{y} on \code{covariates} within each analog neighborhood.
-#'       Returns intercept and slope coefficients. Requires \code{y},
-#'       \code{covariates}, and \code{weight}. See \code{lambda} for
-#'       regularization.
-#'     \item A character vector combining multiple stats (e.g.,
-#'       \code{c("count", "weighted_mean", "regression")}).
-#'       Note: \code{"none"} cannot be combined with other stats.
-#'   }
 #'
-#' @param weight Weighting function for matches, used only when
-#'   \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"}. One of:
-#'   \itemize{
-#'     \item \code{"uniform"}: All matches weighted equally (weight = 1.0).
-#'     \item \code{"inverse_clim"}: Inverse climate distance,
-#'       weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
-#'     \item \code{"inverse_geog"}: Inverse geographic distance,
-#'       weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
-#'     \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-#'       weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
-#'     \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-#'       weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
-#'     \item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
-#'       weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
-#'       with sigmas given by \code{theta}.
-#'     \item \code{"inverse_joint"}: Inverse joint distance,
-#'       weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
-#'   }
+#'   - `NULL` or `"none"`: Return all selected analog pairs as a data.frame.
+#'   - `"count"`: For each focal, count the number of selected analogs.
+#'   - `"sum_weights"`: For each focal, sum the weights of selected
+#'     analogs (see `kernel` and `theta`).
+#'   - `"mean_weights"`: For each focal, mean of weights of selected
+#'     analogs.
+#'   - `"sum"`: Sum of `y` values across analogs (requires `y`).
+#'   - `"mean"`: Mean of `y` values across analogs (requires `y`).
+#'   - `"weighted_sum"`: Sum of (`y` × kernel weight) across analogs
+#'     (requires `y` and `kernel`).
+#'   - `"weighted_mean"`: Weighted mean of `y` values across analogs
+#'     (requires `y` and `kernel`).
+#'   - `"ess"`: Kish's effective sample size (ESS), computed as the
+#'     squared sum of weights divided by the sum of squared weights
+#'     (requires `kernel`).
+#'   - `"regression"`: Weighted least squares (or ridge) regression
+#'     of `y` on `covariates` within each analog neighborhood.
+#'     Returns intercept and slope coefficients. Requires `y`,
+#'     `covariates`, and `kernel`. See `lambda` for regularization.
+#'   - A character vector combining multiple stats (e.g.,
+#'     `c("count", "weighted_mean", "regression")`).
+#'     Note: `"none"` cannot be combined with other stats.
 #'
-#' @param theta Optional numeric parameter used by weighting functions
-#'   when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
-#'   \code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
-#'   \itemize{
-#'     \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
-#'       added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-#'     \item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
-#'       parameter (scalar; larger values = slower decay with distance).
-#'     \item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
-#'       \code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
-#'   }
+#' @param kernel Kernel decay function for weighting matches, used only when
+#'   `stat` includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
+#'   `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One of:
 #'
-#' @param lambda Ridge penalty parameter for \code{stat = "regression"}
+#'   - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
+#'   - `"inverse_clim"`: Inverse climate distance,
+#'     kernel weight = 1 / (climate_distance + eps), with epsilon given by `theta`.
+#'   - `"inverse_geog"`: Inverse geographic distance,
+#'     kernel weight = 1 / (geographic_distance + eps), with epsilon given by `theta`.
+#'   - `"gaussian_clim"`: Gaussian kernel on climate distance,
+#'     kernel weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by `theta`.
+#'   - `"gaussian_geog"`: Gaussian kernel on geographic distance,
+#'     kernel weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by `theta`.
+#'   - `"gaussian_joint"`: Gaussian kernel on combined distance,
+#'     kernel weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
+#'     with sigmas given by `theta`.
+#'   - `"inverse_joint"`: Inverse joint distance,
+#'     kernel weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by `theta`.
+#'
+#' @param theta Optional numeric parameter controlling the shape of the
+#'   weighting `kernel`, used whenever `kernel` is active (i.e. whenever
+#'   `stat` includes a weighted aggregation) and `kernel` is not `"uniform"`.
+#'   Interpretation depends on `kernel`:
+#'
+#'   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value
+#'     added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
+#'   - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
+#'     parameter (scalar; larger values = slower decay with distance).
+#'   - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
+#'     `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for geography).
+#'
+#' @param lambda Ridge penalty parameter for `stat = "regression"`
 #'   (default: 0, giving ordinary weighted least squares). Higher values
 #'   shrink covariate coefficients toward zero, with the intercept
-#'   approaching the weighted mean as \code{lambda -> Inf}. Ignored when
-#'   \code{"regression"} is not in \code{stat}.
+#'   approaching the weighted mean as `lambda -> Inf`. Ignored when
+#'   `"regression"` is not in `stat`.
 #'
 #' @param se Standard-error framing to apply to SE-supporting stats
 #'   (`"weighted_mean"` and `"regression"`). One of:
-#'   \itemize{
-#'     \item `"none"` (default): no SE columns are returned.
-#'     \item `"ess"`: effective-sample-size framing. For `weighted_mean`,
-#'       `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
-#'       effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For regression,
-#'       `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual variance corrected
-#'       using `n_eff - p` degrees of freedom.
-#'     \item `"design"`: design-based framing (no assumption that weights are
-#'       precisions). For `weighted_mean`,
-#'       `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`. For regression, the sandwich
-#'       estimator `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with
-#'       `M = Σ w² r² x xᵀ` (Huber-White / heteroskedasticity-consistent).
-#'   }
+#'
+#'   - `"none"` (default): no SE columns are returned.
+#'   - `"ess"`: effective-sample-size framing. For `weighted_mean`,
+#'     `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
+#'     effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For regression,
+#'     `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual variance corrected
+#'     using `n_eff - p` degrees of freedom.
+#'   - `"design"`: design-based framing (no assumption that weights are
+#'     precisions). For `weighted_mean`,
+#'     `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`. For regression, the sandwich
+#'     estimator `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with
+#'     `M = Σ w² r² x xᵀ` (Huber-White / heteroskedasticity-consistent).
 #'
 #'   Both variants are scale-invariant in the weights when `lambda = 0`.
 #'   When `se != "none"` but no requested stat supports SE, a warning is
@@ -215,32 +207,31 @@
 #'   `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
 #'
 #' @param coord_type Coordinate system type:
-#'   \itemize{
-#'     \item \code{"auto"} (default): Automatically detect from coordinate ranges.
-#'     \item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-#'       assumes \code{max_geog} is in km).
-#'     \item \code{"projected"}: Projected XY coordinates (uses planar distance;
-#'       assumes \code{max_geog} is in projection units).
-#'   }
+#'
+#'   - `"auto"` (default): Automatically detect from coordinate ranges.
+#'   - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle distance;
+#'     assumes `max_geog` is in km).
+#'   - `"projected"`: Projected XY coordinates (uses planar distance;
+#'     assumes `max_geog` is in projection units).
 #'
 #' @param downsample Optional downsampling rate (0-1) for the reference pool,
 #'   indicating the proportion of points to retain. Values < 1 reduce memory
 #'   and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-#'   Ignored if \code{pool} is a pre-built index.
+#'   Ignored if `pool` is a pre-built index.
 #'
-#' @param seed Optional random seed for reproducible downsampling. If \code{NULL}
-#'   (default), uses current R random state. Ignored if \code{pool} is a pre-built
-#'   index or \code{downsample = 1}.
+#' @param seed Optional random seed for reproducible downsampling. If `NULL`
+#'   (default), uses current R random state. Ignored if `pool` is a pre-built
+#'   index or `downsample = 1`.
 #'
 #' @param index_res Tuning parameter giving the number of bins per dimension
 #'   of the internally-used lattice search index. Either:
-#'   \itemize{
-#'     \item A positive integer.
-#'     \item `"auto"` (the default): Automatically tune the index resolution
-#'       by optimizing compute time on a subsample of focal points. If focal has
-#'       relatively few rows, auto-tuning is skipped and a default resolution of
-#'       16 is used.
-#'   }
+#'
+#'   - A positive integer.
+#'   - `"auto"` (the default): Automatically tune the index resolution
+#'     by optimizing compute time on a subsample of focal points. If focal has
+#'     relatively few rows, auto-tuning is skipped and a default resolution of
+#'     16 is used.
+#'
 #'   Ignored if `pool` is an `analog_index` (uses index's resolution).
 #'
 #' @param n_threads Optional integer number of threads to use for the
@@ -260,45 +251,43 @@
 #'
 #' Pairwise mode (`stat = NULL` or `"none"`) returns one row per focal-analog pair,
 #' with the following variables:
-#' \itemize{
-#'     \item `index`, `x`, `y`: Focal location (1-based index and coordinates) corresponding to input `x`
-#'     \item `analog_index`, `analog_x`, `analog_y`: Analog location corresponding to input `pool`
-#'     \item `clim_dist`: Climate distance (Euclidean or Mahalanobis)
-#'     \item `geog_dist`: Geographic distance (km for lonlat, projection units otherwise)
-#'     \item Value columns (if `y` provided): one per variable
-#' }
+#'
+#' - `index`, `x`, `y`: Focal location (1-based index and coordinates) corresponding to input `x`
+#' - `analog_index`, `analog_x`, `analog_y`: Analog location corresponding to input `pool`
+#' - `clim_dist`: Climate distance (Euclidean or Mahalanobis)
+#' - `geog_dist`: Geographic distance (km for lonlat, projection units otherwise)
+#' - Value columns (if `y` provided): one per variable
 #'
 #' Aggregation mode (one or more `stat` values) returns one row per focal location,
 #' with the following variables:
-#' \itemize{
-#'     \item `index`, `x`, `y`: Focal location
-#'     \item One column per requested statistic. For `stat` with single `y` variable:
-#'       column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `y`
-#'       variables: columns named `{stat}_{varname}` (e.g., `sum_biomass`, `mean_richness`)
-#'     \item For `stat = "regression"`: columns for `coef_intercept` and `coef_{covariate}`,
-#'       or `coef_intercept_{varname}` and  `coef_{covariate}_{varname}` with multiple `y`
-#'       variables.
-#'     \item When `se != "none"`: matching SE columns (`se_weighted_mean`,
-#'       `se_intercept`, etc.) for each SE-supporting stat.
-#' }
 #'
-#' All results include metadata attributes (`select`, `stat`, `weight`, etc.).
+#' - `index`, `x`, `y`: Focal location
+#' - One column per requested statistic. For `stat` with single `y` variable:
+#'   column named by stat (e.g., `sum`, `mean`). For `stat` with multiple `y`
+#'   variables: columns named `{stat}_{varname}` (e.g., `sum_biomass`, `mean_richness`)
+#' - For `stat = "regression"`: columns for `coef_intercept` and `coef_{covariate}`,
+#'   or `coef_intercept_{varname}` and  `coef_{covariate}_{varname}` with multiple `y`
+#'   variables.
+#' - When `se != "none"`: matching SE columns (`se_weighted_mean`,
+#'   `se_intercept`, etc.) for each SE-supporting stat.
+#'
+#' All results include metadata attributes (`select`, `stat`, `kernel`, etc.).
 #' Use [analog_summary()] to view a formatted summary.
 #'
 #' @references
 #' Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
 #' climates: new methods and insights at continental to landscape scales."
-#' \emph{Global Change Biology}, \strong{23}(9), 3934-3955.
+#' *Global Change Biology*, **23**(9), 3934-3955.
 #' \doi{10.1111/gcb.13645}
 #'
 #' Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of
 #' climate change algorithms for guiding conservation and management."
-#' \emph{Global Change Biology}, \strong{21}(2), 997-1004.
+#' *Global Change Biology*, **21**(2), 997-1004.
 #' \doi{10.1111/gcb.12736}
 #'
 #' Grenier P, Parent A-C, Huard D, Anctil F, Chaumont D (2013). "An assessment
-#' of six dissimilarity metrics for climate analogs." \emph{Journal of Applied
-#' Meteorology and Climatology}, \strong{52}(4), 733-752.
+#' of six dissimilarity metrics for climate analogs." *Journal of Applied
+#' Meteorology and Climatology*, **52**(4), 733-752.
 #' \doi{10.1175/JAMC-D-12-0170.1}
 #'
 #' @seealso [tiled_analog_search()] offers memory-safe searches on large raster
@@ -323,7 +312,7 @@ analog_search <- function(
 
       # analog aggregation
       stat = NULL,
-      weight = NULL,
+      kernel = NULL,
       theta = NULL,
       lambda = 0,
       se = c("none", "ess", "design"),
@@ -362,7 +351,7 @@ analog_search <- function(
                         max_clim = max_clim,
                         max_geog = max_geog,
                         k = k,
-                        weight = weight,
+                        kernel = kernel,
                         theta = theta,
                         lambda = lambda,
                         se = se,
@@ -400,7 +389,7 @@ analog_search <- function(
             y = y,
             covariates = covariates,
             k = k,
-            weight = weight,
+            kernel = kernel,
             theta = theta,
             lambda = lambda,
             se = se,

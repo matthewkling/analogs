@@ -15,7 +15,7 @@ analog_search(
   select = "all",
   k = NULL,
   stat = NULL,
-  weight = NULL,
+  kernel = NULL,
   theta = NULL,
   lambda = 0,
   se = c("none", "ess", "design"),
@@ -54,9 +54,8 @@ variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as \code{pool}.
 
 When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For stat =
-NULL/"none" (pairs mode), y value columns are included in output for each
-analog pair.}
+\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For \code{stat = NULL}/\code{"none"} (pairs mode), y value columns are included in output for
+each analog pair.}
 
 \item{covariates}{Optional auxiliary predictor variables for each reference
 location in \code{pool}, used with \code{stat = "regression"}. Can be a numeric
@@ -74,6 +73,7 @@ climate constraint). Can be either:
 \item A vector: Per-variable absolute differences (length must equal
 number of climate variables)
 }
+
 Only reference locations within this climate distance are considered.
 When \code{x_cov} is provided, scalar thresholds are interpreted in
 Mahalanobis distance units.}
@@ -104,50 +104,51 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
 \item \code{"count"}: For each focal, count the number of selected analogs.
 \item \code{"sum_weights"}: For each focal, sum the weights of selected
-analogs (see \code{weight} and \code{theta}).
+analogs (see \code{kernel} and \code{theta}).
 \item \code{"mean_weights"}: For each focal, mean of weights of selected
 analogs.
 \item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
 \item \code{"mean"}: Mean of \code{y} values across analogs (requires \code{y}).
-\item \code{"weighted_sum"}: Sum of (\code{y} × weight) across analogs
-(requires \code{y} and \code{weight}).
+\item \code{"weighted_sum"}: Sum of (\code{y} × kernel weight) across analogs
+(requires \code{y} and \code{kernel}).
 \item \code{"weighted_mean"}: Weighted mean of \code{y} values across analogs
-(requires \code{y} and \code{weight}).
+(requires \code{y} and \code{kernel}).
 \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
 squared sum of weights divided by the sum of squared weights
-(requires \code{weight}).
+(requires \code{kernel}).
 \item \code{"regression"}: Weighted least squares (or ridge) regression
 of \code{y} on \code{covariates} within each analog neighborhood.
 Returns intercept and slope coefficients. Requires \code{y},
-\code{covariates}, and \code{weight}. See \code{lambda} for
-regularization.
+\code{covariates}, and \code{kernel}. See \code{lambda} for regularization.
 \item A character vector combining multiple stats (e.g.,
 \code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.
 }}
 
-\item{weight}{Weighting function for matches, used only when
-\code{stat} includes \code{"sum_weights"} or \code{"mean_weights"}. One of:
+\item{kernel}{Kernel decay function for weighting matches, used only when
+\code{stat} includes a weighted aggregation (\code{"sum_weights"}, \code{"mean_weights"},
+\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, or \code{"regression"}). One of:
 \itemize{
-\item \code{"uniform"}: All matches weighted equally (weight = 1.0).
+\item \code{"uniform"}: All matches weighted equally (kernel weight = 1.0).
 \item \code{"inverse_clim"}: Inverse climate distance,
-weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
+kernel weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
 \item \code{"inverse_geog"}: Inverse geographic distance,
-weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
+kernel weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
 \item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
+kernel weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
 \item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
+kernel weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
 \item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
-weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
+kernel weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
 with sigmas given by \code{theta}.
 \item \code{"inverse_joint"}: Inverse joint distance,
-weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
+kernel weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
 }}
 
-\item{theta}{Optional numeric parameter used by weighting functions
-when \code{stat} includes \code{"sum_weights"} or \code{"mean_weights"} and
-\code{weight} is not \code{"uniform"}. Interpretation depends on \code{weight}:
+\item{theta}{Optional numeric parameter controlling the shape of the
+weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
+\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
+Interpretation depends on \code{kernel}:
 \itemize{
 \item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -212,6 +213,7 @@ by optimizing compute time on a subsample of focal points. If focal has
 relatively few rows, auto-tuning is skipped and a default resolution of
 16 is used.
 }
+
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
 \item{n_threads}{Optional integer number of threads to use for the
@@ -254,7 +256,7 @@ variables.
 \code{se_intercept}, etc.) for each SE-supporting stat.
 }
 
-All results include metadata attributes (\code{select}, \code{stat}, \code{weight}, etc.).
+All results include metadata attributes (\code{select}, \code{stat}, \code{kernel}, etc.).
 Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
 }
 \description{
@@ -265,7 +267,6 @@ then optionally aggregating the results.
 }
 \details{
 \subsection{Parameter categories}{
-
 \itemize{
 \item \emph{Data parameters}
 (\code{x}, \code{pool}, \code{x_cov}, \code{y}, \code{covariates}, \code{coord_type})
@@ -274,7 +275,7 @@ give attributes of the data on which to operate.
 (\code{select}, \code{max_clim}, \code{max_geog}, \code{k})
 define which analogs to \code{select} from the \code{pool} for each \code{x}.
 \item \emph{Aggregation parameters}
-(\code{stat}, \code{weight}, \code{theta}, \code{lambda}, \code{se})
+(\code{stat}, \code{kernel}, \code{theta}, \code{lambda}, \code{se})
 control how selected analogs are summarized.
 \item \emph{Computation parameters}
 (\code{n_threads}, \code{index_res}, \code{downsample}, \code{seed}, \code{progress})

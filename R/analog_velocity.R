@@ -80,7 +80,7 @@ analog_velocity <- function(
             x_cov       = x_cov,
             y = y,
             k           = k,
-            weight      = NULL,
+            kernel      = NULL,
             theta       = NULL,
             coord_type  = coord_type,
             index_res   = index_res,

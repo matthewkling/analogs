@@ -10,7 +10,7 @@ query_analog_index <- function(x,
                                y,
                                covariates,
                                k,
-                               weight,
+                               kernel,
                                theta,
                                lambda,
                                se,
@@ -31,12 +31,12 @@ query_analog_index <- function(x,
                                        x_cov, y, covariates,
                                        max_clim, max_geog,
                                        select, k,
-                                       stat, weight, theta, lambda,
+                                       stat, kernel, theta, lambda,
                                        se)
       select <- params$select
       stat <- params$stat
       k <- params$k
-      weight <- params$weight
+      kernel <- params$kernel
       theta <- params$theta
       lambda <- params$lambda
       se <- params$se
@@ -78,16 +78,16 @@ query_analog_index <- function(x,
       aggregate_codes <- stat_name_to_code[stat]
       names(aggregate_codes) <- NULL
 
-      # Map weight function for C++
-      # Weight codes: 0=none, 1=uniform, 2=inverse_clim, 3=inverse_geog,
+      # Map kernel function for C++
+      # kernel codes: 0=none, 1=uniform, 2=inverse_clim, 3=inverse_geog,
       #               4=gaussian_clim, 5=gaussian_geog,
       #               6=gaussian_joint, 7=inverse_joint
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean",
                                            "ess", "regression"))
-      weight_code <- if (has_weighted_stat) {
+      kernel_code <- if (has_weighted_stat) {
             switch(
-                  weight,
+                  kernel,
                   "uniform"        = 1L,
                   "inverse_clim"   = 2L,
                   "inverse_geog"   = 3L,
@@ -139,7 +139,7 @@ query_analog_index <- function(x,
             max_geog = max_geog_num,
             select_code = select_code,
             aggregate_codes = aggregate_codes,
-            weight_code = weight_code,
+            kernel_code = kernel_code,
             theta = theta_vec,
             x_cov = x_cov_mat,
             y = values_mat,
@@ -178,7 +178,7 @@ query_analog_index <- function(x,
             }
 
             return(.format_output(out, focal, stat, select,
-                                  k, weight, theta, x_cov_mat))
+                                  k, kernel, theta, x_cov_mat))
       }
 
       # Aggregation mode(s)
@@ -325,7 +325,7 @@ query_analog_index <- function(x,
       }
 
       # Format and return
-      return(.format_output(out, focal, stat, select, k, weight, theta, x_cov_mat))
+      return(.format_output(out, focal, stat, select, k, kernel, theta, x_cov_mat))
 }
 
 
@@ -336,7 +336,7 @@ query_analog_index <- function(x,
 #'
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
-                               select_code, aggregate_codes, weight_code, theta,
+                               select_code, aggregate_codes, kernel_code, theta,
                                x_cov, y, covariates, lambda, se_code,
                                show_progress = FALSE) {
 
@@ -351,7 +351,7 @@ query_analog_index <- function(x,
                   max_geog = max_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
-                  weight_code = weight_code,
+                  weight_code = kernel_code,
                   theta = theta,
                   x_cov_sexp = x_cov,
                   values_sexp = y,
@@ -394,7 +394,7 @@ query_analog_index <- function(x,
                   max_geog = max_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
-                  weight_code = weight_code,
+                  weight_code = kernel_code,
                   theta = theta,
                   x_cov_sexp = x_cov_chunk,
                   values_sexp = y,     # Not chunked (ref pool)

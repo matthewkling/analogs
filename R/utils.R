@@ -8,7 +8,7 @@
 
 #' Validate and normalize query parameters
 #'
-#' Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda/se
+#' Validates select/stat/k/kernel/theta/x_cov/y/covariates/lambda/se
 #' combinations and normalizes values. Returns a list with normalized parameters.
 #'
 #' @keywords internal
@@ -17,7 +17,7 @@
                                    covariates = NULL,
                                    max_clim, max_geog,
                                    select, k,
-                                   stat, weight, theta,
+                                   stat, kernel, theta,
                                    lambda = 0,
                                    se = "none") {
 
@@ -63,9 +63,9 @@
             stop("stat must be NULL or a character vector")
       }
 
-      # Validate and normalize weight
-      if (!is.null(weight)) {
-            weight <- match.arg(weight, c("uniform", "gaussian_clim", "gaussian_geog",
+      # Validate and normalize kernel
+      if (!is.null(kernel)) {
+            kernel <- match.arg(kernel, c("uniform", "gaussian_clim", "gaussian_geog",
                                           "gaussian_joint", "inverse_clim", "inverse_geog",
                                           "inverse_joint"))
       }
@@ -107,9 +107,9 @@
                   stop("stat includes 'regression' but 'covariates' parameter is NULL. ",
                        "Regression requires 'covariates' to be provided.")
             }
-            if (is.null(weight)) {
-                  stop("stat includes 'regression' but 'weight' is NULL. ",
-                       "Regression requires a weighting function. ",
+            if (is.null(kernel)) {
+                  stop("stat includes 'regression' but 'kernel' is NULL. ",
+                       "Regression requires a kernel weighting function. ",
                        "Valid options: uniform, gaussian_clim, gaussian_geog, ",
                        "gaussian_joint, inverse_clim, inverse_geog, inverse_joint")
             }
@@ -136,55 +136,55 @@
             }
       }
 
-      # Validate stat/weight/theta combinations
+      # Validate stat/kernel/theta combinations
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean",
                                            "ess", "regression"))
 
       if (has_weighted_stat) {
-            # Weighted aggregation modes require weight
-            valid_weights <- c("uniform", "gaussian_clim", "gaussian_geog",
+            # Weighted aggregation modes require kernel
+            valid_kernels <- c("uniform", "gaussian_clim", "gaussian_geog",
                                "gaussian_joint", "inverse_clim", "inverse_geog",
                                "inverse_joint")
-            if (is.null(weight)) {
-                  stop("For stat including weighted aggregations, weight must be specified. ",
-                       "Valid options: ", paste(valid_weights, collapse = ", "))
+            if (is.null(kernel)) {
+                  stop("For stat including weighted aggregations, kernel must be specified. ",
+                       "Valid options: ", paste(valid_kernels, collapse = ", "))
             }
-            if (!weight %in% valid_weights) {
-                  stop("For stat including weighted aggregations, weight must be one of: ",
-                       paste(valid_weights, collapse = ", "))
+            if (!kernel %in% valid_kernels) {
+                  stop("For stat including weighted aggregations, kernel must be one of: ",
+                       paste(valid_kernels, collapse = ", "))
             }
 
-            # Validate theta based on weight type
-            if (identical(weight, "uniform")) {
+            # Validate theta based on kernel type
+            if (identical(kernel, "uniform")) {
                   if (!is.null(theta)) {
-                        stop("For weight = 'uniform', theta must be NULL.")
+                        stop("For kernel = 'uniform', theta must be NULL.")
                   }
-            } else if (weight %in% c("gaussian_joint", "inverse_joint")) {
-                  # Joint weights require 2-element theta
+            } else if (kernel %in% c("gaussian_joint", "inverse_joint")) {
+                  # Joint kernels require 2-element theta
                   if (is.null(theta)) {
-                        stop("For weight = '", weight, "', theta must be a numeric vector of length 2.")
+                        stop("For kernel = '", kernel, "', theta must be a numeric vector of length 2.")
                   }
                   if (!is.numeric(theta) || length(theta) != 2L) {
-                        stop("For weight = '", weight, "', theta must be a numeric vector of length 2: ",
+                        stop("For kernel = '", kernel, "', theta must be a numeric vector of length 2: ",
                              "c(theta_clim, theta_geog)")
                   }
                   if (any(theta <= 0)) {
-                        stop("For weight = '", weight, "', both theta values must be positive.")
+                        stop("For kernel = '", kernel, "', both theta values must be positive.")
                   }
             } else {
-                  # Single-dimension weights (gaussian_clim, gaussian_geog, inverse_clim, inverse_geog)
+                  # Single-dimension kernels (gaussian_clim, gaussian_geog, inverse_clim, inverse_geog)
                   if (!is.null(theta)) {
                         if (!is.numeric(theta) || length(theta) != 1L || theta <= 0) {
-                              stop("For weight = '", weight, "', theta must be a single positive numeric value, or NULL.")
+                              stop("For kernel = '", kernel, "', theta must be a single positive numeric value, or NULL.")
                         }
                   }
             }
 
       } else {
             # Non-weighted aggregations (none, count, sum, mean)
-            if (!is.null(weight)) {
-                  stop("For stat = ", paste(stat, collapse = ", "), ", weight must be NULL.")
+            if (!is.null(kernel)) {
+                  stop("For stat = ", paste(stat, collapse = ", "), ", kernel must be NULL.")
             }
             if (!is.null(theta)) {
                   stop("For stat = ", paste(stat, collapse = ", "), ", theta must be NULL.")
@@ -231,7 +231,7 @@
             select = select,
             stat = stat,
             k = k,
-            weight = weight,
+            kernel = kernel,
             theta = theta,
             lambda = lambda,
             se = se,
@@ -541,7 +541,7 @@
 
 
 
-.format_output <- function(out, x, stat, select, k, weight, theta, x_cov_mat){
+.format_output <- function(out, x, stat, select, k, kernel, theta, x_cov_mat){
 
       if(! requireNamespace("terra", quietly = TRUE) || # terra not available
          is.null(attr(x, "template")) || # x wasn't a raster
@@ -568,7 +568,7 @@
       attr(out, "select")    <- select
       attr(out, "stat")      <- stat
       attr(out, "k")         <- k
-      attr(out, "weight")    <- weight
+      attr(out, "kernel")    <- kernel
       attr(out, "theta")     <- theta
       attr(out, "x_cov")     <- !is.null(x_cov_mat)
 

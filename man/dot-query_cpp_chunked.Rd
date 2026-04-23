@@ -13,7 +13,7 @@
   max_geog,
   select_code,
   aggregate_codes,
-  weight_code,
+  kernel_code,
   theta,
   x_cov,
   y,

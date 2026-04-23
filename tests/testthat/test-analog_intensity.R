@@ -6,7 +6,7 @@ test_that("`analog_intensity` result matches manual calculation", {
 
       # intensity
       nn <- analog_intensity(d$focal, d$ref, max_clim = max_clim, max_geog = max_geog,
-                             weight = "inverse_clim", coord_type = "projected")
+                             kernel = "inverse_clim", coord_type = "projected")
 
       # manual intensity calculation
       dclim <- xdist(d$focal, d$ref, "clim")
@@ -28,7 +28,7 @@ test_that("analog_intensity works with x/pool parameter names", {
             pool = d$ref,
             max_clim = 1,
             max_geog = 2,
-            weight = "inverse_clim",
+            kernel = "inverse_clim",
             coord_type = "projected",
             index_res = 10
       )
@@ -53,7 +53,7 @@ test_that("analog_intensity works with analog_index", {
             pool = index,
             max_clim = 1,
             max_geog = 2,
-            weight = "inverse_clim"
+            kernel = "inverse_clim"
       )
 
       expect_s3_class(i, "data.frame")
@@ -62,7 +62,7 @@ test_that("analog_intensity works with analog_index", {
       expect_true(all(is.numeric(i$sum_weights)))
 })
 
-test_that("gaussian_clim weight works", {
+test_that("gaussian_clim kernel works", {
 
       d <- sim_test_data()
 
@@ -71,7 +71,7 @@ test_that("gaussian_clim weight works", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.5,
             coord_type = "projected"
       )
@@ -83,7 +83,7 @@ test_that("gaussian_clim weight works", {
 })
 
 
-test_that("gaussian_geog weight works", {
+test_that("gaussian_geog kernel works", {
 
       d <- sim_test_data()
 
@@ -92,7 +92,7 @@ test_that("gaussian_geog weight works", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_geog",
+            kernel = "gaussian_geog",
             theta = 0.5,
             coord_type = "projected"
       )
@@ -104,7 +104,7 @@ test_that("gaussian_geog weight works", {
 })
 
 
-test_that("gaussian_joint weight works", {
+test_that("gaussian_joint kernel works", {
 
       d <- sim_test_data()
 
@@ -113,7 +113,7 @@ test_that("gaussian_joint weight works", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_joint",
+            kernel = "gaussian_joint",
             theta = c(0.5, 1.0),  # c(theta_clim, theta_geog)
             coord_type = "projected"
       )
@@ -125,7 +125,7 @@ test_that("gaussian_joint weight works", {
 })
 
 
-test_that("inverse_joint weight works", {
+test_that("inverse_joint kernel works", {
 
       d <- sim_test_data()
 
@@ -134,7 +134,7 @@ test_that("inverse_joint weight works", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "inverse_joint",
+            kernel = "inverse_joint",
             theta = c(1e-6, 1e-3),  # c(eps_clim, eps_geog)
             coord_type = "projected"
       )
@@ -146,16 +146,16 @@ test_that("inverse_joint weight works", {
 })
 
 
-test_that("gaussian weights respect theta parameter", {
+test_that("gaussian kernels respect theta parameter", {
 
       d <- sim_test_data()
 
-      # Smaller theta should produce more localized (smaller) weights
+      # Smaller theta should produce more localized (smaller) kernels
       r1 <- analog_intensity(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.2,  # small bandwidth
             coord_type = "projected"
       )
@@ -164,7 +164,7 @@ test_that("gaussian weights respect theta parameter", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 2.0,  # large bandwidth
             coord_type = "projected"
       )
@@ -185,7 +185,7 @@ test_that("gaussian_joint requires 2-element theta", {
             analog_intensity(
                   d$focal, d$ref,
                   max_clim = 2,
-                  weight = "gaussian_joint",
+                  kernel = "gaussian_joint",
                   theta = 0.5,
                   coord_type = "projected"
             ),
@@ -197,7 +197,7 @@ test_that("gaussian_joint requires 2-element theta", {
             analog_intensity(
                   d$focal, d$ref,
                   max_clim = 2,
-                  weight = "gaussian_joint",
+                  kernel = "gaussian_joint",
                   theta = NULL,
                   coord_type = "projected"
             ),
@@ -215,7 +215,7 @@ test_that("inverse_joint requires 2-element theta", {
             analog_intensity(
                   d$focal, d$ref,
                   max_clim = 2,
-                  weight = "inverse_joint",
+                  kernel = "inverse_joint",
                   theta = 1e-6,
                   coord_type = "projected"
             ),
@@ -224,19 +224,19 @@ test_that("inverse_joint requires 2-element theta", {
 })
 
 
-test_that("new weights work with analog_index", {
+test_that("new kernels work with analog_index", {
 
       d <- sim_test_data()
 
       # Build index
       index <- build_analog_index(d$ref, coord_type = "projected", index_res = 10)
 
-      # Test each new weight with index
+      # Test each new kernel with index
       r1 <- analog_intensity(
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.5
       )
       expect_true(all(is.finite(r1$sum_weights)))
@@ -245,7 +245,7 @@ test_that("new weights work with analog_index", {
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_geog",
+            kernel = "gaussian_geog",
             theta = 0.5
       )
       expect_true(all(is.finite(r2$sum_weights)))
@@ -254,7 +254,7 @@ test_that("new weights work with analog_index", {
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_joint",
+            kernel = "gaussian_joint",
             theta = c(0.5, 1.0)
       )
       expect_true(all(is.finite(r3$sum_weights)))
@@ -263,14 +263,14 @@ test_that("new weights work with analog_index", {
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
-            weight = "inverse_joint",
+            kernel = "inverse_joint",
             theta = c(1e-6, 1e-3)
       )
       expect_true(all(is.finite(r4$sum_weights)))
 })
 
 
-test_that("gaussian and inverse weights produce different results", {
+test_that("gaussian and inverse kernels produce different results", {
 
       d <- sim_test_data()
 
@@ -279,7 +279,7 @@ test_that("gaussian and inverse weights produce different results", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.5,
             coord_type = "projected"
       )
@@ -288,7 +288,7 @@ test_that("gaussian and inverse weights produce different results", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "inverse_clim",
+            kernel = "inverse_clim",
             theta = 1e-6,
             coord_type = "projected"
       )
@@ -298,16 +298,16 @@ test_that("gaussian and inverse weights produce different results", {
 })
 
 
-test_that("joint weights combine both dimensions appropriately", {
+test_that("joint kernels combine both dimensions appropriately", {
 
       d <- sim_test_data()
 
-      # Joint should differ from single-dimension weights
+      # Joint should differ from single-dimension kernels
       r_joint <- analog_intensity(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_joint",
+            kernel = "gaussian_joint",
             theta = c(0.5, 0.5),
             coord_type = "projected"
       )
@@ -316,7 +316,7 @@ test_that("joint weights combine both dimensions appropriately", {
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
-            weight = "gaussian_clim",
+            kernel = "gaussian_clim",
             theta = 0.5,
             coord_type = "projected"
       )
