@@ -90,8 +90,8 @@ documentation](https://matthewkling.github.io/analogs/reference/index.html).
 - [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
   : Climate impact assessment via analog impact model
 - [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
-  : Analog intensity: weighted sum of analogs within climate/geographic
-  limits
+  : Analog intensity: kernel-weighted sum of analogs within
+  climate/geographic limits
 - [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
   : Local weighted regression across analog neighborhoods
 - [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
@@ -117,3 +117,9 @@ documentation](https://matthewkling.github.io/analogs/reference/index.html).
 - [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md)
   : Tune Index Resolution
 
+# Articles
+
+### All vignettes
+
+- [Introduction to
+  analogs](https://matthewkling.github.io/analogs/articles/analogs.md):

@@ -18,12 +18,13 @@ tune_index_res(
   max_clim = NULL,
   max_geog = NULL,
   k = NULL,
-  weight = NULL,
+  kernel = NULL,
   theta = NULL,
   x_cov = NULL,
   y = NULL,
   covariates = NULL,
   lambda = 0,
+  se = c("none", "ess", "design"),
   coord_type = c("auto", "lonlat", "projected"),
   n_threads = NULL,
   default_res = 16L,
@@ -86,7 +87,7 @@ tune_index_res(
   - `"count"`: For each focal, count the number of selected analogs.
 
   - `"sum_weights"`: For each focal, sum the weights of selected analogs
-    (see `weight` and `theta`).
+    (see `kernel` and `theta`).
 
   - `"mean_weights"`: For each focal, mean of weights of selected
     analogs.
@@ -95,19 +96,19 @@ tune_index_res(
 
   - `"mean"`: Mean of `y` values across analogs (requires `y`).
 
-  - `"weighted_sum"`: Sum of (`y` × weight) across analogs (requires `y`
-    and `weight`).
+  - `"weighted_sum"`: Sum of (`y` × kernel weight) across analogs
+    (requires `y` and `kernel`).
 
   - `"weighted_mean"`: Weighted mean of `y` values across analogs
-    (requires `y` and `weight`).
+    (requires `y` and `kernel`).
 
   - `"ess"`: Kish's effective sample size (ESS), computed as the squared
     sum of weights divided by the sum of squared weights (requires
-    `weight`).
+    `kernel`).
 
   - `"regression"`: Weighted least squares (or ridge) regression of `y`
     on `covariates` within each analog neighborhood. Returns intercept
-    and slope coefficients. Requires `y`, `covariates`, and `weight`.
+    and slope coefficients. Requires `y`, `covariates`, and `kernel`.
     See `lambda` for regularization.
 
   - A character vector combining multiple stats (e.g.,
@@ -142,38 +143,43 @@ tune_index_res(
   selection modes. Required when `select` is `"knn_geog"` or
   `"knn_clim"`; must be `NULL` for `select = "all"`.
 
-- weight:
+- kernel:
 
-  Weighting function for matches, used only when `stat` includes
-  `"sum_weights"` or `"mean_weights"`. One of:
+  Kernel decay function for weighting matches, used only when `stat`
+  includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
+  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One
+  of:
 
-  - `"uniform"`: All matches weighted equally (weight = 1.0).
+  - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
 
-  - `"inverse_clim"`: Inverse climate distance, weight = 1 /
+  - `"inverse_clim"`: Inverse climate distance, kernel weight = 1 /
     (climate_distance + eps), with epsilon given by `theta`.
 
-  - `"inverse_geog"`: Inverse geographic distance, weight = 1 /
+  - `"inverse_geog"`: Inverse geographic distance, kernel weight = 1 /
     (geographic_distance + eps), with epsilon given by `theta`.
 
-  - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2*sigma^2)), with sigma given by `theta`.
-    `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
+  - `"gaussian_clim"`: Gaussian kernel on climate distance, kernel
+    weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by
     `theta`.
 
-  - `"gaussian_joint"`: Gaussian kernel on combined distance, weight =
-    exp(-(clim_dist^2 / (2*sigma_clim^2) + geog_dist^2 /
-    (2*sigma_geog^2))), with sigmas given by `theta`.
+  - `"gaussian_geog"`: Gaussian kernel on geographic distance, kernel
+    weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given
+    by `theta`.
 
-  - `"inverse_joint"`: Inverse joint distance, weight = 1 /
+  - `"gaussian_joint"`: Gaussian kernel on combined distance, kernel
+    weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2
+    sigma_geog^2))), with sigmas given by `theta`.
+
+  - `"inverse_joint"`: Inverse joint distance, kernel weight = 1 /
     (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
     `theta`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `stat`
-  includes `"sum_weights"` or `"mean_weights"` and `weight` is not
-  `"uniform"`. Interpretation depends on `weight`:
+  Optional numeric parameter controlling the shape of the weighting
+  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
+  includes a weighted aggregation) and `kernel` is not `"uniform"`.
+  Interpretation depends on `kernel`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -204,7 +210,7 @@ tune_index_res(
 
   When provided, enables value-based aggregation stats `"sum"`,
   `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
-  stat = NULL/"none" (pairs mode), y value columns are included in
+  `stat = NULL`/`"none"` (pairs mode), y value columns are included in
   output for each analog pair.
 
 - covariates:
@@ -224,6 +230,31 @@ tune_index_res(
   ordinary weighted least squares). Higher values shrink covariate
   coefficients toward zero, with the intercept approaching the weighted
   mean as `lambda -> Inf`. Ignored when `"regression"` is not in `stat`.
+
+- se:
+
+  Standard-error framing to apply to SE-supporting stats
+  (`"weighted_mean"` and `"regression"`). One of:
+
+  - `"none"` (default): no SE columns are returned.
+
+  - `"ess"`: effective-sample-size framing. For `weighted_mean`,
+    `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
+    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
+    regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
+    variance corrected using `n_eff - p` degrees of freedom.
+
+  - `"design"`: design-based framing (no assumption that weights are
+    precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
+    For regression, the sandwich estimator
+    `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with `M = Σ w² r² x xᵀ` (Huber-White
+    / heteroskedasticity-consistent).
+
+  Both variants are scale-invariant in the weights when `lambda = 0`.
+  When `se != "none"` but no requested stat supports SE, a warning is
+  issued and no SE columns are produced. SE-supporting stat columns are
+  named `se_weighted_mean` / `se_weighted_mean_{varname}` and
+  `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
 
 - coord_type:
 

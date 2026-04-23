@@ -159,11 +159,14 @@ location, with the following variables:
   multiple `y` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
-- For `stat = "regression"`: columns for `intercept` and each covariate
-  name, or `intercept_{varname}` and `{covariate}_{varname}` with
-  multiple `y` variables.
+- For `stat = "regression"`: columns for `coef_intercept` and
+  `coef_{covariate}`, or `coef_intercept_{varname}` and
+  `coef_{covariate}_{varname}` with multiple `y` variables.
 
-All results include metadata attributes (`select`, `stat`, `weight`,
+- When `se != "none"`: matching SE columns (`se_weighted_mean`,
+  `se_intercept`, etc.) for each SE-supporting stat.
+
+All results include metadata attributes (`select`, `stat`, `kernel`,
 etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.

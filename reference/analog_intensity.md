@@ -1,4 +1,4 @@
-# Analog intensity: weighted sum of analogs within climate/geographic limits
+# Analog intensity: kernel-weighted sum of analogs within climate/geographic limits
 
 Computes, for each focal location, the sum of weights of all reference
 locations that satisfy the supplied climate and geographic constraints.
@@ -15,7 +15,7 @@ analog_intensity(
   coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
-  weight = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
+  kernel = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
     "gaussian_joint", "inverse_joint"),
   theta = NULL,
   index_res = "auto",
@@ -88,38 +88,43 @@ analog_intensity(
   kilometers if `coord_type = "lonlat"`, or in projected coordinate
   units if `coord_type = "projected"`.
 
-- weight:
+- kernel:
 
-  Weighting function for matches, used only when `stat` includes
-  `"sum_weights"` or `"mean_weights"`. One of:
+  Kernel decay function for weighting matches, used only when `stat`
+  includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
+  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One
+  of:
 
-  - `"uniform"`: All matches weighted equally (weight = 1.0).
+  - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
 
-  - `"inverse_clim"`: Inverse climate distance, weight = 1 /
+  - `"inverse_clim"`: Inverse climate distance, kernel weight = 1 /
     (climate_distance + eps), with epsilon given by `theta`.
 
-  - `"inverse_geog"`: Inverse geographic distance, weight = 1 /
+  - `"inverse_geog"`: Inverse geographic distance, kernel weight = 1 /
     (geographic_distance + eps), with epsilon given by `theta`.
 
-  - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2*sigma^2)), with sigma given by `theta`.
-    `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
+  - `"gaussian_clim"`: Gaussian kernel on climate distance, kernel
+    weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by
     `theta`.
 
-  - `"gaussian_joint"`: Gaussian kernel on combined distance, weight =
-    exp(-(clim_dist^2 / (2*sigma_clim^2) + geog_dist^2 /
-    (2*sigma_geog^2))), with sigmas given by `theta`.
+  - `"gaussian_geog"`: Gaussian kernel on geographic distance, kernel
+    weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given
+    by `theta`.
 
-  - `"inverse_joint"`: Inverse joint distance, weight = 1 /
+  - `"gaussian_joint"`: Gaussian kernel on combined distance, kernel
+    weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2
+    sigma_geog^2))), with sigmas given by `theta`.
+
+  - `"inverse_joint"`: Inverse joint distance, kernel weight = 1 /
     (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
     `theta`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `stat`
-  includes `"sum_weights"` or `"mean_weights"` and `weight` is not
-  `"uniform"`. Interpretation depends on `weight`:
+  Optional numeric parameter controlling the shape of the weighting
+  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
+  includes a weighted aggregation) and `kernel` is not `"uniform"`.
+  Interpretation depends on `kernel`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -206,11 +211,14 @@ location, with the following variables:
   multiple `y` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
-- For `stat = "regression"`: columns for `intercept` and each covariate
-  name, or `intercept_{varname}` and `{covariate}_{varname}` with
-  multiple `y` variables.
+- For `stat = "regression"`: columns for `coef_intercept` and
+  `coef_{covariate}`, or `coef_intercept_{varname}` and
+  `coef_{covariate}_{varname}` with multiple `y` variables.
 
-All results include metadata attributes (`select`, `stat`, `weight`,
+- When `se != "none"`: matching SE columns (`se_weighted_mean`,
+  `se_intercept`, etc.) for each SE-supporting stat.
+
+All results include metadata attributes (`select`, `stat`, `kernel`,
 etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
@@ -249,13 +257,13 @@ for memory-safe searches on large raster datasets.
 
 ``` r
 if (FALSE) { # \dontrun{
-# One-shot query with inverse weighting
+# One-shot query with inverse kernel weighting
 intens <- analog_intensity(
   x = sites,
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
-  weight = "inverse_clim"
+  kernel = "inverse_clim"
 )
 
 # Gaussian weighting by climate distance
@@ -264,7 +272,7 @@ intens_gauss <- analog_intensity(
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
-  weight = "gaussian_clim",
+  kernel = "gaussian_clim",
   theta = 0.2  # bandwidth parameter
 )
 
@@ -274,15 +282,15 @@ intens_joint <- analog_intensity(
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
-  weight = "gaussian_joint",
+  kernel = "gaussian_joint",
   theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(climate_data)
 i1 <- analog_intensity(x = sites1, pool = index, max_clim = 0.5,
-                       weight = "inverse_clim")
+                       kernel = "inverse_clim")
 i2 <- analog_intensity(x = sites2, pool = index, max_geog = 100,
-                       weight = "inverse_geog")
+                       kernel = "inverse_geog")
 } # }
 ```

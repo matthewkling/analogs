@@ -16,9 +16,10 @@ query_analog_index(
   y,
   covariates,
   k,
-  weight,
+  kernel,
   theta,
   lambda,
+  se,
   n_threads,
   show_progress = FALSE
 )

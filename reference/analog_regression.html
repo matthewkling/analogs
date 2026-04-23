@@ -35,7 +35,8 @@ model (AIM) framework to incorporate local covariate effects."></head><body>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/analogs.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/matthewkling/analogs/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -77,11 +78,12 @@ model (AIM) framework to incorporate local covariate effects.</p>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  select <span class="op">=</span> <span class="st">"all"</span>,</span>
 <span>  k <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  weight <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gaussian_clim"</span>, <span class="st">"inverse_clim"</span>, <span class="st">"gaussian_geog"</span>, <span class="st">"inverse_geog"</span>,</span>
+<span>  kernel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gaussian_clim"</span>, <span class="st">"inverse_clim"</span>, <span class="st">"gaussian_geog"</span>, <span class="st">"inverse_geog"</span>,</span>
 <span>    <span class="st">"gaussian_joint"</span>, <span class="st">"inverse_joint"</span>, <span class="st">"uniform"</span><span class="op">)</span>,</span>
 <span>  theta <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"ess"</span>, <span class="st">"regression"</span><span class="op">)</span>,</span>
+<span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"ess"</span>, <span class="st">"design"</span><span class="op">)</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
@@ -158,29 +160,31 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 <code>"knn_clim"</code>; must be <code>NULL</code> for <code>select = "all"</code>.</p></dd>
 
 
-<dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
-<dd><p>Weighting function for matches, used only when
-<code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weights"</code>. One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (weight = 1.0).</p></li>
+<dt id="arg-kernel">kernel<a class="anchor" aria-label="anchor" href="#arg-kernel"></a></dt>
+<dd><p>Kernel decay function for weighting matches, used only when
+<code>stat</code> includes a weighted aggregation (<code>"sum_weights"</code>, <code>"mean_weights"</code>,
+<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, <code>"ess"</code>, or <code>"regression"</code>). One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (kernel weight = 1.0).</p></li>
 <li><p><code>"inverse_clim"</code>: Inverse climate distance,
-weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
+kernel weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_geog"</code>: Inverse geographic distance,
-weight = 1 / (geographic_distance + eps), with epsilon given by <code>theta</code>.</p></li>
+kernel weight = 1 / (geographic_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"gaussian_clim"</code>: Gaussian kernel on climate distance,
-weight = exp(-climate_distance^2 / (2<em>sigma^2)), with sigma given by <code>theta</code>.
- <code>"gaussian_geog"</code>: Gaussian kernel on geographic distance,
-weight = exp(-geographic_distance^2 / (2</em>sigma^2)), with sigma given by <code>theta</code>.</p></li>
+kernel weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by <code>theta</code>.</p></li>
+<li><p><code>"gaussian_geog"</code>: Gaussian kernel on geographic distance,
+kernel weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by <code>theta</code>.</p></li>
 <li><p><code>"gaussian_joint"</code>: Gaussian kernel on combined distance,
-weight = exp(-(clim_dist^2 / (2<em>sigma_clim^2) + geog_dist^2 / (2</em>sigma_geog^2))),
+kernel weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
 with sigmas given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_joint"</code>: Inverse joint distance,
-weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by <code>theta</code>.</p></li>
+kernel weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by <code>theta</code>.</p></li>
 </ul></dd>
 
 
 <dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
-<dd><p>Optional numeric parameter used by weighting functions
-when <code>stat</code> includes <code>"sum_weights"</code> or <code>"mean_weights"</code> and
-<code>weight</code> is not <code>"uniform"</code>. Interpretation depends on <code>weight</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
+<dd><p>Optional numeric parameter controlling the shape of the
+weighting <code>kernel</code>, used whenever <code>kernel</code> is active (i.e. whenever
+<code>stat</code> includes a weighted aggregation) and <code>kernel</code> is not <code>"uniform"</code>.
+Interpretation depends on <code>kernel</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
 added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
 <li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
 parameter (scalar; larger values = slower decay with distance).</p></li>
@@ -191,10 +195,11 @@ parameter (scalar; larger values = slower decay with distance).</p></li>
 
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
 <dd><p>Ridge penalty parameter (default: 0, giving ordinary
-weighted least squares). Higher values shrink covariate coefficients
-toward zero, with the intercept approaching the weighted mean as
+weighted least squares). Higher values shrink high-variance coefficients
+toward zero, causing the intercept to approach the weighted mean as
 <code>lambda -&gt; Inf</code>. Useful when some neighborhoods have few analogs
-relative to the number of covariates.</p></dd>
+relative to the number of covariates, or when covariates are strongly
+inter-correlated.</p></dd>
 
 
 <dt id="arg-stat">stat<a class="anchor" aria-label="anchor" href="#arg-stat"></a></dt>
@@ -202,6 +207,26 @@ relative to the number of covariates.</p></dd>
 Additional stats like <code>"count"</code>, <code>"ess"</code>, and <code>"weighted_mean"</code> can
 be requested alongside regression coefficients. Default includes
 <code>"count"</code> and <code>"ess"</code> for diagnostics.</p></dd>
+
+
+<dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
+<dd><p>Standard-error framing to apply to SE-supporting stats
+(<code>"weighted_mean"</code> and <code>"regression"</code>). One of:</p><ul><li><p><code>"none"</code> (default): no SE columns are returned.</p></li>
+<li><p><code>"ess"</code>: effective-sample-size framing. For <code>weighted_mean</code>,
+<code>SE = sqrt(var_w(y) / n_eff)</code>, where <code>n_eff = (Σw)² / Σw²</code> is Kish's
+effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regression,
+<code>Var(β̂) = σ²_ess · (X'WX + λI)⁻¹</code>, with residual variance corrected
+using <code>n_eff - p</code> degrees of freedom.</p></li>
+<li><p><code>"design"</code>: design-based framing (no assumption that weights are
+precisions). For <code>weighted_mean</code>,
+<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>. For regression, the sandwich
+estimator <code>(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹</code> with
+<code>M = Σ w² r² x xᵀ</code> (Huber-White / heteroskedasticity-consistent).</p></li>
+</ul><p>Both variants are scale-invariant in the weights when <code>lambda = 0</code>.
+When <code>se != "none"</code> but no requested stat supports SE, a warning is
+issued and no SE columns are produced. SE-supporting stat columns are
+named <code>se_weighted_mean</code> / <code>se_weighted_mean_{varname}</code> and
+<code>se_{intercept|covname}</code> / <code>se_{intercept|covname}_{varname}</code>.</p></dd>
 
 
 <dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
@@ -250,11 +275,13 @@ is <code>FALSE</code>.</p></dd>
     <p>A data.frame (or SpatRaster if <code>x</code> is a SpatRaster) with one
 row per focal location containing:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location identifiers</p></li>
 <li><p>Columns for any additional stats requested (e.g., <code>count</code>, <code>ess</code>)</p></li>
-<li><p><code>intercept</code>: Regression intercept (predicted value when all
-covariates equal zero)</p></li>
-<li><p>One column per covariate: regression slope coefficients</p></li>
+<li><p><code>coef_intercept</code>: Regression intercept</p></li>
+<li><p><code>coef_{name}</code>: Regression slope for each covariate</p></li>
+<li><p>When <code>se != "none"</code>: <code>se_intercept</code> and <code>se_{name}</code> giving
+standard errors of each coefficient</p></li>
 <li><p>With multiple <code>y</code> variables: columns are named
-<code>{coeff}_{varname}</code> (e.g., <code>intercept_biomass</code>, <code>slope_biomass</code>)</p></li>
+<code>coef_{coeff}_{varname}</code> (and <code>se_{coeff}_{varname}</code> when SEs
+are returned)</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -264,10 +291,11 @@ covariates equal zero)</p></li>
 
 
 <p>For each focal location, the function:</p><ol><li><p>Selects analog pool locations based on <code>select</code>, <code>max_clim</code>, <code>max_geog</code>, and <code>k</code></p></li>
-<li><p>Computes distance-based weights for each analog (via <code>weight</code> and <code>theta</code>)</p></li>
+<li><p>Computes distance-based kernel weights for each analog (via <code>kernel</code> and <code>theta</code>)</p></li>
 <li><p>Fits a weighted least squares regression of <code>y</code> on <code>covariates</code>
 using these weights, with optional ridge penalty <code>lambda</code></p></li>
-<li><p>Returns the regression coefficients (intercept + slopes)</p></li>
+<li><p>Returns the regression coefficients (intercept + slopes), and
+optionally their standard errors (see <code>se</code> in <code><a href="analog_search.html">analog_search()</a></code>).</p></li>
 </ol><p>The math: <code>beta = (X'WX + lambda * I_p)^{-1} X'Wy</code>, where <code>W</code> is diagonal
 weights, <code>X</code> is the design matrix (intercept + covariates), and <code>I_p</code> penalizes
 covariate coefficients only (not the intercept).</p>
@@ -303,10 +331,9 @@ climates within geographic range.</p></li>
 
 
 <p>The function returns coefficients only. Prediction at new covariate values
-(e.g., a fine-resolution topography grid) can be done via regression algebra,
-e.g.:</p>
+can be done via regression algebra, e.g.:</p>
 <div class="sourceCode"><pre><code><span></span>
-<span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="va">intercept</span> <span class="op">+</span> <span class="va">beta_1</span> <span class="op">*</span> <span class="va">covariate_1</span> <span class="op">+</span> <span class="va">beta_2</span> <span class="op">*</span> <span class="va">covariate_2</span></span></code></pre></div>
+<span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="va">coef_intercept</span> <span class="op">+</span> <span class="va">coef_cov1</span> <span class="op">*</span> <span class="va">covariate_1</span> <span class="op">+</span> <span class="va">coef_cov2</span> <span class="op">*</span> <span class="va">covariate_2</span></span></code></pre></div>
 
 </div>
 
@@ -329,8 +356,9 @@ e.g.:</p>
 <span class="r-in"><span>  select <span class="op">=</span> <span class="st">"knn_geog"</span>,</span></span>
 <span class="r-in"><span>  k <span class="op">=</span> <span class="fl">50</span>,</span></span>
 <span class="r-in"><span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span></span>
-<span class="r-in"><span>  weight <span class="op">=</span> <span class="st">"gaussian_geog"</span>,</span></span>
-<span class="r-in"><span>  theta <span class="op">=</span> <span class="fl">20</span></span></span>
+<span class="r-in"><span>  kernel <span class="op">=</span> <span class="st">"gaussian_geog"</span>,</span></span>
+<span class="r-in"><span>  theta <span class="op">=</span> <span class="fl">20</span>,</span></span>
+<span class="r-in"><span>  se <span class="op">=</span> <span class="st">"ess"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>

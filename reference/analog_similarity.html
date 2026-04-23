@@ -21,7 +21,8 @@ analog impact modeling (AIM) analysis."></head><body>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/analogs.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/matthewkling/analogs/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -98,9 +99,8 @@ in <code>pool</code> to aggregate across selected analogs. Can be a numeric vect
 variables), or a SpatRaster with one or more numeric layers. Must have
 exactly the same number of reference locations as <code>pool</code>.</p>
 <p>When provided, enables value-based aggregation stats <code>"sum"</code>, <code>"mean"</code>,
-<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>. For stat =
-NULL/"none" (pairs mode), y value columns are included in output for each
-analog pair.</p></dd>
+<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>. For <code>stat = NULL</code>/<code>"none"</code> (pairs mode), y value columns are included in output for
+each analog pair.</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
@@ -189,9 +189,12 @@ with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, 
 <li><p>One column per requested statistic. For <code>stat</code> with single <code>y</code> variable:
 column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>y</code>
 variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass</code>, <code>mean_richness</code>)</p></li>
-<li><p>For <code>stat = "regression"</code>: columns for <code>intercept</code> and each covariate name,
-or <code>intercept_{varname}</code> and <code>{covariate}_{varname}</code> with multiple <code>y</code> variables.</p></li>
-</ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>weight</code>, etc.).
+<li><p>For <code>stat = "regression"</code>: columns for <code>coef_intercept</code> and <code>coef_{covariate}</code>,
+or <code>coef_intercept_{varname}</code> and  <code>coef_{covariate}_{varname}</code> with multiple <code>y</code>
+variables.</p></li>
+<li><p>When <code>se != "none"</code>: matching SE columns (<code>se_weighted_mean</code>,
+<code>se_intercept</code>, etc.) for each SE-supporting stat.</p></li>
+</ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>kernel</code>, etc.).
 Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a formatted summary.</p>
     </div>
     <div class="section level2">

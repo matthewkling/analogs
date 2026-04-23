@@ -25,11 +25,12 @@ analog_regression(
   max_clim = NULL,
   select = "all",
   k = NULL,
-  weight = c("gaussian_clim", "inverse_clim", "gaussian_geog", "inverse_geog",
+  kernel = c("gaussian_clim", "inverse_clim", "gaussian_geog", "inverse_geog",
     "gaussian_joint", "inverse_joint", "uniform"),
   theta = NULL,
   lambda = 0,
   stat = c("count", "ess", "regression"),
+  se = c("none", "ess", "design"),
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -113,38 +114,43 @@ analog_regression(
   selection modes. Required when `select` is `"knn_geog"` or
   `"knn_clim"`; must be `NULL` for `select = "all"`.
 
-- weight:
+- kernel:
 
-  Weighting function for matches, used only when `stat` includes
-  `"sum_weights"` or `"mean_weights"`. One of:
+  Kernel decay function for weighting matches, used only when `stat`
+  includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
+  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One
+  of:
 
-  - `"uniform"`: All matches weighted equally (weight = 1.0).
+  - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
 
-  - `"inverse_clim"`: Inverse climate distance, weight = 1 /
+  - `"inverse_clim"`: Inverse climate distance, kernel weight = 1 /
     (climate_distance + eps), with epsilon given by `theta`.
 
-  - `"inverse_geog"`: Inverse geographic distance, weight = 1 /
+  - `"inverse_geog"`: Inverse geographic distance, kernel weight = 1 /
     (geographic_distance + eps), with epsilon given by `theta`.
 
-  - `"gaussian_clim"`: Gaussian kernel on climate distance, weight =
-    exp(-climate_distance^2 / (2*sigma^2)), with sigma given by `theta`.
-    `"gaussian_geog"`: Gaussian kernel on geographic distance, weight =
-    exp(-geographic_distance^2 / (2*sigma^2)), with sigma given by
+  - `"gaussian_clim"`: Gaussian kernel on climate distance, kernel
+    weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by
     `theta`.
 
-  - `"gaussian_joint"`: Gaussian kernel on combined distance, weight =
-    exp(-(clim_dist^2 / (2*sigma_clim^2) + geog_dist^2 /
-    (2*sigma_geog^2))), with sigmas given by `theta`.
+  - `"gaussian_geog"`: Gaussian kernel on geographic distance, kernel
+    weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given
+    by `theta`.
 
-  - `"inverse_joint"`: Inverse joint distance, weight = 1 /
+  - `"gaussian_joint"`: Gaussian kernel on combined distance, kernel
+    weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2
+    sigma_geog^2))), with sigmas given by `theta`.
+
+  - `"inverse_joint"`: Inverse joint distance, kernel weight = 1 /
     (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
     `theta`.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `stat`
-  includes `"sum_weights"` or `"mean_weights"` and `weight` is not
-  `"uniform"`. Interpretation depends on `weight`:
+  Optional numeric parameter controlling the shape of the weighting
+  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
+  includes a weighted aggregation) and `kernel` is not `"uniform"`.
+  Interpretation depends on `kernel`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -159,10 +165,11 @@ analog_regression(
 - lambda:
 
   Ridge penalty parameter (default: 0, giving ordinary weighted least
-  squares). Higher values shrink covariate coefficients toward zero,
-  with the intercept approaching the weighted mean as `lambda -> Inf`.
-  Useful when some neighborhoods have few analogs relative to the number
-  of covariates.
+  squares). Higher values shrink high-variance coefficients toward zero,
+  causing the intercept to approach the weighted mean as
+  `lambda -> Inf`. Useful when some neighborhoods have few analogs
+  relative to the number of covariates, or when covariates are strongly
+  inter-correlated.
 
 - stat:
 
@@ -170,6 +177,31 @@ analog_regression(
   stats like `"count"`, `"ess"`, and `"weighted_mean"` can be requested
   alongside regression coefficients. Default includes `"count"` and
   `"ess"` for diagnostics.
+
+- se:
+
+  Standard-error framing to apply to SE-supporting stats
+  (`"weighted_mean"` and `"regression"`). One of:
+
+  - `"none"` (default): no SE columns are returned.
+
+  - `"ess"`: effective-sample-size framing. For `weighted_mean`,
+    `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
+    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
+    regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
+    variance corrected using `n_eff - p` degrees of freedom.
+
+  - `"design"`: design-based framing (no assumption that weights are
+    precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
+    For regression, the sandwich estimator
+    `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with `M = Σ w² r² x xᵀ` (Huber-White
+    / heteroskedasticity-consistent).
+
+  Both variants are scale-invariant in the weights when `lambda = 0`.
+  When `se != "none"` but no requested stat supports SE, a warning is
+  issued and no SE columns are produced. SE-supporting stat columns are
+  named `se_weighted_mean` / `se_weighted_mean_{varname}` and
+  `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
 
 - x_cov:
 
@@ -228,13 +260,16 @@ focal location containing:
 
 - Columns for any additional stats requested (e.g., `count`, `ess`)
 
-- `intercept`: Regression intercept (predicted value when all covariates
-  equal zero)
+- `coef_intercept`: Regression intercept
 
-- One column per covariate: regression slope coefficients
+- `coef_{name}`: Regression slope for each covariate
 
-- With multiple `y` variables: columns are named `{coeff}_{varname}`
-  (e.g., `intercept_biomass`, `slope_biomass`)
+- When `se != "none"`: `se_intercept` and `se_{name}` giving standard
+  errors of each coefficient
+
+- With multiple `y` variables: columns are named
+  `coef_{coeff}_{varname}` (and `se_{coeff}_{varname}` when SEs are
+  returned)
 
 ## Details
 
@@ -249,13 +284,15 @@ For each focal location, the function:
 1.  Selects analog pool locations based on `select`, `max_clim`,
     `max_geog`, and `k`
 
-2.  Computes distance-based weights for each analog (via `weight` and
-    `theta`)
+2.  Computes distance-based kernel weights for each analog (via `kernel`
+    and `theta`)
 
 3.  Fits a weighted least squares regression of `y` on `covariates`
     using these weights, with optional ridge penalty `lambda`
 
-4.  Returns the regression coefficients (intercept + slopes)
+4.  Returns the regression coefficients (intercept + slopes), and
+    optionally their standard errors (see `se` in
+    [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)).
 
 The math: `beta = (X'WX + lambda * I_p)^{-1} X'Wy`, where `W` is
 diagonal weights, `X` is the design matrix (intercept + covariates), and
@@ -285,10 +322,9 @@ regression.
 ### Prediction
 
 The function returns coefficients only. Prediction at new covariate
-values (e.g., a fine-resolution topography grid) can be done via
-regression algebra, e.g.:
+values can be done via regression algebra, e.g.:
 
-    prediction <- intercept + beta_1 * covariate_1 + beta_2 * covariate_2
+    prediction <- coef_intercept + coef_cov1 * covariate_1 + coef_cov2 * covariate_2
 
 ## See also
 
@@ -310,8 +346,9 @@ gwr_result <- analog_regression(
   select = "knn_geog",
   k = 50,
   max_clim = NULL,
-  weight = "gaussian_geog",
-  theta = 20
+  kernel = "gaussian_geog",
+  theta = 20,
+  se = "ess"
 )
 } # }
 ```

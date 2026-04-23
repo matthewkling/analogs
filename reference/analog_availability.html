@@ -19,7 +19,8 @@ mapping analog "availability" or environmental similarity density.'></head><body
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/analogs.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/matthewkling/analogs/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
@@ -166,9 +167,12 @@ with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, 
 <li><p>One column per requested statistic. For <code>stat</code> with single <code>y</code> variable:
 column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>y</code>
 variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass</code>, <code>mean_richness</code>)</p></li>
-<li><p>For <code>stat = "regression"</code>: columns for <code>intercept</code> and each covariate name,
-or <code>intercept_{varname}</code> and <code>{covariate}_{varname}</code> with multiple <code>y</code> variables.</p></li>
-</ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>weight</code>, etc.).
+<li><p>For <code>stat = "regression"</code>: columns for <code>coef_intercept</code> and <code>coef_{covariate}</code>,
+or <code>coef_intercept_{varname}</code> and  <code>coef_{covariate}_{varname}</code> with multiple <code>y</code>
+variables.</p></li>
+<li><p>When <code>se != "none"</code>: matching SE columns (<code>se_weighted_mean</code>,
+<code>se_intercept</code>, etc.) for each SE-supporting stat.</p></li>
+</ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>kernel</code>, etc.).
 Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a formatted summary.</p>
     </div>
     <div class="section level2">

@@ -1,9 +1,10 @@
 # Climate velocity: geographically nearest climate analogs
 
-Computes, for each focal location, the geographic nearest neighbor(s) in
-a reference dataset that satisfy a specified maximum climate distance
-threshold. This implements analog-based climate velocity (Hamann et al.
-2015; Dobrowski and Parks 2016).
+Finds, for each focal location, the geographic nearest neighbor(s) in a
+reference dataset that satisfy a specified maximum climate distance
+threshold. Distances to these analogs, divided by time elapsed, give
+analog-based climate velocity (Hamann et al. 2015; Dobrowski and Parks
+2016).
 
 ## Usage
 
@@ -63,7 +64,7 @@ analog_velocity(
 
   When provided, enables value-based aggregation stats `"sum"`,
   `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
-  stat = NULL/"none" (pairs mode), y value columns are included in
+  `stat = NULL`/`"none"` (pairs mode), y value columns are included in
   output for each analog pair.
 
 - coord_type:
@@ -181,11 +182,14 @@ location, with the following variables:
   multiple `y` variables: columns named `{stat}_{varname}` (e.g.,
   `sum_biomass`, `mean_richness`)
 
-- For `stat = "regression"`: columns for `intercept` and each covariate
-  name, or `intercept_{varname}` and `{covariate}_{varname}` with
-  multiple `y` variables.
+- For `stat = "regression"`: columns for `coef_intercept` and
+  `coef_{covariate}`, or `coef_intercept_{varname}` and
+  `coef_{covariate}_{varname}` with multiple `y` variables.
 
-All results include metadata attributes (`select`, `stat`, `weight`,
+- When `se != "none"`: matching SE columns (`se_weighted_mean`,
+  `se_intercept`, etc.) for each SE-supporting stat.
+
+All results include metadata attributes (`select`, `stat`, `kernel`,
 etc.). Use
 [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
 to view a formatted summary.
@@ -194,8 +198,11 @@ to view a formatted summary.
 
 This function is a wrapper that calls
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-using `select = "knn_geog"`. and is used for estimating analog-based
-climate velocity.
+using `select = "knn_geog"` and `stat = "none"`. Note that it **does not
+return velocity per se**—it returns geographic and climatic distances to
+each focal site's nearest analog(s); to compute velocity, you can divide
+these geographic distances by the length of time elapsed between your
+`x` and `pool` datasets.
 
 ## References
 

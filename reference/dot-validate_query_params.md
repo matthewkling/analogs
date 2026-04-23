@@ -1,6 +1,6 @@
 # Validate and normalize query parameters
 
-Validates select/stat/k/weight/theta/x_cov/y/covariates/lambda
+Validates select/stat/k/kernel/theta/x_cov/y/covariates/lambda/se
 combinations and normalizes values. Returns a list with normalized
 parameters.
 
@@ -18,8 +18,9 @@ parameters.
   select,
   k,
   stat,
-  weight,
+  kernel,
   theta,
-  lambda = 0
+  lambda = 0,
+  se = "none"
 )
 ```

@@ -17,10 +17,11 @@ analog_impact(
   covariates = NULL,
   max_geog = NULL,
   max_clim = 1,
-  weight = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
+  kernel = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
   stat = c("count", "sum_weights", "weighted_mean"),
   lambda = 0,
+  se = c("none", "ess", "design"),
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -92,19 +93,21 @@ analog_impact(
   When `x_cov` is provided, scalar thresholds are interpreted in
   Mahalanobis distance units.
 
-- weight:
+- kernel:
 
-  Function for weighting analogs during aggregation. Only weight options
-  that are based on *climate* are allowed: `"inverse_clim"` (default),
-  `"gaussian_clim"`, `"inverse_joint"`, `"gaussian_joint"`. See
+  Kernel decay function for weighting analogs during aggregation. Only
+  weighting options that are based on *climate* are allowed:
+  `"inverse_clim"` (default), `"gaussian_clim"`, `"inverse_joint"`,
+  `"gaussian_joint"`. See
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   for details.
 
 - theta:
 
-  Optional numeric parameter used by weighting functions when `stat`
-  includes `"sum_weights"` or `"mean_weights"` and `weight` is not
-  `"uniform"`. Interpretation depends on `weight`:
+  Optional numeric parameter controlling the shape of the weighting
+  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
+  includes a weighted aggregation) and `kernel` is not `"uniform"`.
+  Interpretation depends on `kernel`:
 
   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
     distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
@@ -135,6 +138,31 @@ analog_impact(
   ordinary weighted least squares). Higher values shrink covariate
   coefficients toward zero, with the intercept approaching the weighted
   mean as `lambda -> Inf`. Ignored when `"regression"` is not in `stat`.
+
+- se:
+
+  Standard-error framing to apply to SE-supporting stats
+  (`"weighted_mean"` and `"regression"`). One of:
+
+  - `"none"` (default): no SE columns are returned.
+
+  - `"ess"`: effective-sample-size framing. For `weighted_mean`,
+    `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
+    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
+    regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
+    variance corrected using `n_eff - p` degrees of freedom.
+
+  - `"design"`: design-based framing (no assumption that weights are
+    precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
+    For regression, the sandwich estimator
+    `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with `M = Σ w² r² x xᵀ` (Huber-White
+    / heteroskedasticity-consistent).
+
+  Both variants are scale-invariant in the weights when `lambda = 0`.
+  When `se != "none"` but no requested stat supports SE, a warning is
+  issued and no SE columns are produced. SE-supporting stat columns are
+  named `se_weighted_mean` / `se_weighted_mean_{varname}` and
+  `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
 
 - x_cov:
 
@@ -197,7 +225,11 @@ A data.frame with one row per focal location containing:
 - For value statistics with multiple variables: `{stat}_{varname}`
   (e.g., `weighted_mean_habitat_quality`)
 
-- For `"regression"`: `intercept` and covariate coefficient columns
+- For `"regression"`: `coef_intercept` and `coef_{covariate}`
+  coefficient columns
+
+- When `se != "none"`: SE columns for SE-supporting stats (e.g.,
+  `se_weighted_mean`)
 
 ## Details
 
@@ -216,15 +248,15 @@ The methodology:
 
 3.  Constrain to dispersal-reachable distance (within `max_geog`)
 
-4.  Weight each analog by climate similarity (via `weight` function)
+4.  Weight each analog by climate similarity (via `kernel` function)
 
 5.  Aggregate ecosystem characteristics across these weighted analogs
 
 Unlike traditional AIM implementations that select k nearest climate
 neighbors, this function uses all analogs within thresholds combined
-with climate-distance-based weighting. This approach eliminates
+with climate-distance-based kernel weighting. This approach eliminates
 arbitrary choice of k, provides smoother, more continuous results, and
-lets the weight function (via `theta`) naturally control influence.
+lets the kernel function (via `theta`) naturally control influence.
 (Note that the traditional version can be implemented via
 `analog_search(select = "knn_clim", stat = "mean", ...))`.)
 
@@ -234,10 +266,10 @@ lets the weight function (via `theta`) naturally control influence.
 
 - `max_clim`: Defines what counts as an "analog"
 
-- `theta`: Controls weight decay. The weight should decay to a small
+- `theta`: Controls kernel decay. The weight should decay to a small
   value at the `max_clim`/`max_geog` boundary. If `theta` is too large
   relative to thresholds, the hard cutoffs do most of the filtering and
-  weighting becomes nearly uniform. For Gaussian weights with three or
+  weighting becomes nearly uniform. For Gaussian kernels with three or
   fewer climate variables, a reasonable rule of thumb is to set `theta`
   to `max_* / 3`.
 
@@ -249,7 +281,7 @@ lets the weight function (via `theta`) naturally control influence.
 
 - `sum_weights`: Total analog intensity. Low values indicate sparse or
   distant climate matches. This metric captures both the number and
-  quality of analogs. Interpretation details vary based on the `weight`
+  quality of analogs. Interpretation details vary based on the `kernel`
   parameter.
 
 - `weighted_mean`: Expected ecosystem state if colonized by species from
@@ -271,6 +303,16 @@ impact <- analog_impact(
   y = current$habitat,
   max_geog = 100,    # 100 km dispersal range
   max_clim = 0.5     # Climate analog threshold
+)
+
+# With uncertainty quantification on weighted_mean
+impact_se <- analog_impact(
+  x = future_climate,
+  pool = current_climate,
+  y = current$habitat,
+  max_geog = 100,
+  max_clim = 0.5,
+  se = "ess"
 )
 } # }
 ```
