@@ -1,0 +1,157 @@
+# Performance metrics for cross-validation output
+
+Computes per-variable prediction-performance metrics from the output of
+[`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md).
+Handles both tabular (data.frame) and raster (SpatRaster) CV output,
+both single-y and multi-y configurations, and both continuous and binary
+outcomes.
+
+## Usage
+
+``` r
+cv_performance(x, outcome_type = "auto", weights = NULL)
+```
+
+## Arguments
+
+- x:
+
+  Output from
+  [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md).
+  Either a data.frame or a SpatRaster produced with
+  `include_residuals = TRUE`.
+
+- outcome_type:
+
+  Controls outcome-type classification:
+
+  - `"auto"` (default): auto-detect as described above.
+
+  - `"continuous"` or `"binary"`: force all variables to this type.
+
+  - A named character vector with one entry per variable, giving the
+    type for each (e.g.,
+    `c(biomass = "continuous", presence = "binary")`).
+
+- weights:
+
+  Optional numeric vector of per-location weights (one value per
+  row/cell of `x`). Used for weighted versions of all metrics. Default
+  `NULL` gives unweighted metrics.
+
+## Value
+
+A data.frame in long format with columns `variable`, `type`, `metric`,
+and `value`. One row per (variable, metric) pair.
+
+## Output format
+
+Results are returned in long format with one row per (variable, metric)
+pair and columns:
+
+- `variable`: name of the response variable.
+
+- `type`: outcome type (`"continuous"` or `"binary"`).
+
+- `metric`: metric name (see below).
+
+- `value`: numeric metric value.
+
+This format is designed to accommodate additional outcome types and
+metrics in the future without schema changes.
+
+## Continuous metrics
+
+For variables classified as continuous:
+
+- `n`: number of locations with finite observed and predicted values.
+
+- `rmse`: root mean squared error of held-out predictions.
+
+- `mae`: mean absolute error.
+
+- `bias`: mean signed residual (`mean(obs - pred)`). Positive values
+  indicate systematic under-prediction.
+
+- `r2`: out-of-sample R² (a.k.a. "predicted R²"), computed as
+  `1 - SS_res / SS_tot` using the held-out residuals. Can be negative
+  when predictions are worse than simply predicting the overall mean.
+
+## Binary metrics
+
+For variables classified as binary (observed values all in 0, 1 with
+both classes present):
+
+- `n`: number of locations with finite observed and predicted values.
+
+- `auc`: area under the ROC curve (via Mann-Whitney U; handles ties). A
+  threshold-independent measure of rank-based discrimination.
+
+- `tss`: true skill statistic (`sensitivity + specificity - 1`) at the
+  threshold that maximizes it over unique predicted values.
+
+- `tss_threshold`: the threshold used for `tss`.
+
+- `brier`: Brier score (mean squared error between prediction and 0/1
+  outcome). A proper scoring rule; most interpretable when predictions
+  are in `[0, 1]`.
+
+## Outcome-type detection
+
+When `outcome_type = "auto"` (the default), each variable is classified
+as:
+
+- `"binary"` if observed values are all in `{0, 1}` after removing NAs,
+  with both classes present.
+
+- `"continuous"` otherwise.
+
+Users can override classification by passing a scalar type name (applies
+to all variables) or a named character vector (one entry per variable).
+
+## See also
+
+[`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md).
+
+## Examples
+
+``` r
+if (FALSE) { # \dontrun{
+# Continuous outcome
+cv <- analog_cv(
+  fun      = analog_impact,
+  pool     = sites,
+  y        = sites$biomass,
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel   = "gaussian_clim",
+  theta    = 0.2
+)
+cv_performance(cv)
+
+# Binary outcome (presence/absence)
+cv_bin <- analog_cv(
+  fun      = analog_impact,
+  pool     = sites,
+  y        = sites$presence,   # 0/1 values
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel   = "gaussian_clim",
+  theta    = 0.2
+)
+cv_performance(cv_bin)
+
+# Parameter tuning via AUC
+thetas <- c(0.1, 0.2, 0.3, 0.5)
+auc <- sapply(thetas, function(th) {
+  cv <- analog_cv(
+    fun = analog_impact, pool = sites, y = sites$presence,
+    max_clim = 0.5, max_geog = 100,
+    kernel = "gaussian_clim", theta = th
+  )
+  perf <- cv_performance(cv)
+  perf$value[perf$metric == "auc"]
+})
+thetas[which.max(auc)]
+} # }
+```

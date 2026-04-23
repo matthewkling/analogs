@@ -202,27 +202,16 @@ tune_index_res(
 
 - y:
 
-  Optional user-defined variables for each reference location in `pool`
-  to aggregate across selected analogs. Can be a numeric vector (single
-  variable), matrix or data.frame with numeric columns (multiple
-  variables), or a SpatRaster with one or more numeric layers. Must have
-  exactly the same number of reference locations as `pool`.
-
-  When provided, enables value-based aggregation stats `"sum"`,
-  `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
-  `stat = NULL`/`"none"` (pairs mode), y value columns are included in
-  output for each analog pair.
+  Optional numeric vector, matrix/data.frame, or SpatRaster giving
+  values for each reference location (must have same number of
+  rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
+  `"weighted_sum"`, `"weighted_mean"`, and `"regression"`.
 
 - covariates:
 
-  Optional auxiliary predictor variables for each reference location in
-  `pool`, used with `stat = "regression"`. Can be a numeric vector
-  (single covariate), matrix or data.frame with numeric columns
-  (multiple covariates), or a SpatRaster with one or more numeric
-  layers. Must have exactly the same number of rows/cells as `pool`.
-  Column names are used for output layer naming. These variables are NOT
-  used for the analog search itself – only for local regression within
-  each analog neighborhood.
+  Optional matrix/data.frame or SpatRaster giving covariate values for
+  each reference location (must have same number of rows/cells as
+  `pool`). Required when `stat` includes `"regression"`.
 
 - lambda:
 
@@ -246,15 +235,6 @@ tune_index_res(
 
   - `"design"`: design-based framing (no assumption that weights are
     precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
-    For regression, the sandwich estimator
-    `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with `M = Σ w² r² x xᵀ` (Huber-White
-    / heteroskedasticity-consistent).
-
-  Both variants are scale-invariant in the weights when `lambda = 0`.
-  When `se != "none"` but no requested stat supports SE, a warning is
-  issued and no SE columns are produced. SE-supporting stat columns are
-  named `se_weighted_mean` / `se_weighted_mean_{varname}` and
-  `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
 
 - coord_type:
 

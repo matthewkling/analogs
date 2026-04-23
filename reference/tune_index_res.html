@@ -204,25 +204,16 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
-<dd><p>Optional user-defined variables for each reference location
-in <code>pool</code> to aggregate across selected analogs. Can be a numeric vector
-(single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeric layers. Must have
-exactly the same number of reference locations as <code>pool</code>.</p>
-<p>When provided, enables value-based aggregation stats <code>"sum"</code>, <code>"mean"</code>,
-<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>. For <code>stat = NULL</code>/<code>"none"</code> (pairs mode), y value columns are included in output for
-each analog pair.</p></dd>
+<dd><p>Optional numeric vector, matrix/data.frame, or SpatRaster giving
+values for each reference location (must have same number of rows/cells
+as <code>pool</code>). Required for stats <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
+<code>"weighted_mean"</code>, and <code>"regression"</code>.</p></dd>
 
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
-<dd><p>Optional auxiliary predictor variables for each reference
-location in <code>pool</code>, used with <code>stat = "regression"</code>. Can be a numeric
-vector (single covariate), matrix or data.frame with numeric columns
-(multiple covariates), or a SpatRaster with one or more numeric layers.
-Must have exactly the same number of rows/cells as <code>pool</code>. Column names
-are used for output layer naming. These variables are NOT used for the
-analog search itself – only for local regression within each analog
-neighborhood.</p></dd>
+<dd><p>Optional matrix/data.frame or SpatRaster giving
+covariate values for each reference location (must have same number of
+rows/cells as <code>pool</code>). Required when <code>stat</code> includes <code>"regression"</code>.</p></dd>
 
 
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
@@ -243,14 +234,8 @@ effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regre
 using <code>n_eff - p</code> degrees of freedom.</p></li>
 <li><p><code>"design"</code>: design-based framing (no assumption that weights are
 precisions). For <code>weighted_mean</code>,
-<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>. For regression, the sandwich
-estimator <code>(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹</code> with
-<code>M = Σ w² r² x xᵀ</code> (Huber-White / heteroskedasticity-consistent).</p></li>
-</ul><p>Both variants are scale-invariant in the weights when <code>lambda = 0</code>.
-When <code>se != "none"</code> but no requested stat supports SE, a warning is
-issued and no SE columns are produced. SE-supporting stat columns are
-named <code>se_weighted_mean</code> / <code>se_weighted_mean_{varname}</code> and
-<code>se_{intercept|covname}</code> / <code>se_{intercept|covname}_{varname}</code>.</p></dd>
+<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>.</p></li>
+</ul></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>

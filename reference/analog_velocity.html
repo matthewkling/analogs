@@ -93,14 +93,10 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
-<dd><p>Optional user-defined variables for each reference location
-in <code>pool</code> to aggregate across selected analogs. Can be a numeric vector
-(single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeric layers. Must have
-exactly the same number of reference locations as <code>pool</code>.</p>
-<p>When provided, enables value-based aggregation stats <code>"sum"</code>, <code>"mean"</code>,
-<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>. For <code>stat = NULL</code>/<code>"none"</code> (pairs mode), y value columns are included in output for
-each analog pair.</p></dd>
+<dd><p>Optional numeric vector, matrix/data.frame, or SpatRaster giving
+values for each reference location (must have same number of rows/cells
+as <code>pool</code>). Required for stats <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
+<code>"weighted_mean"</code>, and <code>"regression"</code>.</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>

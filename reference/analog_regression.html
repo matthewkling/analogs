@@ -74,6 +74,7 @@ model (AIM) framework to incorporate local covariate effects.</p>
 <span>  <span class="va">pool</span>,</span>
 <span>  <span class="va">y</span>,</span>
 <span>  <span class="va">covariates</span>,</span>
+<span>  x_covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  select <span class="op">=</span> <span class="st">"all"</span>,</span>
@@ -88,7 +89,8 @@ model (AIM) framework to incorporate local covariate effects.</p>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  progress <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -118,11 +120,22 @@ A separate regression is fit for each variable.</p></dd>
 
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
-<dd><p>Predictor variables for local regression. Can be a
-numeric vector (single covariate), matrix, data.frame, or SpatRaster.
-Must have exactly the same number of rows/cells as <code>pool</code>. Column/layer
-names carry through to output. These variables are NOT used for the
-analog search itself – only for regression within each neighborhood.</p></dd>
+<dd><p>Predictor variables for local regression, supplied at
+pool locations. Can be a numeric vector (single covariate), matrix,
+data.frame, or SpatRaster. Must have exactly the same number of
+rows/cells as <code>pool</code>. Column/layer names carry through to output.
+These variables are NOT used for the analog search itself – only for
+regression within each neighborhood.</p></dd>
+
+
+<dt id="arg-x-covariates">x_covariates<a class="anchor" aria-label="anchor" href="#arg-x-covariates"></a></dt>
+<dd><p>Optional predictor values at focal (<code>x</code>) locations, at
+which to evaluate the local regressions. When supplied, the output
+includes one additional column (<code>pred</code>) or one column per response
+variable (<code>pred_{yname}</code> for multi-y), giving the fitted value at the
+focal. Must have exactly the same number of rows/cells as <code>x</code>, and the
+same column/layer names as <code>covariates</code>. Default <code>NULL</code> returns only
+coefficients.</p></dd>
 
 
 <dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
@@ -219,14 +232,8 @@ effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regre
 using <code>n_eff - p</code> degrees of freedom.</p></li>
 <li><p><code>"design"</code>: design-based framing (no assumption that weights are
 precisions). For <code>weighted_mean</code>,
-<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>. For regression, the sandwich
-estimator <code>(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹</code> with
-<code>M = Σ w² r² x xᵀ</code> (Huber-White / heteroskedasticity-consistent).</p></li>
-</ul><p>Both variants are scale-invariant in the weights when <code>lambda = 0</code>.
-When <code>se != "none"</code> but no requested stat supports SE, a warning is
-issued and no SE columns are produced. SE-supporting stat columns are
-named <code>se_weighted_mean</code> / <code>se_weighted_mean_{varname}</code> and
-<code>se_{intercept|covname}</code> / <code>se_{intercept|covname}_{varname}</code>.</p></dd>
+<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>.</p></li>
+</ul></dd>
 
 
 <dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
@@ -269,11 +276,16 @@ computation. Progress tracking works by splitting the focal dataset into
 chunks and processing them sequentially. Useful for large datasets. Default
 is <code>FALSE</code>.</p></dd>
 
+
+<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
+<dd><p>additional arguments passed to <code><a href="analog_search.html">analog_search()</a></code> (usually unneeded)</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A data.frame (or SpatRaster if <code>x</code> is a SpatRaster) with one
-row per focal location containing:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location identifiers</p></li>
+row per focal location containing:</p>
+<ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location identifiers</p></li>
 <li><p>Columns for any additional stats requested (e.g., <code>count</code>, <code>ess</code>)</p></li>
 <li><p><code>coef_intercept</code>: Regression intercept</p></li>
 <li><p><code>coef_{name}</code>: Regression slope for each covariate</p></li>
@@ -282,6 +294,8 @@ standard errors of each coefficient</p></li>
 <li><p>With multiple <code>y</code> variables: columns are named
 <code>coef_{coeff}_{varname}</code> (and <code>se_{coeff}_{varname}</code> when SEs
 are returned)</p></li>
+<li><p>When <code>x_covariates</code> is supplied: <code>pred</code> (single-y) or
+<code>pred_{varname}</code> (multi-y) giving the fitted value at each focal.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -290,7 +304,8 @@ are returned)</p></li>
 <h3 id="method">Method<a class="anchor" aria-label="anchor" href="#method"></a></h3>
 
 
-<p>For each focal location, the function:</p><ol><li><p>Selects analog pool locations based on <code>select</code>, <code>max_clim</code>, <code>max_geog</code>, and <code>k</code></p></li>
+<p>For each focal location, the function:</p>
+<ol><li><p>Selects analog pool locations based on <code>select</code>, <code>max_clim</code>, <code>max_geog</code>, and <code>k</code></p></li>
 <li><p>Computes distance-based kernel weights for each analog (via <code>kernel</code> and <code>theta</code>)</p></li>
 <li><p>Fits a weighted least squares regression of <code>y</code> on <code>covariates</code>
 using these weights, with optional ridge penalty <code>lambda</code></p></li>
@@ -330,18 +345,19 @@ climates within geographic range.</p></li>
 <h3 id="prediction">Prediction<a class="anchor" aria-label="anchor" href="#prediction"></a></h3>
 
 
-<p>The function returns coefficients only. Prediction at new covariate values
-can be done via regression algebra, e.g.:</p>
-<div class="sourceCode"><pre><code><span></span>
-<span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="va">coef_intercept</span> <span class="op">+</span> <span class="va">coef_cov1</span> <span class="op">*</span> <span class="va">covariate_1</span> <span class="op">+</span> <span class="va">coef_cov2</span> <span class="op">*</span> <span class="va">covariate_2</span></span></code></pre></div>
-
+<p>To evaluate fitted values at the focal locations, pass covariate values at
+those locations via <code>x_covariates</code>. The output will then include a <code>pred</code>
+column (single-y case) or <code>pred_{yname}</code> columns (multi-y case) alongside
+the usual coefficient columns.</p>
+<p>If you only need coefficients, leave <code>x_covariates = NULL</code>.</p>
 </div>
 
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code> for the underlying flexible analog search function;
-<code><a href="analog_impact.html">analog_impact()</a></code> for the standard AIM workflow.</p></div>
+<code><a href="analog_impact.html">analog_impact()</a></code> for the standard AIM workflow;
+<code><a href="analog_cv.html">analog_cv()</a></code> for cross-validation of regression fits.</p></div>
     </div>
 
     <div class="section level2">
@@ -360,6 +376,16 @@ can be done via regression algebra, e.g.:</p>
 <span class="r-in"><span>  theta <span class="op">=</span> <span class="fl">20</span>,</span></span>
 <span class="r-in"><span>  se <span class="op">=</span> <span class="st">"ess"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># With focal-side covariates, to obtain fitted predictions</span></span></span>
+<span class="r-in"><span><span class="va">pred_result</span> <span class="op">&lt;-</span> <span class="fu">analog_regression</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  x <span class="op">=</span> <span class="va">future_sites</span>,</span></span>
+<span class="r-in"><span>  pool <span class="op">=</span> <span class="va">sites</span>,</span></span>
+<span class="r-in"><span>  y <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">income</span>,</span></span>
+<span class="r-in"><span>  covariates   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>education <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">edu</span><span class="op">)</span>,       <span class="co"># at pool</span></span></span>
+<span class="r-in"><span>  x_covariates <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>education <span class="op">=</span> <span class="va">future_sites</span><span class="op">$</span><span class="va">edu</span><span class="op">)</span> <span class="co"># at focals</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">pred_result</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coef_intercept"</span>, <span class="st">"coef_education"</span>, <span class="st">"pred"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

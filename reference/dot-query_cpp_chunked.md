@@ -15,13 +15,14 @@ Handles merging of chunked results.
   max_geog,
   select_code,
   aggregate_codes,
-  kernel_code,
+  weight_code,
   theta,
   x_cov,
   y,
   covariates,
   lambda,
   se_code,
+  exclude_self = FALSE,
   show_progress = FALSE
 )
 ```

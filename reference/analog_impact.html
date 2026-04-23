@@ -70,7 +70,8 @@ as climate changes.</p>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  progress <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,14 +104,9 @@ exactly the same number of reference locations as <code>pool</code>.</p></dd>
 
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
-<dd><p>Optional auxiliary predictor variables for each reference
-location in <code>pool</code>, used with <code>stat = "regression"</code>. Can be a numeric
-vector (single covariate), matrix or data.frame with numeric columns
-(multiple covariates), or a SpatRaster with one or more numeric layers.
-Must have exactly the same number of rows/cells as <code>pool</code>. Column names
-are used for output layer naming. These variables are NOT used for the
-analog search itself – only for local regression within each analog
-neighborhood.</p></dd>
+<dd><p>Optional matrix/data.frame or SpatRaster giving
+covariate values for each reference location (must have same number of
+rows/cells as <code>pool</code>). Required when <code>stat</code> includes <code>"regression"</code>.</p></dd>
 
 
 <dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
@@ -178,14 +174,8 @@ effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regre
 using <code>n_eff - p</code> degrees of freedom.</p></li>
 <li><p><code>"design"</code>: design-based framing (no assumption that weights are
 precisions). For <code>weighted_mean</code>,
-<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>. For regression, the sandwich
-estimator <code>(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹</code> with
-<code>M = Σ w² r² x xᵀ</code> (Huber-White / heteroskedasticity-consistent).</p></li>
-</ul><p>Both variants are scale-invariant in the weights when <code>lambda = 0</code>.
-When <code>se != "none"</code> but no requested stat supports SE, a warning is
-issued and no SE columns are produced. SE-supporting stat columns are
-named <code>se_weighted_mean</code> / <code>se_weighted_mean_{varname}</code> and
-<code>se_{intercept|covname}</code> / <code>se_{intercept|covname}_{varname}</code>.</p></dd>
+<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>.</p></li>
+</ul></dd>
 
 
 <dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
@@ -227,6 +217,10 @@ is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOption
 computation. Progress tracking works by splitting the focal dataset into
 chunks and processing them sequentially. Useful for large datasets. Default
 is <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
+<dd><p>additional arguments passed to <code><a href="analog_search.html">analog_search()</a></code> (usually unneeded)</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -295,7 +289,8 @@ from analog locations.</p></li>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code> for the underlying flexible analog search function.</p></div>
+    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code> for the underlying flexible analog search function;
+<code><a href="analog_cv.html">analog_cv()</a></code> for cross-validation of AIM fits.</p></div>
     </div>
 
     <div class="section level2">

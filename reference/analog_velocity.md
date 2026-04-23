@@ -56,16 +56,10 @@ analog_velocity(
 
 - y:
 
-  Optional user-defined variables for each reference location in `pool`
-  to aggregate across selected analogs. Can be a numeric vector (single
-  variable), matrix or data.frame with numeric columns (multiple
-  variables), or a SpatRaster with one or more numeric layers. Must have
-  exactly the same number of reference locations as `pool`.
-
-  When provided, enables value-based aggregation stats `"sum"`,
-  `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
-  `stat = NULL`/`"none"` (pairs mode), y value columns are included in
-  output for each analog pair.
+  Optional numeric vector, matrix/data.frame, or SpatRaster giving
+  values for each reference location (must have same number of
+  rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
+  `"weighted_sum"`, `"weighted_mean"`, and `"regression"`.
 
 - coord_type:
 

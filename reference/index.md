@@ -5,6 +5,8 @@
 - [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md)
   : Analog availability: count of all analogs within climate/geographic
   limits
+- [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
+  : Cross-validate an analog function
 - [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
   : Climate impact assessment via analog impact model
 - [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
@@ -13,7 +15,7 @@
 - [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
   : Local weighted regression across analog neighborhoods
 - [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-  : Find Climate Analogs
+  : Generalized analog search
 - [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md)
   : Analog similarity: best climate analogs within a geographic envelope
 - [`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
@@ -22,6 +24,8 @@
   : Climate velocity: geographically nearest climate analogs
 - [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
   : Build Analog Index
+- [`cv_performance()`](https://matthewkling.github.io/analogs/reference/cv_performance.md)
+  : Performance metrics for cross-validation output
 - [`example_rasters()`](https://matthewkling.github.io/analogs/reference/example_rasters.md)
   : Example spatiotemporal climate rasters
 - [`is_analog_index()`](https://matthewkling.github.io/analogs/reference/is_analog_index.md)

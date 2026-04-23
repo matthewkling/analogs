@@ -1,4 +1,4 @@
-# Find Climate Analogs
+# Generalized analog search
 
 Identifies locations in a reference dataset that are climatically
 similar and/or geographically proximal to focal locations. Analog
@@ -23,6 +23,7 @@ analog_search(
   theta = NULL,
   lambda = 0,
   se = c("none", "ess", "design"),
+  exclude_self = FALSE,
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
@@ -62,27 +63,16 @@ analog_search(
 
 - y:
 
-  Optional user-defined variables for each reference location in `pool`
-  to aggregate across selected analogs. Can be a numeric vector (single
-  variable), matrix or data.frame with numeric columns (multiple
-  variables), or a SpatRaster with one or more numeric layers. Must have
-  exactly the same number of reference locations as `pool`.
-
-  When provided, enables value-based aggregation stats `"sum"`,
-  `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For
-  `stat = NULL`/`"none"` (pairs mode), y value columns are included in
-  output for each analog pair.
+  Optional numeric vector, matrix/data.frame, or SpatRaster giving
+  values for each reference location (must have same number of
+  rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
+  `"weighted_sum"`, `"weighted_mean"`, and `"regression"`.
 
 - covariates:
 
-  Optional auxiliary predictor variables for each reference location in
-  `pool`, used with `stat = "regression"`. Can be a numeric vector
-  (single covariate), matrix or data.frame with numeric columns
-  (multiple covariates), or a SpatRaster with one or more numeric
-  layers. Must have exactly the same number of rows/cells as `pool`.
-  Column names are used for output layer naming. These variables are NOT
-  used for the analog search itself – only for local regression within
-  each analog neighborhood.
+  Optional matrix/data.frame or SpatRaster giving covariate values for
+  each reference location (must have same number of rows/cells as
+  `pool`). Required when `stat` includes `"regression"`.
 
 - max_clim:
 
@@ -233,15 +223,18 @@ analog_search(
 
   - `"design"`: design-based framing (no assumption that weights are
     precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
-    For regression, the sandwich estimator
-    `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with `M = Σ w² r² x xᵀ` (Huber-White
-    / heteroskedasticity-consistent).
 
-  Both variants are scale-invariant in the weights when `lambda = 0`.
-  When `se != "none"` but no requested stat supports SE, a warning is
-  issued and no SE columns are produced. SE-supporting stat columns are
-  named `se_weighted_mean` / `se_weighted_mean_{varname}` and
-  `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
+- exclude_self:
+
+  Logical, default `FALSE`. `TRUE` is typically used for
+  cross-validation, such as via
+  [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md),
+  in which case each focal excludes the pool row at the same index from
+  its analog neighborhood. This requires `x` and `pool` to be the same R
+  object (checked via
+  [`identical()`](https://rdrr.io/r/base/identical.html)), and is
+  incompatible with pre-built indices, `downsample != 1`, and
+  `progress = TRUE`.
 
 - coord_type:
 
@@ -389,7 +382,7 @@ mind:
   through large reference datasets. By default, the lattice resolution
   is tuned for optimal performance.
 
-- Parallel processing is available via the `threads` parameter.
+- Parallel processing is available via the `n_threads` parameter.
 
 - You can `downsample` prohibitively large reference pool datasets to
   improve speed and memory, using a stratified sampling scheme that
@@ -402,12 +395,15 @@ mind:
   [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
   offers a memory-safe option.
 
-## References
+### Cross-validation
 
-Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
-climates: new methods and insights at continental to landscape scales."
-*Global Change Biology*, **23**(9), 3934-3955.
-[doi:10.1111/gcb.13645](https://doi.org/10.1111/gcb.13645)
+For honest prediction error when `x` and `pool` are the same dataset,
+use
+[`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
+or set `exclude_self = TRUE` to exclude each focal's own row from its
+analog neighborhood.
+
+## References
 
 Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity
 of climate change algorithms for guiding conservation and management."
@@ -429,3 +425,5 @@ such as
 and
 [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
 offer simpler interfaces for common search types.
+[`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
+provides cross-validation workflows.

@@ -26,7 +26,8 @@ analog_impact(
   coord_type = "auto",
   index_res = "auto",
   n_threads = NULL,
-  progress = FALSE
+  progress = FALSE,
+  ...
 )
 ```
 
@@ -62,14 +63,9 @@ analog_impact(
 
 - covariates:
 
-  Optional auxiliary predictor variables for each reference location in
-  `pool`, used with `stat = "regression"`. Can be a numeric vector
-  (single covariate), matrix or data.frame with numeric columns
-  (multiple covariates), or a SpatRaster with one or more numeric
-  layers. Must have exactly the same number of rows/cells as `pool`.
-  Column names are used for output layer naming. These variables are NOT
-  used for the analog search itself – only for local regression within
-  each analog neighborhood.
+  Optional matrix/data.frame or SpatRaster giving covariate values for
+  each reference location (must have same number of rows/cells as
+  `pool`). Required when `stat` includes `"regression"`.
 
 - max_geog:
 
@@ -154,15 +150,6 @@ analog_impact(
 
   - `"design"`: design-based framing (no assumption that weights are
     precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
-    For regression, the sandwich estimator
-    `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with `M = Σ w² r² x xᵀ` (Huber-White
-    / heteroskedasticity-consistent).
-
-  Both variants are scale-invariant in the weights when `lambda = 0`.
-  When `se != "none"` but no requested stat supports SE, a warning is
-  issued and no SE columns are produced. SE-supporting stat columns are
-  named `se_weighted_mean` / `se_weighted_mean_{varname}` and
-  `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
 
 - x_cov:
 
@@ -211,6 +198,12 @@ analog_impact(
   Progress tracking works by splitting the focal dataset into chunks and
   processing them sequentially. Useful for large datasets. Default is
   `FALSE`.
+
+- ...:
+
+  additional arguments passed to
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  (usually unneeded)
 
 ## Value
 
@@ -290,7 +283,9 @@ lets the kernel function (via `theta`) naturally control influence.
 ## See also
 
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-for the underlying flexible analog search function.
+for the underlying flexible analog search function;
+[`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
+for cross-validation of AIM fits.
 
 ## Examples
 

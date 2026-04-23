@@ -21,6 +21,7 @@ analog_regression(
   pool,
   y,
   covariates,
+  x_covariates = NULL,
   max_geog = NULL,
   max_clim = NULL,
   select = "all",
@@ -35,7 +36,8 @@ analog_regression(
   coord_type = "auto",
   index_res = "auto",
   n_threads = NULL,
-  progress = FALSE
+  progress = FALSE,
+  ...
 )
 ```
 
@@ -67,11 +69,22 @@ analog_regression(
 
 - covariates:
 
-  Predictor variables for local regression. Can be a numeric vector
-  (single covariate), matrix, data.frame, or SpatRaster. Must have
-  exactly the same number of rows/cells as `pool`. Column/layer names
-  carry through to output. These variables are NOT used for the analog
-  search itself – only for regression within each neighborhood.
+  Predictor variables for local regression, supplied at pool locations.
+  Can be a numeric vector (single covariate), matrix, data.frame, or
+  SpatRaster. Must have exactly the same number of rows/cells as `pool`.
+  Column/layer names carry through to output. These variables are NOT
+  used for the analog search itself – only for regression within each
+  neighborhood.
+
+- x_covariates:
+
+  Optional predictor values at focal (`x`) locations, at which to
+  evaluate the local regressions. When supplied, the output includes one
+  additional column (`pred`) or one column per response variable
+  (`pred_{yname}` for multi-y), giving the fitted value at the focal.
+  Must have exactly the same number of rows/cells as `x`, and the same
+  column/layer names as `covariates`. Default `NULL` returns only
+  coefficients.
 
 - max_geog:
 
@@ -193,15 +206,6 @@ analog_regression(
 
   - `"design"`: design-based framing (no assumption that weights are
     precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
-    For regression, the sandwich estimator
-    `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with `M = Σ w² r² x xᵀ` (Huber-White
-    / heteroskedasticity-consistent).
-
-  Both variants are scale-invariant in the weights when `lambda = 0`.
-  When `se != "none"` but no requested stat supports SE, a warning is
-  issued and no SE columns are produced. SE-supporting stat columns are
-  named `se_weighted_mean` / `se_weighted_mean_{varname}` and
-  `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
 
 - x_cov:
 
@@ -251,6 +255,12 @@ analog_regression(
   processing them sequentially. Useful for large datasets. Default is
   `FALSE`.
 
+- ...:
+
+  additional arguments passed to
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  (usually unneeded)
+
 ## Value
 
 A data.frame (or SpatRaster if `x` is a SpatRaster) with one row per
@@ -270,6 +280,9 @@ focal location containing:
 - With multiple `y` variables: columns are named
   `coef_{coeff}_{varname}` (and `se_{coeff}_{varname}` when SEs are
   returned)
+
+- When `x_covariates` is supplied: `pred` (single-y) or `pred_{varname}`
+  (multi-y) giving the fitted value at each focal.
 
 ## Details
 
@@ -321,17 +334,21 @@ regression.
 
 ### Prediction
 
-The function returns coefficients only. Prediction at new covariate
-values can be done via regression algebra, e.g.:
+To evaluate fitted values at the focal locations, pass covariate values
+at those locations via `x_covariates`. The output will then include a
+`pred` column (single-y case) or `pred_{yname}` columns (multi-y case)
+alongside the usual coefficient columns.
 
-    prediction <- coef_intercept + coef_cov1 * covariate_1 + coef_cov2 * covariate_2
+If you only need coefficients, leave `x_covariates = NULL`.
 
 ## See also
 
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
 for the underlying flexible analog search function;
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
-for the standard AIM workflow.
+for the standard AIM workflow;
+[`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
+for cross-validation of regression fits.
 
 ## Examples
 
@@ -350,5 +367,15 @@ gwr_result <- analog_regression(
   theta = 20,
   se = "ess"
 )
+
+# With focal-side covariates, to obtain fitted predictions
+pred_result <- analog_regression(
+  x = future_sites,
+  pool = sites,
+  y = sites$income,
+  covariates   = data.frame(education = sites$edu),       # at pool
+  x_covariates = data.frame(education = future_sites$edu) # at focals
+)
+head(pred_result[, c("coef_intercept", "coef_education", "pred")])
 } # }
 ```
