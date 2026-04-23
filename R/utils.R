@@ -1,10 +1,6 @@
-# ---- Internal Helper Functions ---------------------------------------------
+# Internal helper functions
 
-#' Null-coalescing operator
-#' @keywords internal
-`%||%` <- function(x, y) {
-      if (is.null(x)) y else x
-}
+# Validation helpers ------------------------------------------------
 
 #' Validate and normalize query parameters
 #'
@@ -458,6 +454,65 @@
       return(x_cov)
 }
 
+#' Validate exclude_self parameter and its compatibility with other args
+#'
+#' Called from analog_search (and anywhere else that surfaces exclude_self).
+#' Enforces identical(x, pool), disallows pre-built indices, and disallows
+#' downsampling. Also disallows progress (chunking is incompatible with the
+#' simple j==i self-exclusion check).
+#'
+#' @keywords internal
+.validate_exclude_self <- function(exclude_self, x, pool, downsample, progress) {
+      if (!is.logical(exclude_self) || length(exclude_self) != 1L || is.na(exclude_self)) {
+            stop("`exclude_self` must be TRUE or FALSE.", call. = FALSE)
+      }
+      if (!exclude_self) return(invisible(TRUE))
+
+      if (is_analog_index(pool)) {
+            stop(
+                  "`exclude_self = TRUE` is not supported when `pool` is a pre-built ",
+                  "analog_index. Pass the raw pool data instead.",
+                  call. = FALSE
+            )
+      }
+
+      if (!identical(x, pool)) {
+            stop(
+                  "`exclude_self = TRUE` requires `x` and `pool` to be the same object ",
+                  "(checked via identical()). See `analog_cv()` for standard ",
+                  "cross-validation workflows.",
+                  call. = FALSE
+            )
+      }
+
+      if (!is.null(downsample) && !isTRUE(all.equal(downsample, 1.0))) {
+            stop(
+                  "`exclude_self = TRUE` is not compatible with `downsample != 1`. ",
+                  "Self-exclusion semantics are ill-defined under downsampling.",
+                  call. = FALSE
+            )
+      }
+
+      if (isTRUE(progress)) {
+            stop(
+                  "`exclude_self = TRUE` is not compatible with `progress = TRUE`. ",
+                  "Disable progress or run without self-exclusion.",
+                  call. = FALSE
+            )
+      }
+
+      invisible(TRUE)
+}
+
+
+
+# Other helpers ------------------------------------------------
+
+#' Null-coalescing operator
+#' @keywords internal
+`%||%` <- function(x, y) {
+      if (is.null(x)) y else x
+}
 
 #' Reconstruct symmetric covariance matrix from lower triangle
 #' @keywords internal
@@ -539,8 +594,6 @@
       }
 }
 
-
-
 .format_output <- function(out, x, stat, select, k, kernel, theta, x_cov_mat){
 
       if(! requireNamespace("terra", quietly = TRUE) || # terra not available
@@ -573,4 +626,79 @@
       attr(out, "x_cov")     <- !is.null(x_cov_mat)
 
       return(out)
+}
+
+#' Predict from regression coefficients
+#'
+#' Shared helper that evaluates fitted values from an `analog_regression()` /
+#' `analog_search(stat = "regression")` output by multiplying coefficient
+#' columns with a matrix of covariate values (one row per focal).
+#'
+#' Handles both single-y and multi-y coefficient layouts and returns a
+#' matrix of predictions with n_focal rows and n_y columns.
+#'
+#' This helper exists so that residual computation in `analog_cv()` and any
+#' future user-facing prediction helper share the same arithmetic.
+#'
+#' @param coefs_df A data.frame with `coef_intercept` and `coef_{covname}`
+#'   columns (single-y case), or `coef_intercept_{yname}` and
+#'   `coef_{covname}_{yname}` (multi-y case).
+#' @param covariates_matrix Matrix with one row per focal and one column per
+#'   covariate. Column order must match `cov_names`.
+#' @param y_names Character vector of y variable names.
+#' @param cov_names Character vector of covariate names, matching the order
+#'   of columns in `covariates_matrix`.
+#'
+#' @return A numeric matrix with `nrow(covariates_matrix)` rows and
+#'   `length(y_names)` columns, named by `y_names`.
+#'
+#' @keywords internal
+.predict_from_coefs <- function(coefs_df, covariates_matrix, y_names, cov_names) {
+      n_focal <- nrow(covariates_matrix)
+      n_y <- length(y_names)
+      n_cov <- length(cov_names)
+
+      # Add a leading 1 column for the intercept
+      design <- cbind(1.0, covariates_matrix)
+      colnames(design) <- c("intercept", cov_names)
+
+      out <- matrix(NA_real_, nrow = n_focal, ncol = n_y)
+      colnames(out) <- y_names
+
+      # Detect single-y vs multi-y layout by looking for the unsuffixed
+      # `coef_intercept` column.
+      single_y <- ("coef_intercept" %in% names(coefs_df)) && (n_y == 1L)
+
+      for (j in seq_len(n_y)) {
+            yn <- y_names[j]
+
+            if (single_y) {
+                  col_intercept <- "coef_intercept"
+                  col_slopes <- paste0("coef_", cov_names)
+            } else {
+                  col_intercept <- paste0("coef_intercept_", yn)
+                  col_slopes <- paste0("coef_", cov_names, "_", yn)
+            }
+
+            missing_cols <- setdiff(c(col_intercept, col_slopes), names(coefs_df))
+            if (length(missing_cols) > 0) {
+                  stop(
+                        "Missing expected coefficient columns: ",
+                        paste(missing_cols, collapse = ", "),
+                        call. = FALSE
+                  )
+            }
+
+            coef_mat <- cbind(
+                  coefs_df[[col_intercept]],
+                  do.call(cbind, lapply(col_slopes, function(cn) coefs_df[[cn]]))
+            )
+            if (is.null(dim(coef_mat))) {
+                  coef_mat <- matrix(coef_mat, ncol = 1L)
+            }
+
+            out[, j] <- rowSums(design * coef_mat)
+      }
+
+      out
 }

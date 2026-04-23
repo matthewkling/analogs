@@ -14,6 +14,7 @@ query_analog_index <- function(x,
                                theta,
                                lambda,
                                se,
+                               exclude_self = FALSE,
                                n_threads,
                                show_progress = FALSE) {
 
@@ -78,14 +79,14 @@ query_analog_index <- function(x,
       aggregate_codes <- stat_name_to_code[stat]
       names(aggregate_codes) <- NULL
 
-      # Map kernel function for C++
+      # Map kernel function for C++ (passed to C++ as weight_code)
       # kernel codes: 0=none, 1=uniform, 2=inverse_clim, 3=inverse_geog,
       #               4=gaussian_clim, 5=gaussian_geog,
       #               6=gaussian_joint, 7=inverse_joint
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean",
                                            "ess", "regression"))
-      kernel_code <- if (has_weighted_stat) {
+      weight_code <- if (has_weighted_stat) {
             switch(
                   kernel,
                   "uniform"        = 1L,
@@ -120,13 +121,19 @@ query_analog_index <- function(x,
       k_core <- if (select %in% c("knn_clim", "knn_geog")) as.integer(k) else 0L
 
       # If n_threads explicitly provided, set RcppParallel threads
-      # This needs to happen before calling C++
       if (!is.null(n_threads)) {
             if (!is.numeric(n_threads) || n_threads < 1) {
                   stop("`n_threads` must be a positive integer",
                        call. = FALSE)
             }
             RcppParallel::setThreadOptions(numThreads = as.integer(n_threads)[1L])
+      }
+
+      # exclude_self is incompatible with chunking/progress; upstream validation
+      # should have caught this, but enforce again defensively.
+      if (isTRUE(exclude_self) && isTRUE(show_progress)) {
+            stop("`exclude_self = TRUE` is incompatible with `progress = TRUE`.",
+                 call. = FALSE)
       }
 
       # Call C++ query function (with optional chunking/progress)
@@ -139,19 +146,19 @@ query_analog_index <- function(x,
             max_geog = max_geog_num,
             select_code = select_code,
             aggregate_codes = aggregate_codes,
-            kernel_code = kernel_code,
+            weight_code = weight_code,
             theta = theta_vec,
             x_cov = x_cov_mat,
             y = values_mat,
             covariates = covariates_mat,
             lambda = lambda,
             se_code = se_code,
+            exclude_self = exclude_self,
             show_progress = show_progress
       )
 
       # Capture diagnostic attributes (before they get lost)
       cpp_attrs <- attributes(res)
-      # Remove standard R attributes that we'll replace
       cpp_attrs$names <- NULL
       cpp_attrs$class <- NULL
       cpp_attrs$dim <- NULL
@@ -172,7 +179,6 @@ query_analog_index <- function(x,
             )
             names(out) <- gsub("focal_", "", names(out))
 
-            # Add attributes to data.frame
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
@@ -182,7 +188,6 @@ query_analog_index <- function(x,
       }
 
       # Aggregation mode(s)
-      # res is a matrix with n_focal rows and variable number of columns
       if (!is.matrix(res)) {
             stop("Internal error: expected matrix result from C++ for aggregation stats")
       }
@@ -198,85 +203,55 @@ query_analog_index <- function(x,
             y = focal[, 2]
       )
 
-      # Determine column structure based on stats requested and values provided
-      # Regular stats (count, sum_weights, mean_weights, ess): 1 column each
-      # Value-based stats (sum, mean, weighted_sum, weighted_mean): n_values columns each
-      # weighted_mean SE (when se != "none"): one column per value var, emitted
-      #   immediately after its weighted_mean column within each var's block.
-      # Regression: (n_covariates + 1) columns per value variable for coefs;
-      #   same again for SEs when se != "none".
-      regular_stats <- c("count", "sum_weights", "mean_weights", "ess")
-      value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
+      col_idx <- 1L
+      n_vals <- if (is.null(values_mat)) 0L else ncol(values_mat)
+      want_se <- (se != "none")
 
-      want_se <- !identical(se, "none")
-
-      col_idx <- 1
-
-      # IMPORTANT: C++ writes columns grouped by type (regular first, then value
-      # stats grouped by variable, then regression). We must read in that order,
-      # NOT in request order.
-
-      # Read all regular stats first
-      for (s in stat) {
-            if (s %in% regular_stats) {
-                  out[[s]] <- res[, col_idx]
-                  col_idx <- col_idx + 1
-            }
+      # Regular stats (count, sum_weights, mean_weights, ess): 1 col each
+      regular_stats <- intersect(stat,
+                                 c("count", "sum_weights", "mean_weights", "ess"))
+      for (s in regular_stats) {
+            out[[s]] <- res[, col_idx]
+            col_idx <- col_idx + 1L
       }
 
-      # Then read all value stats, grouped by variable (v0_stat0, v0_stat1, ...,
-      # v1_stat0, ...). The order of stats within each variable's block matches
-      # the order they appear in `stat`, filtered to value stats. When se != "none"
-      # and weighted_mean is requested, an SE column is emitted right after the
-      # weighted_mean column within each variable's block.
-      n_vals <- if (is.null(values_mat)) 0 else ncol(values_mat)
-      value_stats_in_order <- intersect(stat, value_stats)  # preserves user order
-      has_weighted_mean <- "weighted_mean" %in% value_stats_in_order
+      # Value-based stats: one column per value var
+      value_stats <- intersect(stat,
+                               c("sum", "mean", "weighted_sum", "weighted_mean"))
 
-      if (length(value_stats_in_order) > 0) {
-            if (n_vals == 0) {
-                  stop("Internal error: value stat requested but no y values provided")
-            }
-
-            for (j in seq_len(n_vals)) {
+      if (length(value_stats) > 0L) {
+            for (v in seq_len(n_vals)) {
                   var_name <- if (!is.null(values_names)) {
-                        values_names[j]
+                        values_names[v]
                   } else {
-                        paste0("var", j)
+                        paste0("var", v)
                   }
-                  for (s in value_stats_in_order) {
-                        # Name for the stat column
-                        col_name_stat <- if (n_vals == 1) s else paste0(s, "_", var_name)
-                        out[[col_name_stat]] <- res[, col_idx]
-                        col_idx <- col_idx + 1
 
-                        # SE column follows immediately if applicable
-                        if (want_se && s == "weighted_mean") {
-                              col_name_se <- if (n_vals == 1) {
-                                    "se_weighted_mean"
-                              } else {
+                  for (s in value_stats) {
+                        col_name <- if (n_vals == 1L) s else paste0(s, "_", var_name)
+                        out[[col_name]] <- res[, col_idx]
+                        col_idx <- col_idx + 1L
+
+                        # weighted_mean SE is emitted immediately after
+                        if (s == "weighted_mean" && want_se) {
+                              se_name <- if (n_vals == 1L) "se_weighted_mean" else
                                     paste0("se_weighted_mean_", var_name)
-                              }
-                              out[[col_name_se]] <- res[, col_idx]
-                              col_idx <- col_idx + 1
+                              out[[se_name]] <- res[, col_idx]
+                              col_idx <- col_idx + 1L
                         }
                   }
             }
       }
 
-      # Then read regression coefficients and (optionally) standard errors.
-      # Layout in C++: for each variable v, write reg_dim coefficients, then
-      # (if se != "none") a matching block of reg_dim SEs in a second pass
-      # that runs after all variable coefficient blocks.
+      # Regression: (n_covariates + 1) columns per value variable for coefs;
+      # same again for SEs when se != "none".
       if ("regression" %in% stat) {
             n_covs <- if (is.null(covariates_mat)) 0 else ncol(covariates_mat)
-            reg_dim <- n_covs + 1  # intercept + covariates
+            reg_dim <- n_covs + 1
 
-            # Base names: intercept, then covariate names
             base_names <- c("intercept", covariates_names %||% paste0("cov", seq_len(n_covs)))
 
             if (n_vals == 1) {
-                  # Single value variable
                   for (d in seq_len(reg_dim)) {
                         out[[paste0("coef_", base_names[d])]] <- res[, col_idx]
                         col_idx <- col_idx + 1
@@ -288,8 +263,6 @@ query_analog_index <- function(x,
                         }
                   }
             } else {
-                  # Multiple value variables: {prefix}_{coeff}_{varname}
-                  # First all coefficients (per var), then all SEs (per var) if requested
                   for (j in seq_len(n_vals)) {
                         var_name <- if (!is.null(values_names)) {
                               values_names[j]
@@ -319,12 +292,10 @@ query_analog_index <- function(x,
             }
       }
 
-      # Add C++ diagnostic attributes
       for (nm in names(cpp_attrs)) {
             attr(out, nm) <- cpp_attrs[[nm]]
       }
 
-      # Format and return
       return(.format_output(out, focal, stat, select, k, kernel, theta, x_cov_mat))
 }
 
@@ -336,8 +307,9 @@ query_analog_index <- function(x,
 #'
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
-                               select_code, aggregate_codes, kernel_code, theta,
+                               select_code, aggregate_codes, weight_code, theta,
                                x_cov, y, covariates, lambda, se_code,
+                               exclude_self = FALSE,
                                show_progress = FALSE) {
 
       # If progress not requested or dataset too small, just call C++ directly
@@ -351,14 +323,24 @@ query_analog_index <- function(x,
                   max_geog = max_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
-                  weight_code = kernel_code,
+                  weight_code = weight_code,
                   theta = theta,
                   x_cov_sexp = x_cov,
                   values_sexp = y,
                   covariates_sexp = covariates,
                   lambda = lambda,
-                  se_code = se_code
+                  se_code = se_code,
+                  exclude_self = exclude_self
             ))
+      }
+
+      # Chunked path (progress bar). exclude_self is incompatible with chunking
+      # because the worker's self-check uses j == i, which only holds for the
+      # full focal set. Upstream validation should prevent this combination.
+      if (isTRUE(exclude_self)) {
+            stop("Internal error: exclude_self = TRUE reached chunked path. ",
+                 "This combination should have been rejected upstream.",
+                 call. = FALSE)
       }
 
       # Split focal into chunks
@@ -377,14 +359,12 @@ query_analog_index <- function(x,
             end_idx <- min(i * chunk_size, nrow(focal))
             focal_chunk <- focal[start_idx:end_idx, , drop = FALSE]
 
-            # Get x_cov chunk if provided
             x_cov_chunk <- if (!is.null(x_cov)) {
                   x_cov[start_idx:end_idx, , drop = FALSE]
             } else {
                   NULL
             }
 
-            # Query this chunk
             results[[i]] <- query_analog_index_cpp(
                   index_list = index,
                   focal_mm = focal_chunk,
@@ -394,13 +374,14 @@ query_analog_index <- function(x,
                   max_geog = max_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
-                  weight_code = kernel_code,
+                  weight_code = weight_code,
                   theta = theta,
                   x_cov_sexp = x_cov_chunk,
-                  values_sexp = y,     # Not chunked (ref pool)
-                  covariates_sexp = covariates,  # Not chunked (ref pool)
+                  values_sexp = y,
+                  covariates_sexp = covariates,
                   lambda = lambda,
-                  se_code = se_code
+                  se_code = se_code,
+                  exclude_self = FALSE   # always FALSE in chunked path
             )
 
             setTxtProgressBar(pb, i)
@@ -429,19 +410,6 @@ query_analog_index <- function(x,
             })
             names(merged) <- names(first)
 
-            # Adjust focal indices for chunks
-            # (indices need offset for each chunk)
-            offset <- 0L
-            pos <- 1L
-            for (ch in seq_len(n_chunks)) {
-                  n <- length(results[[ch]][[1]])
-                  chunk_start <- (ch - 1) * chunk_size
-                  # Focal indices in results are 1-based within chunk; add offset
-                  # (Already handled by emit_pairs_cpp returning per-chunk indices)
-                  pos <- pos + n
-            }
-
-            # Copy attributes from first result
             for (nm in names(attributes(first))) {
                   if (!nm %in% c("names")) {
                         attr(merged, nm) <- attr(first, nm)
@@ -454,7 +422,6 @@ query_analog_index <- function(x,
             # Aggregation mode: rbind matrices
             merged <- do.call(rbind, results)
 
-            # Copy attributes from first result
             for (nm in names(attributes(first))) {
                   if (!nm %in% c("dim", "dimnames")) {
                         attr(merged, nm) <- attr(first, nm)

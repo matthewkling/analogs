@@ -148,24 +148,14 @@ SpatRaster with a layer for each component. For n climate variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
-\item{y}{Optional user-defined variables for each reference location
-in \code{pool} to aggregate across selected analogs. Can be a numeric vector
-(single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeric layers. Must have
-exactly the same number of reference locations as \code{pool}.
+\item{y}{Optional numeric vector, matrix/data.frame, or SpatRaster giving
+values for each reference location (must have same number of rows/cells
+as \code{pool}). Required for stats \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
+\code{"weighted_mean"}, and \code{"regression"}.}
 
-When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For \code{stat = NULL}/\code{"none"} (pairs mode), y value columns are included in output for
-each analog pair.}
-
-\item{covariates}{Optional auxiliary predictor variables for each reference
-location in \code{pool}, used with \code{stat = "regression"}. Can be a numeric
-vector (single covariate), matrix or data.frame with numeric columns
-(multiple covariates), or a SpatRaster with one or more numeric layers.
-Must have exactly the same number of rows/cells as \code{pool}. Column names
-are used for output layer naming. These variables are NOT used for the
-analog search itself -- only for local regression within each analog
-neighborhood.}
+\item{covariates}{Optional matrix/data.frame or SpatRaster giving
+covariate values for each reference location (must have same number of
+rows/cells as \code{pool}). Required when \code{stat} includes \code{"regression"}.}
 
 \item{lambda}{Ridge penalty parameter for \code{stat = "regression"}
 (default: 0, giving ordinary weighted least squares). Higher values
@@ -184,16 +174,8 @@ effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
 using \code{n_eff - p} degrees of freedom.
 \item \code{"design"}: design-based framing (no assumption that weights are
 precisions). For \code{weighted_mean},
-\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}. For regression, the sandwich
-estimator \verb{(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹} with
-\verb{M = Σ w² r² x xᵀ} (Huber-White / heteroskedasticity-consistent).
-}
-
-Both variants are scale-invariant in the weights when \code{lambda = 0}.
-When \code{se != "none"} but no requested stat supports SE, a warning is
-issued and no SE columns are produced. SE-supporting stat columns are
-named \code{se_weighted_mean} / \verb{se_weighted_mean_\{varname\}} and
-\verb{se_\{intercept|covname\}} / \verb{se_\{intercept|covname\}_\{varname\}}.}
+\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
+}}
 
 \item{coord_type}{Coordinate system type:
 \itemize{

@@ -1,10 +1,11 @@
-#' Find Climate Analogs
+#' Generalized analog search
 #'
 #' Identifies locations in a reference dataset that are climatically similar
 #' and/or geographically proximal to focal locations. Analog searches use a
 #' two-stage approach: first selecting analogs based on specified criteria,
 #' then optionally aggregating the results.
 #'
+#' @details
 #' ## Parameter categories
 #'
 #' - *Data parameters*
@@ -36,7 +37,6 @@
 #' *local temporal* covariance structure at focal locations, via the `x_cov`
 #' parameter. These local covariance values need to be pre-calculated.
 #'
-#'
 #' ## Computational optimization
 #'
 #' The analog search architecture is designed with compute performance in mind:
@@ -45,7 +45,7 @@
 #' - Searches use a lattice-based indexing structure to efficiently
 #'   search through large reference datasets. By default, the lattice
 #'   resolution is tuned for optimal performance.
-#' - Parallel processing is available via the `threads` parameter.
+#' - Parallel processing is available via the `n_threads` parameter.
 #' - You can `downsample` prohibitively large reference pool datasets
 #'   to improve speed and memory, using a stratified sampling
 #'   scheme that reduces loss of precision relative to random sampling.
@@ -54,44 +54,34 @@
 #' - For raster datasets that are too large to fit in memory,
 #'   `tiled_analog_search()` offers a memory-safe option.
 #'
+#' ## Cross-validation
+#'
+#' For honest prediction error when `x` and `pool` are the same dataset, use
+#' [analog_cv()] or set `exclude_self = TRUE` to exclude each focal's own row
+#' from its analog neighborhood.
+#'
 #' @param x Focal locations for which analogs will be found. Should be a
 #'   matrix/data.frame with columns x, y, and climate variables, or a
 #'   SpatRaster with climate variable layers.
-#'
 #' @param pool The reference dataset to search for analogs. Either:
 #'
 #'   - Matrix/data.frame with columns x, y, and climate variables,
 #'     or SpatRaster with climate variable layers, OR
 #'   - An `analog_index` object created by
 #'     [build_analog_index()] (for repeated queries).
-#'
 #' @param x_cov Optional focal-specific covariance matrices for Mahalanobis
 #'   distance calculations. Should be a matrix or data.frame with one row per
 #'   focal location and one column per unique covariance component, or a
 #'   SpatRaster with a layer for each component. For n climate variables,
 #'   there are n*(n+1)/2 unique components, ordered as: variances first
 #'   (diagonals), then covariances (upper triangle by row).
-#'
-#' @param y Optional user-defined variables for each reference location
-#'   in `pool` to aggregate across selected analogs. Can be a numeric vector
-#'   (single variable), matrix or data.frame with numeric columns (multiple
-#'   variables), or a SpatRaster with one or more numeric layers. Must have
-#'   exactly the same number of reference locations as `pool`.
-#'
-#'   When provided, enables value-based aggregation stats `"sum"`, `"mean"`,
-#'   `"weighted_sum"`, `"weighted_mean"`, and `"regression"`. For `stat =
-#'   NULL`/`"none"` (pairs mode), y value columns are included in output for
-#'   each analog pair.
-#'
-#' @param covariates Optional auxiliary predictor variables for each reference
-#'   location in `pool`, used with `stat = "regression"`. Can be a numeric
-#'   vector (single covariate), matrix or data.frame with numeric columns
-#'   (multiple covariates), or a SpatRaster with one or more numeric layers.
-#'   Must have exactly the same number of rows/cells as `pool`. Column names
-#'   are used for output layer naming. These variables are NOT used for the
-#'   analog search itself -- only for local regression within each analog
-#'   neighborhood.
-#'
+#' @param y Optional numeric vector, matrix/data.frame, or SpatRaster giving
+#'   values for each reference location (must have same number of rows/cells
+#'   as `pool`). Required for stats `"sum"`, `"mean"`, `"weighted_sum"`,
+#'   `"weighted_mean"`, and `"regression"`.
+#' @param covariates Optional matrix/data.frame or SpatRaster giving
+#'   covariate values for each reference location (must have same number of
+#'   rows/cells as `pool`). Required when `stat` includes `"regression"`.
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
 #'   climate constraint). Can be either:
 #'
@@ -196,15 +186,14 @@
 #'     using `n_eff - p` degrees of freedom.
 #'   - `"design"`: design-based framing (no assumption that weights are
 #'     precisions). For `weighted_mean`,
-#'     `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`. For regression, the sandwich
-#'     estimator `(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹` with
-#'     `M = Σ w² r² x xᵀ` (Huber-White / heteroskedasticity-consistent).
+#'     `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
 #'
-#'   Both variants are scale-invariant in the weights when `lambda = 0`.
-#'   When `se != "none"` but no requested stat supports SE, a warning is
-#'   issued and no SE columns are produced. SE-supporting stat columns are
-#'   named `se_weighted_mean` / `se_weighted_mean_{varname}` and
-#'   `se_{intercept|covname}` / `se_{intercept|covname}_{varname}`.
+#' @param exclude_self Logical, default `FALSE`. `TRUE` is typically used
+#'   for cross-validation, such as via [analog_cv()], in which case each focal
+#'   excludes the pool row at the same index from its analog neighborhood.
+#'   This requires `x` and `pool` to be the same R object (checked via
+#'   `identical()`), and is incompatible with pre-built indices,
+#'   `downsample != 1`, and `progress = TRUE`.
 #'
 #' @param coord_type Coordinate system type:
 #'
@@ -275,11 +264,6 @@
 #' Use [analog_summary()] to view a formatted summary.
 #'
 #' @references
-#' Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
-#' climates: new methods and insights at continental to landscape scales."
-#' *Global Change Biology*, **23**(9), 3934-3955.
-#' \doi{10.1111/gcb.13645}
-#'
 #' Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of
 #' climate change algorithms for guiding conservation and management."
 #' *Global Change Biology*, **21**(2), 997-1004.
@@ -293,6 +277,7 @@
 #' @seealso [tiled_analog_search()] offers memory-safe searches on large raster
 #'   datasets. Helper functions such as [analog_impact()], [analog_velocity()],
 #'   and [analog_intensity()] offer simpler interfaces for common search types.
+#'   [analog_cv()] provides cross-validation workflows.
 #'
 #' @export
 analog_search <- function(
@@ -317,6 +302,9 @@ analog_search <- function(
       lambda = 0,
       se = c("none", "ess", "design"),
 
+      # cross-validation
+      exclude_self = FALSE,
+
       # args passed to build_lattice_index
       coord_type = c("auto", "lonlat", "projected"),
       downsample = 1.0,
@@ -328,6 +316,10 @@ analog_search <- function(
 ) {
 
       se <- match.arg(se)
+
+      # Validate exclude_self against x, pool, downsample, progress.
+      # Must happen BEFORE pool is swapped for a built index below.
+      .validate_exclude_self(exclude_self, x, pool, downsample, progress)
 
       # Check if pool is already an index
       if (is_analog_index(pool)) {
@@ -393,6 +385,7 @@ analog_search <- function(
             theta = theta,
             lambda = lambda,
             se = se,
+            exclude_self = exclude_self,
             n_threads = n_threads,
             show_progress = progress
       ))

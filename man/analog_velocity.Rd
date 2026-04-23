@@ -40,15 +40,10 @@ SpatRaster with a layer for each component. For n climate variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
-\item{y}{Optional user-defined variables for each reference location
-in \code{pool} to aggregate across selected analogs. Can be a numeric vector
-(single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeric layers. Must have
-exactly the same number of reference locations as \code{pool}.
-
-When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For \code{stat = NULL}/\code{"none"} (pairs mode), y value columns are included in output for
-each analog pair.}
+\item{y}{Optional numeric vector, matrix/data.frame, or SpatRaster giving
+values for each reference location (must have same number of rows/cells
+as \code{pool}). Required for stats \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
+\code{"weighted_mean"}, and \code{"regression"}.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{

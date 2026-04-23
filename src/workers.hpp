@@ -201,6 +201,11 @@ struct AggWorker : public Worker {
       // SE variant (applies to weighted_mean and regression)
       SeCode se_code;
 
+      // Self-exclusion: when true, skip the pool row with the same index as
+      // the focal. Only valid when x and pool are identical (enforced at the
+      // R level). Used for leave-one-out cross-validation.
+      bool exclude_self;
+
       std::vector<double>& agg; // flat output: size = n_focal * n_stats
       int n_stats;              // number of stats to compute (total columns in output)
 
@@ -256,6 +261,7 @@ struct AggWorker : public Worker {
                 int n_covs_,
                 double lambda_,
                 SeCode se_code_,
+                bool exclude_self_,
                 std::vector<double>& agg_,
                 int n_stats_)
             : focal_ptr(REAL(focal_mm)),
@@ -298,6 +304,7 @@ struct AggWorker : public Worker {
               n_covs(n_covs_),
               lambda(lambda_),
               se_code(se_code_),
+              exclude_self(exclude_self_),
               agg(agg_),
               n_stats(n_stats_)
       {}

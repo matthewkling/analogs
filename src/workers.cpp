@@ -587,6 +587,14 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             // Iterate over candidates once
             for (size_t t = 0; t < cand.size(); ++t) {
                   const index_t j = cand[t];
+
+                  // Self-exclusion: skip pool row that corresponds to this focal.
+                  // Only active when exclude_self is set; the R layer enforces
+                  // identical(x, pool) so j == i is the correct identity check.
+                  if (exclude_self && static_cast<std::size_t>(j) == i) {
+                        continue;
+                  }
+
                   const double sample_weight = cand_weights[t];
                   const double rx = ref_ptr[j];
                   const double ry = ref_ptr[j + stride_r];

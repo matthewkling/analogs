@@ -2,7 +2,7 @@
 % Please edit documentation in R/analog_search.R
 \name{analog_search}
 \alias{analog_search}
-\title{Find Climate Analogs}
+\title{Generalized analog search}
 \usage{
 analog_search(
   x,
@@ -19,6 +19,7 @@ analog_search(
   theta = NULL,
   lambda = 0,
   se = c("none", "ess", "design"),
+  exclude_self = FALSE,
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
@@ -47,24 +48,14 @@ SpatRaster with a layer for each component. For n climate variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
-\item{y}{Optional user-defined variables for each reference location
-in \code{pool} to aggregate across selected analogs. Can be a numeric vector
-(single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeric layers. Must have
-exactly the same number of reference locations as \code{pool}.
+\item{y}{Optional numeric vector, matrix/data.frame, or SpatRaster giving
+values for each reference location (must have same number of rows/cells
+as \code{pool}). Required for stats \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
+\code{"weighted_mean"}, and \code{"regression"}.}
 
-When provided, enables value-based aggregation stats \code{"sum"}, \code{"mean"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}. For \code{stat = NULL}/\code{"none"} (pairs mode), y value columns are included in output for
-each analog pair.}
-
-\item{covariates}{Optional auxiliary predictor variables for each reference
-location in \code{pool}, used with \code{stat = "regression"}. Can be a numeric
-vector (single covariate), matrix or data.frame with numeric columns
-(multiple covariates), or a SpatRaster with one or more numeric layers.
-Must have exactly the same number of rows/cells as \code{pool}. Column names
-are used for output layer naming. These variables are NOT used for the
-analog search itself -- only for local regression within each analog
-neighborhood.}
+\item{covariates}{Optional matrix/data.frame or SpatRaster giving
+covariate values for each reference location (must have same number of
+rows/cells as \code{pool}). Required when \code{stat} includes \code{"regression"}.}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
@@ -175,16 +166,15 @@ effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
 using \code{n_eff - p} degrees of freedom.
 \item \code{"design"}: design-based framing (no assumption that weights are
 precisions). For \code{weighted_mean},
-\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}. For regression, the sandwich
-estimator \verb{(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹} with
-\verb{M = Σ w² r² x xᵀ} (Huber-White / heteroskedasticity-consistent).
-}
+\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
+}}
 
-Both variants are scale-invariant in the weights when \code{lambda = 0}.
-When \code{se != "none"} but no requested stat supports SE, a warning is
-issued and no SE columns are produced. SE-supporting stat columns are
-named \code{se_weighted_mean} / \verb{se_weighted_mean_\{varname\}} and
-\verb{se_\{intercept|covname\}} / \verb{se_\{intercept|covname\}_\{varname\}}.}
+\item{exclude_self}{Logical, default \code{FALSE}. \code{TRUE} is typically used
+for cross-validation, such as via \code{\link[=analog_cv]{analog_cv()}}, in which case each focal
+excludes the pool row at the same index from its analog neighborhood.
+This requires \code{x} and \code{pool} to be the same R object (checked via
+\code{identical()}), and is incompatible with pre-built indices,
+\code{downsample != 1}, and \code{progress = TRUE}.}
 
 \item{coord_type}{Coordinate system type:
 \itemize{
@@ -308,7 +298,7 @@ The analog search architecture is designed with compute performance in mind:
 \item Searches use a lattice-based indexing structure to efficiently
 search through large reference datasets. By default, the lattice
 resolution is tuned for optimal performance.
-\item Parallel processing is available via the \code{threads} parameter.
+\item Parallel processing is available via the \code{n_threads} parameter.
 \item You can \code{downsample} prohibitively large reference pool datasets
 to improve speed and memory, using a stratified sampling
 scheme that reduces loss of precision relative to random sampling.
@@ -318,13 +308,15 @@ a progress bar during computation.
 \code{tiled_analog_search()} offers a memory-safe option.
 }
 }
+
+\subsection{Cross-validation}{
+
+For honest prediction error when \code{x} and \code{pool} are the same dataset, use
+\code{\link[=analog_cv]{analog_cv()}} or set \code{exclude_self = TRUE} to exclude each focal's own row
+from its analog neighborhood.
+}
 }
 \references{
-Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
-climates: new methods and insights at continental to landscape scales."
-\emph{Global Change Biology}, \strong{23}(9), 3934-3955.
-\doi{10.1111/gcb.13645}
-
 Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of
 climate change algorithms for guiding conservation and management."
 \emph{Global Change Biology}, \strong{21}(2), 997-1004.
@@ -339,4 +331,5 @@ Meteorology and Climatology}, \strong{52}(4), 733-752.
 \code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large raster
 datasets. Helper functions such as \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_velocity]{analog_velocity()}},
 and \code{\link[=analog_intensity]{analog_intensity()}} offer simpler interfaces for common search types.
+\code{\link[=analog_cv]{analog_cv()}} provides cross-validation workflows.
 }

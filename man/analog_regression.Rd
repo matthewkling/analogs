@@ -23,7 +23,8 @@ analog_regression(
   coord_type = "auto",
   index_res = "auto",
   n_threads = NULL,
-  progress = FALSE
+  progress = FALSE,
+  ...
 )
 }
 \arguments{
@@ -139,16 +140,8 @@ effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
 using \code{n_eff - p} degrees of freedom.
 \item \code{"design"}: design-based framing (no assumption that weights are
 precisions). For \code{weighted_mean},
-\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}. For regression, the sandwich
-estimator \verb{(X'WX + λI)⁻¹ M (X'WX + λI)⁻¹} with
-\verb{M = Σ w² r² x xᵀ} (Huber-White / heteroskedasticity-consistent).
-}
-
-Both variants are scale-invariant in the weights when \code{lambda = 0}.
-When \code{se != "none"} but no requested stat supports SE, a warning is
-issued and no SE columns are produced. SE-supporting stat columns are
-named \code{se_weighted_mean} / \verb{se_weighted_mean_\{varname\}} and
-\verb{se_\{intercept|covname\}} / \verb{se_\{intercept|covname\}_\{varname\}}.}
+\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
+}}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
@@ -186,6 +179,8 @@ is used (see \code{RcppParallel::setThreadOptions}).}
 computation. Progress tracking works by splitting the focal dataset into
 chunks and processing them sequentially. Useful for large datasets. Default
 is \code{FALSE}.}
+
+\item{...}{additional arguments passed to \code{analog_search()} (usually unneeded)}
 }
 \value{
 A data.frame (or SpatRaster if \code{x} is a SpatRaster) with one
@@ -288,5 +283,6 @@ gwr_result <- analog_regression(
 }
 \seealso{
 \code{\link[=analog_search]{analog_search()}} for the underlying flexible analog search function;
-\code{\link[=analog_impact]{analog_impact()}} for the standard AIM workflow.
+\code{\link[=analog_impact]{analog_impact()}} for the standard AIM workflow;
+\code{\link[=analog_cv]{analog_cv()}} for cross-validation of regression fits.
 }

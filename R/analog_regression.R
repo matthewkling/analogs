@@ -45,6 +45,7 @@
 #'   be requested alongside regression coefficients. Default includes
 #'   `"count"` and `"ess"` for diagnostics.
 #' @inheritParams analog_search
+#' @param ... additional arguments passed to `analog_search()` (usually unneeded)
 #'
 #' @return A data.frame (or SpatRaster if `x` is a SpatRaster) with one
 #'   row per focal location containing:
@@ -123,7 +124,8 @@
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
-#'   [analog_impact()] for the standard AIM workflow.
+#'   [analog_impact()] for the standard AIM workflow;
+#'   [analog_cv()] for cross-validation of regression fits.
 #'
 #' @export
 analog_regression <- function(
@@ -147,7 +149,8 @@ analog_regression <- function(
             coord_type = "auto",
             index_res = "auto",
             n_threads = NULL,
-            progress = FALSE
+            progress = FALSE,
+            ...
 ) {
       kernel <- match.arg(kernel)
       se <- match.arg(se)
@@ -175,6 +178,7 @@ analog_regression <- function(
             coord_type  = coord_type,
             index_res   = index_res,
             n_threads   = n_threads,
-            progress    = progress
+            progress    = progress,
+            ...
       )
 }

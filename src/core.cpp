@@ -197,7 +197,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             SEXP values_sexp,
                             SEXP covariates_sexp,
                             double lambda,
-                            int se_code)
+                            int se_code,
+                            bool exclude_self = false)
 {
       // Extract lattice and metadata from index
       List idx = as<List>(index_list);
@@ -557,6 +558,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               n_covs,
                               lambda,
                               scode_se,
+                              exclude_self,
                               agg_vals,
                               n_total_cols);
 

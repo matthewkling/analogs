@@ -37,6 +37,7 @@
 #'   `"inverse_clim"` (default), `"gaussian_clim"`, `"inverse_joint"`,
 #'   `"gaussian_joint"`. See [analog_search()] for details.
 #' @inheritParams analog_search
+#' @param ... additional arguments passed to `analog_search()` (usually unneeded)
 #'
 #' @return A data.frame with one row per focal location containing:
 #'   \itemize{
@@ -98,7 +99,8 @@
 #'     from analog locations.
 #' }
 #'
-#' @seealso [analog_search()] for the underlying flexible analog search function.
+#' @seealso [analog_search()] for the underlying flexible analog search function;
+#'   [analog_cv()] for cross-validation of AIM fits.
 #'
 #' @examples
 #' \dontrun{
@@ -140,7 +142,8 @@ analog_impact <- function(
             coord_type = "auto",
             index_res = "auto",
             n_threads = NULL,
-            progress = FALSE
+            progress = FALSE,
+            ...
 ) {
       kernel <- match.arg(kernel)
       se <- match.arg(se)
@@ -163,6 +166,7 @@ analog_impact <- function(
             coord_type  = coord_type,
             index_res   = index_res,
             n_threads   = n_threads,
-            progress    = progress
+            progress    = progress,
+            ...
       )
 }

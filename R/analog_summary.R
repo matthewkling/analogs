@@ -84,6 +84,27 @@ analog_summary <- function(x) {
             }
       }
 
+      # Cross-validation
+      cv_method <- attr(x, "cv_method", exact = TRUE)
+      if (!is.null(cv_method)) {
+            cat("\nCross-validation:\n")
+            cat("  Method:", cv_method, "\n")
+            cv_fun <- attr(x, "cv_fun", exact = TRUE)
+            if (!is.null(cv_fun)) {
+                  cat("  Function:", cv_fun, "\n")
+            }
+            if (cv_method == "kfold") {
+                  n_folds <- attr(x, "n_folds", exact = TRUE)
+                  if (!is.null(n_folds)) {
+                        cat("  Number of folds:", n_folds, "\n")
+                  }
+            }
+            pred_target <- attr(x, "cv_pred_target", exact = TRUE)
+            if (!is.null(pred_target) && pred_target != "none") {
+                  cat("  Prediction target:", pred_target, "\n")
+            }
+      }
+
       # Coordinate system / units
       geo_mode <- attr(x, "geo_mode", exact = TRUE)
       clim_metric <- attr(x, "x_cov")
