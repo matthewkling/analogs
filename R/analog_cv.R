@@ -234,6 +234,9 @@ analog_cv <- function(fun,
       pred_target <- .cv_determine_prediction_target(fun_name, extra, cov_mat)
 
       # Dispatch to LOO or k-fold path ----------------------------------------
+      # For fun = analog_regression, we pass x_covariates through so that the
+      # returned data.frame already carries `pred[_{yname}]` columns, avoiding
+      # the need to redo the arithmetic on the R side afterward.
       if (cv_method == "loo") {
             res_df <- .cv_run_loo(
                   fun = fun,
@@ -266,6 +269,7 @@ analog_cv <- function(fun,
             } else {
                   preds <- .cv_extract_predictions(
                         pred_target = pred_target,
+                        fun_name    = fun_name,
                         result_df   = res_df,
                         y_names     = y_names,
                         cov_mat     = cov_mat,
@@ -409,6 +413,11 @@ analog_cv <- function(fun,
 
 
 #' Run the LOO path: single call with exclude_self = TRUE
+#'
+#' For fun = analog_regression, passes x_covariates = cov_mat so predictions
+#' come back in the result (LOO: focals = pool, so focal-side covariates
+#' are just cov_mat).
+#'
 #' @keywords internal
 .cv_run_loo <- function(fun, fun_name, pool_mat, y_mat, cov_mat, extra) {
       args <- c(
@@ -421,11 +430,19 @@ analog_cv <- function(fun,
             extra
       )
       if (!is.null(cov_mat)) args$covariates <- cov_mat
+      if (fun_name == "analog_regression" && !is.null(cov_mat)) {
+            args$x_covariates <- cov_mat
+      }
       do.call(fun, args)
 }
 
 
 #' Run the k-fold path: loop over folds, rebuilding the index per fold
+#'
+#' For fun = analog_regression, passes x_covariates = cov_mat[focal_rows, ]
+#' so per-fold predictions come back in the result, avoiding downstream
+#' re-computation.
+#'
 #' @keywords internal
 .cv_run_kfold <- function(fun, fun_name, pool_mat, y_mat, cov_mat, folds, extra) {
       unique_folds <- sort(unique(folds))
@@ -446,6 +463,9 @@ analog_cv <- function(fun,
             )
             if (!is.null(cov_mat)) {
                   args$covariates <- cov_mat[train_rows, , drop = FALSE]
+            }
+            if (fun_name == "analog_regression" && !is.null(cov_mat)) {
+                  args$x_covariates <- cov_mat[focal_rows, , drop = FALSE]
             }
 
             res_i <- do.call(fun, args)
@@ -483,11 +503,18 @@ analog_cv <- function(fun,
 
 #' Extract predictions (one column per y variable) from a CV result data.frame
 #'
-#' Dispatch on pred_target: "weighted_mean" reads the corresponding column(s);
-#' "regression" evaluates fitted values via .predict_from_coefs().
+#' Dispatch:
+#'   - pred_target == "weighted_mean": read weighted_mean[_{yname}] columns.
+#'   - pred_target == "regression" AND fun_name == "analog_regression":
+#'       read pred[_{yname}] columns that analog_regression() attached
+#'       via x_covariates.
+#'   - pred_target == "regression" AND fun_name == "analog_search":
+#'       compute via .predict_from_coefs(), since analog_search does not
+#'       accept x_covariates.
 #'
 #' @keywords internal
-.cv_extract_predictions <- function(pred_target, result_df, y_names, cov_mat, cov_names) {
+.cv_extract_predictions <- function(pred_target, fun_name, result_df,
+                                    y_names, cov_mat, cov_names) {
       n_focal <- nrow(result_df)
       n_y <- length(y_names)
       preds <- matrix(NA_real_, nrow = n_focal, ncol = n_y)
@@ -505,15 +532,30 @@ analog_cv <- function(fun,
                   }
                   preds[, v] <- result_df[[col]]
             }
-      } else if (pred_target == "regression") {
+            return(preds)
+      }
+
+      if (pred_target == "regression" && fun_name == "analog_regression") {
+            # analog_regression supplies pred columns via x_covariates.
+            for (v in seq_len(n_y)) {
+                  col <- if (n_y == 1L) "pred" else paste0("pred_", y_names[v])
+                  if (!col %in% names(result_df)) {
+                        stop("Expected prediction column '", col,
+                             "' not found in CV output. Internal error: ",
+                             "x_covariates was not forwarded to analog_regression.",
+                             call. = FALSE)
+                  }
+                  preds[, v] <- result_df[[col]]
+            }
+            return(preds)
+      }
+
+      if (pred_target == "regression") {
+            # analog_search path: compute predictions from coefficient columns.
             if (is.null(cov_mat) || is.null(cov_names)) {
                   stop("Internal error: regression prediction requires covariates.",
                        call. = FALSE)
             }
-            # covariates_matrix must be aligned to result_df row order.
-            # In LOO, result_df row i corresponds to pool row i. In k-fold,
-            # result_df has been reordered to match pool input order via the
-            # index column.
             cov_for_focals <- cov_mat[result_df$index, , drop = FALSE]
             preds_mat <- .predict_from_coefs(
                   coefs_df          = result_df,
@@ -522,12 +564,11 @@ analog_cv <- function(fun,
                   cov_names         = cov_names
             )
             preds[, ] <- preds_mat[, , drop = FALSE]
-      } else {
-            stop("Internal error: unsupported pred_target '", pred_target, "'.",
-                 call. = FALSE)
+            return(preds)
       }
 
-      preds
+      stop("Internal error: unsupported pred_target '", pred_target, "'.",
+           call. = FALSE)
 }
 
 
@@ -548,4 +589,3 @@ analog_cv <- function(fun,
       })
       do.call(c, layers)
 }
-

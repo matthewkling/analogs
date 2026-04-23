@@ -29,11 +29,19 @@
 #'   Can be a numeric vector, matrix, data.frame, or SpatRaster.
 #'   Must have exactly the same number of rows/cells as `pool`.
 #'   A separate regression is fit for each variable.
-#' @param covariates Predictor variables for local regression. Can be a
-#'   numeric vector (single covariate), matrix, data.frame, or SpatRaster.
-#'   Must have exactly the same number of rows/cells as `pool`. Column/layer
-#'   names carry through to output. These variables are NOT used for the
-#'   analog search itself -- only for regression within each neighborhood.
+#' @param covariates Predictor variables for local regression, supplied at
+#'   pool locations. Can be a numeric vector (single covariate), matrix,
+#'   data.frame, or SpatRaster. Must have exactly the same number of
+#'   rows/cells as `pool`. Column/layer names carry through to output.
+#'   These variables are NOT used for the analog search itself -- only for
+#'   regression within each neighborhood.
+#' @param x_covariates Optional predictor values at focal (`x`) locations, at
+#'   which to evaluate the local regressions. When supplied, the output
+#'   includes one additional column (`pred`) or one column per response
+#'   variable (`pred_{yname}` for multi-y), giving the fitted value at the
+#'   focal. Must have exactly the same number of rows/cells as `x`, and the
+#'   same column/layer names as `covariates`. Default `NULL` returns only
+#'   coefficients.
 #' @param lambda Ridge penalty parameter (default: 0, giving ordinary
 #'   weighted least squares). Higher values shrink high-variance coefficients
 #'   toward zero, causing the intercept to approach the weighted mean as
@@ -49,6 +57,7 @@
 #'
 #' @return A data.frame (or SpatRaster if `x` is a SpatRaster) with one
 #'   row per focal location containing:
+#'
 #'   \itemize{
 #'     \item `index`, `x`, `y`: Focal location identifiers
 #'     \item Columns for any additional stats requested (e.g., `count`, `ess`)
@@ -59,18 +68,24 @@
 #'     \item With multiple `y` variables: columns are named
 #'       `coef_{coeff}_{varname}` (and `se_{coeff}_{varname}` when SEs
 #'       are returned)
+#'     \item When `x_covariates` is supplied: `pred` (single-y) or
+#'       `pred_{varname}` (multi-y) giving the fitted value at each focal.
 #'   }
 #'
 #' @details
+#'
 #' ## Method
 #'
 #' For each focal location, the function:
-#' 1. Selects analog pool locations based on `select`, `max_clim`, `max_geog`, and `k`
-#' 2. Computes distance-based kernel weights for each analog (via `kernel` and `theta`)
-#' 3. Fits a weighted least squares regression of `y` on `covariates`
-#'    using these weights, with optional ridge penalty `lambda`
-#' 4. Returns the regression coefficients (intercept + slopes), and
-#'    optionally their standard errors (see `se` in [analog_search()]).
+#'
+#' \enumerate{
+#'   \item Selects analog pool locations based on `select`, `max_clim`, `max_geog`, and `k`
+#'   \item Computes distance-based kernel weights for each analog (via `kernel` and `theta`)
+#'   \item Fits a weighted least squares regression of `y` on `covariates`
+#'     using these weights, with optional ridge penalty `lambda`
+#'   \item Returns the regression coefficients (intercept + slopes), and
+#'     optionally their standard errors (see `se` in [analog_search()]).
+#' }
 #'
 #' The math: `beta = (X'WX + lambda * I_p)^{-1} X'Wy`, where `W` is diagonal
 #' weights, `X` is the design matrix (intercept + covariates), and `I_p` penalizes
@@ -99,12 +114,12 @@
 #'
 #' ## Prediction
 #'
-#' The function returns coefficients only. Prediction at new covariate values
-#' can be done via regression algebra, e.g.:
+#' To evaluate fitted values at the focal locations, pass covariate values at
+#' those locations via `x_covariates`. The output will then include a `pred`
+#' column (single-y case) or `pred_{yname}` columns (multi-y case) alongside
+#' the usual coefficient columns.
 #'
-#' \preformatted{
-#' prediction <- coef_intercept + coef_cov1 * covariate_1 + coef_cov2 * covariate_2
-#' }
+#' If you only need coefficients, leave `x_covariates = NULL`.
 #'
 #' @examples
 #' \dontrun{
@@ -121,6 +136,16 @@
 #'   theta = 20,
 #'   se = "ess"
 #' )
+#'
+#' # With focal-side covariates, to obtain fitted predictions
+#' pred_result <- analog_regression(
+#'   x = future_sites,
+#'   pool = sites,
+#'   y = sites$income,
+#'   covariates   = data.frame(education = sites$edu),       # at pool
+#'   x_covariates = data.frame(education = future_sites$edu) # at focals
+#' )
+#' head(pred_result[, c("coef_intercept", "coef_education", "pred")])
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
@@ -133,6 +158,7 @@ analog_regression <- function(
             pool,
             y,
             covariates,
+            x_covariates = NULL,
             max_geog = NULL,
             max_clim = NULL,
             select = "all",
@@ -160,7 +186,7 @@ analog_regression <- function(
             stat <- unique(c(stat, "regression"))
       }
 
-      analog_search(
+      result <- analog_search(
             x           = x,
             pool        = pool,
             select      = select,
@@ -181,4 +207,176 @@ analog_regression <- function(
             progress    = progress,
             ...
       )
+
+      # Append predictions at focal locations if x_covariates was supplied
+      if (!is.null(x_covariates)) {
+            result <- .append_regression_predictions(
+                  result       = result,
+                  x_covariates = x_covariates,
+                  y            = y,
+                  covariates   = covariates
+            )
+      }
+
+      result
+}
+
+
+# Internal helpers -----------------------------------------------------------
+
+#' Append `pred` column(s) to an analog_regression result
+#'
+#' Evaluates fitted values at focal locations by combining per-focal
+#' regression coefficients in `result` with focal-side covariate values
+#' in `x_covariates`. Handles both data.frame and SpatRaster `result`,
+#' both single-y and multi-y regression, and both data.frame/matrix and
+#' SpatRaster `x_covariates` inputs. Uses [.predict_from_coefs()] for the
+#' arithmetic.
+#'
+#' Name resolution uses the package's existing validator helpers to pull
+#' `y_names` / `cov_names` from the original `y` / `covariates` arguments,
+#' avoiding any need to parse coefficient column names.
+#'
+#' @keywords internal
+.append_regression_predictions <- function(result, x_covariates, y, covariates) {
+
+      # Resolve y_names and cov_names from the inputs (reuses existing validators
+      # to accept the same input shapes that analog_search() accepts).
+      # A dummy single-row "ref" satisfies row-count validation, since we only
+      # need the names here.
+      dummy_ref <- matrix(0, nrow = nrow_of(y), ncol = 1L)
+      y_info    <- .validate_and_format_values(y, dummy_ref)
+      y_names   <- y_info$names
+
+      dummy_ref_c <- matrix(0, nrow = nrow_of(covariates), ncol = 1L)
+      cov_info    <- .validate_and_format_covariates(covariates, dummy_ref_c)
+      cov_names   <- cov_info$names
+
+      # Coerce x_covariates and harvest raster template (if any) --------------
+      is_raster_result <- inherits(result, "SpatRaster")
+
+      xc <- .coerce_xcov_to_matrix(x_covariates, cov_names)
+      xc_mat <- xc$mat
+      xc_names <- xc$names
+
+      # Validate row/cell count
+      n_focals <- if (is_raster_result) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster result.",
+                       call. = FALSE)
+            }
+            terra::ncell(result)
+      } else {
+            nrow(result)
+      }
+      if (nrow(xc_mat) != n_focals) {
+            stop("`x_covariates` has ", nrow(xc_mat), " rows/cells but `x` has ",
+                 n_focals, ". These must match.", call. = FALSE)
+      }
+
+      # Validate column name alignment
+      missing_covs <- setdiff(cov_names, xc_names)
+      if (length(missing_covs) > 0L) {
+            stop("`x_covariates` is missing columns for covariates: ",
+                 paste(missing_covs, collapse = ", "),
+                 ". Column/layer names in `x_covariates` must match those in ",
+                 "`covariates`.", call. = FALSE)
+      }
+      # Reorder to cov_names
+      xc_mat <- xc_mat[, cov_names, drop = FALSE]
+      storage.mode(xc_mat) <- "double"
+
+      # Get coefficients as data.frame for the arithmetic ---------------------
+      coefs_df <- if (is_raster_result) {
+            terra::as.data.frame(result, xy = FALSE, na.rm = FALSE)
+      } else {
+            as.data.frame(result)
+      }
+
+      preds <- .predict_from_coefs(
+            coefs_df          = coefs_df,
+            covariates_matrix = xc_mat,
+            y_names           = y_names,
+            cov_names         = cov_names
+      )
+
+      # Attach predictions to result ------------------------------------------
+      n_y <- length(y_names)
+      pred_colnames <- if (n_y == 1L) "pred" else paste0("pred_", y_names)
+
+      if (is_raster_result) {
+            pred_layers <- lapply(seq_len(n_y), function(j) {
+                  setNames(terra::setValues(result[[1]], preds[, j]),
+                           pred_colnames[j])
+            })
+            # Preserve existing attributes by appending the new layer(s)
+            att <- attributes(result)
+            out <- c(result, do.call(c, pred_layers))
+            # c(...) on SpatRaster drops most custom attributes; re-attach.
+            attributes(out) <- append(attributes(out),
+                                      att[setdiff(names(att), names(attributes(out)))])
+            return(out)
+      }
+
+      # data.frame path
+      for (j in seq_len(n_y)) {
+            result[[pred_colnames[j]]] <- preds[, j]
+      }
+      result
+}
+
+
+#' Coerce x_covariates input to numeric matrix with column names
+#'
+#' Accepts numeric vector (single covariate), matrix, data.frame, or
+#' SpatRaster. Returns list(mat, names).
+#'
+#' @keywords internal
+.coerce_xcov_to_matrix <- function(x_covariates, cov_names) {
+      if (inherits(x_covariates, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster x_covariates.",
+                       call. = FALSE)
+            }
+            nms <- terra::names(x_covariates)
+            mat <- as.matrix(terra::as.data.frame(x_covariates,
+                                                  xy = FALSE, na.rm = FALSE))
+            return(list(mat = mat, names = nms))
+      }
+      if (is.data.frame(x_covariates)) {
+            return(list(mat = as.matrix(x_covariates),
+                        names = names(x_covariates)))
+      }
+      if (is.matrix(x_covariates)) {
+            return(list(mat = x_covariates, names = colnames(x_covariates)))
+      }
+      if (is.numeric(x_covariates) && is.null(dim(x_covariates))) {
+            # Single-covariate shorthand: valid only when there is one covariate
+            if (length(cov_names) != 1L) {
+                  stop("`x_covariates` given as a plain numeric vector is only ",
+                       "allowed when `covariates` has a single variable.",
+                       call. = FALSE)
+            }
+            mat <- matrix(x_covariates, ncol = 1L)
+            colnames(mat) <- cov_names
+            return(list(mat = mat, names = cov_names))
+      }
+      stop("`x_covariates` must be a numeric vector, matrix, data.frame, or ",
+           "SpatRaster.", call. = FALSE)
+}
+
+
+#' Get row count of an input that may be a vector, matrix, data.frame, or SpatRaster
+#'
+#' @keywords internal
+nrow_of <- function(obj) {
+      if (inherits(obj, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster inputs.",
+                       call. = FALSE)
+            }
+            return(terra::ncell(obj))
+      }
+      if (is.null(dim(obj))) return(length(obj))
+      nrow(obj)
 }

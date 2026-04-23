@@ -2,22 +2,22 @@
 title: "Introduction to analogs"
 output: rmarkdown::html_vignette
 vignette: >
-%\VignetteIndexEntry{Introduction to analogs}
+  %\VignetteIndexEntry{Introduction to analogs}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
-  ---
+---
   
-  ```{r, include = FALSE}
-  knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  fig.width = 7,
-  fig.height = 5
-  )
-  ```
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+      collapse = TRUE,
+      comment = "#>",
+      fig.width = 7,
+      fig.height = 5
+)
+```
   
-  ```{r setup}
-  library(analogs)
+```{r setup}
+library(analogs)
 library(terra)
 ```
 
@@ -265,34 +265,44 @@ plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 
 ## Local regression
 
-`analog_regression()` fits a weighted linear regression model within each analog neighborhood and returns the coefficients. This is useful if your outcome variable `y` has important relationships with additional predictors beyond the variables (climate and geography) used to define the analog search kernel. In the example below we'll use AET and its square as covariates. 
+`analog_regression()` fits a weighted linear regression model within each analog neighborhood. This is useful if your outcome variable `y` has important relationships with additional predictors beyond the variables (climate and geography) used to define the analog search kernel. In the example below we'll use AET and its square as covariates. The function returns and returns the coefficients (and optionally, their standard errors) for each location in `x`, and also returns predicted values if `x_covariates` is provided.
 
-The `lambda` parameter controls the amount of ridge regularization. The default (`lambda = 0`) is ordinary weighted least squares regression, with no regularization. Setting `lambda > 0` adds regularization, which shrinks high-variance coefficients toward zero; this is useful for stabilizing predictions when some neighborhoods have few analogs relative to the number of covariates, or when covariates are strongly correlated. As `lambda -> Inf`, the intercept term approaches the weighted mean, i.e. the behavior of `analog_impact()`. The typical approach for choosing a `lambda` value is cross-validation, but here we'll arbitrarily pick a modest value.
+The `lambda` parameter controls the amount of ridge regularization. The default (`lambda = 0`) is ordinary weighted least squares regression, with no regularization. Setting `lambda > 0` adds regularization, which shrinks high-variance coefficients toward zero; this is useful for stabilizing predictions when some neighborhoods have few analogs relative to the number of covariates, or when covariates are strongly correlated. As `lambda -> Inf`, the intercept term approaches the weighted mean, i.e. the behavior of `analog_impact()`. The typical approach for choosing a `lambda` value is cross-validation (see the section on `analog_cv()` below), but here we'll arbitrarily pick a modest value.
 
 
 ```{r regression}
 # Simulate covariates for the pool (just using AET for expediency)
 set.seed(42)
-n_pool <- ncell(hist)
 pool_covariates <- data.frame(
       aet = as.vector(values(hist$AET)),
       aet2 = as.vector(values(hist$AET))^2
 )
 
-reg <- analog_regression(
+# Do the same for x (not required but enables predicted values)
+x_covariates <- data.frame(
+      aet = as.vector(values(fut$AET)),
+      aet2 = as.vector(values(fut$AET))^2
+)
+
+# Fit analog regression model
+fit <- analog_regression(
       x = fut,
       pool = hist,
       y = eco_var,
       covariates = pool_covariates,
-      max_clim = 0.5,
+      x_covariates = x_covariates,
+      max_clim = 0.25,
       max_geog = 200,
       kernel = "gaussian_clim",
       theta = 0.15,
-      lambda = 1
+      lambda = 1,
+      se = "ess" # request standard errors
 )
 
-plot(reg[[c("coef_intercept", "coef_aet")]], 
-     main = c("Regression intercept", "Coefficient: cov1"))
+# Plot a few of the output variables
+plot(fit[[c("coef_aet", "se_aet", "pred")]], 
+     main = c("A coefficient", "The coefficient's SE", "Predicted value"),
+     nr = 1)
 ```
 
 
@@ -329,7 +339,7 @@ Cross-validation (CV) is a technique that involves comparing observed data (`y` 
 
 Importantly, cross-validation is **internal to `pool`**---it does not take an `x` argument and can't quantify how well the model predicts values in an independent dataset of focal sites. Thus it should not be assumed that CV performance metrics represent model transferability to data from different regimes (such as an `x` dataset representing future climates).
 
-As an example, let's run LOO cross-validation for an analog impact model, plot a map of the residuals, and quantify the model's performance. If we wanted to tune a model parameter (`max_geog`, `theta`, etc.), we could call `cv_performance(analog_cv(...))` repeatedly with different parameter values to identify the best-performing settings. 
+As an example, let's run LOO cross-validation for an analog impact model, plot a map of the residuals, and quantify the model's performance. If we wanted to tune a model parameter (`labmda` `max_geog`, `theta`, etc.), we could call `cv_performance(analog_cv(...))` repeatedly with different parameter values to identify the best-performing settings. 
 
 ```{r cv}
 # Run cross-validation and plot residuals

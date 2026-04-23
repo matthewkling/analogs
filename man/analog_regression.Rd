@@ -9,6 +9,7 @@ analog_regression(
   pool,
   y,
   covariates,
+  x_covariates = NULL,
   max_geog = NULL,
   max_clim = NULL,
   select = "all",
@@ -45,11 +46,20 @@ Can be a numeric vector, matrix, data.frame, or SpatRaster.
 Must have exactly the same number of rows/cells as \code{pool}.
 A separate regression is fit for each variable.}
 
-\item{covariates}{Predictor variables for local regression. Can be a
-numeric vector (single covariate), matrix, data.frame, or SpatRaster.
-Must have exactly the same number of rows/cells as \code{pool}. Column/layer
-names carry through to output. These variables are NOT used for the
-analog search itself -- only for regression within each neighborhood.}
+\item{covariates}{Predictor variables for local regression, supplied at
+pool locations. Can be a numeric vector (single covariate), matrix,
+data.frame, or SpatRaster. Must have exactly the same number of
+rows/cells as \code{pool}. Column/layer names carry through to output.
+These variables are NOT used for the analog search itself -- only for
+regression within each neighborhood.}
+
+\item{x_covariates}{Optional predictor values at focal (\code{x}) locations, at
+which to evaluate the local regressions. When supplied, the output
+includes one additional column (\code{pred}) or one column per response
+variable (\verb{pred_\{yname\}} for multi-y), giving the fitted value at the
+focal. Must have exactly the same number of rows/cells as \code{x}, and the
+same column/layer names as \code{covariates}. Default \code{NULL} returns only
+coefficients.}
 
 \item{max_geog}{Maximum geographic distance constraint (default:
 NULL = no geographic constraint). When specified, only reference locations
@@ -185,6 +195,7 @@ is \code{FALSE}.}
 \value{
 A data.frame (or SpatRaster if \code{x} is a SpatRaster) with one
 row per focal location containing:
+
 \itemize{
 \item \code{index}, \code{x}, \code{y}: Focal location identifiers
 \item Columns for any additional stats requested (e.g., \code{count}, \code{ess})
@@ -195,6 +206,8 @@ standard errors of each coefficient
 \item With multiple \code{y} variables: columns are named
 \verb{coef_\{coeff\}_\{varname\}} (and \verb{se_\{coeff\}_\{varname\}} when SEs
 are returned)
+\item When \code{x_covariates} is supplied: \code{pred} (single-y) or
+\verb{pred_\{varname\}} (multi-y) giving the fitted value at each focal.
 }
 }
 \description{
@@ -216,6 +229,7 @@ This function is a wrapper that calls \code{\link[=analog_search]{analog_search(
 \subsection{Method}{
 
 For each focal location, the function:
+
 \enumerate{
 \item Selects analog pool locations based on \code{select}, \code{max_clim}, \code{max_geog}, and \code{k}
 \item Computes distance-based kernel weights for each analog (via \code{kernel} and \code{theta})
@@ -255,12 +269,12 @@ climates within geographic range.
 
 \subsection{Prediction}{
 
-The function returns coefficients only. Prediction at new covariate values
-can be done via regression algebra, e.g.:
+To evaluate fitted values at the focal locations, pass covariate values at
+those locations via \code{x_covariates}. The output will then include a \code{pred}
+column (single-y case) or \verb{pred_\{yname\}} columns (multi-y case) alongside
+the usual coefficient columns.
 
-\preformatted{
-prediction <- coef_intercept + coef_cov1 * covariate_1 + coef_cov2 * covariate_2
-}
+If you only need coefficients, leave \code{x_covariates = NULL}.
 }
 }
 \examples{
@@ -278,6 +292,16 @@ gwr_result <- analog_regression(
   theta = 20,
   se = "ess"
 )
+
+# With focal-side covariates, to obtain fitted predictions
+pred_result <- analog_regression(
+  x = future_sites,
+  pool = sites,
+  y = sites$income,
+  covariates   = data.frame(education = sites$edu),       # at pool
+  x_covariates = data.frame(education = future_sites$edu) # at focals
+)
+head(pred_result[, c("coef_intercept", "coef_education", "pred")])
 }
 
 }
