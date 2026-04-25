@@ -7,17 +7,17 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-<!--
-  THIS FILE IS GENERATED. Do not edit by hand.
-  Source: vignettes-raw/analogs.Rmd
-  Regenerate with: rawvignette::precompile_raw_vignettes()
-  (or run: Rscript vignettes-raw/precompile.R)
--->
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+      collapse = TRUE,
+      comment = "#>",
+      fig.path = "figures/",
+      fig.width = 7,
+      fig.height = 5
+)
+```
 
-
-
-
-``` r
+```{r setup}
 library(analogs)
 library(terra)
 ```
@@ -54,16 +54,13 @@ Most of the examples in this vignette are focused on climate change, and assume 
 
 The package includes an example dataset of climate rasters covering a portion of western North America at approximately 5 km resolution, with two scaled climate variables (climatic water deficit and actual evapotranspiration) for a historical baseline (1981--2010) and a future projection (2041--2070, SSP585). These are used throughout this vignette. Let's unpack them and make some quick maps:
 
-
-``` r
+```{r data}
 clim <- example_rasters()
 hist <- clim$historic
 fut <- clim$future
 
 plot(hist, main = c("Historical CWD", "Historical AET"))
 ```
-
-![plot of chunk data](figures/data-1.png)
 
 
 ## Distance metrics
@@ -84,8 +81,7 @@ By default, climate distance is Euclidean. When using multiple climate variables
 
 For dataset-wide Mahalanobis distance (accounting for covariance among climate variables), use `mahalanobis_transform()` to pre-whiten the data:
 
-
-``` r
+```{r mahalanobis, eval = FALSE}
 transformed <- mahalanobis_transform(x = hist, pool = fut)
 vel_mahal <- analog_velocity(
       x = transformed$x,
@@ -124,8 +120,7 @@ Analog-based climate velocity metrics are widely used to assess dispersal constr
 
 These metrics are implemented as a geographic nearest-neighbor search under a hard climate constraint, with reverse velocity implemented by swapping the climate data for the two eras. For each focal site, the result returns data on its single nearest geographic analog (subject to the climate similarity threshold `max_clim`). The geographic distance to that analog, divided by the time elapsed, is the velocity. Sites with no analog in the reference pool---an important category--- have `NA` results.
 
-
-``` r
+```{r velocity}
 fwd_vel <- analog_velocity(
       x = hist,
       pool = fut,
@@ -146,12 +141,9 @@ plot(vel, range = range(minmax(vel)),
      main = c("Forward velocity (km/dec)", "Reverse velocity (km/dec)"))
 ```
 
-![plot of chunk velocity](figures/velocity-1.png)
-
 In addition to geographic and climatic distances, the result also includes the spatial coordinates of each site's nearest analog (as well as the analog's index in the `pool`). This can be used for a variety of downstream analyses, including visualizing the direction from a site to its analog location:
 
-
-``` r
+```{r bearing}
 fwd_vel$bearing <- geosphere::bearing(crds(fwd_vel, na.rm = FALSE),
                                       values(fwd_vel)[, c("analog_x", "analog_y")])
 
@@ -159,15 +151,12 @@ plot(fwd_vel$bearing, main = c("Bearing to forward analog (deg)"),
      col = rainbow(12))
 ```
 
-![plot of chunk bearing](figures/bearing-1.png)
-
 
 ## Climate similarity
 
 Climate similarity answers the inverse question from climate velocity: for each location's climate, what is the most similar climate within a given geographic radius? This finds the most climatically similar locations that are geographically reachable, which can provide insight into how much climate change organisms must tolerate given limited dispersal capacity.
 
-
-``` r
+```{r similarity}
 sim <- analog_similarity(
       x = fut,
       pool = hist,
@@ -178,15 +167,12 @@ sim <- analog_similarity(
 plot(sim$clim_dist, main = "Similarity of best nearby climate analog")
 ```
 
-![plot of chunk similarity](figures/similarity-1.png)
-
 
 ## Analog availability
 
 How many analogs exist within specified climate and geographic thresholds? This maps the density of suitable analogs across the landscape. Locations with large numbers of nearby analogs have greater potential for adaptive dispersal under climate change, while locations with zero analogs represent novel or disappearing climates.
 
-
-``` r
+```{r availability}
 avail <- analog_availability(
       x = fut,
       pool = hist,
@@ -197,15 +183,12 @@ avail <- analog_availability(
 plot(avail, main = "Analog availability (count)")
 ```
 
-![plot of chunk availability](figures/availability-1.png)
-
 
 ## Analog intensity
 
 Similar to availability, but weighted by climate similarity and/or geographic proximity rather than simply counted. This captures both the number and quality of analog matches.
 
-
-``` r
+```{r intensity}
 intens <- analog_intensity(
       x = fut,
       pool = hist,
@@ -217,8 +200,6 @@ intens <- analog_intensity(
 
 plot(intens, main = "Analog intensity")
 ```
-
-![plot of chunk intensity](figures/intensity-1.png)
 
 
 # Prediction functions
@@ -232,8 +213,7 @@ Options for assessing uncertainty include returning standard errors on fitted me
 
 Analog impact models (AIMs) predict ecological outcomes (`y`) under climate change. For each focal site, this approach finds locations within dispersal range with current climates similar to the focal site's future climate, then computes an average of their ecological characteristics, weighted by climatic similarity. As an example, let's use CWD values from the historical period as a stand-in for an ecological response variable. To assess uncertainty in weighted means, let's also specify `se = "ess"` to compute standard errors based on effective sample size for each grid cell.
 
-
-``` r
+```{r impact}
 # Use historical CWD as a proxy ecological variable
 eco_var <- hist$CWD
 
@@ -252,8 +232,6 @@ plot(impact[[c("weighted_mean", "se_weighted_mean")]],
      main = c("Predicted ecological state", "Standard error"))
 ```
 
-![plot of chunk impact](figures/impact-1.png)
-
 The `kernel` and `theta` parameters control how analog influence decays with climate distance. A Gaussian kernel with `theta = 0.15` means analogs at a climate distance of 0.15 receive about 60% weight, while those at 0.45 (= 3 × theta) receive almost none. The hard threshold `max_clim` provides an absolute cutoff.
 
 
@@ -264,8 +242,7 @@ The analog framework is also useful for analyses outside climate change scenario
 The example below shows an interpolation informed by both climatic similarity and geographic proximity, with their relative importance determined by the `theta` parameters and the shape of the selected `kernel` function.
 
 
-
-``` r
+```{r interpolation}
 # Simulate sparse field observations at 500 random locations
 set.seed(123)
 n_sites <- 500
@@ -283,14 +260,9 @@ interp <- analog_impact(
       kernel = "gaussian_joint",
       theta = c(0.15, 100)
 )
-#> Warning in tune_index_res(x = x, pool = pool, x_cov = x_cov, y = y, covariates = covariates, : Auto-tuning of index_res did not detect an interior minimum;
-#> elapsed times were monotonic across tested values {4, 8, 16, 32} (fastest listed first). The optimal index_res may lie outside this range. Consider manually
-#> specifying `index_res`, or re-running `tune_index_res()` with `default_res = 4`.
 
 plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 ```
-
-![plot of chunk interpolation](figures/interpolation-1.png)
 
 
 ## Local regression
@@ -300,8 +272,7 @@ plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 The `lambda` parameter controls the amount of ridge regularization. The default (`lambda = 0`) is ordinary weighted least squares regression, with no regularization. Setting `lambda > 0` adds regularization, which shrinks high-variance coefficients toward zero; this is useful for stabilizing predictions when some neighborhoods have few analogs relative to the number of covariates, or when covariates are strongly correlated. As `lambda -> Inf`, the intercept term approaches the weighted mean, i.e. the behavior of `analog_impact()`. The typical approach for choosing a `lambda` value is cross-validation (see the section on `analog_cv()` below), but here we'll arbitrarily pick a modest value.
 
 
-
-``` r
+```{r regression}
 # Simulate covariates for the pool (just using AET for expediency)
 set.seed(42)
 pool_covariates <- data.frame(
@@ -336,15 +307,12 @@ plot(fit[[c("coef_aet", "se_aet", "pred")]],
      nr = 1)
 ```
 
-![plot of chunk regression](figures/regression-1.png)
-
 
 ## Geographically weighted regression
 
 The same regression machinery supports geographically weighted regression (GWR) by using geographic neighborhoods and geographic distance kernel weighting. This is a different configuration of the same underlying framework — no climate constraint, geographic kernel, local regression on covariates.
 
-
-``` r
+```{r gwr}
 # GWR: geographic neighborhood, geographic kernel weighting
 gwr <- analog_regression(
       x = hist,
@@ -364,8 +332,6 @@ plot(gwr[[c("coef_intercept", "coef_aet")]],
      range = c(-2, 2), fill_range = TRUE)
 ```
 
-![plot of chunk gwr](figures/gwr-1.png)
-
 
 ## Cross-validation
 
@@ -377,8 +343,7 @@ Importantly, cross-validation is **internal to `pool`**---it does not take an `x
 
 As an example, let's run LOO cross-validation for an analog impact model, plot a map of the residuals, and quantify the model's performance. If we wanted to tune a model parameter (`labmda` `max_geog`, `theta`, etc.), we could call `cv_performance(analog_cv(...))` repeatedly with different parameter values to identify the best-performing settings.
 
-
-``` r
+```{r cv}
 # Run cross-validation and plot residuals
 cv <- analog_cv(
       fun = analog_impact, pool = hist, y = eco_var,
@@ -386,20 +351,9 @@ cv <- analog_cv(
       se = "ess", cv_method = "loo"
 )
 plot(cv$residual, main = "Cross-validation residual")
-```
-
-![plot of chunk cv](figures/cv-1.png)
-
-``` r
 
 # Calculate prediction error metrics
 cv_performance(cv)
-#>   variable       type metric         value
-#> 1        y continuous      n  2.288230e+05
-#> 2        y continuous   rmse  4.061223e-02
-#> 3        y continuous    mae  3.096715e-02
-#> 4        y continuous   bias -1.895618e-03
-#> 5        y continuous     r2  9.983305e-01
 ```
 
 
@@ -411,8 +365,7 @@ The package is designed for large-scale analyses involving millions of pairwise 
 
 When running multiple queries against the same reference pool, build the lattice index once and reuse it:
 
-
-``` r
+```{r index}
 idx <- build_analog_index(hist)
 
 # Multiple queries reuse the same index
@@ -424,8 +377,7 @@ avail_loose <- analog_availability(fut, idx, max_clim = 0.8, max_geog = 300)
 
 By default, the lattice resolution is auto-tuned for each query. For repeated queries with the same configuration, you can tune once and reuse:
 
-
-``` r
+```{r tune, eval = FALSE}
 res <- tune_index_res(
       x = fut, pool = hist,
       stat = "count",
@@ -439,8 +391,7 @@ idx <- build_analog_index(hist, index_res = res)
 
 Use the `n_threads` parameter to parallelize across focal locations:
 
-
-``` r
+```{r threads, eval = FALSE}
 result <- analog_velocity(fut, hist, max_clim = 0.5, k = 1, n_threads = 4)
 ```
 
@@ -448,8 +399,7 @@ result <- analog_velocity(fut, hist, max_clim = 0.5, k = 1, n_threads = 4)
 
 For rasters too large to fit in memory, `tiled_analog_search()` processes the focal data in spatial tiles:
 
-
-``` r
+```{r tiled, eval = FALSE}
 result <- tiled_analog_search(
       x = very_large_raster,
       pool = idx,
@@ -464,8 +414,7 @@ result <- tiled_analog_search(
 
 For very large reference pools, downsampling reduces computation. The package uses an adaptive sampling routine that reduces the effects on precision by downsampling more heavily in dense regions of climatic-geographic space in order to preserve coverage in sparse regions:
 
-
-``` r
+```{r downsample, eval = FALSE}
 result <- analog_availability(
       x = fut, pool = hist,
       max_clim = 0.5, max_geog = 200,

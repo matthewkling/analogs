@@ -7,3 +7,4 @@
 ^README\.Rmd$
 ^\.sandbox$
 ^data-raw$
+^vignettes-raw$
