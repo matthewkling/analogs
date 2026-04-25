@@ -2,9 +2,7 @@
 
 ``` r
 library(analogs)
-#> Loading required package: RcppParallel
 library(terra)
-#> terra 1.9.11
 ```
 
 ## Overview
@@ -87,7 +85,9 @@ fut <- clim$future
 plot(hist, main = c("Historical CWD", "Historical AET"))
 ```
 
-![](analogs_files/figure-html/data-1.png)
+![plot of chunk data](figures/data-1.png)
+
+plot of chunk data
 
 ### Distance metrics
 
@@ -204,7 +204,9 @@ plot(vel, range = range(minmax(vel)),
      main = c("Forward velocity (km/dec)", "Reverse velocity (km/dec)"))
 ```
 
-![](analogs_files/figure-html/velocity-1.png)
+![plot of chunk velocity](figures/velocity-1.png)
+
+plot of chunk velocity
 
 In addition to geographic and climatic distances, the result also
 includes the spatial coordinates of each site’s nearest analog (as well
@@ -213,14 +215,16 @@ downstream analyses, including visualizing the direction from a site to
 its analog location:
 
 ``` r
-fwd_vel$bearing <- geosphere::bearing(crds(fwd_vel, na.rm = FALSE), 
+fwd_vel$bearing <- geosphere::bearing(crds(fwd_vel, na.rm = FALSE),
                                       values(fwd_vel)[, c("analog_x", "analog_y")])
 
 plot(fwd_vel$bearing, main = c("Bearing to forward analog (deg)"),
      col = rainbow(12))
 ```
 
-![](analogs_files/figure-html/bearing-1.png)
+![plot of chunk bearing](figures/bearing-1.png)
+
+plot of chunk bearing
 
 ### Climate similarity
 
@@ -242,7 +246,9 @@ sim <- analog_similarity(
 plot(sim$clim_dist, main = "Similarity of best nearby climate analog")
 ```
 
-![](analogs_files/figure-html/similarity-1.png)
+![plot of chunk similarity](figures/similarity-1.png)
+
+plot of chunk similarity
 
 ### Analog availability
 
@@ -263,7 +269,9 @@ avail <- analog_availability(
 plot(avail, main = "Analog availability (count)")
 ```
 
-![](analogs_files/figure-html/availability-1.png)
+![plot of chunk availability](figures/availability-1.png)
+
+plot of chunk availability
 
 ### Analog intensity
 
@@ -284,7 +292,9 @@ intens <- analog_intensity(
 plot(intens, main = "Analog intensity")
 ```
 
-![](analogs_files/figure-html/intensity-1.png)
+![plot of chunk intensity](figures/intensity-1.png)
+
+plot of chunk intensity
 
 ## Prediction functions
 
@@ -328,11 +338,13 @@ impact <- analog_impact(
       se = "ess"
 )
 
-plot(impact[[c("weighted_mean", "se_weighted_mean")]], 
+plot(impact[[c("weighted_mean", "se_weighted_mean")]],
      main = c("Predicted ecological state", "Standard error"))
 ```
 
-![](analogs_files/figure-html/impact-1.png)
+![plot of chunk impact](figures/impact-1.png)
+
+plot of chunk impact
 
 The `kernel` and `theta` parameters control how analog influence decays
 with climate distance. A Gaussian kernel with `theta = 0.15` means
@@ -378,17 +390,16 @@ interp <- analog_impact(
       kernel = "gaussian_joint",
       theta = c(0.15, 100)
 )
-#> Warning in tune_index_res(x = x, pool = pool, x_cov = x_cov, y = y, covariates
-#> = covariates, : Auto-tuning of index_res did not detect an interior minimum;
-#> elapsed times were monotonic across tested values {4, 8, 16, 32} (fastest
-#> listed first). The optimal index_res may lie outside this range. Consider
-#> manually specifying `index_res`, or re-running `tune_index_res()` with
-#> `default_res = 4`.
+#> Warning in tune_index_res(x = x, pool = pool, x_cov = x_cov, y = y, covariates = covariates, : Auto-tuning of index_res did not detect an interior minimum;
+#> elapsed times were monotonic across tested values {4, 8, 16, 32} (fastest listed first). The optimal index_res may lie outside this range. Consider manually
+#> specifying `index_res`, or re-running `tune_index_res()` with `default_res = 4`.
 
 plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 ```
 
-![](analogs_files/figure-html/interpolation-1.png)
+![plot of chunk interpolation](figures/interpolation-1.png)
+
+plot of chunk interpolation
 
 ### Local regression
 
@@ -445,12 +456,14 @@ fit <- analog_regression(
 )
 
 # Plot a few of the output variables
-plot(fit[[c("coef_aet", "se_aet", "pred")]], 
+plot(fit[[c("coef_aet", "se_aet", "pred")]],
      main = c("A coefficient", "The coefficient's SE", "Predicted value"),
      nr = 1)
 ```
 
-![](analogs_files/figure-html/regression-1.png)
+![plot of chunk regression](figures/regression-1.png)
+
+plot of chunk regression
 
 ### Geographically weighted regression
 
@@ -475,12 +488,14 @@ gwr <- analog_regression(
       lambda = 0
 )
 
-plot(gwr[[c("coef_intercept", "coef_aet")]], 
+plot(gwr[[c("coef_intercept", "coef_aet")]],
      main = c("GWR intercept", "GWR coefficient: cov1"),
      range = c(-2, 2), fill_range = TRUE)
 ```
 
-![](analogs_files/figure-html/gwr-1.png)
+![plot of chunk gwr](figures/gwr-1.png)
+
+plot of chunk gwr
 
 ### Cross-validation
 
@@ -530,7 +545,9 @@ cv <- analog_cv(
 plot(cv$residual, main = "Cross-validation residual")
 ```
 
-![](analogs_files/figure-html/cv-1.png)
+![plot of chunk cv](figures/cv-1.png)
+
+plot of chunk cv
 
 ``` r
 
@@ -538,7 +555,7 @@ plot(cv$residual, main = "Cross-validation residual")
 cv_performance(cv)
 #>   variable       type metric         value
 #> 1        y continuous      n  2.288230e+05
-#> 2        y continuous   rmse  4.061222e-02
+#> 2        y continuous   rmse  4.061223e-02
 #> 3        y continuous    mae  3.096715e-02
 #> 4        y continuous   bias -1.895618e-03
 #> 5        y continuous     r2  9.983305e-01
