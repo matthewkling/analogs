@@ -79,7 +79,7 @@ For variables classified as continuous:
 
 ## Binary metrics
 
-For variables classified as binary (observed values all in 0, 1 with
+For variables classified as binary (observed values all in `[0, 1]` with
 both classes present):
 
 - `n`: number of locations with finite observed and predicted values.
@@ -101,7 +101,7 @@ both classes present):
 When `outcome_type = "auto"` (the default), each variable is classified
 as:
 
-- `"binary"` if observed values are all in `{0, 1}` after removing NAs,
+- `"binary"` if observed values are all in `[0, 1]` after removing NAs,
   with both classes present.
 
 - `"continuous"` otherwise.

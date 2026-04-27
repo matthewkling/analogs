@@ -108,7 +108,7 @@ when predictions are worse than simply predicting the overall mean.</p></li>
     <h2 id="binary-metrics">Binary metrics<a class="anchor" aria-label="anchor" href="#binary-metrics"></a></h2>
 
 
-<p>For variables classified as binary (observed values all in 0, 1 with
+<p>For variables classified as binary (observed values all in <code>[0, 1]</code> with
 both classes present):</p><ul><li><p><code>n</code>: number of locations with finite observed and predicted values.</p></li>
 <li><p><code>auc</code>: area under the ROC curve (via Mann-Whitney U; handles ties).
 A threshold-independent measure of rank-based discrimination.</p></li>
@@ -123,7 +123,7 @@ are in <code>[0, 1]</code>.</p></li>
     <h2 id="outcome-type-detection">Outcome-type detection<a class="anchor" aria-label="anchor" href="#outcome-type-detection"></a></h2>
 
 
-<p>When <code>outcome_type = "auto"</code> (the default), each variable is classified as:</p><ul><li><p><code>"binary"</code> if observed values are all in <code>{0, 1}</code> after removing NAs,
+<p>When <code>outcome_type = "auto"</code> (the default), each variable is classified as:</p><ul><li><p><code>"binary"</code> if observed values are all in <code>[0, 1]</code> after removing NAs,
 with both classes present.</p></li>
 <li><p><code>"continuous"</code> otherwise.</p></li>
 </ul><p>Users can override classification by passing a scalar type name (applies
