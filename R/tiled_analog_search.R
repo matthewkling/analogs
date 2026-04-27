@@ -142,7 +142,7 @@ tiled_analog_search <- function(
       results <- list()
       tile_files <- character(0)
       if (progress) {
-            pb <- txtProgressBar(min = 0, max = n_x * n_y, style = 3)
+            pb <- utils::txtProgressBar(min = 0, max = n_x * n_y, style = 3)
       }
 
       tile_idx <- 1
@@ -213,7 +213,7 @@ tiled_analog_search <- function(
 
                   tile_idx <- tile_idx + 1
 
-                  if (progress) setTxtProgressBar(pb, tile_idx - 1)
+                  if (progress) utils::setTxtProgressBar(pb, tile_idx - 1)
             }
       }
 

@@ -15,7 +15,7 @@
 #'   \itemize{
 #'     \item Matrix/data.frame with columns x, y, and climate variables,
 #'       or SpatRaster with climate variable layers, OR
-#'     \item An [analog_index()] object created by
+#'     \item An `analog_index` object created by
 #'       [build_analog_index()] (for repeated queries).
 #'   }
 #' @param y Ecological or environmental variable(s) for the same era as `pool`, to

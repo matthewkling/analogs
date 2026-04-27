@@ -316,12 +316,10 @@ analog_cv <- function(fun,
 
 # Internal helpers -----------------------------------------------------------
 
-#' Determine the prediction target column/mechanism for a CV run
-#'
-#' Returns one of "weighted_mean", "regression", or "none".
-#' Errors on ambiguous analog_search stats (both weighted_mean and regression).
-#'
-#' @keywords internal
+# Determine the prediction target column/mechanism for a CV run
+#
+# Returns one of "weighted_mean", "regression", or "none".
+# Errors on ambiguous analog_search stats (both weighted_mean and regression).
 .cv_determine_prediction_target <- function(fun_name, extra, cov_mat) {
       if (fun_name == "analog_impact") {
             # analog_impact default stat includes weighted_mean.
@@ -374,8 +372,7 @@ analog_cv <- function(fun,
 }
 
 
-#' Coerce a y or covariates argument to a numeric matrix
-#' @keywords internal
+# Coerce a y or covariates argument to a numeric matrix
 .cv_coerce_values <- function(obj, arg_name, n_pool) {
       if (inherits(obj, "SpatRaster")) {
             if (!requireNamespace("terra", quietly = TRUE)) {
@@ -412,13 +409,11 @@ analog_cv <- function(fun,
 }
 
 
-#' Run the LOO path: single call with exclude_self = TRUE
-#'
-#' For fun = analog_regression, passes x_covariates = cov_mat so predictions
-#' come back in the result (LOO: focals = pool, so focal-side covariates
-#' are just cov_mat).
-#'
-#' @keywords internal
+# Run the LOO path: single call with exclude_self = TRUE
+#
+# For fun = analog_regression, passes x_covariates = cov_mat so predictions
+# come back in the result (LOO: focals = pool, so focal-side covariates
+# are just cov_mat).
 .cv_run_loo <- function(fun, fun_name, pool_mat, y_mat, cov_mat, extra) {
       args <- c(
             list(
@@ -437,13 +432,11 @@ analog_cv <- function(fun,
 }
 
 
-#' Run the k-fold path: loop over folds, rebuilding the index per fold
-#'
-#' For fun = analog_regression, passes x_covariates = cov_mat[focal_rows, ]
-#' so per-fold predictions come back in the result, avoiding downstream
-#' re-computation.
-#'
-#' @keywords internal
+# Run the k-fold path: loop over folds, rebuilding the index per fold
+#
+# For fun = analog_regression, passes `x_covariates = cov_mat[focal_rows, ]`
+# so per-fold predictions come back in the result, avoiding downstream
+# re-computation.
 .cv_run_kfold <- function(fun, fun_name, pool_mat, y_mat, cov_mat, folds, extra) {
       unique_folds <- sort(unique(folds))
 
@@ -501,18 +494,16 @@ analog_cv <- function(fun,
 }
 
 
-#' Extract predictions (one column per y variable) from a CV result data.frame
-#'
-#' Dispatch:
-#'   - pred_target == "weighted_mean": read weighted_mean[_{yname}] columns.
-#'   - pred_target == "regression" AND fun_name == "analog_regression":
-#'       read pred[_{yname}] columns that analog_regression() attached
-#'       via x_covariates.
-#'   - pred_target == "regression" AND fun_name == "analog_search":
-#'       compute via .predict_from_coefs(), since analog_search does not
-#'       accept x_covariates.
-#'
-#' @keywords internal
+# Extract predictions (one column per y variable) from a CV result data.frame
+#
+# Dispatch:
+#   - pred_target == "weighted_mean": read `weighted_mean[_{yname}]` columns.
+#   - pred_target == "regression" AND fun_name == "analog_regression":
+#       read `pred[_{yname}]` columns that analog_regression() attached
+#       via x_covariates.
+#   - pred_target == "regression" AND fun_name == "analog_search":
+#       compute via .predict_from_coefs(), since analog_search does not
+#       accept x_covariates.
 .cv_extract_predictions <- function(pred_target, fun_name, result_df,
                                     y_names, cov_mat, cov_names) {
       n_focal <- nrow(result_df)
@@ -572,8 +563,7 @@ analog_cv <- function(fun,
 }
 
 
-#' Reassemble CV result as a SpatRaster when pool was a SpatRaster
-#' @keywords internal
+# Reassemble CV result as a SpatRaster when pool was a SpatRaster
 .cv_to_raster <- function(res_df, template) {
       if (!requireNamespace("terra", quietly = TRUE)) {
             stop("Package 'terra' required for SpatRaster output.", call. = FALSE)

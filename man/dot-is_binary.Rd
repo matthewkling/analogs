@@ -7,7 +7,7 @@
 .is_binary(obs)
 }
 \description{
-TRUE iff all finite values are in {0, 1} AND both classes are present.
+TRUE iff all finite values are in \verb{[0, 1]} AND both classes are present.
 A single-class vector is not classified as binary because key metrics
 (AUC, TSS) are undefined.
 }

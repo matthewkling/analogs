@@ -1,5 +1,5 @@
 #include <Rcpp.h>
-#include "metrics.hpp"
+#include "metrics.h"
 using namespace Rcpp;
 
 

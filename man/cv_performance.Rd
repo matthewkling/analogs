@@ -64,7 +64,7 @@ when predictions are worse than simply predicting the overall mean.
 
 \section{Binary metrics}{
 
-For variables classified as binary (observed values all in {0, 1} with
+For variables classified as binary (observed values all in \verb{[0, 1]} with
 both classes present):
 \itemize{
 \item \code{n}: number of locations with finite observed and predicted values.
@@ -83,7 +83,7 @@ are in \verb{[0, 1]}.
 
 When \code{outcome_type = "auto"} (the default), each variable is classified as:
 \itemize{
-\item \code{"binary"} if observed values are all in \verb{\{0, 1\}} after removing NAs,
+\item \code{"binary"} if observed values are all in \verb{[0, 1]} after removing NAs,
 with both classes present.
 \item \code{"continuous"} otherwise.
 }

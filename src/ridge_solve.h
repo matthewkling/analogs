@@ -10,7 +10,7 @@
 #include <vector>
 #include <cmath>
 #include <limits>
-#include "se_code.hpp"
+#include "se_code.h"
 
 namespace analogs {
 

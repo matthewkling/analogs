@@ -119,7 +119,7 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
 
       # Compute centering and scaling parameters from combined data
       clim_means <- if (center) colMeans(combined, na.rm = TRUE) else rep(0, n_clim)
-      clim_sds <- if (scale) apply(combined, 2, sd, na.rm = TRUE) else rep(1, n_clim)
+      clim_sds <- if (scale) apply(combined, 2, stats::sd, na.rm = TRUE) else rep(1, n_clim)
 
       # Check for zero variance
       if (any(clim_sds < 1e-10)) {

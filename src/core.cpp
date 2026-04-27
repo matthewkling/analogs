@@ -2,16 +2,16 @@
 #include <Rcpp.h>
 #include <RcppParallel.h>
 
-#include "lattice.hpp"
-#include "metrics.hpp"
-#include "types.hpp"
-// #include "profiling.hpp"
-#include "geometry.hpp"
-#include "climate.hpp"
-#include "weights.hpp"
-#include "workers.hpp"
-#include "mahalanobis.hpp"
-#include "se_code.hpp"
+#include "lattice.h"
+#include "metrics.h"
+#include "types.h"
+// #include "profiling.h"
+#include "geometry.h"
+#include "climate.h"
+#include "weights.h"
+#include "workers.h"
+#include "mahalanobis.h"
+#include "se_code.h"
 
 #include <vector>
 #include <limits>

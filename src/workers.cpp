@@ -1,6 +1,6 @@
 // src/workers.cpp
-#include "workers.hpp"
-#include "ridge_solve.hpp"
+#include "workers.h"
+#include "ridge_solve.h"
 
 namespace analogs {
 

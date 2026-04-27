@@ -30,7 +30,7 @@
 #'   when predictions are worse than simply predicting the overall mean.
 #'
 #' @section Binary metrics:
-#' For variables classified as binary (observed values all in {0, 1} with
+#' For variables classified as binary (observed values all in `[0, 1]` with
 #' both classes present):
 #'
 #' - `n`: number of locations with finite observed and predicted values.
@@ -46,7 +46,7 @@
 #' @section Outcome-type detection:
 #' When `outcome_type = "auto"` (the default), each variable is classified as:
 #'
-#' - `"binary"` if observed values are all in `{0, 1}` after removing NAs,
+#' - `"binary"` if observed values are all in `[0, 1]` after removing NAs,
 #'   with both classes present.
 #' - `"continuous"` otherwise.
 #'
@@ -304,7 +304,7 @@ cv_performance <- function(x, outcome_type = "auto", weights = NULL) {
 
 #' Is a numeric vector binary-valued?
 #'
-#' TRUE iff all finite values are in {0, 1} AND both classes are present.
+#' TRUE iff all finite values are in `[0, 1]` AND both classes are present.
 #' A single-class vector is not classified as binary because key metrics
 #' (AUC, TSS) are undefined.
 #'

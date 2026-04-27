@@ -2,13 +2,13 @@
 
 #include <Rcpp.h>
 #include <RcppParallel.h>
-#include "types.hpp"
-#include "lattice.hpp"
-#include "geometry.hpp"
-#include "climate.hpp"
-#include "weights.hpp"
-#include "mahalanobis.hpp"
-#include "se_code.hpp"
+#include "types.h"
+#include "lattice.h"
+#include "geometry.h"
+#include "climate.h"
+#include "weights.h"
+#include "mahalanobis.h"
+#include "se_code.h"
 
 #include <vector>
 #include <queue>

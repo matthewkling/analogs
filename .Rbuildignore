@@ -8,3 +8,6 @@
 ^\.sandbox$
 ^data-raw$
 ^vignettes-raw$
+^admin$
+^notes$
+^LICENSE\.md$

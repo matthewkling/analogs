@@ -306,7 +306,7 @@ analog_regression <- function(
 
       if (is_raster_result) {
             pred_layers <- lapply(seq_len(n_y), function(j) {
-                  setNames(terra::setValues(result[[1]], preds[, j]),
+                  stats::setNames(terra::setValues(result[[1]], preds[, j]),
                            pred_colnames[j])
             })
             # Preserve existing attributes by appending the new layer(s)

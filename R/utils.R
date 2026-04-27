@@ -2,12 +2,10 @@
 
 # Validation helpers ------------------------------------------------
 
-#' Validate and normalize query parameters
-#'
-#' Validates select/stat/k/kernel/theta/x_cov/y/covariates/lambda/se
-#' combinations and normalizes values. Returns a list with normalized parameters.
-#'
-#' @keywords internal
+# Validate and normalize query parameters
+#
+# Validates select/stat/k/kernel/theta/x_cov/y/covariates/lambda/se
+# combinations and normalizes values. Returns a list with normalized parameters.
 .validate_query_params <- function(focal = NULL, ref = NULL,
                                    x_cov = NULL, y = NULL,
                                    covariates = NULL,
@@ -240,8 +238,7 @@
 }
 
 
-#' Validate and format covariates parameter
-#' @keywords internal
+# Validate and format covariates parameter
 .validate_and_format_covariates <- function(covariates, ref) {
 
       n_ref <- nrow(ref)
@@ -319,8 +316,7 @@
       list(matrix = mat, names = cov_names)
 }
 
-#' Validate and format y parameter
-#' @keywords internal
+# Validate and format y parameter
 .validate_and_format_values <- function(y, ref) {
 
       n_ref <- nrow(ref)
@@ -393,8 +389,7 @@
       )
 }
 
-#' Validate and format x_cov parameter
-#' @keywords internal
+# Validate and format x_cov parameter
 .validate_and_format_x_cov <- function(x_cov, focal) {
 
       # focal is already formatted matrix with coords + climate
@@ -454,14 +449,12 @@
       return(x_cov)
 }
 
-#' Validate exclude_self parameter and its compatibility with other args
-#'
-#' Called from analog_search (and anywhere else that surfaces exclude_self).
-#' Enforces identical(x, pool), disallows pre-built indices, and disallows
-#' downsampling. Also disallows progress (chunking is incompatible with the
-#' simple j==i self-exclusion check).
-#'
-#' @keywords internal
+# Validate exclude_self parameter and its compatibility with other args
+#
+# Called from analog_search (and anywhere else that surfaces exclude_self).
+# Enforces identical(x, pool), disallows pre-built indices, and disallows
+# downsampling. Also disallows progress (chunking is incompatible with the
+# simple j==i self-exclusion check).
 .validate_exclude_self <- function(exclude_self, x, pool, downsample, progress) {
       if (!is.logical(exclude_self) || length(exclude_self) != 1L || is.na(exclude_self)) {
             stop("`exclude_self` must be TRUE or FALSE.", call. = FALSE)
@@ -508,14 +501,12 @@
 
 # Other helpers ------------------------------------------------
 
-#' Null-coalescing operator
-#' @keywords internal
+# Null-coalescing operator
 `%||%` <- function(x, y) {
       if (is.null(x)) y else x
 }
 
-#' Reconstruct symmetric covariance matrix from lower triangle
-#' @keywords internal
+# Reconstruct symmetric covariance matrix from lower triangle
 .reconstruct_cov_matrix <- function(cov_vec, n_clim) {
       cov_mat <- matrix(0, n_clim, n_clim)
 
@@ -539,8 +530,7 @@
       return(cov_mat)
 }
 
-#' Extract coordinates and climate data from input
-#' @keywords internal
+# Extract coordinates and climate data from input
 .select_xy_climate <- function(obj) {
       nm <- colnames(obj)
 
@@ -573,8 +563,7 @@
       cbind(coords, climate)
 }
 
-#' Normalize input to standard format
-#' @keywords internal
+# Normalize input to standard format
 .format_data <- function(r) {
       if (inherits(r, "SpatRaster")) {
             # Convert SpatRaster to data.frame
@@ -583,7 +572,7 @@
             }
             df <- terra::as.data.frame(r, xy = TRUE, na.rm = FALSE)
             df <- .select_xy_climate(df)
-            attr(df, "template") <- setNames(terra::setValues(r[[1]], NA), "raster")
+            attr(df, "template") <- stats::setNames(terra::setValues(r[[1]], NA), "raster")
             return(df)
       } else if (is.matrix(r) || is.data.frame(r)) {
             df <- .select_xy_climate(r)
@@ -609,7 +598,7 @@
             vars <- setdiff(names(out), c("x", "y", "index"))
             out <- terra::rast(
                   lapply(vars, function(v){
-                        setNames(terra::setValues(attr(x, "template"), out[[v]]), v)
+                        stats::setNames(terra::setValues(attr(x, "template"), out[[v]]), v)
                   })
             )
             terra::varnames(out) <- vars  # set varnames to match layer names

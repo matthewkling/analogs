@@ -1,7 +1,7 @@
 #pragma once
 
-#include "types.hpp"
-#include "metrics.hpp"
+#include "types.h"
+#include "metrics.h"
 #include <cmath>
 
 namespace analogs {

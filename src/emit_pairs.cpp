@@ -1,7 +1,7 @@
 // src/emit_pairs.cpp
 #include <Rcpp.h>
 #include <cmath>
-#include "mahalanobis.hpp"
+#include "mahalanobis.h"
 
 using namespace Rcpp;
 using namespace analogs;

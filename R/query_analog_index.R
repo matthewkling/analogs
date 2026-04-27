@@ -348,7 +348,7 @@ query_analog_index <- function(x,
       chunk_size <- ceiling(nrow(focal) / n_chunks)
 
       # Progress bar
-      pb <- txtProgressBar(min = 0, max = n_chunks, style = 3)
+      pb <- utils::txtProgressBar(min = 0, max = n_chunks, style = 3)
       on.exit(close(pb), add = TRUE)
 
       # Collect results per chunk
@@ -384,7 +384,7 @@ query_analog_index <- function(x,
                   exclude_self = FALSE   # always FALSE in chunked path
             )
 
-            setTxtProgressBar(pb, i)
+            utils::setTxtProgressBar(pb, i)
       }
 
       # Merge results based on type
