@@ -45,6 +45,23 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
+      - name: Debug RcppParallel on Windows
+        if: runner.os == 'Windows'
+        shell: Rscript {0}
+        run: |
+          cat("Version: ", as.character(packageVersion("RcppParallel")), "\n")
+          cat("--- CxxFlags() ---\n"); RcppParallel::CxxFlags(); cat("\n")
+          cat("--- RcppParallelLibs() ---\n"); RcppParallel::RcppParallelLibs(); cat("\n")
+          cat("--- LdFlags() ---\n"); RcppParallel::LdFlags(); cat("\n")
+          cat("--- Package install dir ---\n")
+          cat(find.package("RcppParallel"), "\n")
+          cat("--- libs/ contents ---\n")
+          libs_dir <- file.path(find.package("RcppParallel"), "libs")
+          if (dir.exists(libs_dir)) print(list.files(libs_dir, recursive = TRUE, full.names = TRUE))
+          cat("--- lib/ contents ---\n")
+          lib_dir <- file.path(find.package("RcppParallel"), "lib")
+          if (dir.exists(lib_dir)) print(list.files(lib_dir, recursive = TRUE, full.names = TRUE))
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true
