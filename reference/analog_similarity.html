@@ -93,10 +93,12 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
-<dd><p>Optional numeric vector, matrix/data.frame, or SpatRaster giving
+<dd><p>Optional vector, factor, matrix/data.frame, or SpatRaster giving
 values for each reference location (must have same number of rows/cells
 as <code>pool</code>). Required for stats <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
-<code>"weighted_mean"</code>, and <code>"regression"</code>.</p></dd>
+<code>"weighted_mean"</code>, <code>"regression"</code>, and <code>"tabulate"</code>. Numeric for
+continuous stats; factor or coercible-to-factor (character, integer,
+logical) for <code>stat = "tabulate"</code>.</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
@@ -188,6 +190,9 @@ variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass<
 <li><p>For <code>stat = "regression"</code>: columns for <code>coef_intercept</code> and <code>coef_{covariate}</code>,
 or <code>coef_intercept_{varname}</code> and  <code>coef_{covariate}_{varname}</code> with multiple <code>y</code>
 variables.</p></li>
+<li><p>For <code>stat = "tabulate"</code>: one column per level of <code>y</code>, named <code>n_{level}</code> for a
+single unnamed <code>y</code>, or <code>{varname}_n_{level}</code> when <code>y</code> is named or has multiple
+columns.</p></li>
 <li><p>When <code>se != "none"</code>: matching SE columns (<code>se_weighted_mean</code>,
 <code>se_intercept</code>, etc.) for each SE-supporting stat.</p></li>
 </ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>kernel</code>, etc.).

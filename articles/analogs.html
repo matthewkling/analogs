@@ -63,7 +63,6 @@
   THIS FILE IS GENERATED. Do not edit by hand.
   Source: vignettes-raw/analogs.Rmd
   Regenerate with: rawvignette::precompile_raw_vignettes()
-  (or run: Rscript vignettes-raw/precompile.R)
 -->
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/matthewkling/analogs" class="external-link">analogs</a></span><span class="op">)</span></span>
@@ -405,8 +404,8 @@ number and quality of analog matches.</p>
 analogs, analog-based prediction functions find analogs and then fit a
 model that summarizes additional properties (outcome variables
 <code>y</code>) of those analogs. Model options include weighted means
-(via <code><a href="../reference/analog_impact.html">analog_impact()</a></code>) and ordinary and ridge regression on
-additional <code>covariates</code> (via
+and categorical counts (via <code><a href="../reference/analog_impact.html">analog_impact()</a></code>) and ordinary
+and ridge regression on additional <code>covariates</code> (via
 <code><a href="../reference/analog_regression.html">analog_regression()</a></code>).</p>
 <p>Options for assessing uncertainty include returning standard errors
 on fitted means and coefficients (via the <code>se</code> parameter) and
@@ -417,9 +416,10 @@ running various forms of cross-validation within <code>pool</code> (via
 </h3>
 <p>Analog impact models (AIMs) predict ecological outcomes
 (<code>y</code>) under climate change. For each focal site, this
-approach finds locations within dispersal range with current climates
-similar to the focal site’s future climate, then computes an average of
-their ecological characteristics, weighted by climatic similarity. As an
+approach finds locations within geographic range that have current
+climates similar to the focal site’s future climate, then computes an
+average (or class count for categorical <code>y</code>) of their
+ecological characteristics, weighted by climatic similarity. As an
 example, let’s use CWD values from the historical period as a stand-in
 for an ecological response variable. To assess uncertainty in weighted
 means, let’s also specify <code>se = "ess"</code> to compute standard
@@ -487,9 +487,6 @@ selected <code>kernel</code> function.</p>
 <span>      kernel <span class="op">=</span> <span class="st">"gaussian_joint"</span>,</span>
 <span>      theta <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.15</span>, <span class="fl">100</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning in tune_index_res(x = x, pool = pool, x_cov = x_cov, y = y, covariates = covariates, : Auto-tuning of index_res did not detect an interior minimum;</span></span>
-<span><span class="co">#&gt; elapsed times were monotonic across tested values {4, 8, 16, 32} (fastest listed first). The optimal index_res may lie outside this range. Consider manually</span></span>
-<span><span class="co">#&gt; specifying `index_res`, or re-running `tune_index_res()` with `default_res = 4`.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">interp</span><span class="op">[[</span><span class="st">"weighted_mean"</span><span class="op">]</span><span class="op">]</span>, main <span class="op">=</span> <span class="st">"Climate-informed spatial interpolation"</span><span class="op">)</span></span></code></pre></div>
 <div class="float">

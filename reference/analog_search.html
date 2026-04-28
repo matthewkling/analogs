@@ -101,10 +101,12 @@ there are n*(n+1)/2 unique components, ordered as: variances first
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
-<dd><p>Optional numeric vector, matrix/data.frame, or SpatRaster giving
+<dd><p>Optional vector, factor, matrix/data.frame, or SpatRaster giving
 values for each reference location (must have same number of rows/cells
 as <code>pool</code>). Required for stats <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
-<code>"weighted_mean"</code>, and <code>"regression"</code>.</p></dd>
+<code>"weighted_mean"</code>, <code>"regression"</code>, and <code>"tabulate"</code>. Numeric for
+continuous stats; factor or coercible-to-factor (character, integer,
+logical) for <code>stat = "tabulate"</code>.</p></dd>
 
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
@@ -168,6 +170,16 @@ squared sum of weights divided by the sum of squared weights
 of <code>y</code> on <code>covariates</code> within each analog neighborhood.
 Returns intercept and slope coefficients. Requires <code>y</code>,
 <code>covariates</code>, and <code>kernel</code>. See <code>lambda</code> for regularization.</p></li>
+<li><p><code>"tabulate"</code>: For each focal and each level of categorical <code>y</code>,
+sum the kernel weights of analogs whose <code>y</code> falls in that level.
+With <code>kernel = "uniform"</code> this reduces to a per-class vote count;
+with a distance-decay kernel it gives similarity-weighted support
+per class. Requires <code>y</code> (factor or coercible-to-factor) and
+<code>kernel</code>. Output has one column per class. <code>"tabulate"</code> is
+mutually exclusive with <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
+<code>"weighted_mean"</code>, and <code>"regression"</code> (different <code>y</code> semantics);
+it can be combined with <code>"count"</code>, <code>"sum_weights"</code>,
+<code>"mean_weights"</code>, and <code>"ess"</code>.</p></li>
 <li><p>A character vector combining multiple stats (e.g.,
 <code>c("count", "weighted_mean", "regression")</code>).
 Note: <code>"none"</code> cannot be combined with other stats.</p></li>
@@ -177,7 +189,8 @@ Note: <code>"none"</code> cannot be combined with other stats.</p></li>
 <dt id="arg-kernel">kernel<a class="anchor" aria-label="anchor" href="#arg-kernel"></a></dt>
 <dd><p>Kernel decay function for weighting matches, used only when
 <code>stat</code> includes a weighted aggregation (<code>"sum_weights"</code>, <code>"mean_weights"</code>,
-<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, <code>"ess"</code>, or <code>"regression"</code>). One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (kernel weight = 1.0).</p></li>
+<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, <code>"ess"</code>, <code>"regression"</code>, or
+<code>"tabulate"</code>). One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (kernel weight = 1.0).</p></li>
 <li><p><code>"inverse_clim"</code>: Inverse climate distance,
 kernel weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_geog"</code>: Inverse geographic distance,
@@ -303,6 +316,9 @@ variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass<
 <li><p>For <code>stat = "regression"</code>: columns for <code>coef_intercept</code> and <code>coef_{covariate}</code>,
 or <code>coef_intercept_{varname}</code> and  <code>coef_{covariate}_{varname}</code> with multiple <code>y</code>
 variables.</p></li>
+<li><p>For <code>stat = "tabulate"</code>: one column per level of <code>y</code>, named <code>n_{level}</code> for a
+single unnamed <code>y</code>, or <code>{varname}_n_{level}</code> when <code>y</code> is named or has multiple
+columns.</p></li>
 <li><p>When <code>se != "none"</code>: matching SE columns (<code>se_weighted_mean</code>,
 <code>se_intercept</code>, etc.) for each SE-supporting stat.</p></li>
 </ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>kernel</code>, etc.).

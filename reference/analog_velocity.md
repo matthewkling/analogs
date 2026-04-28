@@ -56,10 +56,12 @@ analog_velocity(
 
 - y:
 
-  Optional numeric vector, matrix/data.frame, or SpatRaster giving
+  Optional vector, factor, matrix/data.frame, or SpatRaster giving
   values for each reference location (must have same number of
   rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
-  `"weighted_sum"`, `"weighted_mean"`, and `"regression"`.
+  `"weighted_sum"`, `"weighted_mean"`, `"regression"`, and `"tabulate"`.
+  Numeric for continuous stats; factor or coercible-to-factor
+  (character, integer, logical) for `stat = "tabulate"`.
 
 - coord_type:
 
@@ -179,6 +181,10 @@ location, with the following variables:
 - For `stat = "regression"`: columns for `coef_intercept` and
   `coef_{covariate}`, or `coef_intercept_{varname}` and
   `coef_{covariate}_{varname}` with multiple `y` variables.
+
+- For `stat = "tabulate"`: one column per level of `y`, named
+  `n_{level}` for a single unnamed `y`, or `{varname}_n_{level}` when
+  `y` is named or has multiple columns.
 
 - When `se != "none"`: matching SE columns (`se_weighted_mean`,
   `se_intercept`, etc.) for each SE-supporting stat.

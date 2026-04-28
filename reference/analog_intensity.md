@@ -92,8 +92,8 @@ analog_intensity(
 
   Kernel decay function for weighting matches, used only when `stat`
   includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
-  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One
-  of:
+  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
+  `"tabulate"`). One of:
 
   - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
 
@@ -214,6 +214,10 @@ location, with the following variables:
 - For `stat = "regression"`: columns for `coef_intercept` and
   `coef_{covariate}`, or `coef_intercept_{varname}` and
   `coef_{covariate}_{varname}` with multiple `y` variables.
+
+- For `stat = "tabulate"`: one column per level of `y`, named
+  `n_{level}` for a single unnamed `y`, or `{varname}_n_{level}` when
+  `y` is named or has multiple columns.
 
 - When `se != "none"`: matching SE columns (`se_weighted_mean`,
   `se_intercept`, etc.) for each SE-supporting stat.

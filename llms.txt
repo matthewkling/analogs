@@ -76,9 +76,13 @@ pak::pak("matthewkling/analogs")
 
 ## Documentation
 
-See the function documentation linked above for detailed usage examples,
-or browse the [full reference
-documentation](https://matthewkling.github.io/analogs/reference/index.html).
+See the [package
+vignette](https://matthewkling.github.io/analogs/articles/analogs.html)
+for an overview of functionality with usage examples, browse the
+function documentation linked above for details, or browse the
+[reference
+documentation](https://matthewkling.github.io/analogs/reference/index.html)
+for a complete index of functions.
 
 # Package index
 

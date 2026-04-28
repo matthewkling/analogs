@@ -163,6 +163,10 @@ location, with the following variables:
   `coef_{covariate}`, or `coef_intercept_{varname}` and
   `coef_{covariate}_{varname}` with multiple `y` variables.
 
+- For `stat = "tabulate"`: one column per level of `y`, named
+  `n_{level}` for a single unnamed `y`, or `{varname}_n_{level}` when
+  `y` is named or has multiple columns.
+
 - When `se != "none"`: matching SE columns (`se_weighted_mean`,
   `se_intercept`, etc.) for each SE-supporting stat.
 

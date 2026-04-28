@@ -176,7 +176,8 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 <dt id="arg-kernel">kernel<a class="anchor" aria-label="anchor" href="#arg-kernel"></a></dt>
 <dd><p>Kernel decay function for weighting matches, used only when
 <code>stat</code> includes a weighted aggregation (<code>"sum_weights"</code>, <code>"mean_weights"</code>,
-<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, <code>"ess"</code>, or <code>"regression"</code>). One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (kernel weight = 1.0).</p></li>
+<code>"weighted_sum"</code>, <code>"weighted_mean"</code>, <code>"ess"</code>, <code>"regression"</code>, or
+<code>"tabulate"</code>). One of:</p><ul><li><p><code>"uniform"</code>: All matches weighted equally (kernel weight = 1.0).</p></li>
 <li><p><code>"inverse_clim"</code>: Inverse climate distance,
 kernel weight = 1 / (climate_distance + eps), with epsilon given by <code>theta</code>.</p></li>
 <li><p><code>"inverse_geog"</code>: Inverse geographic distance,

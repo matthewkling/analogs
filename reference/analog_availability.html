@@ -170,6 +170,9 @@ variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass<
 <li><p>For <code>stat = "regression"</code>: columns for <code>coef_intercept</code> and <code>coef_{covariate}</code>,
 or <code>coef_intercept_{varname}</code> and  <code>coef_{covariate}_{varname}</code> with multiple <code>y</code>
 variables.</p></li>
+<li><p>For <code>stat = "tabulate"</code>: one column per level of <code>y</code>, named <code>n_{level}</code> for a
+single unnamed <code>y</code>, or <code>{varname}_n_{level}</code> when <code>y</code> is named or has multiple
+columns.</p></li>
 <li><p>When <code>se != "none"</code>: matching SE columns (<code>se_weighted_mean</code>,
 <code>se_intercept</code>, etc.) for each SE-supporting stat.</p></li>
 </ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>kernel</code>, etc.).

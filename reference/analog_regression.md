@@ -131,8 +131,8 @@ analog_regression(
 
   Kernel decay function for weighting matches, used only when `stat`
   includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
-  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One
-  of:
+  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
+  `"tabulate"`). One of:
 
   - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
 

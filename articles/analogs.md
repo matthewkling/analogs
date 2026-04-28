@@ -301,7 +301,8 @@ plot of chunk intensity
 Compared to the functions covered above that simply enumerate analogs,
 analog-based prediction functions find analogs and then fit a model that
 summarizes additional properties (outcome variables `y`) of those
-analogs. Model options include weighted means (via
+analogs. Model options include weighted means and categorical counts
+(via
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md))
 and ordinary and ridge regression on additional `covariates` (via
 [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)).
@@ -315,13 +316,14 @@ various forms of cross-validation within `pool` (via
 
 Analog impact models (AIMs) predict ecological outcomes (`y`) under
 climate change. For each focal site, this approach finds locations
-within dispersal range with current climates similar to the focal site’s
-future climate, then computes an average of their ecological
-characteristics, weighted by climatic similarity. As an example, let’s
-use CWD values from the historical period as a stand-in for an
-ecological response variable. To assess uncertainty in weighted means,
-let’s also specify `se = "ess"` to compute standard errors based on
-effective sample size for each grid cell.
+within geographic range that have current climates similar to the focal
+site’s future climate, then computes an average (or class count for
+categorical `y`) of their ecological characteristics, weighted by
+climatic similarity. As an example, let’s use CWD values from the
+historical period as a stand-in for an ecological response variable. To
+assess uncertainty in weighted means, let’s also specify `se = "ess"` to
+compute standard errors based on effective sample size for each grid
+cell.
 
 ``` r
 # Use historical CWD as a proxy ecological variable
@@ -390,9 +392,6 @@ interp <- analog_impact(
       kernel = "gaussian_joint",
       theta = c(0.15, 100)
 )
-#> Warning in tune_index_res(x = x, pool = pool, x_cov = x_cov, y = y, covariates = covariates, : Auto-tuning of index_res did not detect an interior minimum;
-#> elapsed times were monotonic across tested values {4, 8, 16, 32} (fastest listed first). The optimal index_res may lie outside this range. Consider manually
-#> specifying `index_res`, or re-running `tune_index_res()` with `default_res = 4`.
 
 plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 ```

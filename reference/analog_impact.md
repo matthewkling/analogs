@@ -1,11 +1,15 @@
 # Climate impact assessment via analog impact model
 
-Assesses potential climate change impacts using the analog impact model
-(AIM) methodology. For each focal location's future climate, identifies
-locations with similar baseline climates within a specified geographic
-range, then aggregates their ecological characteristics weighted by
-climate similarity. This quantifies what ecosystem conditions are likely
-accessible via dispersal as climate changes.
+Predicts ecological outcome variables based on climatic similarity and
+geographic proximity. When focal and reference data are from the same
+time period, performs a climate-informed spatial interpolation. When
+they are from different eras, implements an analog impact model (AIM)
+projecting the potential ecological state under climate change. For each
+focal location's future climate, identifies locations with similar
+baseline climates within a specified geographic range, then aggregates
+their ecological characteristics weighted by climate similarity.
+Aggregation can be a weighted mean for continuous outcomes or a weighted
+class count for categorical outcomes.
 
 ## Usage
 
@@ -19,7 +23,7 @@ analog_impact(
   max_clim = 1,
   kernel = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
-  stat = c("count", "sum_weights", "weighted_mean"),
+  stat = c("weighted_mean", "count", "sum_weights"),
   lambda = 0,
   se = c("none", "ess", "design"),
   x_cov = NULL,
@@ -35,8 +39,9 @@ analog_impact(
 
 - x:
 
-  Focal locations (generally with future climate conditions). Should be
-  a matrix/data.frame with columns x, y, and climate variables, or a
+  Focal locations (usually future climate conditions for AIM, or
+  baseline conditions for static interpolation). Should be a
+  matrix/data.frame with columns x, y, and climate variables, or a
   SpatRaster with climate variable layers.
 
 - pool:
@@ -54,40 +59,32 @@ analog_impact(
 - y:
 
   Ecological or environmental variable(s) for the same era as `pool`, to
-  aggregate across climate analogs. Examples include occupancy of focal
-  species, species richness, biomass, or any other ecological state
-  variable. Can be a numeric vector (single variable), matrix or
-  data.frame with numeric columns (multiple variables), or a SpatRaster
-  with one or more numeric layers. Must have exactly the same number of
-  reference locations as `pool`.
+  aggregate across climate analogs. For continuous stats
+  (`weighted_mean`, `sum`, etc.), `y` should be numeric: occupancy of
+  focal species, species richness, biomass, or any other numeric
+  ecological state. For `stat = "tabulate"` (categorical aggregation),
+  `y` should be a factor or a vector that can be coerced to a factor
+  (e.g., character vector of vegetation type names, integer class codes,
+  or a single-layer categorical SpatRaster). Can be a vector / factor
+  (single variable), matrix or data.frame (multiple variables), or a
+  SpatRaster with one or more layers. Must have exactly the same number
+  of reference locations as `pool`.
 
 - covariates:
 
-  Optional matrix/data.frame or SpatRaster giving covariate values for
-  each reference location (must have same number of rows/cells as
-  `pool`). Required when `stat` includes `"regression"`.
+  Covariates to use with `stat = "regression"` (NULL otherwise; see
+  [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
+  for the regression-focused wrapper).
 
 - max_geog:
 
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
+  Maximum geographic distance for analogs (km if lonlat; projection
+  units otherwise). Acts as a hard dispersal constraint.
 
 - max_clim:
 
-  Maximum climate distance constraint (default: NULL = no climate
-  constraint). Can be either:
-
-  - A scalar: Euclidean radius in climate space (e.g., 0.5)
-
-  - A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
-
-  Only reference locations within this climate distance are considered.
-  When `x_cov` is provided, scalar thresholds are interpreted in
-  Mahalanobis distance units.
+  Maximum climate distance threshold defining what counts as an analog
+  (default: 1.0).
 
 - kernel:
 
@@ -100,138 +97,79 @@ analog_impact(
 
 - theta:
 
-  Optional numeric parameter controlling the shape of the weighting
-  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
-  includes a weighted aggregation) and `kernel` is not `"uniform"`.
-  Interpretation depends on `kernel`:
-
-  - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
-    distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-
-  - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
-    parameter (scalar; larger values = slower decay with distance).
-
-  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
-    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
-    geography).
+  Kernel bandwidth (default: 0.25). See
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
 
 - stat:
 
   Statistic(s) to compute across analogs (default: c("count",
   "sum_weights", "weighted_mean")). See
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-  for options. The default statistics provide a complete picture:
+  for the full list of options. Common choices:
+
+  - `"weighted_mean"`: Expected ecological state under continuous y
+
+  - `"tabulate"`: Per-class similarity-weighted support under
+    categorical y. Output has one column per class, named `n_<level>`
+    (single-y) or `<varname>_n_<level>` (multi-y). `"tabulate"` is
+    mutually exclusive with `weighted_mean`/`sum`/
+    `mean`/`weighted_sum`/`regression`, but can be combined with
+    `count`, `sum_weights`, `mean_weights`, and `ess`.
 
   - `"count"`: Analog availability (number of analogs)
 
-  - `"sum_weights"`: Analog intensity
+  - `"sum_weights"`: Analog intensity (sum of climate-similarity weights
+    across analogs)
 
-  - `"weighted_mean"`: Expected ecological state
+  The default `c("count", "sum_weights", "weighted_mean")` is
+  appropriate for continuous `y`; for categorical `y`, swap
+  `weighted_mean` for `tabulate`.
 
 - lambda:
 
-  Ridge penalty parameter for `stat = "regression"` (default: 0, giving
-  ordinary weighted least squares). Higher values shrink covariate
-  coefficients toward zero, with the intercept approaching the weighted
-  mean as `lambda -> Inf`. Ignored when `"regression"` is not in `stat`.
+  Ridge penalty for regression (default 0).
 
 - se:
 
-  Standard-error framing to apply to SE-supporting stats
-  (`"weighted_mean"` and `"regression"`). One of:
-
-  - `"none"` (default): no SE columns are returned.
-
-  - `"ess"`: effective-sample-size framing. For `weighted_mean`,
-    `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
-    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
-    regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
-    variance corrected using `n_eff - p` degrees of freedom.
-
-  - `"design"`: design-based framing (no assumption that weights are
-    precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
+  One of "none" (default), "ess", or "design"; SE variant for
+  `weighted_mean` and `regression`.
 
 - x_cov:
 
-  Optional focal-specific covariance matrices for Mahalanobis distance
-  calculations. Should be a matrix or data.frame with one row per focal
-  location and one column per unique covariance component, or a
-  SpatRaster with a layer for each component. For n climate variables,
-  there are n\*(n+1)/2 unique components, ordered as: variances first
-  (diagonals), then covariances (upper triangle by row).
+  Optional covariance matrices for Mahalanobis distance (one per focal
+  point), as expected by
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
 
 - coord_type:
 
-  Coordinate system type:
-
-  - `"auto"` (default): Automatically detect from coordinate ranges.
-
-  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
-    distance; assumes `max_geog` is in km).
-
-  - `"projected"`: Projected XY coordinates (uses planar distance;
-    assumes `max_geog` is in projection units).
+  One of "auto", "lonlat", or "projected".
 
 - index_res:
 
-  Tuning parameter giving the number of bins per dimension of the
-  internally-used lattice search index. Either:
-
-  - A positive integer.
-
-  - `"auto"` (the default): Automatically tune the index resolution by
-    optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution
-    of 16 is used.
-
-  Ignored if `pool` is an `analog_index` (uses index's resolution).
+  Resolution parameter for the lattice index (or "auto").
 
 - n_threads:
 
-  Optional integer number of threads to use for the computation. If
-  `NULL` (default), the global RcppParallel setting is used (see
-  [`RcppParallel::setThreadOptions`](https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html)).
+  Optional integer number of threads.
 
 - progress:
 
-  Logical; if `TRUE`, display a progress bar during computation.
-  Progress tracking works by splitting the focal dataset into chunks and
-  processing them sequentially. Useful for large datasets. Default is
-  `FALSE`.
+  Logical; show a progress bar.
 
 - ...:
 
-  additional arguments passed to
-  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-  (usually unneeded)
-
-## Value
-
-A data.frame with one row per focal location containing:
-
-- `index`: Row number from input `x` data
-
-- `x, y`: Coordinates of focal location
-
-- One column per requested statistic
-
-- For value statistics with multiple variables: `{stat}_{varname}`
-  (e.g., `weighted_mean_habitat_quality`)
-
-- For `"regression"`: `coef_intercept` and `coef_{covariate}`
-  coefficient columns
-
-- When `se != "none"`: SE columns for SE-supporting stats (e.g.,
-  `se_weighted_mean`)
+  Additional arguments passed to
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
 
 ## Details
 
 ### The Analog Impact Model (AIM) Framework
 
-This function implements the "reverse analog" approach from the climate
-change ecology literature. It addresses the question, "For a location's
-future climate, what ecological conditions exist in current locations
-with similar climates that are within dispersal range?"
+When `x` represents future climate and `pool` represent baseline
+climate, this function implements the "reverse analog" approach from the
+climate change ecology literature. It addresses the question, "For a
+location's future climate, what ecological conditions exist in current
+locations with similar climates that are within dispersal range?"
 
 The methodology:
 
@@ -268,6 +206,22 @@ lets the kernel function (via `theta`) naturally control influence.
 
 ### Interpreting Results
 
+- `weighted_mean`: Expected ecosystem state if colonized by species from
+  analog locations.
+
+- `tabulate`: For each class in `y`, the sum of analog weights that fall
+  in that class. Each class's column gives the total
+  climatic-similarity-weighted support among analogs (or, with
+  `analog_search(stat = "tabulate", kernel = "uniform")`, a plain vote
+  count). The "primary" projection at a focal location is
+  [`which.max()`](https://rdrr.io/r/base/which.min.html) of these
+  columns; "agreement" is the largest column value divided by the row
+  sum (or, equivalently, divided by `sum_weights` when both are
+  requested). Bray-Curtis dissimilarity between two such weighted-vote
+  matrices (e.g., contemporary vs. future analogs) gives a measure of
+  compositional vulnerability to ecological transformation (cf. Hoecker
+  et al. 2026).
+
 - `count`: How many analogs exist within max_clim and max_geog? Low
   counts indicate limited analog availability, while zero counts
   indicate climates that are novel within the geographic search radius.
@@ -276,9 +230,6 @@ lets the kernel function (via `theta`) naturally control influence.
   distant climate matches. This metric captures both the number and
   quality of analogs. Interpretation details vary based on the `kernel`
   parameter.
-
-- `weighted_mean`: Expected ecosystem state if colonized by species from
-  analog locations.
 
 ## See also
 
@@ -291,7 +242,7 @@ for cross-validation of AIM fits.
 
 ``` r
 if (FALSE) { # \dontrun{
-# Basic climate impact assessment
+# Basic climate impact assessment with continuous response
 impact <- analog_impact(
   x = future_climate,
   pool = current_climate,
@@ -309,5 +260,21 @@ impact_se <- analog_impact(
   max_clim = 0.5,
   se = "ess"
 )
+
+# Categorical response (e.g. vegetation type):
+# compute weighted-vote counts per class within climatic neighborhoods
+veg_votes <- analog_impact(
+  x    = future_climate,
+  pool = current_climate,
+  y    = factor(current$vegetation_type),
+  stat = c("count", "sum_weights", "tabulate"),
+  kernel = "gaussian_clim",
+  max_geog = 500,
+  max_clim = 1
+)
+# Output has one `n_<level>` column per vegetation type.
+# Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],
+#                                   1, function(r) names(r)[which.max(r)])
+# Agreement (max share):    apply(votes_mat, 1, max) / rowSums(votes_mat)
 } # }
 ```

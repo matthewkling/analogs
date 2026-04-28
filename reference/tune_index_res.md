@@ -111,6 +111,16 @@ tune_index_res(
     and slope coefficients. Requires `y`, `covariates`, and `kernel`.
     See `lambda` for regularization.
 
+  - `"tabulate"`: For each focal and each level of categorical `y`, sum
+    the kernel weights of analogs whose `y` falls in that level. With
+    `kernel = "uniform"` this reduces to a per-class vote count; with a
+    distance-decay kernel it gives similarity-weighted support per
+    class. Requires `y` (factor or coercible-to-factor) and `kernel`.
+    Output has one column per class. `"tabulate"` is mutually exclusive
+    with `"sum"`, `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and
+    `"regression"` (different `y` semantics); it can be combined with
+    `"count"`, `"sum_weights"`, `"mean_weights"`, and `"ess"`.
+
   - A character vector combining multiple stats (e.g.,
     `c("count", "weighted_mean", "regression")`). Note: `"none"` cannot
     be combined with other stats.
@@ -147,8 +157,8 @@ tune_index_res(
 
   Kernel decay function for weighting matches, used only when `stat`
   includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
-  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One
-  of:
+  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
+  `"tabulate"`). One of:
 
   - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
 
@@ -202,10 +212,12 @@ tune_index_res(
 
 - y:
 
-  Optional numeric vector, matrix/data.frame, or SpatRaster giving
+  Optional vector, factor, matrix/data.frame, or SpatRaster giving
   values for each reference location (must have same number of
   rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
-  `"weighted_sum"`, `"weighted_mean"`, and `"regression"`.
+  `"weighted_sum"`, `"weighted_mean"`, `"regression"`, and `"tabulate"`.
+  Numeric for continuous stats; factor or coercible-to-factor
+  (character, integer, logical) for `stat = "tabulate"`.
 
 - covariates:
 
