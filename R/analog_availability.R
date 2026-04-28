@@ -8,7 +8,11 @@
 #' `select = "all"` and `stat = "count"`.
 #'
 #' @inheritParams analog_search
-#' @inherit analog_search return
+#'
+#' @return A data.frame, or a SpatRaster when `x` is one. Contains
+#'   `index`, `x`, `y` plus one or more columns determined by `stat`.
+#'   See [analog_search()] for column-naming conventions across stats
+#'   and [metadata()] for attached metadata attributes.
 #'
 #' @references
 #' Stralberg D, Carroll C, Pedlar JH, Wilsey CB, McKenney DW, Nielsen SE (2018).

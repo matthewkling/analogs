@@ -12,7 +12,12 @@
 #' time elapsed between your `x` and `pool` datasets.
 #'
 #' @inheritParams analog_search
-#' @inherit analog_search return
+#'
+#' @return A data.frame, or a SpatRaster when `x` is one and `k = 1`.
+#'   Contains one row per focal-analog pair with `index`, `x`, `y`,
+#'   `analog_index`, `analog_x`, `analog_y`, `clim_dist`, and
+#'   `geog_dist`. See [analog_search()] for full column conventions
+#'   and [metadata()] for attached metadata attributes.
 #'
 #' @examples
 #' \dontrun{

@@ -157,7 +157,7 @@ build_analog_index <- function(pool,
 
                   # Metadata
                   coord_type = coord_type,
-                  n_ref = index_cpp$n_ref,
+                  n_pool = index_cpp$n_pool,
                   n_clim = index_cpp$n_clim,
                   index_res = index_res,
 
@@ -174,9 +174,9 @@ build_analog_index <- function(pool,
 
                   # Diagnostics
                   total_bins = index_cpp$total_bins,
-                  n_cells_nonempty = index_cpp$n_cells_nonempty,
-                  min_cell_occ = index_cpp$min_cell_occ,
-                  max_cell_occ = index_cpp$max_cell_occ,
+                  n_bins_nonempty = index_cpp$n_bins_nonempty,
+                  min_bin_occupancy = index_cpp$min_bin_occupancy,
+                  max_bin_occupancy = index_cpp$max_bin_occupancy,
 
                   # Downsampling info
                   downsample_target = downsample,
@@ -201,7 +201,7 @@ print.analog_index <- function(x, ...) {
       cat("============\n\n")
 
       cat("Reference data:\n")
-      cat(sprintf("  %d locations\n", x$n_ref))
+      cat(sprintf("  %d locations\n", x$n_pool))
       cat(sprintf("  %d climate variables\n", x$n_clim))
       cat(sprintf("  Coordinate type: %s\n", x$coord_type))
 
@@ -219,13 +219,13 @@ print.analog_index <- function(x, ...) {
       cat(sprintf("  Resolution: %d bins per dimension\n", x$index_res))
       cat(sprintf("  Total bins: %s\n", format(x$total_bins, big.mark = ",")))
       cat(sprintf("  Non-empty bins: %s (%.1f%%)\n",
-                  format(x$n_cells_nonempty, big.mark = ","),
-                  100 * x$n_cells_nonempty / x$total_bins))
+                  format(x$n_bins_nonempty, big.mark = ","),
+                  100 * x$n_bins_nonempty / x$total_bins))
 
-      if (x$n_cells_nonempty > 0) {
-            avg_occ <- x$n_ref / x$n_cells_nonempty
+      if (x$n_bins_nonempty > 0) {
+            avg_occ <- x$n_pool / x$n_bins_nonempty
             cat(sprintf("  Bin occupancy: %d-%d (avg: %.1f) points per bin\n",
-                        x$min_cell_occ, x$max_cell_occ, avg_occ))
+                        x$min_bin_occupancy, x$max_bin_occupancy, avg_occ))
       }
 
       # Show downsampling info if applied
@@ -250,7 +250,7 @@ print.analog_index <- function(x, ...) {
 #' @param x Object to test
 #' @return Logical indicating whether \code{x} is an \code{analog_index}
 #'
-#' @export
+#' @keywords internal
 is_analog_index <- function(x) {
       inherits(x, "analog_index")
 }
@@ -279,7 +279,7 @@ is_analog_index <- function(x) {
 
       # Check required components
       required <- c("lattice_xptr", "ref_data", "coord_type",
-                    "n_ref", "n_clim", "index_res")
+                    "n_pool", "n_clim", "index_res")
       missing <- setdiff(required, names(index))
       if (length(missing) > 0) {
             stop("Invalid analog_index: missing components: ",

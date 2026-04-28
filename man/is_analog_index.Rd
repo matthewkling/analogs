@@ -15,3 +15,4 @@ Logical indicating whether \code{x} is an \code{analog_index}
 \description{
 Check if Object is an Analog Index
 }
+\keyword{internal}

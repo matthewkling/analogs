@@ -109,41 +109,11 @@ chunks and processing them sequentially. Useful for large datasets. Default
 is \code{FALSE}.}
 }
 \value{
-Return type depends on input format and query mode.
-
-Returns a data.frame, unless \code{x} is a SpatRaster and results have exactly one record per
-input cell (aggregation mode, or pairwise with \code{k = 1}), in which case returns a
-SpatRaster with one layer per output variable.
-
-Pairwise mode (\code{stat = NULL} or \code{"none"}) returns one row per focal-analog pair,
-with the following variables:
-\itemize{
-\item \code{index}, \code{x}, \code{y}: Focal location (1-based index and coordinates) corresponding to input \code{x}
-\item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
-\item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
-\item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
-\item Value columns (if \code{y} provided): one per variable
-}
-
-Aggregation mode (one or more \code{stat} values) returns one row per focal location,
-with the following variables:
-\itemize{
-\item \code{index}, \code{x}, \code{y}: Focal location
-\item One column per requested statistic. For \code{stat} with single \code{y} variable:
-column named by stat (e.g., \code{sum}, \code{mean}). For \code{stat} with multiple \code{y}
-variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, \code{mean_richness})
-\item For \code{stat = "regression"}: columns for \code{coef_intercept} and \verb{coef_\{covariate\}},
-or \verb{coef_intercept_\{varname\}} and  \verb{coef_\{covariate\}_\{varname\}} with multiple \code{y}
-variables.
-\item For \code{stat = "tabulate"}: one column per level of \code{y}, named \verb{n_\{level\}} for a
-single unnamed \code{y}, or \verb{\{varname\}_n_\{level\}} when \code{y} is named or has multiple
-columns.
-\item When \code{se != "none"}: matching SE columns (\code{se_weighted_mean},
-\code{se_intercept}, etc.) for each SE-supporting stat.
-}
-
-All results include metadata attributes (\code{select}, \code{stat}, \code{kernel}, etc.).
-Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
+A data.frame, or a SpatRaster when \code{x} is one and \code{k = 1}.
+Contains one row per focal-analog pair with \code{index}, \code{x}, \code{y},
+\code{analog_index}, \code{analog_x}, \code{analog_y}, \code{clim_dist}, and
+\code{geog_dist}. See \code{\link[=analog_search]{analog_search()}} for full column conventions
+and \code{\link[=metadata]{metadata()}} for attached metadata attributes.
 }
 \description{
 Finds, for each focal location, the geographic nearest neighbor(s) in a

@@ -104,6 +104,12 @@ for continuous \code{y}; for categorical \code{y}, swap \code{weighted_mean} for
 
 \item{...}{Additional arguments passed to \code{\link[=analog_search]{analog_search()}}.}
 }
+\value{
+A data.frame, or a SpatRaster when \code{x} is one. Contains
+\code{index}, \code{x}, \code{y} plus one or more columns determined by \code{stat}.
+See \code{\link[=analog_search]{analog_search()}} for column-naming conventions across stats
+and \code{\link[=metadata]{metadata()}} for attached metadata attributes.
+}
 \description{
 Predicts ecological outcome variables based on climatic similarity and geographic
 proximity. When focal and reference data are from the same time period, performs a

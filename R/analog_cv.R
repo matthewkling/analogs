@@ -292,12 +292,12 @@ analog_cv <- function(fun,
       }
 
       # Attach CV metadata as attributes ---------------------------------------
-      # analog_summary() reads these to describe the CV run alongside the
+      # metadata() reads these to describe the CV run alongside the
       # normal search parameter summary. Attached to data.frame; the raster
       # branch below drops attrs by design.
       attr(res_df, "cv_method") <- cv_method
       if (cv_method == "kfold") {
-            attr(res_df, "n_folds") <- length(unique(folds))
+            attr(res_df, "cv_n_folds") <- length(unique(folds))
       }
       attr(res_df, "cv_fun") <- fun_name
       attr(res_df, "cv_pred_target") <- pred_target
@@ -493,6 +493,13 @@ analog_cv <- function(fun,
             for (mc in missing_cols) df[[mc]] <- NA_real_
             df[, all_cols, drop = FALSE]
       })
+
+      # Capture inner attributes from the first per-fold result before rbind,
+      # which strips them. All folds share the same parameterization, so the
+      # first fold's attrs are representative for the combined result.
+      inner_attrs <- attributes(per_fold[[1]])
+      inner_attrs[c("names", "row.names", "class")] <- NULL
+
       combined <- do.call(rbind, per_fold)
 
       # Reorder to match pool input
@@ -502,6 +509,18 @@ analog_cv <- function(fun,
       combined$index <- combined$`.orig_row`
       combined$`.orig_row` <- NULL
       rownames(combined) <- NULL
+
+      # Restore inner attributes (select, stat, kernel, theta, n_x, etc.).
+      # CV-specific attributes (cv_method, cv_fun, ...) are written by the
+      # outer analog_cv() wrapper after this returns.
+      for (nm in names(inner_attrs)) {
+            attr(combined, nm) <- inner_attrs[[nm]]
+      }
+
+      # n_x and n_pool from the first fold reflect that fold's sizes, not the
+      # totals across the combined CV result. Override with totals.
+      attr(combined, "n_x") <- nrow(pool_mat)
+      attr(combined, "n_pool") <- nrow(pool_mat)
 
       combined
 }

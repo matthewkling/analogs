@@ -9,7 +9,10 @@
 #' and `stat = "sum_weights"`.
 #'
 #' @inheritParams analog_search
-#' @inherit analog_search return
+#'
+#' @return A data.frame, or a SpatRaster when `x` is one. Contains
+#'   `index`, `x`, `y`, and `sum_weights`.
+#'   See [metadata()] for attached metadata attributes.
 #'
 #' @references
 #' Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel

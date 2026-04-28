@@ -301,7 +301,7 @@
 
             if (nrow(df) != n_ref) {
                   stop(sprintf(
-                        "covariates SpatRaster has %d cells but reference data has %d rows. They must match.",
+                        "covariates SpatRaster has %d cells but pool has %d rows. They must match.",
                         nrow(df), n_ref
                   ))
             }
@@ -312,7 +312,7 @@
       } else if (is.data.frame(covariates)) {
             if (nrow(covariates) != n_ref) {
                   stop(sprintf(
-                        "covariates has %d rows but reference data has %d rows. They must match.",
+                        "covariates has %d rows but pool has %d rows. They must match.",
                         nrow(covariates), n_ref
                   ))
             }
@@ -330,7 +330,7 @@
       } else if (is.matrix(covariates)) {
             if (nrow(covariates) != n_ref) {
                   stop(sprintf(
-                        "covariates has %d rows but reference data has %d rows. They must match.",
+                        "covariates has %d rows but pool has %d rows. They must match.",
                         nrow(covariates), n_ref
                   ))
             }
@@ -345,7 +345,7 @@
             # Numeric vector — single covariate
             if (length(covariates) != n_ref) {
                   stop(sprintf(
-                        "covariates has length %d but reference data has %d rows. They must match.",
+                        "covariates has length %d but pool has %d rows. They must match.",
                         length(covariates), n_ref
                   ))
             }
@@ -390,7 +390,7 @@
             # Check dimensions match ref
             if (nrow(df) != n_ref) {
                   stop(sprintf(
-                        "y SpatRaster has %d cells but reference data has %d rows. They must match.",
+                        "y SpatRaster has %d cells but pool has %d rows. They must match.",
                         nrow(df), n_ref
                   ))
             }
@@ -417,7 +417,7 @@
       # Validate dimensions
       if (nrow(y) != n_ref) {
             stop(sprintf(
-                  "'y' must have same number of rows as reference data (%d), but has %d rows",
+                  "'y' must have same number of rows as pool (%d), but has %d rows",
                   n_ref, nrow(y)
             ))
       }
@@ -475,7 +475,7 @@
             df <- terra::as.data.frame(y, xy = FALSE, na.rm = FALSE)
             if (nrow(df) != n_ref) {
                   stop(sprintf(
-                        "y SpatRaster has %d cells but reference data has %d rows. They must match.",
+                        "y SpatRaster has %d cells but pool has %d rows. They must match.",
                         nrow(df), n_ref
                   ))
             }
@@ -486,7 +486,7 @@
             # Bare factor vector
             if (length(y) != n_ref) {
                   stop(sprintf(
-                        "'y' length is %d but reference data has %d rows. They must match.",
+                        "'y' length is %d but pool has %d rows. They must match.",
                         length(y), n_ref
                   ))
             }
@@ -496,7 +496,7 @@
       } else if (is.data.frame(y)) {
             if (nrow(y) != n_ref) {
                   stop(sprintf(
-                        "'y' has %d rows but reference data has %d rows. They must match.",
+                        "'y' has %d rows but pool has %d rows. They must match.",
                         nrow(y), n_ref
                   ))
             }
@@ -506,7 +506,7 @@
       } else if (is.matrix(y)) {
             if (nrow(y) != n_ref) {
                   stop(sprintf(
-                        "'y' has %d rows but reference data has %d rows. They must match.",
+                        "'y' has %d rows but pool has %d rows. They must match.",
                         nrow(y), n_ref
                   ))
             }
@@ -517,7 +517,7 @@
             # Plain vector (numeric, integer, character, logical)
             if (length(y) != n_ref) {
                   stop(sprintf(
-                        "'y' length is %d but reference data has %d rows. They must match.",
+                        "'y' length is %d but pool has %d rows. They must match.",
                         length(y), n_ref
                   ))
             }
@@ -809,7 +809,8 @@
       }
 }
 
-.format_output <- function(out, x, stat, select, k, kernel, theta, x_cov_mat){
+.format_output <- function(out, x, stat, select, k, kernel, theta, x_cov_mat,
+                           lambda, se, exclude_self, downsample_actual){
 
       if(! requireNamespace("terra", quietly = TRUE) || # terra not available
          is.null(attr(x, "template")) || # x wasn't a raster
@@ -833,12 +834,16 @@
             attributes(out) <- append(attributes(out), att[setdiff(names(att), names(attributes(out)))])
       }
 
-      attr(out, "select")    <- select
-      attr(out, "stat")      <- stat
-      attr(out, "k")         <- k
-      attr(out, "kernel")    <- kernel
-      attr(out, "theta")     <- theta
-      attr(out, "x_cov")     <- !is.null(x_cov_mat)
+      attr(out, "select")            <- select
+      attr(out, "stat")               <- stat
+      attr(out, "k")                  <- k
+      attr(out, "kernel")             <- kernel
+      attr(out, "theta")              <- theta
+      attr(out, "lambda")             <- lambda
+      attr(out, "se")                 <- se
+      attr(out, "exclude_self")       <- exclude_self
+      attr(out, "x_cov_provided")     <- !is.null(x_cov_mat)
+      attr(out, "downsample_actual")  <- downsample_actual
 
       return(out)
 }

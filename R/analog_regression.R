@@ -71,6 +71,9 @@
 #'     \item When `x_covariates` is supplied: `pred` (single-y) or
 #'       `pred_{varname}` (multi-y) giving the fitted value at each focal.
 #'   }
+
+#'   See [analog_search()] for column-naming conventions across stats
+#'   and [metadata()] for attached metadata attributes.
 #'
 #' @details
 #'

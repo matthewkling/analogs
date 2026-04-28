@@ -159,7 +159,7 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             Named("lattice_xptr") = lattice_xptr,
             Named("ecef_xptr") = ecef_xptr,
             Named("coord_type") = coord_type,
-            Named("n_ref") = n_ref,
+            Named("n_pool") = n_ref,
             Named("n_clim") = n_clim,
             Named("index_res") = index_res,
             Named("coord_mins") = coord_mins,
@@ -168,9 +168,9 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             Named("clim_maxs") = clim_maxs,
             Named("use_ecef") = use_ecef,
             Named("total_bins") = static_cast<double>(lattice->total_bins),
-            Named("n_cells_nonempty") = static_cast<double>(lattice->n_cells_nonempty),
-            Named("min_cell_occ") = static_cast<double>(lattice->min_cell_occ),
-            Named("max_cell_occ") = static_cast<double>(lattice->max_cell_occ),
+            Named("n_bins_nonempty") = static_cast<double>(lattice->n_cells_nonempty),
+            Named("min_bin_occupancy") = static_cast<double>(lattice->min_cell_occ),
+            Named("max_bin_occupancy") = static_cast<double>(lattice->max_cell_occ),
             Named("downsample_actual") = lattice->downsample_actual  // NEW
       );
 
@@ -212,7 +212,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
       }
 
       std::string coord_type = as<std::string>(idx["coord_type"]);
-      int n_ref = as<int>(idx["n_ref"]);
+      int n_ref = as<int>(idx["n_pool"]);
       int n_clim = as<int>(idx["n_clim"]);
       bool use_ecef = as<bool>(idx["use_ecef"]);
 
@@ -458,12 +458,12 @@ SEXP query_analog_index_cpp(SEXP index_list,
             );
 
             // Attach diagnostics
-            out.attr("n_focal") = n_focal;
-            out.attr("n_ref") = n_ref;
+            out.attr("n_x") = n_focal;
+            out.attr("n_pool") = n_ref;
             out.attr("n_clim") = n_clim;
-            out.attr("max_dist") = max_geog;
+            out.attr("max_geog") = max_geog;
             out.attr("max_clim") = max_clim;
-            out.attr("geo_mode") = coord_type;
+            out.attr("coord_type") = coord_type;
             out.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";
             out.attr("total_bins") = static_cast<double>(lattice_ptr->total_bins);
             out.attr("n_bins_nonempty") = static_cast<double>(lattice_ptr->n_cells_nonempty);
@@ -600,12 +600,12 @@ SEXP query_analog_index_cpp(SEXP index_list,
             }
 
             // Add diagnostics as attributes
-            agg.attr("n_focal") = n_focal;
-            agg.attr("n_ref") = n_ref;
+            agg.attr("n_x") = n_focal;
+            agg.attr("n_pool") = n_ref;
             agg.attr("n_clim") = n_clim;
-            agg.attr("max_dist") = max_geog;
+            agg.attr("max_geog") = max_geog;
             agg.attr("max_clim") = max_clim;
-            agg.attr("geo_mode") = coord_type;
+            agg.attr("coord_type") = coord_type;
             agg.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";
             agg.attr("total_bins") = static_cast<double>(lattice_ptr->total_bins);
             agg.attr("n_bins_nonempty") = static_cast<double>(lattice_ptr->n_cells_nonempty);

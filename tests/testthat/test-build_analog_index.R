@@ -15,7 +15,7 @@ test_that("build_analog_index creates valid index object", {
       expect_true(!is.null(index$lattice_xptr))
       expect_true(!is.null(index$ref_data))
       expect_equal(index$coord_type, "projected")
-      expect_equal(index$n_ref, 200)
+      expect_equal(index$n_pool, 200)
       expect_equal(index$n_clim, 2)
       expect_equal(index$index_res, 10)
 
@@ -29,8 +29,8 @@ test_that("build_analog_index creates valid index object", {
 
       # Check diagnostics
       expect_true(index$total_bins > 0)
-      expect_true(index$n_cells_nonempty > 0)
-      expect_true(index$n_cells_nonempty <= index$total_bins)
+      expect_true(index$n_bins_nonempty > 0)
+      expect_true(index$n_bins_nonempty <= index$total_bins)
 })
 
 

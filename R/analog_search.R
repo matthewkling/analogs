@@ -277,7 +277,8 @@
 #'   `se_intercept`, etc.) for each SE-supporting stat.
 #'
 #' All results include metadata attributes (`select`, `stat`, `kernel`, etc.).
-#' Use [analog_summary()] to view a formatted summary.
+#' Use [metadata()] to retrieve them as a named list, or see
+#' `?metadata` for a full reference.
 #'
 #' @references
 #' Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of

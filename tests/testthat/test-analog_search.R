@@ -113,7 +113,7 @@ test_that("analog_search preserves diagnostic attributes", {
       )
 
       # Should have diagnostic attributes from C++
-      expect_true(!is.null(attr(res, "n_ref")))
+      expect_true(!is.null(attr(res, "n_pool")))
       expect_true(!is.null(attr(res, "n_clim")))
       expect_true(!is.null(attr(res, "total_bins")))
       expect_true(!is.null(attr(res, "binning_method")))

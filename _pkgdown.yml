@@ -2,3 +2,33 @@ url: https://matthewkling.github.io/analogs/
 template:
   bootstrap: 5
 
+reference:
+- title: Common queries
+- contents:
+  - analog_impact
+  - analog_regression
+  - analog_velocity
+  - analog_availability
+  - analog_intensity
+  - analog_similarity
+
+- title: Cross-validation
+- contents:
+  - analog_cv
+  - cv_performance
+
+- title: Core architecture
+- contents:
+  - analog_search
+  - build_analog_index
+  - analog_metadata
+
+- title: Data and preprocessing
+- contents:
+  - mahalanobis_transform
+  - example_rasters
+
+- title: Performance optimization
+- contents:
+  - tiled_analog_search
+  - tune_index_res

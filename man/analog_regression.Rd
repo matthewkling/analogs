@@ -210,6 +210,8 @@ are returned)
 \item When \code{x_covariates} is supplied: \code{pred} (single-y) or
 \verb{pred_\{varname\}} (multi-y) giving the fitted value at each focal.
 }
+See \code{\link[=analog_search]{analog_search()}} for column-naming conventions across stats
+and \code{\link[=metadata]{metadata()}} for attached metadata attributes.
 }
 \description{
 Fits a weighted local regression of \code{y} on \code{covariates} within

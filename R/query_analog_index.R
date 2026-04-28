@@ -194,7 +194,9 @@ query_analog_index <- function(x,
             }
 
             return(.format_output(out, focal, stat, select,
-                                  k, kernel, theta, x_cov_mat))
+                                  k, kernel, theta, x_cov_mat,
+                                  lambda, se, exclude_self,
+                                  index$downsample_actual))
       }
 
       # Aggregation mode(s)
@@ -341,7 +343,8 @@ query_analog_index <- function(x,
             attr(out, nm) <- cpp_attrs[[nm]]
       }
 
-      return(.format_output(out, focal, stat, select, k, kernel, theta, x_cov_mat))
+      return(.format_output(out, focal, stat, select, k, kernel, theta, x_cov_mat,
+                            lambda, se, exclude_self, index$downsample_actual))
 }
 
 
@@ -463,7 +466,7 @@ query_analog_index <- function(x,
                         attr(merged, nm) <- attr(first, nm)
                   }
             }
-            attr(merged, "n_focal") <- nrow(focal)
+            attr(merged, "n_x") <- nrow(focal)
 
             return(merged)
       } else {
@@ -475,7 +478,7 @@ query_analog_index <- function(x,
                         attr(merged, nm) <- attr(first, nm)
                   }
             }
-            attr(merged, "n_focal") <- nrow(focal)
+            attr(merged, "n_x") <- nrow(focal)
 
             return(merged)
       }

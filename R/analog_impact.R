@@ -134,6 +134,11 @@
 #'     of analogs. Interpretation details vary based on the `kernel` parameter.
 #' }
 #'
+#' @return A data.frame, or a SpatRaster when `x` is one. Contains
+#'   `index`, `x`, `y` plus one or more columns determined by `stat`.
+#'   See [analog_search()] for column-naming conventions across stats
+#'   and [metadata()] for attached metadata attributes.
+#'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
 #'   [analog_cv()] for cross-validation of AIM fits.
 #'

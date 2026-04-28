@@ -2,13 +2,15 @@
 #'
 #' Finds, for each focal location, the climate–nearest neighbor(s) in a
 #' reference dataset that satisfy a specified geographic distance threshold.
-#' Among other uses, this operation is often the first step in a traditional
-#' analog impact modeling (AIM) analysis.
-#'
 #' This function is a wrapper that calls [analog_search()] using `select = "knn_clim"`.
 #'
 #' @inheritParams analog_search
-#' @inherit analog_search return
+#'
+#' @return A data.frame, or a SpatRaster when `x` is one and `k = 1`.
+#'   Contains one row per focal-analog pair with `index`, `x`, `y`,
+#'   `analog_index`, `analog_x`, `analog_y`, `clim_dist`, and
+#'   `geog_dist`. See [analog_search()] for full column conventions
+#'   and [metadata()] for attached metadata attributes.
 #'
 #' @details
 #' For each focal location, \code{analog_similarity()}:
@@ -21,6 +23,10 @@
 #' This is the natural "inverse" of \code{\link{analog_velocity}}: instead of finding
 #' where the focal climate moves geographically, it finds the closest climatically
 #' similar conditions that are geographically reachable.
+#'
+#' Among other uses, this operation is often the first step in a traditional
+#' analog impact modeling (AIM) analysis -- though see [analog_impact()] for a
+#' more complete AIM implementation.
 #'
 #' @examples
 #' \dontrun{

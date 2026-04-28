@@ -263,7 +263,8 @@ columns.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{kernel}, etc.).
-Use \code{\link[=analog_summary]{analog_summary()}} to view a formatted summary.
+Use \code{\link[=metadata]{metadata()}} to retrieve them as a named list, or see
+\code{?metadata} for a full reference.
 }
 \description{
 Identifies locations in a reference dataset that are climatically similar
