@@ -81,6 +81,16 @@ squared sum of weights divided by the sum of squared weights
 of \code{y} on \code{covariates} within each analog neighborhood.
 Returns intercept and slope coefficients. Requires \code{y},
 \code{covariates}, and \code{kernel}. See \code{lambda} for regularization.
+\item \code{"tabulate"}: For each focal and each level of categorical \code{y},
+sum the kernel weights of analogs whose \code{y} falls in that level.
+With \code{kernel = "uniform"} this reduces to a per-class vote count;
+with a distance-decay kernel it gives similarity-weighted support
+per class. Requires \code{y} (factor or coercible-to-factor) and
+\code{kernel}. Output has one column per class. \code{"tabulate"} is
+mutually exclusive with \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
+\code{"weighted_mean"}, and \code{"regression"} (different \code{y} semantics);
+it can be combined with \code{"count"}, \code{"sum_weights"},
+\code{"mean_weights"}, and \code{"ess"}.
 \item A character vector combining multiple stats (e.g.,
 \code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.
@@ -110,7 +120,8 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 
 \item{kernel}{Kernel decay function for weighting matches, used only when
 \code{stat} includes a weighted aggregation (\code{"sum_weights"}, \code{"mean_weights"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, or \code{"regression"}). One of:
+\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, \code{"regression"}, or
+\code{"tabulate"}). One of:
 \itemize{
 \item \code{"uniform"}: All matches weighted equally (kernel weight = 1.0).
 \item \code{"inverse_clim"}: Inverse climate distance,
@@ -148,10 +159,12 @@ SpatRaster with a layer for each component. For n climate variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
-\item{y}{Optional numeric vector, matrix/data.frame, or SpatRaster giving
+\item{y}{Optional vector, factor, matrix/data.frame, or SpatRaster giving
 values for each reference location (must have same number of rows/cells
 as \code{pool}). Required for stats \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
-\code{"weighted_mean"}, and \code{"regression"}.}
+\code{"weighted_mean"}, \code{"regression"}, and \code{"tabulate"}. Numeric for
+continuous stats; factor or coercible-to-factor (character, integer,
+logical) for \code{stat = "tabulate"}.}
 
 \item{covariates}{Optional matrix/data.frame or SpatRaster giving
 covariate values for each reference location (must have same number of

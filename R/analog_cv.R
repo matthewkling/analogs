@@ -322,8 +322,14 @@ analog_cv <- function(fun,
 # Errors on ambiguous analog_search stats (both weighted_mean and regression).
 .cv_determine_prediction_target <- function(fun_name, extra, cov_mat) {
       if (fun_name == "analog_impact") {
-            # analog_impact default stat includes weighted_mean.
             stat_val <- extra$stat %||% c("count", "sum_weights", "weighted_mean")
+            if ("tabulate" %in% stat_val) {
+                  stop("analog_cv with fun = analog_impact and ",
+                       "stat = 'tabulate' is not yet supported. ",
+                       "Tabulate is categorical; CV residuals are not defined ",
+                       "for it in the current API.",
+                       call. = FALSE)
+            }
             if (!"weighted_mean" %in% stat_val) {
                   stop("analog_cv with fun = analog_impact requires 'weighted_mean' ",
                        "to be in `stat` (it is by default).", call. = FALSE)
@@ -343,6 +349,13 @@ analog_cv <- function(fun,
       # analog_search: infer from user-provided stat
       stat_val <- extra$stat
       if (is.null(stat_val)) stat_val <- character(0)
+      if ("tabulate" %in% stat_val) {
+            stop("analog_cv with stat = 'tabulate' is not yet supported. ",
+                 "Tabulate produces K columns per focal rather than a single ",
+                 "prediction; categorical CV (e.g., Brier score) is on the ",
+                 "roadmap as a separate workflow.",
+                 call. = FALSE)
+      }
       has_wm  <- "weighted_mean" %in% stat_val
       has_reg <- "regression"    %in% stat_val
 

@@ -75,10 +75,12 @@
 #'   SpatRaster with a layer for each component. For n climate variables,
 #'   there are n*(n+1)/2 unique components, ordered as: variances first
 #'   (diagonals), then covariances (upper triangle by row).
-#' @param y Optional numeric vector, matrix/data.frame, or SpatRaster giving
+#' @param y Optional vector, factor, matrix/data.frame, or SpatRaster giving
 #'   values for each reference location (must have same number of rows/cells
 #'   as `pool`). Required for stats `"sum"`, `"mean"`, `"weighted_sum"`,
-#'   `"weighted_mean"`, and `"regression"`.
+#'   `"weighted_mean"`, `"regression"`, and `"tabulate"`. Numeric for
+#'   continuous stats; factor or coercible-to-factor (character, integer,
+#'   logical) for `stat = "tabulate"`.
 #' @param covariates Optional matrix/data.frame or SpatRaster giving
 #'   covariate values for each reference location (must have same number of
 #'   rows/cells as `pool`). Required when `stat` includes `"regression"`.
@@ -134,13 +136,24 @@
 #'     of `y` on `covariates` within each analog neighborhood.
 #'     Returns intercept and slope coefficients. Requires `y`,
 #'     `covariates`, and `kernel`. See `lambda` for regularization.
+#'   - `"tabulate"`: For each focal and each level of categorical `y`,
+#'     sum the kernel weights of analogs whose `y` falls in that level.
+#'     With `kernel = "uniform"` this reduces to a per-class vote count;
+#'     with a distance-decay kernel it gives similarity-weighted support
+#'     per class. Requires `y` (factor or coercible-to-factor) and
+#'     `kernel`. Output has one column per class. `"tabulate"` is
+#'     mutually exclusive with `"sum"`, `"mean"`, `"weighted_sum"`,
+#'     `"weighted_mean"`, and `"regression"` (different `y` semantics);
+#'     it can be combined with `"count"`, `"sum_weights"`,
+#'     `"mean_weights"`, and `"ess"`.
 #'   - A character vector combining multiple stats (e.g.,
 #'     `c("count", "weighted_mean", "regression")`).
 #'     Note: `"none"` cannot be combined with other stats.
 #'
 #' @param kernel Kernel decay function for weighting matches, used only when
 #'   `stat` includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
-#'   `"weighted_sum"`, `"weighted_mean"`, `"ess"`, or `"regression"`). One of:
+#'   `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
+#'   `"tabulate"`). One of:
 #'
 #'   - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
 #'   - `"inverse_clim"`: Inverse climate distance,
@@ -257,6 +270,9 @@
 #' - For `stat = "regression"`: columns for `coef_intercept` and `coef_{covariate}`,
 #'   or `coef_intercept_{varname}` and  `coef_{covariate}_{varname}` with multiple `y`
 #'   variables.
+#' - For `stat = "tabulate"`: one column per level of `y`, named `n_{level}` for a
+#'   single unnamed `y`, or `{varname}_n_{level}` when `y` is named or has multiple
+#'   columns.
 #' - When `se != "none"`: matching SE columns (`se_weighted_mean`,
 #'   `se_intercept`, etc.) for each SE-supporting stat.
 #'

@@ -13,7 +13,7 @@ analog_impact(
   max_clim = 1,
   kernel = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
   theta = 0.25,
-  stat = c("count", "sum_weights", "weighted_mean"),
+  stat = c("weighted_mean", "count", "sum_weights"),
   lambda = 0,
   se = c("none", "ess", "design"),
   x_cov = NULL,
@@ -25,9 +25,9 @@ analog_impact(
 )
 }
 \arguments{
-\item{x}{Focal locations (generally with future climate conditions). Should be a
-matrix/data.frame with columns x, y, and climate variables, or a
-SpatRaster with climate variable layers.}
+\item{x}{Focal locations (usually future climate conditions for AIM, or baseline
+conditions for static interpolation). Should be a matrix/data.frame with columns x, y, and
+climate variables, or a SpatRaster with climate variable layers.}
 
 \item{pool}{The reference dataset (generally representing baseline climate conditions).
 Either:
@@ -38,147 +38,87 @@ or SpatRaster with climate variable layers, OR
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
-\item{y}{Ecological or environmental variable(s) for the same era as \code{pool}, to
-aggregate across climate analogs. Examples include occupancy of focal species, species
-richness, biomass, or any other ecological state variable. Can be a numeric vector
-(single variable), matrix or data.frame with numeric columns (multiple
-variables), or a SpatRaster with one or more numeric layers. Must have
-exactly the same number of reference locations as \code{pool}.}
+\item{y}{Ecological or environmental variable(s) for the same era as \code{pool},
+to aggregate across climate analogs. For continuous stats
+(\code{weighted_mean}, \code{sum}, etc.), \code{y} should be numeric: occupancy of focal
+species, species richness, biomass, or any other numeric ecological state.
+For \code{stat = "tabulate"} (categorical aggregation), \code{y} should be a factor
+or a vector that can be coerced to a factor (e.g., character vector of
+vegetation type names, integer class codes, or a single-layer
+categorical SpatRaster). Can be a vector / factor (single variable),
+matrix or data.frame (multiple variables), or a SpatRaster with one or
+more layers. Must have exactly the same number of reference locations
+as \code{pool}.}
 
-\item{covariates}{Optional matrix/data.frame or SpatRaster giving
-covariate values for each reference location (must have same number of
-rows/cells as \code{pool}). Required when \code{stat} includes \code{"regression"}.}
+\item{covariates}{Covariates to use with \code{stat = "regression"} (NULL
+otherwise; see \code{\link[=analog_regression]{analog_regression()}} for the regression-focused
+wrapper).}
 
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
+\item{max_geog}{Maximum geographic distance for analogs (km if lonlat;
+projection units otherwise). Acts as a hard dispersal constraint.}
 
-\item{max_clim}{Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:
-\itemize{
-\item A scalar: Euclidean radius in climate space (e.g., 0.5)
-\item A vector: Per-variable absolute differences (length must equal
-number of climate variables)
-}
-
-Only reference locations within this climate distance are considered.
-When \code{x_cov} is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.}
+\item{max_clim}{Maximum climate distance threshold defining what counts
+as an analog (default: 1.0).}
 
 \item{kernel}{Kernel decay function for weighting analogs during aggregation. Only
 weighting options that are based on \emph{climate} are allowed:
 \code{"inverse_clim"} (default), \code{"gaussian_clim"}, \code{"inverse_joint"},
 \code{"gaussian_joint"}. See \code{\link[=analog_search]{analog_search()}} for details.}
 
-\item{theta}{Optional numeric parameter controlling the shape of the
-weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
-\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
-Interpretation depends on \code{kernel}:
-\itemize{
-\item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
-added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-\item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
-parameter (scalar; larger values = slower decay with distance).
-\item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
-\code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
-}}
+\item{theta}{Kernel bandwidth (default: 0.25). See \code{\link[=analog_search]{analog_search()}}.}
 
 \item{stat}{Statistic(s) to compute across analogs (default: c("count",
-"sum_weights", "weighted_mean")). See \code{\link[=analog_search]{analog_search()}} for options.
-The default statistics provide a complete picture:
+"sum_weights", "weighted_mean")). See \code{\link[=analog_search]{analog_search()}} for the full list
+of options. Common choices:
 \itemize{
+\item \code{"weighted_mean"}: Expected ecological state under continuous y
+\item \code{"tabulate"}: Per-class similarity-weighted support under
+categorical y. Output has one column per class, named
+\verb{n_<level>} (single-y) or \verb{<varname>_n_<level>} (multi-y).
+\code{"tabulate"} is mutually exclusive with \code{weighted_mean}/\code{sum}/
+\code{mean}/\code{weighted_sum}/\code{regression}, but can be combined with
+\code{count}, \code{sum_weights}, \code{mean_weights}, and \code{ess}.
 \item \code{"count"}: Analog availability (number of analogs)
-\item \code{"sum_weights"}: Analog intensity
-\item \code{"weighted_mean"}: Expected ecological state
-}}
-
-\item{lambda}{Ridge penalty parameter for \code{stat = "regression"}
-(default: 0, giving ordinary weighted least squares). Higher values
-shrink covariate coefficients toward zero, with the intercept
-approaching the weighted mean as \code{lambda -> Inf}. Ignored when
-\code{"regression"} is not in \code{stat}.}
-
-\item{se}{Standard-error framing to apply to SE-supporting stats
-(\code{"weighted_mean"} and \code{"regression"}). One of:
-\itemize{
-\item \code{"none"} (default): no SE columns are returned.
-\item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
-\code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
-effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
-\verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
-using \code{n_eff - p} degrees of freedom.
-\item \code{"design"}: design-based framing (no assumption that weights are
-precisions). For \code{weighted_mean},
-\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
-}}
-
-\item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
-distance calculations. Should be a matrix or data.frame with one row per
-focal location and one column per unique covariance component, or a
-SpatRaster with a layer for each component. For n climate variables,
-there are n*(n+1)/2 unique components, ordered as: variances first
-(diagonals), then covariances (upper triangle by row).}
-
-\item{coord_type}{Coordinate system type:
-\itemize{
-\item \code{"auto"} (default): Automatically detect from coordinate ranges.
-\item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
-assumes \code{max_geog} is in km).
-\item \code{"projected"}: Projected XY coordinates (uses planar distance;
-assumes \code{max_geog} is in projection units).
-}}
-
-\item{index_res}{Tuning parameter giving the number of bins per dimension
-of the internally-used lattice search index. Either:
-\itemize{
-\item A positive integer.
-\item \code{"auto"} (the default): Automatically tune the index resolution
-by optimizing compute time on a subsample of focal points. If focal has
-relatively few rows, auto-tuning is skipped and a default resolution of
-16 is used.
+\item \code{"sum_weights"}: Analog intensity (sum of climate-similarity
+weights across analogs)
 }
+The default \code{c("count", "sum_weights", "weighted_mean")} is appropriate
+for continuous \code{y}; for categorical \code{y}, swap \code{weighted_mean} for
+\code{tabulate}.}
 
-Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
+\item{lambda}{Ridge penalty for regression (default 0).}
 
-\item{n_threads}{Optional integer number of threads to use for the
-computation. If \code{NULL} (default), the global RcppParallel setting
-is used (see \code{RcppParallel::setThreadOptions}).}
+\item{se}{One of "none" (default), "ess", or "design"; SE variant for
+\code{weighted_mean} and \code{regression}.}
 
-\item{progress}{Logical; if \code{TRUE}, display a progress bar during
-computation. Progress tracking works by splitting the focal dataset into
-chunks and processing them sequentially. Useful for large datasets. Default
-is \code{FALSE}.}
+\item{x_cov}{Optional covariance matrices for Mahalanobis distance
+(one per focal point), as expected by \code{\link[=analog_search]{analog_search()}}.}
 
-\item{...}{additional arguments passed to \code{analog_search()} (usually unneeded)}
-}
-\value{
-A data.frame with one row per focal location containing:
-\itemize{
-\item \code{index}: Row number from input \code{x} data
-\item \verb{x, y}: Coordinates of focal location
-\item One column per requested statistic
-\item For value statistics with multiple variables: \verb{\{stat\}_\{varname\}}
-(e.g., \code{weighted_mean_habitat_quality})
-\item For \code{"regression"}: \code{coef_intercept} and \verb{coef_\{covariate\}}
-coefficient columns
-\item When \code{se != "none"}: SE columns for SE-supporting stats
-(e.g., \code{se_weighted_mean})
-}
+\item{coord_type}{One of "auto", "lonlat", or "projected".}
+
+\item{index_res}{Resolution parameter for the lattice index (or "auto").}
+
+\item{n_threads}{Optional integer number of threads.}
+
+\item{progress}{Logical; show a progress bar.}
+
+\item{...}{Additional arguments passed to \code{\link[=analog_search]{analog_search()}}.}
 }
 \description{
-Assesses potential climate change impacts using the analog impact model (AIM)
-methodology. For each focal location's future climate, identifies locations
-with similar baseline climates within a specified geographic range, then
-aggregates their ecological characteristics weighted by climate similarity.
-This quantifies what ecosystem conditions are likely accessible via dispersal
-as climate changes.
+Predicts ecological outcome variables based on climatic similarity and geographic
+proximity. When focal and reference data are from the same time period, performs a
+climate-informed spatial interpolation. When they are from different eras, implements
+an analog impact model (AIM) projecting the potential ecological state under climate
+change. For each focal location's future climate, identifies locations with similar
+baseline climates within a specified geographic range, then aggregates their ecological
+characteristics weighted by climate similarity. Aggregation can be a weighted mean
+for continuous outcomes or a weighted class count for categorical outcomes.
 }
 \details{
 \subsection{The Analog Impact Model (AIM) Framework}{
 
-This function implements the "reverse analog" approach from the climate
+When \code{x} represents future climate and \code{pool} represent baseline climate,
+this function implements the "reverse analog" approach from the climate
 change ecology literature. It addresses the question, "For a location's
 future climate, what ecological conditions exist in current locations with
 similar climates that are within dispersal range?"
@@ -216,20 +156,31 @@ a reasonable rule of thumb is to set \code{theta} to \verb{max_* / 3}.
 \subsection{Interpreting Results}{
 
 \itemize{
+\item \code{weighted_mean}: Expected ecosystem state if colonized by species
+from analog locations.
+\item \code{tabulate}: For each class in \code{y}, the sum of analog weights that
+fall in that class. Each class's column gives the total
+climatic-similarity-weighted support among analogs (or, with
+\code{analog_search(stat = "tabulate", kernel = "uniform")}, a plain
+vote count). The "primary" projection at a focal location is
+\code{which.max()} of these columns; "agreement" is the largest column
+value divided by the row sum (or, equivalently, divided by
+\code{sum_weights} when both are requested). Bray-Curtis dissimilarity
+between two such weighted-vote matrices (e.g., contemporary vs.
+future analogs) gives a measure of compositional vulnerability to
+ecological transformation (cf. Hoecker et al. 2026).
 \item \code{count}: How many analogs exist within max_clim and max_geog? Low counts
 indicate limited analog availability, while zero counts indicate climates
 that are novel within the geographic search radius.
 \item \code{sum_weights}: Total analog intensity. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
 of analogs. Interpretation details vary based on the \code{kernel} parameter.
-\item \code{weighted_mean}: Expected ecosystem state if colonized by species
-from analog locations.
 }
 }
 }
 \examples{
 \dontrun{
-# Basic climate impact assessment
+# Basic climate impact assessment with continuous response
 impact <- analog_impact(
   x = future_climate,
   pool = current_climate,
@@ -247,6 +198,22 @@ impact_se <- analog_impact(
   max_clim = 0.5,
   se = "ess"
 )
+
+# Categorical response (e.g. vegetation type):
+# compute weighted-vote counts per class within climatic neighborhoods
+veg_votes <- analog_impact(
+  x    = future_climate,
+  pool = current_climate,
+  y    = factor(current$vegetation_type),
+  stat = c("count", "sum_weights", "tabulate"),
+  kernel = "gaussian_clim",
+  max_geog = 500,
+  max_clim = 1
+)
+# Output has one `n_<level>` column per vegetation type.
+# Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],
+#                                   1, function(r) names(r)[which.max(r)])
+# Agreement (max share):    apply(votes_mat, 1, max) / rowSums(votes_mat)
 }
 
 }

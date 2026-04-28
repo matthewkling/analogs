@@ -20,6 +20,7 @@
   covariates,
   lambda,
   se_code,
+  n_classes_per_var = integer(0),
   exclude_self = FALSE,
   show_progress = FALSE
 )

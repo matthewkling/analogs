@@ -70,7 +70,8 @@ if \code{coord_type = "projected"}.}
 
 \item{kernel}{Kernel decay function for weighting matches, used only when
 \code{stat} includes a weighted aggregation (\code{"sum_weights"}, \code{"mean_weights"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, or \code{"regression"}). One of:
+\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, \code{"regression"}, or
+\code{"tabulate"}). One of:
 \itemize{
 \item \code{"uniform"}: All matches weighted equally (kernel weight = 1.0).
 \item \code{"inverse_clim"}: Inverse climate distance,
@@ -158,6 +159,9 @@ variables: columns named \verb{\{stat\}_\{varname\}} (e.g., \code{sum_biomass}, 
 \item For \code{stat = "regression"}: columns for \code{coef_intercept} and \verb{coef_\{covariate\}},
 or \verb{coef_intercept_\{varname\}} and  \verb{coef_\{covariate\}_\{varname\}} with multiple \code{y}
 variables.
+\item For \code{stat = "tabulate"}: one column per level of \code{y}, named \verb{n_\{level\}} for a
+single unnamed \code{y}, or \verb{\{varname\}_n_\{level\}} when \code{y} is named or has multiple
+columns.
 \item When \code{se != "none"}: matching SE columns (\code{se_weighted_mean},
 \code{se_intercept}, etc.) for each SE-supporting stat.
 }

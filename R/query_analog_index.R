@@ -44,6 +44,7 @@ query_analog_index <- function(x,
       x_cov_mat <- params$x_cov
       values_mat <- params$y
       values_names <- params$values_names
+      values_levels <- params$values_levels   # NULL unless tabulate
       covariates_mat <- params$covariates
       covariates_names <- params$covariates_names
 
@@ -63,7 +64,7 @@ query_analog_index <- function(x,
       # Map stat(s) for C++
       # Aggregate codes: 0=none, 1=count, 2=sum_weights, 3=mean_weights,
       #                  4=sum, 5=mean, 6=weighted_sum, 7=weighted_mean,
-      #                  8=ess, 9=regression
+      #                  8=ess, 9=regression, 10=tabulate
       stat_name_to_code <- c(
             "none"           = 0L,
             "count"          = 1L,
@@ -74,18 +75,18 @@ query_analog_index <- function(x,
             "weighted_sum"   = 6L,
             "weighted_mean"  = 7L,
             "ess"            = 8L,
-            "regression"     = 9L
+            "regression"     = 9L,
+            "tabulate"       = 10L
       )
       aggregate_codes <- stat_name_to_code[stat]
       names(aggregate_codes) <- NULL
 
-      # Map kernel function for C++ (passed to C++ as weight_code)
-      # kernel codes: 0=none, 1=uniform, 2=inverse_clim, 3=inverse_geog,
-      #               4=gaussian_clim, 5=gaussian_geog,
-      #               6=gaussian_joint, 7=inverse_joint
+      # Map kernel function for C++ (passed to C++ as weight_code).
+      # Tabulate is a weighted aggregation (sums combined_weight per class),
+      # so it triggers weighting alongside the existing weighted stats.
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean",
-                                           "ess", "regression"))
+                                           "ess", "regression", "tabulate"))
       weight_code <- if (has_weighted_stat) {
             switch(
                   kernel,
@@ -120,6 +121,14 @@ query_analog_index <- function(x,
       # Transform k for C++ (0L for "all", integer otherwise)
       k_core <- if (select %in% c("knn_clim", "knn_geog")) as.integer(k) else 0L
 
+      # Build n_classes_per_var to pass to C++. Length 0 (=integer(0)) when
+      # tabulate not requested; length n_vars otherwise.
+      n_classes_per_var <- if ("tabulate" %in% stat && !is.null(values_levels)) {
+            as.integer(vapply(values_levels, length, integer(1L)))
+      } else {
+            integer(0)
+      }
+
       # If n_threads explicitly provided, set RcppParallel threads
       if (!is.null(n_threads)) {
             if (!is.numeric(n_threads) || n_threads < 1) {
@@ -153,6 +162,7 @@ query_analog_index <- function(x,
             covariates = covariates_mat,
             lambda = lambda,
             se_code = se_code,
+            n_classes_per_var = n_classes_per_var,
             exclude_self = exclude_self,
             show_progress = show_progress
       )
@@ -243,6 +253,41 @@ query_analog_index <- function(x,
             }
       }
 
+      # Tabulate: K_v columns per y variable v, contiguous in v-order.
+      # Column naming follows the package convention:
+      #   single y, no name        -> "n_<level>"
+      #   y has a name (or multi-y)-> "<varname>_n_<level>"
+      if ("tabulate" %in% stat) {
+            for (v in seq_len(n_vals)) {
+                  var_name <- if (!is.null(values_names)) {
+                        values_names[v]
+                  } else {
+                        paste0("var", v)
+                  }
+                  lev <- values_levels[[v]]
+                  K_v <- length(lev)
+
+                  # Decide whether to prefix the variable name. We always
+                  # prefix when y has a real name attached (e.g. raster layer
+                  # or data.frame column) or when there are multiple y vars,
+                  # to disambiguate. For a single bare vector with our
+                  # auto-generated "y1", we drop the prefix.
+                  user_named <- (n_vals > 1L) ||
+                        (!identical(var_name, "y1") &&
+                               !identical(var_name, "value_1"))
+
+                  for (kk in seq_len(K_v)) {
+                        col_name <- if (user_named) {
+                              paste0(var_name, "_n_", lev[kk])
+                        } else {
+                              paste0("n_", lev[kk])
+                        }
+                        out[[col_name]] <- res[, col_idx]
+                        col_idx <- col_idx + 1L
+                  }
+            }
+      }
+
       # Regression: (n_covariates + 1) columns per value variable for coefs;
       # same again for SEs when se != "none".
       if ("regression" %in% stat) {
@@ -309,6 +354,7 @@ query_analog_index <- function(x,
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
                                select_code, aggregate_codes, weight_code, theta,
                                x_cov, y, covariates, lambda, se_code,
+                               n_classes_per_var = integer(0),
                                exclude_self = FALSE,
                                show_progress = FALSE) {
 
@@ -330,6 +376,7 @@ query_analog_index <- function(x,
                   covariates_sexp = covariates,
                   lambda = lambda,
                   se_code = se_code,
+                  n_classes_per_var = n_classes_per_var,
                   exclude_self = exclude_self
             ))
       }
@@ -381,6 +428,7 @@ query_analog_index <- function(x,
                   covariates_sexp = covariates,
                   lambda = lambda,
                   se_code = se_code,
+                  n_classes_per_var = n_classes_per_var,
                   exclude_self = FALSE   # always FALSE in chunked path
             )
 

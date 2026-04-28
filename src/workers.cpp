@@ -409,13 +409,14 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& cand = tls.cand;
       auto& cand_weights = tls.cand_weights;
 
-      // Determine which stats are regular vs value-based vs regression.
+      // Determine which stats are regular vs value-based vs regression vs tabulate.
       // Also record the position of the WEIGHTED_MEAN stat within the value
       // stats (if any), since that's the only value stat with SE support.
       std::vector<int> regular_stat_positions;
       std::vector<int> value_stat_positions;
       int wm_value_idx = -1;            // index into value_stat_positions of WEIGHTED_MEAN, or -1
       bool has_regression = false;
+      bool has_tabulate = false;
 
       for (int s = 0; s < static_cast<int>(acodes.size()); ++s) {
             if (acodes[s] == AggregateCode::SUM ||
@@ -429,6 +430,9 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             } else if (acodes[s] == AggregateCode::REGRESSION) {
                   // REGRESSION: regression is handled separately
                   has_regression = true;
+            } else if (acodes[s] == AggregateCode::TABULATE) {
+                  // TABULATE: handled separately, K_v columns per y variable
+                  has_tabulate = true;
             } else {
                   regular_stat_positions.push_back(s);  // COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS
             }
@@ -450,9 +454,26 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                 acodes[s] == AggregateCode::WEIGHTED_SUM ||
                 acodes[s] == AggregateCode::WEIGHTED_MEAN ||
                 acodes[s] == AggregateCode::ESS ||
-                acodes[s] == AggregateCode::REGRESSION) {
+                acodes[s] == AggregateCode::REGRESSION ||
+                acodes[s] == AggregateCode::TABULATE) {
                   need_weights = true;
                   break;
+            }
+      }
+
+      // TABULATE: pre-compute per-variable bin offsets so we can index into a
+      // single flat tabulate accumulator. tab_offsets[v] is the starting index
+      // in tabulate_accum for variable v's K_v bins; tab_total is the total
+      // number of tabulate bins across all y variables.
+      std::vector<int> tab_offsets;
+      int tab_total = 0;
+      if (has_tabulate) {
+            tab_offsets.resize(n_vars, 0);
+            for (int v = 0; v < n_vars; ++v) {
+                  tab_offsets[v] = tab_total;
+                  if (v < static_cast<int>(n_classes_per_var.size())) {
+                        tab_total += n_classes_per_var[v];
+                  }
             }
       }
 
@@ -543,6 +564,13 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             std::vector<double> value_accum;
             if (has_values && n_value > 0) {
                   value_accum.resize(n_vars * n_value, 0.0);
+            }
+
+            // TABULATE: per-focal accumulator, length = sum of K_v across vars.
+            // Layout is contiguous per-variable: var 0's bins, then var 1's, etc.
+            std::vector<double> tabulate_accum;
+            if (has_tabulate && tab_total > 0) {
+                  tabulate_accum.assign(tab_total, 0.0);
             }
 
             // weighted_mean SE accumulators (per y-var).
@@ -714,6 +742,28 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         }
                   }
 
+                  // TABULATE: add this analog's combined weight to the bin
+                  // indexed by its (1-based) class code, for each y variable.
+                  // NA codes (ISNAN) are skipped; out-of-range codes are
+                  // ignored defensively (R-side validation should prevent them).
+                  // Note: y values are passed as doubles holding 1-based integer
+                  // class codes (or NA_REAL for missing); int round-trip is exact.
+                  if (has_tabulate && has_values && tab_total > 0) {
+                        for (int v = 0; v < n_vars; ++v) {
+                              const int K_v = (v < static_cast<int>(n_classes_per_var.size()))
+                              ? n_classes_per_var[v] : 0;
+                              if (K_v <= 0) continue;
+
+                              const double val = values_ptr[j + v * values_stride];
+                              if (ISNAN(val)) continue;
+
+                              const int code = static_cast<int>(val) - 1; // 1-based -> 0-based
+                              if (code < 0 || code >= K_v) continue;
+
+                              tabulate_accum[tab_offsets[v] + code] += combined_weight;
+                        }
+                  }
+
                   // REGRESSION: collect this analog for post-loop regression solve
                   if (has_regression) {
                         reg_analog_indices.push_back(static_cast<std::size_t>(j));
@@ -814,6 +864,16 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     col_idx++;
                               }
                         }
+                  }
+            }
+
+            // TABULATE: write per-class weighted vote totals.
+            // Layout: for each y variable v (in column order), write K_v
+            // contiguous columns, one per class.
+            if (has_tabulate && tab_total > 0) {
+                  for (int b = 0; b < tab_total; ++b) {
+                        agg[i * n_stats + col_idx] = tabulate_accum[b];
+                        col_idx++;
                   }
             }
 

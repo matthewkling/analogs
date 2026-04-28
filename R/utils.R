@@ -2,6 +2,13 @@
 
 # Validation helpers ------------------------------------------------
 
+# Soft/hard caps on the number of distinct classes per y variable when
+# stat = "tabulate". These thresholds gate misuse (e.g., passing a continuous
+# variable as a categorical), since tabulate's output width grows linearly
+# in K.
+.tabulate_K_warn  <- 100L
+.tabulate_K_error <- 1000L
+
 # Validate and normalize query parameters
 #
 # Validates select/stat/k/kernel/theta/x_cov/y/covariates/lambda/se
@@ -42,7 +49,7 @@
             # Validate each stat value
             valid_stats <- c("none", "count", "sum_weights", "mean_weights",
                              "sum", "mean", "weighted_sum", "weighted_mean",
-                             "ess", "regression")
+                             "ess", "regression", "tabulate")
             invalid <- setdiff(stat, valid_stats)
             if (length(invalid) > 0) {
                   stop("Invalid stat value(s): ", paste(invalid, collapse = ", "),
@@ -52,6 +59,23 @@
             # Check that "none" is not combined with others
             if ("none" %in% stat && length(stat) > 1) {
                   stop('stat = "none" cannot be combined with other aggregations')
+            }
+
+            # tabulate is mutually exclusive with continuous-y stats and
+            # regression (different y semantics). It can be combined with
+            # regular non-y stats (count, sum_weights, mean_weights, ess).
+            if ("tabulate" %in% stat) {
+                  incompatible <- intersect(stat,
+                                            c("sum", "mean", "weighted_sum",
+                                              "weighted_mean", "regression"))
+                  if (length(incompatible) > 0L) {
+                        stop("stat = 'tabulate' cannot be combined with ",
+                             paste(sprintf("'%s'", incompatible), collapse = ", "),
+                             ". 'tabulate' treats `y` as categorical, while ",
+                             "the other listed stats treat `y` as continuous. ",
+                             "Run separate queries if you need both.",
+                             call. = FALSE)
+                  }
             }
       } else {
             stop("stat must be NULL or a character vector")
@@ -89,6 +113,13 @@
             stop("stat includes ", paste(requested_value_stats, collapse = ", "),
                  " but 'y' parameter is NULL. ",
                  "These stats require 'y' to be provided.")
+      }
+
+      # tabulate also requires y
+      if ("tabulate" %in% stat && is.null(y)) {
+            stop("stat includes 'tabulate' but 'y' parameter is NULL. ",
+                 "Tabulate requires 'y' to be provided.",
+                 call. = FALSE)
       }
 
       # Validate regression stat requirements
@@ -130,10 +161,11 @@
             }
       }
 
-      # Validate stat/kernel/theta combinations
+      # Validate stat/kernel/theta combinations.
+      # tabulate sums per-class WEIGHTS, so it's a weighted aggregation.
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean",
-                                           "ess", "regression"))
+                                           "ess", "regression", "tabulate"))
 
       if (has_weighted_stat) {
             # Weighted aggregation modes require kernel
@@ -194,17 +226,32 @@
             x_cov_mat <- .validate_and_format_x_cov(x_cov, focal)
       }
 
-      # Validate and format y values if provided
+      # Validate and format y values if provided.
+      # Branch on whether tabulate was requested: tabulate factors each y
+      # column/layer and passes 1-based integer codes through the same
+      # numeric-matrix path used by continuous stats. The factor levels are
+      # captured per variable for downstream column naming.
       values_mat <- NULL
       values_names <- NULL
+      values_levels <- NULL   # list of character vectors, one per y column;
+      # NULL when y is continuous
       if (!is.null(y)) {
             if (is.null(ref)) {
                   stop("Internal error: ref required for y validation")
             }
 
-            result <- .validate_and_format_values(y, ref)
-            values_mat <- result$matrix
-            values_names <- result$names
+            if ("tabulate" %in% stat) {
+                  result <- .validate_and_format_y_categorical(y, ref)
+                  values_mat    <- result$matrix
+                  values_names  <- result$names
+                  values_levels <- result$levels
+            } else {
+                  # Existing continuous path. If y is a factor here, we error
+                  # with a hint pointing the user at stat = "tabulate".
+                  result <- .validate_and_format_values(y, ref)
+                  values_mat   <- result$matrix
+                  values_names <- result$names
+            }
       }
 
       # Validate and format covariates if provided
@@ -232,6 +279,7 @@
             x_cov = x_cov_mat,
             y = values_mat,
             values_names = values_names,
+            values_levels = values_levels,
             covariates = covariates_mat,
             covariates_names = covariates_names
       )
@@ -316,10 +364,19 @@
       list(matrix = mat, names = cov_names)
 }
 
-# Validate and format y parameter
+# Validate and format y parameter (continuous path)
 .validate_and_format_values <- function(y, ref) {
 
       n_ref <- nrow(ref)
+
+      # Catch factor input early with a clear hint.
+      if (is.factor(y) ||
+          (is.data.frame(y) && any(vapply(y, is.factor, logical(1))))) {
+            stop("`y` is a factor, but the requested stat is not 'tabulate'. ",
+                 "Pass `stat = \"tabulate\"` for categorical aggregation, ",
+                 "or convert `y` to numeric for continuous stats.",
+                 call. = FALSE)
+      }
 
       # Handle SpatRaster input
       if (inherits(y, "SpatRaster")) {
@@ -386,6 +443,176 @@
       list(
             matrix = y,
             names = values_names
+      )
+}
+
+# Validate and format y parameter (categorical path, for stat = "tabulate")
+#
+# Accepts vector / matrix / data.frame / SpatRaster shapes (same as the
+# continuous path). Each column / layer is independently coerced to a factor;
+# the resulting 1-based integer codes are written into a numeric matrix to be
+# passed verbatim through the existing values_sexp pathway. NA stays NA.
+#
+# Returns:
+#   matrix  - n_ref x n_vars numeric matrix of 1-based codes (NA = missing)
+#   names   - character vector of variable names
+#   levels  - list (length n_vars) of character vectors giving each variable's
+#             factor levels (i.e., the column/layer names per output bin)
+.validate_and_format_y_categorical <- function(y, ref) {
+
+      n_ref <- nrow(ref)
+
+      # First, normalize y into a list of per-variable vectors plus a names
+      # vector, so we can factor each column independently regardless of the
+      # original container type.
+      cols <- NULL
+      values_names <- NULL
+
+      if (inherits(y, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster 'y'", call. = FALSE)
+            }
+            df <- terra::as.data.frame(y, xy = FALSE, na.rm = FALSE)
+            if (nrow(df) != n_ref) {
+                  stop(sprintf(
+                        "y SpatRaster has %d cells but reference data has %d rows. They must match.",
+                        nrow(df), n_ref
+                  ))
+            }
+            values_names <- names(df)
+            cols <- as.list(df)
+
+      } else if (is.factor(y)) {
+            # Bare factor vector
+            if (length(y) != n_ref) {
+                  stop(sprintf(
+                        "'y' length is %d but reference data has %d rows. They must match.",
+                        length(y), n_ref
+                  ))
+            }
+            cols <- list(y)
+            values_names <- "y1"
+
+      } else if (is.data.frame(y)) {
+            if (nrow(y) != n_ref) {
+                  stop(sprintf(
+                        "'y' has %d rows but reference data has %d rows. They must match.",
+                        nrow(y), n_ref
+                  ))
+            }
+            values_names <- names(y)
+            cols <- as.list(y)
+
+      } else if (is.matrix(y)) {
+            if (nrow(y) != n_ref) {
+                  stop(sprintf(
+                        "'y' has %d rows but reference data has %d rows. They must match.",
+                        nrow(y), n_ref
+                  ))
+            }
+            values_names <- colnames(y)
+            cols <- lapply(seq_len(ncol(y)), function(j) y[, j])
+
+      } else if (is.atomic(y) && is.null(dim(y))) {
+            # Plain vector (numeric, integer, character, logical)
+            if (length(y) != n_ref) {
+                  stop(sprintf(
+                        "'y' length is %d but reference data has %d rows. They must match.",
+                        length(y), n_ref
+                  ))
+            }
+            cols <- list(y)
+            values_names <- "y1"
+
+      } else {
+            stop("'y' must be a vector, factor, matrix, data.frame, or SpatRaster",
+                 call. = FALSE)
+      }
+
+      n_vars <- length(cols)
+
+      # Generate variable names if missing
+      if (is.null(values_names) || any(!nzchar(values_names))) {
+            values_names <- if (n_vars == 1L) "y1" else paste0("y", seq_len(n_vars))
+      }
+
+      # Factor each column, capture levels, build code matrix.
+      # Always factor in R (per design): the user's stat = "tabulate"
+      # declaration is what determines categorical behavior; we don't
+      # second-guess input type. Sparse integer inputs are densely re-coded
+      # by factor() so the C++ accumulator allocates only what's needed.
+      levels_list <- vector("list", n_vars)
+      code_mat <- matrix(NA_real_, nrow = n_ref, ncol = n_vars)
+
+      total_K_warn  <- FALSE
+
+      for (v in seq_len(n_vars)) {
+            col <- cols[[v]]
+
+            # Reject types that can't sensibly be factors (lists, dates with
+            # tz semantics, raw, complex, etc.). Allow logical (factored as
+            # FALSE/TRUE).
+            if (is.list(col) ||
+                inherits(col, "POSIXt") ||
+                inherits(col, "Date") ||
+                is.complex(col) ||
+                is.raw(col)) {
+                  stop("`y` column ", values_names[v],
+                       " has type that cannot be coerced to a factor for ",
+                       "stat = 'tabulate' (got class ",
+                       paste(class(col), collapse = "/"), "). Convert to a ",
+                       "character or factor first.", call. = FALSE)
+            }
+
+            f <- if (is.factor(col)) {
+                  # Drop unused levels: even if the user pre-factored with a
+                  # broader levels set, we only allocate for levels that
+                  # actually appear (matches the "factor in R, dense in C++"
+                  # contract).
+                  droplevels(col)
+            } else {
+                  factor(col)
+            }
+
+            lev <- levels(f)
+            K_v <- length(lev)
+
+            if (K_v == 0L) {
+                  stop("`y` column ", values_names[v],
+                       " has no non-NA values. Cannot tabulate an all-NA ",
+                       "variable.", call. = FALSE)
+            }
+
+            if (K_v > .tabulate_K_error) {
+                  stop("`y` column ", values_names[v], " has ", K_v,
+                       " distinct levels, exceeding the limit of ",
+                       .tabulate_K_error, ". Tabulate is intended for ",
+                       "categorical variables; this looks more like a ",
+                       "continuous variable. If you really need this many ",
+                       "levels, raise `analogs:::.tabulate_K_error`.",
+                       call. = FALSE)
+            }
+            if (K_v > .tabulate_K_warn) {
+                  total_K_warn <- TRUE
+            }
+
+            levels_list[[v]] <- lev
+            # Integer codes (1-based, NA for missing) -> double for the
+            # existing values_sexp matrix pathway. Round-trip is exact.
+            code_mat[, v] <- as.numeric(as.integer(f))
+      }
+
+      if (isTRUE(total_K_warn)) {
+            warning("At least one `y` column has more than ", .tabulate_K_warn,
+                    " distinct levels. Output width grows linearly in the ",
+                    "number of classes; ensure `y` is meant to be categorical.",
+                    call. = FALSE)
+      }
+
+      list(
+            matrix = code_mat,
+            names  = values_names,
+            levels = levels_list
       )
 }
 
@@ -496,7 +723,6 @@
 
       invisible(TRUE)
 }
-
 
 
 # Other helpers ------------------------------------------------

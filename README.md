@@ -6,8 +6,6 @@
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml)
-[![Codecov test
-coverage](https://codecov.io/gh/matthewkling/analogs/graph/badge.svg)](https://app.codecov.io/gh/matthewkling/analogs)
 <!-- badges: end -->
 
 The **analogs** package implements a general framework for
@@ -83,6 +81,10 @@ pak::pak("matthewkling/analogs")
 
 ## Documentation
 
-See the function documentation linked above for detailed usage examples,
-or browse the [full reference
-documentation](https://matthewkling.github.io/analogs/reference/index.html).
+See the [package
+vignette](https://matthewkling.github.io/analogs/articles/analogs.html)
+for an overview of functionality with usage examples, browse the
+function documentation linked above for details, or browse the
+[reference
+documentation](https://matthewkling.github.io/analogs/reference/index.html)
+for a complete index of functions.

@@ -201,6 +201,11 @@ struct AggWorker : public Worker {
       // SE variant (applies to weighted_mean and regression)
       SeCode se_code;
 
+      // TABULATE: per-variable count of unique classes (length n_vars when
+      // tabulate is requested, length 0 otherwise). Used to size and index
+      // the per-focal class-vote accumulator.
+      std::vector<int> n_classes_per_var;
+
       // Self-exclusion: when true, skip the pool row with the same index as
       // the focal. Only valid when x and pool are identical (enforced at the
       // R level). Used for leave-one-out cross-validation.
@@ -261,6 +266,7 @@ struct AggWorker : public Worker {
                 int n_covs_,
                 double lambda_,
                 SeCode se_code_,
+                const std::vector<int>& n_classes_per_var_,
                 bool exclude_self_,
                 std::vector<double>& agg_,
                 int n_stats_)
@@ -304,6 +310,7 @@ struct AggWorker : public Worker {
               n_covs(n_covs_),
               lambda(lambda_),
               se_code(se_code_),
+              n_classes_per_var(n_classes_per_var_),
               exclude_self(exclude_self_),
               agg(agg_),
               n_stats(n_stats_)

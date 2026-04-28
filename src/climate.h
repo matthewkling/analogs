@@ -25,7 +25,8 @@ enum class AggregateCode : int {
             WEIGHTED_SUM   = 6,
             WEIGHTED_MEAN  = 7,
             ESS            = 8,
-            REGRESSION     = 9
+            REGRESSION     = 9,
+            TABULATE       = 10
 };
 
 // Compute Euclidean climate distance (scalar) and/or per-var checks.

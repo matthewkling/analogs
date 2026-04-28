@@ -198,6 +198,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             SEXP covariates_sexp,
                             double lambda,
                             int se_code,
+                            const IntegerVector& n_classes_per_var,
                             bool exclude_self = false)
 {
       // Extract lattice and metadata from index
@@ -348,6 +349,18 @@ SEXP query_analog_index_cpp(SEXP index_list,
             n_covs = covariates_mat.ncol();
       }
 
+      // Convert n_classes_per_var (R IntegerVector) to std::vector<int>.
+      // Length 0 means tabulate is not requested. When tabulate IS requested,
+      // R must pass length == n_vars.
+      std::vector<int> n_classes_per_var_std;
+      if (n_classes_per_var.size() > 0) {
+            if (n_classes_per_var.size() != n_vars) {
+                  stop("n_classes_per_var length must equal number of y columns");
+            }
+            n_classes_per_var_std.assign(n_classes_per_var.begin(),
+                                         n_classes_per_var.end());
+      }
+
       // Get ECEF data pointer if applicable
       const double* ref_latt_ptr;
       int stride_latt_r;
@@ -475,11 +488,12 @@ SEXP query_analog_index_cpp(SEXP index_list,
       }
 
       // Aggregate modes
-      // Count regular vs value stats to calculate total columns
+      // Count regular vs value stats vs tabulate to calculate total columns
       int n_regular_stats = 0;
       int n_value_stats = 0;
       bool has_weighted_mean_stat = false;
       bool has_regression_stat = false;
+      bool has_tabulate_stat = false;
 
       for (int i = 0; i < n_stats; ++i) {
             if (acodes[i] == AggregateCode::SUM ||
@@ -492,6 +506,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                   }
             } else if (acodes[i] == AggregateCode::REGRESSION) {
                   has_regression_stat = true;
+            } else if (acodes[i] == AggregateCode::TABULATE) {
+                  has_tabulate_stat = true;
             } else {
                   n_regular_stats++;
             }
@@ -503,6 +519,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
       //               plus reg_dim columns per var for SEs if se != NONE
       // - weighted_mean SE: one additional column per var if se != NONE AND
       //                    weighted_mean is among requested stats
+      // - Tabulate: sum of K_v across y variables (one column per class)
       const bool want_se = (scode_se != SeCode::NONE);
 
       const int reg_dim = has_regression_stat ? (n_covs + 1) : 0;
@@ -513,10 +530,19 @@ SEXP query_analog_index_cpp(SEXP index_list,
 
       const int wm_se_cols = (want_se && has_weighted_mean_stat) ? n_vars : 0;
 
-      // Total columns = regular stats + (value stats × n_vars) + wm SE cols + regression cols
+      int n_tabulate_cols = 0;
+      if (has_tabulate_stat) {
+            for (int v = 0; v < static_cast<int>(n_classes_per_var_std.size()); ++v) {
+                  n_tabulate_cols += n_classes_per_var_std[v];
+            }
+      }
+
+      // Total columns = regular stats + (value stats × n_vars) + wm SE cols
+      //                 + tabulate cols + regression cols
       const int n_total_cols = n_regular_stats
       + (n_value_stats * n_vars)
             + wm_se_cols
+            + n_tabulate_cols
             + n_regression_cols;
 
             // Allocate flat vector for all stats
@@ -558,6 +584,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               n_covs,
                               lambda,
                               scode_se,
+                              n_classes_per_var_std,
                               exclude_self,
                               agg_vals,
                               n_total_cols);

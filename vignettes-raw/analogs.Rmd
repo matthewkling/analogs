@@ -204,14 +204,14 @@ plot(intens, main = "Analog intensity")
 
 # Prediction functions
 
-Compared to the functions covered above that simply enumerate analogs, analog-based prediction functions find analogs and then fit a model that summarizes additional properties (outcome variables `y`) of those analogs. Model options include weighted means (via `analog_impact()`) and ordinary and ridge regression on additional `covariates` (via `analog_regression()`).
+Compared to the functions covered above that simply enumerate analogs, analog-based prediction functions find analogs and then fit a model that summarizes additional properties (outcome variables `y`) of those analogs. Model options include weighted means and categorical counts (via `analog_impact()`) and ordinary and ridge regression on additional `covariates` (via `analog_regression()`).
 
 Options for assessing uncertainty include returning standard errors on fitted means and coefficients (via the `se` parameter) and running various forms of cross-validation within `pool` (via `analog_cv()`).
 
 
 ## Analog impact models
 
-Analog impact models (AIMs) predict ecological outcomes (`y`) under climate change. For each focal site, this approach finds locations within dispersal range with current climates similar to the focal site's future climate, then computes an average of their ecological characteristics, weighted by climatic similarity. As an example, let's use CWD values from the historical period as a stand-in for an ecological response variable. To assess uncertainty in weighted means, let's also specify `se = "ess"` to compute standard errors based on effective sample size for each grid cell.
+Analog impact models (AIMs) predict ecological outcomes (`y`) under climate change. For each focal site, this approach finds locations within geographic range that have current climates similar to the focal site's future climate, then computes an average (or class count for categorical `y`) of their ecological characteristics, weighted by climatic similarity. As an example, let's use CWD values from the historical period as a stand-in for an ecological response variable. To assess uncertainty in weighted means, let's also specify `se = "ess"` to compute standard errors based on effective sample size for each grid cell.
 
 ```{r impact}
 # Use historical CWD as a proxy ecological variable

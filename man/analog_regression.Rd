@@ -96,7 +96,8 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 
 \item{kernel}{Kernel decay function for weighting matches, used only when
 \code{stat} includes a weighted aggregation (\code{"sum_weights"}, \code{"mean_weights"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, or \code{"regression"}). One of:
+\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, \code{"regression"}, or
+\code{"tabulate"}). One of:
 \itemize{
 \item \code{"uniform"}: All matches weighted equally (kernel weight = 1.0).
 \item \code{"inverse_clim"}: Inverse climate distance,
