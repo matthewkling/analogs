@@ -26,7 +26,10 @@ and climate variables, or a SpatRaster with climate variable layers.
 Pre-built \code{analog_index} objects are not supported; \code{analog_cv()}
 builds indices internally per fold (for k-fold) or once (for LOO).}
 
-\item{y}{Response variable(s). Numeric vector, matrix, data.frame, or
+\item{y}{Response variable(s). For continuous prediction targets
+(\code{weighted_mean}, \code{regression}): numeric vector, matrix, data.frame,
+or SpatRaster. For categorical (\code{tabulate}): factor or coercible-to-
+factor vector / character / integer / matrix / data.frame /
 SpatRaster. Must have exactly the same number of rows/cells as \code{pool}.}
 
 \item{covariates}{Predictor variables (required for regression; must be
@@ -45,8 +48,7 @@ fold assignment for each pool row. Overrides \code{n_folds}. Can be used to
 manually specify nonrandom folds, such as for spatial block cross-validation.}
 
 \item{include_residuals}{Logical; if \code{TRUE} (default), the output includes
-\verb{obs[_\{yname\}]} and \verb{residual[_\{yname\}]} columns for each \code{y} variable
-(when a prediction target can be identified).}
+per-focal residual-equivalent columns (see \verb{@return}).}
 
 \item{...}{Additional arguments passed to \code{fun} (e.g., \code{max_clim},
 \code{max_geog}, \code{kernel}, \code{theta}, \code{k}, \code{lambda}, \code{select}, \code{se}). Note:
@@ -57,15 +59,36 @@ their own \code{...}.}
 \value{
 A data.frame or SpatRaster (matching the format of \code{pool}) with
 one row per pool location, containing all variables that \code{fun} would
-return, plus:
+return, plus the following residual-equivalent columns when
+\code{include_residuals = TRUE} and a prediction target is identified.
+
+For continuous prediction targets (\code{weighted_mean}, \code{regression}):
 \itemize{
-\item \code{obs} / \verb{obs_\{yname\}}: observed y value at this location (when
-\code{include_residuals = TRUE} and a prediction target is identified).
+\item \code{obs} / \verb{obs_\{yname\}}: observed y value at this location.
 \item \code{residual} / \verb{residual_\{yname\}}: observed minus held-out prediction.
+}
+
+For categorical prediction target (\code{tabulate}):
+\itemize{
+\item \code{obs} / \verb{obs_\{yname\}}: observed class label (character).
+\item \code{primary} / \verb{primary_\{yname\}}: predicted (modal) class label
+(character; argmax across the per-class vote columns).
+\item \code{brier} / \verb{brier_\{yname\}}: per-focal Brier score, computed on
+row-normalized vote shares (range 0-2).
+}
+
+The underlying \verb{n_<level>} vote columns from the analog search are
+also retained, so users can compute additional metrics (entropy,
+top-k accuracy, custom losses) in postprocessing.
+
+Always present:
+\itemize{
 \item \code{fold}: fold assignment (k-fold only).
 }
 
-Rows are ordered to match \code{pool}'s input row order.
+Rows are ordered to match \code{pool}'s input row order. For SpatRaster
+output, character columns (\code{obs}, \code{primary}) are dropped with a
+message; pass \code{pool} as a data.frame to retain them.
 }
 \description{
 Runs an analog impact or regression analysis in cross-validation mode,
@@ -96,14 +119,22 @@ thus no prediction to validate.
 When \code{fun = analog_search}, residuals are computed against:
 \itemize{
 \item the \code{weighted_mean} column if \code{stat} includes \code{"weighted_mean"} but not
-\code{"regression"};
+\code{"regression"} or \code{"tabulate"};
 \item fitted values from regression coefficients if \code{stat} includes
-\code{"regression"} but not \code{"weighted_mean"};
+\code{"regression"} but not \code{"weighted_mean"} or \code{"tabulate"};
+\item per-class weighted votes if \code{stat} includes \code{"tabulate"} (categorical
+y; produces Brier score and primary-class label rather than a numeric
+residual).
 }
 
-If \code{stat} includes both, the prediction target is ambiguous and
-\code{analog_cv()} will error. If it includes neither, residuals are skipped
-and only the underlying search columns are returned.
+If \code{stat} includes more than one of these, the prediction target is
+ambiguous and \code{analog_cv()} will error. If it includes none, residuals
+are skipped and only the underlying search columns are returned.
+
+For categorical CV (\code{stat = "tabulate"}), \code{y} must be a factor or
+coercible-to-factor input (character, integer codes, single-layer
+categorical SpatRaster). The output uses different residual-equivalent
+columns: see \verb{@return} below.
 }
 \examples{
 \dontrun{
@@ -133,17 +164,21 @@ cv_reg <- analog_cv(
   n_folds     = 10
 )
 
-# Power-user CV via analog_search with a custom stat
-cv_custom <- analog_cv(
-  fun      = analog_search,
+# LOO categorical CV (vegetation projection)
+cv_veg <- analog_cv(
+  fun      = analog_impact,
   pool     = sites,
-  y        = sites$biomass,
-  select   = "knn_clim",
-  k        = 10,
-  stat     = c("count", "weighted_mean"),
+  y        = factor(sites$vegetation_type),
+  stat     = "tabulate",
+  max_clim = 0.5,
+  max_geog = 100,
   kernel   = "gaussian_clim",
-  theta    = 0.3
+  theta    = 0.2
 )
+# Per-focal Brier score and primary class are in cv_veg$brier and
+# cv_veg$primary; the n_<level> vote columns are also retained.
+accuracy <- mean(cv_veg$primary == cv_veg$obs, na.rm = TRUE)
+mean_brier <- mean(cv_veg$brier, na.rm = TRUE)
 }
 
 }

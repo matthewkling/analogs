@@ -2,15 +2,15 @@
 #'
 #' Computes per-variable prediction-performance metrics from the output of
 #' [analog_cv()]. Handles both tabular (data.frame) and raster (SpatRaster)
-#' CV output, both single-y and multi-y configurations, and both continuous
-#' and binary outcomes.
+#' CV output, both single-y and multi-y configurations, and continuous,
+#' binary, and categorical outcomes.
 #'
 #' @section Output format:
 #' Results are returned in long format with one row per
 #' (variable, metric) pair and columns:
 #'
 #' - `variable`: name of the response variable.
-#' - `type`: outcome type (`"continuous"` or `"binary"`).
+#' - `type`: outcome type (`"continuous"`, `"binary"`, or `"categorical"`).
 #' - `metric`: metric name (see below).
 #' - `value`: numeric metric value.
 #'
@@ -43,24 +43,51 @@
 #'   outcome). A proper scoring rule; most interpretable when predictions
 #'   are in `[0, 1]`.
 #'
+#' @section Categorical metrics:
+#' For results from `analog_cv()` with `stat = "tabulate"`:
+#'
+#' - `n`: number of locations with non-NA observed class and a non-empty
+#'   analog neighborhood (i.e., at least one analog with a non-NA class).
+#' - `accuracy`: proportion of locations where the predicted (primary)
+#'   class matches the observed class.
+#' - `brier`: mean per-focal multiclass Brier score, computed on
+#'   row-normalized vote shares (`Σ_k (p_k - I[obs == k])^2`). Range
+#'   `[0, 2]`; lower is better.
+#' - `n_classes`: number of distinct classes (`K`).
+#' - `confusion[<obs>|<pred>]`: count of locations with observed class
+#'   `<obs>` predicted as `<pred>`. One row per `K * K` cell, with zero
+#'   counts included. Filter via `startsWith(metric, "confusion[")` to
+#'   pull just the confusion matrix entries.
+#'
 #' @section Outcome-type detection:
-#' When `outcome_type = "auto"` (the default), each variable is classified as:
+#' The CV result's column structure determines its overall type:
 #'
-#' - `"binary"` if observed values are all in `[0, 1]` after removing NAs,
-#'   with both classes present.
-#' - `"continuous"` otherwise.
+#' - Categorical results (from `stat = "tabulate"`) have `obs_*`,
+#'   `primary_*`, and `brier_*` columns. All variables are categorical.
+#' - Continuous/binary results have `obs_*` and `residual_*` columns.
+#'   When `outcome_type = "auto"` (the default), each variable is
+#'   classified per-variable as `"binary"` if observed values are all in
+#'   `[0, 1]` after removing NAs (with both classes present), or
+#'   `"continuous"` otherwise.
 #'
-#' Users can override classification by passing a scalar type name (applies
-#' to all variables) or a named character vector (one entry per variable).
+#' Users can override classification for continuous/binary cases by
+#' passing a scalar type name (applies to all variables) or a named
+#' character vector (one entry per variable). `outcome_type` does not
+#' apply to categorical CV output and passing anything other than
+#' `"auto"` for a categorical result will error.
 #'
 #' @param x Output from [analog_cv()]. Either a data.frame or a SpatRaster
 #'   produced with `include_residuals = TRUE`.
-#' @param outcome_type Controls outcome-type classification:
+#' @param outcome_type Controls outcome-type classification (continuous /
+#'   binary only):
 #'
 #'   - `"auto"` (default): auto-detect as described above.
 #'   - `"continuous"` or `"binary"`: force all variables to this type.
 #'   - A named character vector with one entry per variable, giving the
 #'     type for each (e.g., `c(biomass = "continuous", presence = "binary")`).
+#'
+#'   Categorical CV results (from `stat = "tabulate"`) ignore this
+#'   argument unless explicitly set, in which case they error.
 #' @param weights Optional numeric vector of per-location weights (one value
 #'   per row/cell of `x`). Used for weighted versions of all metrics. Default
 #'   `NULL` gives unweighted metrics.
@@ -94,6 +121,25 @@
 #' )
 #' cv_performance(cv_bin)
 #'
+#' # Categorical outcome (e.g., vegetation type)
+#' cv_cat <- analog_cv(
+#'   fun      = analog_impact,
+#'   pool     = sites,
+#'   y        = factor(sites$vegetation),
+#'   stat     = c("count", "sum_weights", "tabulate"),
+#'   max_clim = 0.5,
+#'   max_geog = 100,
+#'   kernel   = "gaussian_clim",
+#'   theta    = 0.2
+#' )
+#' perf <- cv_performance(cv_cat)
+#'
+#' # Pull just the headline scalars
+#' perf[!startsWith(perf$metric, "confusion["), ]
+#'
+#' # Pull the confusion matrix in long form
+#' perf[startsWith(perf$metric, "confusion["), ]
+#'
 #' # Parameter tuning via AUC
 #' thetas <- c(0.1, 0.2, 0.3, 0.5)
 #' auc <- sapply(thetas, function(th) {
@@ -113,7 +159,25 @@
 #' @export
 cv_performance <- function(x, outcome_type = "auto", weights = NULL) {
 
-      # Extract obs/residual columns ------------------------------------------
+      # Detect whether this is a categorical CV result by looking for
+      # tabulate-specific columns. Categorical results take a separate path
+      # entirely; continuous/binary share the existing path.
+      cat_info <- .cv_detect_categorical(x)
+
+      if (cat_info$is_categorical) {
+            # outcome_type doesn't apply to categorical results. Error if the
+            # user passed anything but the default to avoid silent behavior.
+            if (!identical(outcome_type, "auto")) {
+                  stop("`outcome_type` does not apply to categorical CV ",
+                       "results (from stat = 'tabulate'). Either pass ",
+                       "`outcome_type = 'auto'` (default) or omit the ",
+                       "argument.", call. = FALSE)
+            }
+            return(.cv_performance_categorical(x, cat_info, weights))
+      }
+
+      # Continuous / binary path (unchanged from prior behavior) -------------
+
       cols <- .cv_extract_obs_residual(x)
       obs_mat <- cols$obs
       res_mat <- cols$residual
@@ -242,6 +306,201 @@ cv_performance <- function(x, outcome_type = "auto", weights = NULL) {
             value  = c(n, auc, tss_t$tss, tss_t$threshold, brier),
             stringsAsFactors = FALSE
       )
+}
+
+
+#' Categorical-outcome metrics: n, accuracy, brier, n_classes, plus K^2
+#' confusion-matrix rows
+#'
+#' For each y variable in the CV result, returns a data.frame with the
+#' headline scalars followed by `K * K` confusion rows, one per (observed,
+#' predicted) class pair, with zero counts included. Confusion-row metric
+#' names follow the format `confusion[<obs>|<pred>]`.
+#'
+#' Inputs already validated/extracted by the categorical path:
+#'   - obs_labels: character vector of observed class labels (NA for
+#'     missing observation).
+#'   - primary_labels: character vector of predicted class labels (NA when
+#'     no analog had a non-NA class).
+#'   - brier_vec: numeric vector of per-focal Brier scores, computed
+#'     upstream on row-normalized votes (NA when no usable analogs or no
+#'     observed class).
+#'   - levels: character vector of all class labels (the global level set,
+#'     which determines K).
+#'   - w: per-location weights (or NULL for unweighted).
+#'
+#' @keywords internal
+.cv_metrics_categorical <- function(obs_labels, primary_labels, brier_vec,
+                                    levels, w) {
+      K <- length(levels)
+      if (is.null(w)) w <- rep(1.0, length(obs_labels))
+
+      # Apply finite/non-NA filter consistently. A focal contributes to the
+      # categorical metrics only if it has a non-NA observed class AND a
+      # non-NA primary (which itself is NA when no analog had a non-NA
+      # class). Brier score being NA is handled per-focal in the Brier
+      # mean below, since brier can be NA for slightly different reasons
+      # (e.g., obs is NA but primary isn't).
+      valid <- !is.na(obs_labels) & !is.na(primary_labels) & !is.na(w) & w > 0
+
+      n_eff <- sum(w[valid])
+
+      if (!any(valid)) {
+            scalar_rows <- data.frame(
+                  metric = c("n", "accuracy", "brier", "n_classes"),
+                  value  = c(0, NA_real_, NA_real_, K),
+                  stringsAsFactors = FALSE
+            )
+            confusion_rows <- .cv_zero_confusion_rows(levels)
+            return(rbind(scalar_rows, confusion_rows))
+      }
+
+      # Accuracy: weighted proportion of correct primary predictions
+      correct <- (obs_labels == primary_labels)[valid]
+      accuracy <- sum(w[valid] * correct) / n_eff
+
+      # Brier: weighted mean of per-focal Brier scores. Use the same
+      # validity mask plus a non-NA-brier filter, since brier can be NA
+      # even when obs and primary are present (e.g., empty analog
+      # neighborhood). Locations with NA brier are dropped from this
+      # average.
+      brier_valid <- valid & !is.na(brier_vec)
+      mean_brier <- if (any(brier_valid)) {
+            sum(w[brier_valid] * brier_vec[brier_valid]) / sum(w[brier_valid])
+      } else {
+            NA_real_
+      }
+
+      scalar_rows <- data.frame(
+            metric = c("n", "accuracy", "brier", "n_classes"),
+            value  = c(sum(valid), accuracy, mean_brier, K),
+            stringsAsFactors = FALSE
+      )
+
+      # Confusion matrix: weighted counts per (obs, pred) cell.
+      # Pre-allocate the K x K matrix in level order so iteration is
+      # deterministic, then enumerate K^2 rows in the canonical
+      # (obs varies slowest, pred varies fastest) order.
+      conf_mat <- matrix(0.0, nrow = K, ncol = K,
+                         dimnames = list(levels, levels))
+
+      # Restrict to valid rows and tabulate. Use match() against the
+      # global level set (levels) to ensure consistent indexing even
+      # when an observed class never appears in primary or vice versa.
+      obs_idx  <- match(obs_labels[valid], levels)
+      pred_idx <- match(primary_labels[valid], levels)
+      w_valid  <- w[valid]
+
+      # NA indices shouldn't occur given the validity mask + the global
+      # level set, but guard defensively.
+      good <- !is.na(obs_idx) & !is.na(pred_idx)
+      if (any(good)) {
+            for (i in which(good)) {
+                  conf_mat[obs_idx[i], pred_idx[i]] <-
+                        conf_mat[obs_idx[i], pred_idx[i]] + w_valid[i]
+            }
+      }
+
+      confusion_rows <- .cv_confusion_rows_from_matrix(conf_mat, levels)
+
+      rbind(scalar_rows, confusion_rows)
+}
+
+
+# Build K^2 confusion rows from a K x K matrix in canonical order
+# (observed varies slowest, predicted varies fastest).
+#
+# @keywords internal
+.cv_confusion_rows_from_matrix <- function(conf_mat, levels) {
+      K <- length(levels)
+      n_cells <- K * K
+      metric <- character(n_cells)
+      value  <- numeric(n_cells)
+
+      idx <- 1L
+      for (i in seq_len(K)) {
+            for (j in seq_len(K)) {
+                  metric[idx] <- paste0("confusion[", levels[i], "|",
+                                        levels[j], "]")
+                  value[idx]  <- conf_mat[i, j]
+                  idx <- idx + 1L
+            }
+      }
+
+      data.frame(metric = metric, value = value, stringsAsFactors = FALSE)
+}
+
+
+# Build K^2 zero-valued confusion rows. Used when the categorical path has
+# no valid focals so we still emit the full schema.
+#
+# @keywords internal
+.cv_zero_confusion_rows <- function(levels) {
+      K <- length(levels)
+      conf_mat <- matrix(0.0, nrow = K, ncol = K,
+                         dimnames = list(levels, levels))
+      .cv_confusion_rows_from_matrix(conf_mat, levels)
+}
+
+
+# Wrapper that runs the categorical metric computation per y variable and
+# stitches results into the long-format output.
+#
+# @keywords internal
+.cv_performance_categorical <- function(x, cat_info, weights) {
+
+      # Validate weights (matching the continuous path's handling)
+      if (!is.null(weights)) {
+            if (!is.numeric(weights) || length(weights) != cat_info$n_rows) {
+                  stop("`weights` must be a numeric vector with one value per ",
+                       "row/cell of `x` (expected length ", cat_info$n_rows,
+                       ").", call. = FALSE)
+            }
+            if (any(weights < 0, na.rm = TRUE)) {
+                  stop("`weights` must be non-negative.", call. = FALSE)
+            }
+      }
+
+      var_names <- cat_info$var_names
+      n_vars <- length(var_names)
+      parts <- vector("list", n_vars)
+
+      for (v in seq_len(n_vars)) {
+            vn <- var_names[v]
+            obs_labels     <- cat_info$obs[[v]]
+            primary_labels <- cat_info$primary[[v]]
+            brier_vec      <- cat_info$brier[[v]]
+
+            # Determine the global level set for this variable. Prefer the
+            # explicit list captured upstream; fall back to the union of
+            # observed and predicted labels if absent (shouldn't occur in
+            # standard analog_cv output but kept for robustness).
+            levels_v <- cat_info$levels[[v]]
+            if (is.null(levels_v)) {
+                  levels_v <- sort(unique(stats::na.omit(c(obs_labels,
+                                                           primary_labels))))
+            }
+
+            metrics_df <- .cv_metrics_categorical(
+                  obs_labels     = obs_labels,
+                  primary_labels = primary_labels,
+                  brier_vec      = brier_vec,
+                  levels         = levels_v,
+                  w              = weights
+            )
+
+            parts[[v]] <- data.frame(
+                  variable = vn,
+                  type     = "categorical",
+                  metric   = metrics_df$metric,
+                  value    = metrics_df$value,
+                  stringsAsFactors = FALSE
+            )
+      }
+
+      out <- do.call(rbind, parts)
+      rownames(out) <- NULL
+      out
 }
 
 
@@ -423,6 +682,117 @@ cv_performance <- function(x, outcome_type = "auto", weights = NULL) {
       }
 
       list(tss = best_tss, threshold = best_thr)
+}
+
+
+#' Detect categorical CV output by column structure
+#'
+#' Categorical results from `analog_cv()` with `stat = "tabulate"` carry
+#' `obs[_<name>]`, `primary[_<name>]`, and `brier[_<name>]` columns. If
+#' any of these are present, this is a categorical run; we extract the
+#' per-variable label vectors here so the caller doesn't need to repeat
+#' the column-name parsing.
+#'
+#' Note: in raster output, character columns (obs, primary) are dropped by
+#' `.cv_to_raster()`, so categorical CV is only fully usable with
+#' data.frame output. We error informatively if the user passes a
+#' SpatRaster that lacks the labels.
+#'
+#' @keywords internal
+.cv_detect_categorical <- function(x) {
+
+      is_raster <- inherits(x, "SpatRaster")
+      if (is_raster) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster input.",
+                       call. = FALSE)
+            }
+            col_names <- terra::names(x)
+            n_rows <- terra::ncell(x)
+      } else if (is.data.frame(x)) {
+            col_names <- names(x)
+            n_rows <- nrow(x)
+      } else {
+            stop("`x` must be a data.frame or SpatRaster (output of analog_cv()).",
+                 call. = FALSE)
+      }
+
+      # Single-y layout uses bare names; multi-y uses suffixed names.
+      single_y <- all(c("obs", "primary", "brier") %in% col_names)
+      primary_multi <- grep("^primary_", col_names, value = TRUE)
+      brier_multi   <- grep("^brier_",   col_names, value = TRUE)
+
+      if (!single_y && length(primary_multi) == 0L && length(brier_multi) == 0L) {
+            return(list(is_categorical = FALSE))
+      }
+
+      # Categorical: extract per-variable label/score vectors. SpatRaster
+      # output drops character columns, so primary/obs labels are not
+      # recoverable; error with a clear hint.
+      if (is_raster) {
+            stop("Categorical CV metrics require observed and predicted ",
+                 "class labels, which are dropped when the CV output is a ",
+                 "SpatRaster (rasters can only hold numeric values). Re-run ",
+                 "analog_cv() with a data.frame `pool` to retain class ",
+                 "labels for cv_performance().", call. = FALSE)
+      }
+
+      get_col <- function(cn) x[[cn]]
+
+      if (single_y) {
+            var_names <- "y"
+            obs       <- list(as.character(get_col("obs")))
+            primary   <- list(as.character(get_col("primary")))
+            brier     <- list(as.numeric(get_col("brier")))
+      } else {
+            # Pair primary_<name> with brier_<name> and obs_<name>. Names
+            # appearing in all three sets are valid categorical y variables.
+            obs_multi <- grep("^obs_", col_names, value = TRUE)
+            n_from_obs     <- sub("^obs_",     "", obs_multi)
+            n_from_primary <- sub("^primary_", "", primary_multi)
+            n_from_brier   <- sub("^brier_",   "", brier_multi)
+
+            var_names <- intersect(intersect(n_from_obs, n_from_primary),
+                                   n_from_brier)
+            if (length(var_names) == 0L) {
+                  stop("Categorical CV columns detected (primary_*/brier_*) ",
+                       "but no obs_*/primary_*/brier_* triples could be ",
+                       "matched. Did the CV output get post-processed?",
+                       call. = FALSE)
+            }
+
+            obs <- lapply(var_names, function(nm) {
+                  as.character(get_col(paste0("obs_", nm)))
+            })
+            primary <- lapply(var_names, function(nm) {
+                  as.character(get_col(paste0("primary_", nm)))
+            })
+            brier <- lapply(var_names, function(nm) {
+                  as.numeric(get_col(paste0("brier_", nm)))
+            })
+      }
+
+      # Build the global level set per variable. We use the union of
+      # observed and predicted labels (excluding NA), sorted to give a
+      # stable ordering. This recovers the level set used by analog_cv's
+      # internal y_levels_list without requiring it to be stored on the
+      # CV result. If an analog_cv level is fully unused (no observation
+      # AND no prediction), it won't appear here, but that's fine: an
+      # unused level contributes only zero rows to confusion and zero
+      # influence on accuracy/Brier.
+      levels_list <- lapply(seq_along(var_names), function(v) {
+            sort(unique(stats::na.omit(c(obs[[v]], primary[[v]]))))
+      })
+
+      list(
+            is_categorical = TRUE,
+            var_names      = var_names,
+            obs            = obs,
+            primary        = primary,
+            brier          = brier,
+            levels         = levels_list,
+            n_rows         = n_rows
+      )
 }
 
 

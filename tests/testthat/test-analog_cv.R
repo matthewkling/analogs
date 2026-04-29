@@ -362,3 +362,231 @@ test_that("analog_cv(fun = analog_search) skips residuals when stat lacks predic
       expect_false("residual" %in% names(res))
 })
 
+
+
+# test stat = "tablulate" -----------------------------------------
+
+# Reuse the local synthetic dataset helper from test-tabulate.R
+.tabcv_sim <- function(n = 80, n_clim = 2, seed = 1L) {
+      set.seed(seed)
+      x <- runif(n, 0, 10); y <- runif(n, 0, 10)
+      clim <- matrix(rnorm(n * n_clim), ncol = n_clim,
+                     dimnames = list(NULL, paste0("c", seq_len(n_clim))))
+      pool <- cbind(x = x, y = y, clim)
+      list(pool = pool)
+}
+
+
+test_that("LOO tabulate CV adds obs / primary / brier columns", {
+      d <- .tabcv_sim()
+      veg <- factor(rep(c("forest", "grass", "shrub"),
+                        length.out = nrow(d$pool)))
+
+      cv <- analog_cv(
+            fun        = analog_impact,
+            pool       = d$pool,
+            y          = veg,
+            cv_method  = "loo",
+            stat       = c("count", "sum_weights", "tabulate"),
+            kernel     = "gaussian_clim", theta = 0.5,
+            max_clim   = 5, max_geog = 100,
+            coord_type = "projected"
+      )
+
+      # All three CV-specific tabulate columns should be present
+      expect_true(all(c("obs", "primary", "brier") %in% names(cv)))
+
+      # obs and primary are character/character-like
+      expect_type(cv$obs, "character")
+      expect_type(cv$primary, "character")
+
+      # Brier in 0..2
+      expect_true(all(is.na(cv$brier) | (cv$brier >= 0 & cv$brier <= 2)))
+
+      # The n_<level> columns should still be present
+      expect_true(all(c("n_forest", "n_grass", "n_shrub") %in% names(cv)))
+})
+
+
+test_that("LOO tabulate CV: brier and primary are consistent with vote columns", {
+      d <- .tabcv_sim()
+      veg <- factor(rep(c("a", "b", "c"), length.out = nrow(d$pool)))
+
+      cv <- analog_cv(
+            fun = analog_impact,
+            pool = d$pool, y = veg,
+            stat = c("sum_weights", "tabulate"),
+            kernel = "gaussian_clim", theta = 0.5,
+            max_clim = 5, max_geog = 100, coord_type = "projected"
+      )
+
+      # primary should match argmax of n_<level>
+      vote_cols <- cv[, c("n_a", "n_b", "n_c")]
+      expected_primary <- c("a", "b", "c")[max.col(as.matrix(vote_cols),
+                                                   ties.method = "first")]
+      # NA where row sums are 0
+      row_sums <- rowSums(as.matrix(vote_cols))
+      expected_primary[row_sums == 0 | !is.finite(row_sums)] <- NA_character_
+
+      expect_equal(cv$primary, expected_primary)
+
+      # Brier hand-computation on first non-NA row
+      finite_idx <- which(!is.na(cv$brier))
+      expect_true(length(finite_idx) > 0)
+      i <- finite_idx[1]
+      probs <- as.numeric(vote_cols[i, ]) / row_sums[i]
+      ind <- as.numeric(c("a", "b", "c") == cv$obs[i])
+      expected_brier <- sum((probs - ind)^2)
+      expect_equal(cv$brier[i], expected_brier, tolerance = 1e-10)
+})
+
+
+test_that("kfold tabulate CV produces consistent columns across folds", {
+      d <- .tabcv_sim(n = 100)
+      veg <- factor(rep(c("a", "b"), length.out = nrow(d$pool)))
+
+      cv <- analog_cv(
+            fun = analog_impact,
+            pool = d$pool, y = veg,
+            cv_method = "kfold", n_folds = 5,
+            stat = c("sum_weights", "tabulate"),
+            kernel = "gaussian_clim", theta = 0.5,
+            max_clim = 5, max_geog = 100, coord_type = "projected"
+      )
+
+      expect_true(all(c("obs", "primary", "brier", "n_a", "n_b", "fold")
+                      %in% names(cv)))
+      expect_equal(nrow(cv), nrow(d$pool))
+      expect_equal(length(unique(cv$fold)), 5L)
+})
+
+
+test_that("tabulate CV handles NA in y by setting CV cols to NA", {
+      d <- .tabcv_sim()
+      veg <- factor(rep(c("a", "b", "c"), length.out = nrow(d$pool)))
+      veg[c(3, 11, 27)] <- NA
+
+      cv <- analog_cv(
+            fun = analog_impact,
+            pool = d$pool, y = veg,
+            stat = c("sum_weights", "tabulate"),
+            kernel = "gaussian_clim", theta = 0.5,
+            max_clim = 5, max_geog = 100, coord_type = "projected"
+      )
+
+      # For NA-observed focals, obs and brier should be NA
+      expect_true(all(is.na(cv$obs[c(3, 11, 27)])))
+      expect_true(all(is.na(cv$brier[c(3, 11, 27)])))
+      # primary may still be defined (analogs may have non-NA y), but obs
+      # being NA means we can't score correctness for those focals
+})
+
+
+test_that("tabulate CV with multi-y produces var-suffixed CV columns", {
+      d <- .tabcv_sim()
+      yA <- factor(rep(c("x", "y"), length.out = nrow(d$pool)))
+      yB <- factor(rep(c("p", "q", "r"), length.out = nrow(d$pool)))
+      Y <- data.frame(habitat = yA, soil = yB)
+
+      cv <- analog_cv(
+            fun = analog_impact,
+            pool = d$pool, y = Y,
+            stat = "tabulate",
+            kernel = "gaussian_clim", theta = 0.5,
+            max_clim = 5, max_geog = 100, coord_type = "projected"
+      )
+
+      # Per-y CV columns
+      expect_true(all(c("obs_habitat", "primary_habitat", "brier_habitat")
+                      %in% names(cv)))
+      expect_true(all(c("obs_soil", "primary_soil", "brier_soil")
+                      %in% names(cv)))
+      # And the underlying vote columns
+      expect_true(all(c("habitat_n_x", "habitat_n_y",
+                        "soil_n_p", "soil_n_q", "soil_n_r")
+                      %in% names(cv)))
+})
+
+
+test_that("incompatible tabulate + weighted_mean errors in CV", {
+      d <- .tabcv_sim()
+      veg <- factor(rep(c("a", "b"), length.out = nrow(d$pool)))
+
+      # The .validate_query_params block in utils.R catches this before
+      # analog_cv's own check, but either way an error is expected.
+      expect_error(
+            analog_cv(
+                  fun = analog_impact,
+                  pool = d$pool, y = veg,
+                  stat = c("weighted_mean", "tabulate"),
+                  kernel = "gaussian_clim", theta = 0.5,
+                  max_clim = 5, max_geog = 100, coord_type = "projected"
+            )
+      )
+})
+
+
+test_that("all-NA tabulate y errors clearly under CV", {
+      d <- .tabcv_sim()
+      veg <- factor(rep(NA_character_, nrow(d$pool)))
+
+      expect_error(
+            analog_cv(
+                  fun = analog_impact,
+                  pool = d$pool, y = veg,
+                  stat = "tabulate",
+                  kernel = "gaussian_clim", theta = 0.5,
+                  max_clim = 5, max_geog = 100, coord_type = "projected"
+            ),
+            "no non-NA"
+      )
+})
+
+
+test_that("character / integer y is accepted in tabulate CV", {
+      d <- .tabcv_sim()
+      veg_chr <- rep(c("a", "b", "c"), length.out = nrow(d$pool))
+      veg_int <- rep(1:3, length.out = nrow(d$pool))
+
+      cv_chr <- analog_cv(
+            fun = analog_impact,
+            pool = d$pool, y = veg_chr,
+            stat = "tabulate",
+            kernel = "gaussian_clim", theta = 0.5,
+            max_clim = 5, max_geog = 100, coord_type = "projected"
+      )
+      expect_type(cv_chr$obs, "character")
+      expect_true(all(cv_chr$obs %in% c("a", "b", "c", NA_character_)))
+
+      cv_int <- analog_cv(
+            fun = analog_impact,
+            pool = d$pool, y = veg_int,
+            stat = "tabulate",
+            kernel = "gaussian_clim", theta = 0.5,
+            max_clim = 5, max_geog = 100, coord_type = "projected"
+      )
+      # Levels are "1", "2", "3" (factor coercion of integer)
+      expect_type(cv_int$obs, "character")
+      expect_true(all(cv_int$obs %in% c("1", "2", "3", NA_character_)))
+})
+
+
+test_that("CV metadata attributes set correctly for tabulate", {
+      d <- .tabcv_sim()
+      veg <- factor(rep(c("a", "b"), length.out = nrow(d$pool)))
+
+      cv <- analog_cv(
+            fun = analog_impact,
+            pool = d$pool, y = veg,
+            cv_method = "kfold", n_folds = 4,
+            stat = "tabulate",
+            kernel = "gaussian_clim", theta = 0.5,
+            max_clim = 5, max_geog = 100, coord_type = "projected"
+      )
+
+      m <- metadata(cv)
+      expect_identical(m$cv_method, "kfold")
+      expect_identical(m$cv_pred_target, "tabulate")
+      expect_identical(m$cv_n_folds, 4L)
+      expect_identical(m$cv_fun, "analog_impact")
+})

@@ -10,13 +10,17 @@ cv_performance(x, outcome_type = "auto", weights = NULL)
 \item{x}{Output from \code{\link[=analog_cv]{analog_cv()}}. Either a data.frame or a SpatRaster
 produced with \code{include_residuals = TRUE}.}
 
-\item{outcome_type}{Controls outcome-type classification:
+\item{outcome_type}{Controls outcome-type classification (continuous /
+binary only):
 \itemize{
 \item \code{"auto"} (default): auto-detect as described above.
 \item \code{"continuous"} or \code{"binary"}: force all variables to this type.
 \item A named character vector with one entry per variable, giving the
 type for each (e.g., \code{c(biomass = "continuous", presence = "binary")}).
-}}
+}
+
+Categorical CV results (from \code{stat = "tabulate"}) ignore this
+argument unless explicitly set, in which case they error.}
 
 \item{weights}{Optional numeric vector of per-location weights (one value
 per row/cell of \code{x}). Used for weighted versions of all metrics. Default
@@ -29,8 +33,8 @@ A data.frame in long format with columns \code{variable}, \code{type},
 \description{
 Computes per-variable prediction-performance metrics from the output of
 \code{\link[=analog_cv]{analog_cv()}}. Handles both tabular (data.frame) and raster (SpatRaster)
-CV output, both single-y and multi-y configurations, and both continuous
-and binary outcomes.
+CV output, both single-y and multi-y configurations, and continuous,
+binary, and categorical outcomes.
 }
 \section{Output format}{
 
@@ -38,7 +42,7 @@ Results are returned in long format with one row per
 (variable, metric) pair and columns:
 \itemize{
 \item \code{variable}: name of the response variable.
-\item \code{type}: outcome type (\code{"continuous"} or \code{"binary"}).
+\item \code{type}: outcome type (\code{"continuous"}, \code{"binary"}, or \code{"categorical"}).
 \item \code{metric}: metric name (see below).
 \item \code{value}: numeric metric value.
 }
@@ -79,17 +83,43 @@ are in \verb{[0, 1]}.
 }
 }
 
-\section{Outcome-type detection}{
+\section{Categorical metrics}{
 
-When \code{outcome_type = "auto"} (the default), each variable is classified as:
+For results from \code{analog_cv()} with \code{stat = "tabulate"}:
 \itemize{
-\item \code{"binary"} if observed values are all in \verb{[0, 1]} after removing NAs,
-with both classes present.
-\item \code{"continuous"} otherwise.
+\item \code{n}: number of locations with non-NA observed class and a non-empty
+analog neighborhood (i.e., at least one analog with a non-NA class).
+\item \code{accuracy}: proportion of locations where the predicted (primary)
+class matches the observed class.
+\item \code{brier}: mean per-focal multiclass Brier score, computed on
+row-normalized vote shares (\code{Σ_k (p_k - I[obs == k])^2}). Range
+\verb{[0, 2]}; lower is better.
+\item \code{n_classes}: number of distinct classes (\code{K}).
+\item \verb{confusion[<obs>|<pred>]}: count of locations with observed class
+\verb{<obs>} predicted as \verb{<pred>}. One row per \code{K * K} cell, with zero
+counts included. Filter via \code{startsWith(metric, "confusion[")} to
+pull just the confusion matrix entries.
+}
 }
 
-Users can override classification by passing a scalar type name (applies
-to all variables) or a named character vector (one entry per variable).
+\section{Outcome-type detection}{
+
+The CV result's column structure determines its overall type:
+\itemize{
+\item Categorical results (from \code{stat = "tabulate"}) have \verb{obs_*},
+\verb{primary_*}, and \verb{brier_*} columns. All variables are categorical.
+\item Continuous/binary results have \verb{obs_*} and \verb{residual_*} columns.
+When \code{outcome_type = "auto"} (the default), each variable is
+classified per-variable as \code{"binary"} if observed values are all in
+\verb{[0, 1]} after removing NAs (with both classes present), or
+\code{"continuous"} otherwise.
+}
+
+Users can override classification for continuous/binary cases by
+passing a scalar type name (applies to all variables) or a named
+character vector (one entry per variable). \code{outcome_type} does not
+apply to categorical CV output and passing anything other than
+\code{"auto"} for a categorical result will error.
 }
 
 \examples{
@@ -117,6 +147,25 @@ cv_bin <- analog_cv(
   theta    = 0.2
 )
 cv_performance(cv_bin)
+
+# Categorical outcome (e.g., vegetation type)
+cv_cat <- analog_cv(
+  fun      = analog_impact,
+  pool     = sites,
+  y        = factor(sites$vegetation),
+  stat     = c("count", "sum_weights", "tabulate"),
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel   = "gaussian_clim",
+  theta    = 0.2
+)
+perf <- cv_performance(cv_cat)
+
+# Pull just the headline scalars
+perf[!startsWith(perf$metric, "confusion["), ]
+
+# Pull the confusion matrix in long form
+perf[startsWith(perf$metric, "confusion["), ]
 
 # Parameter tuning via AUC
 thetas <- c(0.1, 0.2, 0.3, 0.5)

@@ -297,3 +297,268 @@ test_that("cv_performance works on SpatRaster CV output", {
       expect_equal(perf$type[1], "continuous")
       expect_true(perf$value[perf$metric == "n"] > 0)
 })
+
+
+# categorical ----------------------
+
+# Tests for cv_performance() with categorical CV results.
+#
+# These tests exercise the categorical path end-to-end (analog_cv with
+# stat = "tabulate" -> cv_performance) plus hand-computable unit tests on
+# the metric helpers.
+
+# Helper: build a small synthetic categorical CV setup and run analog_cv.
+# Returns the CV result data.frame with obs/primary/brier columns and the
+# n_<level> vote columns.
+.cat_cv_fixture <- function(n = 60, seed = 1L) {
+      set.seed(seed)
+      x <- runif(n, 0, 10); y <- runif(n, 0, 10)
+      clim <- matrix(rnorm(n * 2), ncol = 2,
+                     dimnames = list(NULL, c("c1", "c2")))
+      pool <- cbind(x = x, y = y, clim)
+      veg <- factor(rep(c("forest", "grass", "shrub"), length.out = n))
+
+      analog_cv(
+            fun = analog_impact,
+            pool = pool,
+            y = veg,
+            stat = c("count", "sum_weights", "tabulate"),
+            kernel = "gaussian_clim",
+            theta = 0.5,
+            max_clim = 5,
+            max_geog = 100,
+            coord_type = "projected",
+            cv_method = "loo"
+      )
+}
+
+
+test_that("categorical CV detection triggers categorical metrics", {
+      cv <- .cat_cv_fixture()
+      perf <- cv_performance(cv)
+
+      # Should be categorical
+      expect_true(all(perf$type == "categorical"))
+      expect_true("accuracy" %in% perf$metric)
+      expect_true("brier" %in% perf$metric)
+      expect_true("n_classes" %in% perf$metric)
+
+      # Confusion rows present, K^2 of them
+      conf_rows <- perf[startsWith(perf$metric, "confusion["), ]
+      n_classes <- perf$value[perf$metric == "n_classes"]
+      expect_equal(nrow(conf_rows), n_classes^2)
+})
+
+
+test_that("accuracy and confusion sum to n", {
+      cv <- .cat_cv_fixture()
+      perf <- cv_performance(cv)
+
+      # Sum of confusion cells equals n (count of valid focals)
+      conf_rows <- perf[startsWith(perf$metric, "confusion["), ]
+      total_conf <- sum(conf_rows$value)
+      n_val <- perf$value[perf$metric == "n"]
+      expect_equal(total_conf, n_val)
+
+      # Accuracy = sum of diagonal / total
+      # Parse confusion rows to extract obs and pred labels
+      m <- regmatches(conf_rows$metric,
+                      regexec("^confusion\\[([^|]+)\\|([^]]+)\\]$",
+                              conf_rows$metric))
+      obs_lbl <- vapply(m, `[`, character(1), 2L)
+      pred_lbl <- vapply(m, `[`, character(1), 3L)
+      diag_sum <- sum(conf_rows$value[obs_lbl == pred_lbl])
+      expected_accuracy <- if (total_conf > 0) diag_sum / total_conf else NA_real_
+      observed_accuracy <- perf$value[perf$metric == "accuracy"]
+      expect_equal(observed_accuracy, expected_accuracy)
+})
+
+
+test_that("brier is in [0, 2] and is finite when there are valid focals", {
+      cv <- .cat_cv_fixture()
+      perf <- cv_performance(cv)
+      brier_val <- perf$value[perf$metric == "brier"]
+      expect_true(is.finite(brier_val))
+      expect_gte(brier_val, 0)
+      expect_lte(brier_val, 2)
+})
+
+
+test_that("outcome_type errors when overridden on categorical CV", {
+      cv <- .cat_cv_fixture()
+      expect_error(cv_performance(cv, outcome_type = "binary"),
+                   "does not apply to categorical")
+      expect_error(cv_performance(cv, outcome_type = "continuous"),
+                   "does not apply to categorical")
+})
+
+
+test_that(".cv_metrics_categorical: hand-computable confusion and accuracy", {
+      # Construct labels directly with known counts
+      obs <-     c("a", "a", "a", "b", "b", "c", "c", "c")
+      primary <- c("a", "a", "b", "b", "c", "c", "a", "c")
+      brier <-   rep(0.5, 8)  # arbitrary; not testing brier here
+      levels <- c("a", "b", "c")
+
+      m <- .cv_metrics_categorical(obs, primary, brier, levels, w = NULL)
+
+      # n is 8, all valid
+      expect_equal(m$value[m$metric == "n"], 8)
+
+      # By hand: confusion matrix with rows = obs, cols = pred
+      #          a b c
+      #     a   2 1 0
+      #     b   0 1 1
+      #     c   1 0 2
+      # accuracy = (2 + 1 + 2) / 8 = 0.625
+      expect_equal(m$value[m$metric == "accuracy"], 0.625)
+
+      # Diagonal cells
+      expect_equal(m$value[m$metric == "confusion[a|a]"], 2)
+      expect_equal(m$value[m$metric == "confusion[b|b]"], 1)
+      expect_equal(m$value[m$metric == "confusion[c|c]"], 2)
+
+      # Off-diagonal
+      expect_equal(m$value[m$metric == "confusion[a|b]"], 1)
+      expect_equal(m$value[m$metric == "confusion[a|c]"], 0)
+      expect_equal(m$value[m$metric == "confusion[b|a]"], 0)
+      expect_equal(m$value[m$metric == "confusion[b|c]"], 1)
+      expect_equal(m$value[m$metric == "confusion[c|a]"], 1)
+      expect_equal(m$value[m$metric == "confusion[c|b]"], 0)
+
+      # n_classes
+      expect_equal(m$value[m$metric == "n_classes"], 3)
+})
+
+
+test_that(".cv_metrics_categorical: hand-computable brier", {
+      # Two focals, both observed class "a", probs given by row-normalized
+      # votes. brier_vec is computed upstream so we pass it in directly.
+      obs <- c("a", "b")
+      primary <- c("a", "b")
+      # For obs == "a" with p = (0.7, 0.2, 0.1), brier = (0.7-1)^2 + 0.2^2 + 0.1^2
+      #                                                  = 0.09 + 0.04 + 0.01 = 0.14
+      # For obs == "b" with p = (0.1, 0.8, 0.1), brier = 0.1^2 + (0.8-1)^2 + 0.1^2
+      #                                                  = 0.01 + 0.04 + 0.01 = 0.06
+      brier <- c(0.14, 0.06)
+      levels <- c("a", "b", "c")
+
+      m <- .cv_metrics_categorical(obs, primary, brier, levels, w = NULL)
+
+      # mean brier
+      expect_equal(m$value[m$metric == "brier"], mean(brier))
+})
+
+
+test_that(".cv_metrics_categorical: NA in obs and primary are handled", {
+      obs <-     c("a", NA, "b", "c", NA)
+      primary <- c("a", "b", NA, "c", NA)
+      brier <-   c(0.1, 0.2, 0.3, 0.4, NA)
+      levels <- c("a", "b", "c")
+
+      m <- .cv_metrics_categorical(obs, primary, brier, levels, w = NULL)
+
+      # Only rows 1 and 4 have both obs and primary non-NA
+      expect_equal(m$value[m$metric == "n"], 2)
+      expect_equal(m$value[m$metric == "accuracy"], 1)  # both correct
+
+      # Brier mean uses only rows where obs, primary, and brier are all
+      # non-NA (rows 1 and 4): mean(0.1, 0.4) = 0.25
+      expect_equal(m$value[m$metric == "brier"], 0.25)
+})
+
+
+test_that(".cv_metrics_categorical: weights affect accuracy and brier", {
+      obs     <- c("a", "a", "b", "b")
+      primary <- c("a", "b", "a", "b")
+      brier   <- c(0.1, 0.2, 0.3, 0.4)
+      levels  <- c("a", "b")
+      # weights upweight the wrong predictions
+      w <- c(1, 4, 4, 1)
+
+      m <- .cv_metrics_categorical(obs, primary, brier, levels, w = w)
+
+      # weighted accuracy: correct mass / total mass
+      # row 1: obs=a, pred=a, correct, w=1
+      # row 2: obs=a, pred=b, wrong, w=4
+      # row 3: obs=b, pred=a, wrong, w=4
+      # row 4: obs=b, pred=b, correct, w=1
+      # accuracy = (1 + 1) / 10 = 0.2
+      expect_equal(m$value[m$metric == "accuracy"], 0.2)
+
+      # weighted brier mean = (1*0.1 + 4*0.2 + 4*0.3 + 1*0.4) / 10 = 2.5/10 = 0.25
+      expect_equal(m$value[m$metric == "brier"], 0.25)
+})
+
+
+test_that("multi-y categorical CV produces per-variable metrics", {
+      n <- 60
+      set.seed(7)
+      x <- runif(n, 0, 10); y <- runif(n, 0, 10)
+      clim <- matrix(rnorm(n * 2), ncol = 2,
+                     dimnames = list(NULL, c("c1", "c2")))
+      pool <- cbind(x = x, y = y, clim)
+
+      yA <- factor(rep(c("p", "q"), length.out = n))
+      yB <- factor(rep(c("x", "y", "z"), length.out = n))
+      Y <- data.frame(habitat = yA, soil = yB)
+
+      cv <- analog_cv(
+            fun = analog_impact,
+            pool = pool,
+            y = Y,
+            stat = "tabulate",
+            kernel = "gaussian_clim",
+            theta = 0.5,
+            max_clim = 5,
+            max_geog = 100,
+            coord_type = "projected",
+            cv_method = "loo"
+      )
+
+      perf <- cv_performance(cv)
+
+      # Both variables present
+      expect_setequal(unique(perf$variable), c("habitat", "soil"))
+
+      # habitat has K=2 -> 4 confusion rows; soil has K=3 -> 9 confusion rows
+      h_conf <- perf[perf$variable == "habitat" &
+                           startsWith(perf$metric, "confusion["), ]
+      s_conf <- perf[perf$variable == "soil" &
+                           startsWith(perf$metric, "confusion["), ]
+      expect_equal(nrow(h_conf), 4)
+      expect_equal(nrow(s_conf), 9)
+
+      # n_classes correct
+      expect_equal(perf$value[perf$variable == "habitat" &
+                                    perf$metric == "n_classes"], 2)
+      expect_equal(perf$value[perf$variable == "soil" &
+                                    perf$metric == "n_classes"], 3)
+})
+
+
+test_that("categorical detection: empty CV result errors clearly", {
+      # data.frame missing all categorical columns
+      df <- data.frame(index = 1:5, x = 1:5, y = 1:5,
+                       count = c(2, 3, 1, 4, 0))
+      # This should fall through to the continuous path's error since
+      # there are no obs_/residual_ columns either
+      expect_error(cv_performance(df), "No obs/residual columns")
+})
+
+
+test_that("categorical CV from raster input errors with a hint", {
+      skip_if_not_installed("terra")
+      # Build a SpatRaster whose layer names match the single-y categorical
+      # pattern (obs, primary, brier). This triggers categorical detection,
+      # at which point cv_performance should error with a hint about
+      # rasters dropping the character class labels.
+      r <- terra::rast(nrows = 4, ncols = 4,
+                       xmin = 0, xmax = 4, ymin = 0, ymax = 4,
+                       nlyrs = 3)
+      terra::values(r) <- matrix(rnorm(48), ncol = 3)
+      names(r) <- c("obs", "primary", "brier")
+
+      expect_error(cv_performance(r),
+                   "Categorical CV metrics require observed and predicted")
+})
