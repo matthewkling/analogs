@@ -145,54 +145,13 @@ analog_velocity(
 
 ## Value
 
-Return type depends on input format and query mode.
-
-Returns a data.frame, unless `x` is a SpatRaster and results have
-exactly one record per input cell (aggregation mode, or pairwise with
-`k = 1`), in which case returns a SpatRaster with one layer per output
-variable.
-
-Pairwise mode (`stat = NULL` or `"none"`) returns one row per
-focal-analog pair, with the following variables:
-
-- `index`, `x`, `y`: Focal location (1-based index and coordinates)
-  corresponding to input `x`
-
-- `analog_index`, `analog_x`, `analog_y`: Analog location corresponding
-  to input `pool`
-
-- `clim_dist`: Climate distance (Euclidean or Mahalanobis)
-
-- `geog_dist`: Geographic distance (km for lonlat, projection units
-  otherwise)
-
-- Value columns (if `y` provided): one per variable
-
-Aggregation mode (one or more `stat` values) returns one row per focal
-location, with the following variables:
-
-- `index`, `x`, `y`: Focal location
-
-- One column per requested statistic. For `stat` with single `y`
-  variable: column named by stat (e.g., `sum`, `mean`). For `stat` with
-  multiple `y` variables: columns named `{stat}_{varname}` (e.g.,
-  `sum_biomass`, `mean_richness`)
-
-- For `stat = "regression"`: columns for `coef_intercept` and
-  `coef_{covariate}`, or `coef_intercept_{varname}` and
-  `coef_{covariate}_{varname}` with multiple `y` variables.
-
-- For `stat = "tabulate"`: one column per level of `y`, named
-  `n_{level}` for a single unnamed `y`, or `{varname}_n_{level}` when
-  `y` is named or has multiple columns.
-
-- When `se != "none"`: matching SE columns (`se_weighted_mean`,
-  `se_intercept`, etc.) for each SE-supporting stat.
-
-All results include metadata attributes (`select`, `stat`, `kernel`,
-etc.). Use
-[`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
-to view a formatted summary.
+A data.frame, or a SpatRaster when `x` is one and `k = 1`. Contains one
+row per focal-analog pair with `index`, `x`, `y`, `analog_index`,
+`analog_x`, `analog_y`, `clim_dist`, and `geog_dist`. See
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+for full column conventions and
+[`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
+for attached metadata attributes.
 
 ## Details
 

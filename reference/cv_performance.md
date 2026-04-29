@@ -3,8 +3,8 @@
 Computes per-variable prediction-performance metrics from the output of
 [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md).
 Handles both tabular (data.frame) and raster (SpatRaster) CV output,
-both single-y and multi-y configurations, and both continuous and binary
-outcomes.
+both single-y and multi-y configurations, and continuous, binary, and
+categorical outcomes.
 
 ## Usage
 
@@ -23,7 +23,7 @@ cv_performance(x, outcome_type = "auto", weights = NULL)
 
 - outcome_type:
 
-  Controls outcome-type classification:
+  Controls outcome-type classification (continuous / binary only):
 
   - `"auto"` (default): auto-detect as described above.
 
@@ -32,6 +32,9 @@ cv_performance(x, outcome_type = "auto", weights = NULL)
   - A named character vector with one entry per variable, giving the
     type for each (e.g.,
     `c(biomass = "continuous", presence = "binary")`).
+
+  Categorical CV results (from `stat = "tabulate"`) ignore this argument
+  unless explicitly set, in which case they error.
 
 - weights:
 
@@ -51,7 +54,7 @@ pair and columns:
 
 - `variable`: name of the response variable.
 
-- `type`: outcome type (`"continuous"` or `"binary"`).
+- `type`: outcome type (`"continuous"`, `"binary"`, or `"categorical"`).
 
 - `metric`: metric name (see below).
 
@@ -96,18 +99,47 @@ both classes present):
   outcome). A proper scoring rule; most interpretable when predictions
   are in `[0, 1]`.
 
+## Categorical metrics
+
+For results from
+[`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
+with `stat = "tabulate"`:
+
+- `n`: number of locations with non-NA observed class and a non-empty
+  analog neighborhood (i.e., at least one analog with a non-NA class).
+
+- `accuracy`: proportion of locations where the predicted (primary)
+  class matches the observed class.
+
+- `brier`: mean per-focal multiclass Brier score, computed on
+  row-normalized vote shares (`Σ_k (p_k - I[obs == k])^2`). Range
+  `[0, 2]`; lower is better.
+
+- `n_classes`: number of distinct classes (`K`).
+
+- `confusion[<obs>|<pred>]`: count of locations with observed class
+  `<obs>` predicted as `<pred>`. One row per `K * K` cell, with zero
+  counts included. Filter via `startsWith(metric, "confusion[")` to pull
+  just the confusion matrix entries.
+
 ## Outcome-type detection
 
-When `outcome_type = "auto"` (the default), each variable is classified
-as:
+The CV result's column structure determines its overall type:
 
-- `"binary"` if observed values are all in `[0, 1]` after removing NAs,
-  with both classes present.
+- Categorical results (from `stat = "tabulate"`) have `obs_*`,
+  `primary_*`, and `brier_*` columns. All variables are categorical.
 
-- `"continuous"` otherwise.
+- Continuous/binary results have `obs_*` and `residual_*` columns. When
+  `outcome_type = "auto"` (the default), each variable is classified
+  per-variable as `"binary"` if observed values are all in `[0, 1]`
+  after removing NAs (with both classes present), or `"continuous"`
+  otherwise.
 
-Users can override classification by passing a scalar type name (applies
-to all variables) or a named character vector (one entry per variable).
+Users can override classification for continuous/binary cases by passing
+a scalar type name (applies to all variables) or a named character
+vector (one entry per variable). `outcome_type` does not apply to
+categorical CV output and passing anything other than `"auto"` for a
+categorical result will error.
 
 ## See also
 
@@ -140,6 +172,25 @@ cv_bin <- analog_cv(
   theta    = 0.2
 )
 cv_performance(cv_bin)
+
+# Categorical outcome (e.g., vegetation type)
+cv_cat <- analog_cv(
+  fun      = analog_impact,
+  pool     = sites,
+  y        = factor(sites$vegetation),
+  stat     = c("count", "sum_weights", "tabulate"),
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel   = "gaussian_clim",
+  theta    = 0.2
+)
+perf <- cv_performance(cv_cat)
+
+# Pull just the headline scalars
+perf[!startsWith(perf$metric, "confusion["), ]
+
+# Pull the confusion matrix in long form
+perf[startsWith(perf$metric, "confusion["), ]
 
 # Parameter tuning via AUC
 thetas <- c(0.1, 0.2, 0.3, 0.5)

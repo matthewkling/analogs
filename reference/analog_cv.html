@@ -85,7 +85,10 @@ builds indices internally per fold (for k-fold) or once (for LOO).</p></dd>
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
-<dd><p>Response variable(s). Numeric vector, matrix, data.frame, or
+<dd><p>Response variable(s). For continuous prediction targets
+(<code>weighted_mean</code>, <code>regression</code>): numeric vector, matrix, data.frame,
+or SpatRaster. For categorical (<code>tabulate</code>): factor or coercible-to-
+factor vector / character / integer / matrix / data.frame /
 SpatRaster. Must have exactly the same number of rows/cells as <code>pool</code>.</p></dd>
 
 
@@ -114,8 +117,7 @@ manually specify nonrandom folds, such as for spatial block cross-validation.</p
 
 <dt id="arg-include-residuals">include_residuals<a class="anchor" aria-label="anchor" href="#arg-include-residuals"></a></dt>
 <dd><p>Logical; if <code>TRUE</code> (default), the output includes
-<code>obs[_{yname}]</code> and <code>residual[_{yname}]</code> columns for each <code>y</code> variable
-(when a prediction target can be identified).</p></dd>
+per-focal residual-equivalent columns (see <code>@return</code>).</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -130,11 +132,22 @@ their own <code>...</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A data.frame or SpatRaster (matching the format of <code>pool</code>) with
 one row per pool location, containing all variables that <code>fun</code> would
-return, plus:</p><ul><li><p><code>obs</code> / <code>obs_{yname}</code>: observed y value at this location (when
-<code>include_residuals = TRUE</code> and a prediction target is identified).</p></li>
+return, plus the following residual-equivalent columns when
+<code>include_residuals = TRUE</code> and a prediction target is identified.</p>
+<p>For continuous prediction targets (<code>weighted_mean</code>, <code>regression</code>):</p><ul><li><p><code>obs</code> / <code>obs_{yname}</code>: observed y value at this location.</p></li>
 <li><p><code>residual</code> / <code>residual_{yname}</code>: observed minus held-out prediction.</p></li>
-<li><p><code>fold</code>: fold assignment (k-fold only).</p></li>
-</ul><p>Rows are ordered to match <code>pool</code>'s input row order.</p>
+</ul><p>For categorical prediction target (<code>tabulate</code>):</p><ul><li><p><code>obs</code> / <code>obs_{yname}</code>: observed class label (character).</p></li>
+<li><p><code>primary</code> / <code>primary_{yname}</code>: predicted (modal) class label
+(character; argmax across the per-class vote columns).</p></li>
+<li><p><code>brier</code> / <code>brier_{yname}</code>: per-focal Brier score, computed on
+row-normalized vote shares (range 0-2).</p></li>
+</ul><p>The underlying <code>n_&lt;level&gt;</code> vote columns from the analog search are
+also retained, so users can compute additional metrics (entropy,
+top-k accuracy, custom losses) in postprocessing.</p>
+<p>Always present:</p><ul><li><p><code>fold</code>: fold assignment (k-fold only).</p></li>
+</ul><p>Rows are ordered to match <code>pool</code>'s input row order. For SpatRaster
+output, character columns (<code>obs</code>, <code>primary</code>) are dropped with a
+message; pass <code>pool</code> as a data.frame to retain them.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -151,12 +164,19 @@ autocorrelation by holding out larger contiguous sets of locations
 <code><a href="analog_search.html">analog_search()</a></code>. Other <code>analog_*()</code> functions have no <code>y</code> input and
 thus no prediction to validate.</p>
 <p>When <code>fun = analog_search</code>, residuals are computed against:</p><ul><li><p>the <code>weighted_mean</code> column if <code>stat</code> includes <code>"weighted_mean"</code> but not
-<code>"regression"</code>;</p></li>
+<code>"regression"</code> or <code>"tabulate"</code>;</p></li>
 <li><p>fitted values from regression coefficients if <code>stat</code> includes
-<code>"regression"</code> but not <code>"weighted_mean"</code>;</p></li>
-</ul><p>If <code>stat</code> includes both, the prediction target is ambiguous and
-<code>analog_cv()</code> will error. If it includes neither, residuals are skipped
-and only the underlying search columns are returned.</p>
+<code>"regression"</code> but not <code>"weighted_mean"</code> or <code>"tabulate"</code>;</p></li>
+<li><p>per-class weighted votes if <code>stat</code> includes <code>"tabulate"</code> (categorical
+y; produces Brier score and primary-class label rather than a numeric
+residual).</p></li>
+</ul><p>If <code>stat</code> includes more than one of these, the prediction target is
+ambiguous and <code>analog_cv()</code> will error. If it includes none, residuals
+are skipped and only the underlying search columns are returned.</p>
+<p>For categorical CV (<code>stat = "tabulate"</code>), <code>y</code> must be a factor or
+coercible-to-factor input (character, integer codes, single-layer
+categorical SpatRaster). The output uses different residual-equivalent
+columns: see <code>@return</code> below.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -192,17 +212,21 @@ and only the underlying search columns are returned.</p>
 <span class="r-in"><span>  n_folds     <span class="op">=</span> <span class="fl">10</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Power-user CV via analog_search with a custom stat</span></span></span>
-<span class="r-in"><span><span class="va">cv_custom</span> <span class="op">&lt;-</span> <span class="fu">analog_cv</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  fun      <span class="op">=</span> <span class="va">analog_search</span>,</span></span>
+<span class="r-in"><span><span class="co"># LOO categorical CV (vegetation projection)</span></span></span>
+<span class="r-in"><span><span class="va">cv_veg</span> <span class="op">&lt;-</span> <span class="fu">analog_cv</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  fun      <span class="op">=</span> <span class="va">analog_impact</span>,</span></span>
 <span class="r-in"><span>  pool     <span class="op">=</span> <span class="va">sites</span>,</span></span>
-<span class="r-in"><span>  y        <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">biomass</span>,</span></span>
-<span class="r-in"><span>  select   <span class="op">=</span> <span class="st">"knn_clim"</span>,</span></span>
-<span class="r-in"><span>  k        <span class="op">=</span> <span class="fl">10</span>,</span></span>
-<span class="r-in"><span>  stat     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"weighted_mean"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  y        <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">sites</span><span class="op">$</span><span class="va">vegetation_type</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  stat     <span class="op">=</span> <span class="st">"tabulate"</span>,</span></span>
+<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>,</span></span>
+<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">100</span>,</span></span>
 <span class="r-in"><span>  kernel   <span class="op">=</span> <span class="st">"gaussian_clim"</span>,</span></span>
-<span class="r-in"><span>  theta    <span class="op">=</span> <span class="fl">0.3</span></span></span>
+<span class="r-in"><span>  theta    <span class="op">=</span> <span class="fl">0.2</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># Per-focal Brier score and primary class are in cv_veg$brier and</span></span></span>
+<span class="r-in"><span><span class="co"># cv_veg$primary; the n_&lt;level&gt; vote columns are also retained.</span></span></span>
+<span class="r-in"><span><span class="va">accuracy</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">cv_veg</span><span class="op">$</span><span class="va">primary</span> <span class="op">==</span> <span class="va">cv_veg</span><span class="op">$</span><span class="va">obs</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">mean_brier</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">cv_veg</span><span class="op">$</span><span class="va">brier</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

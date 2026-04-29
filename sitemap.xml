@@ -13,15 +13,16 @@
 <url><loc>https://matthewkling.github.io/analogs/reference/analog_regression.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/analog_search.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/analog_similarity.html</loc></url>
-<url><loc>https://matthewkling.github.io/analogs/reference/analog_summary.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/analog_velocity.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/build_analog_index.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/cv_performance.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-append_regression_predictions.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-auc_weighted.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-coerce_xcov_to_matrix.html</loc></url>
+<url><loc>https://matthewkling.github.io/analogs/reference/dot-cv_detect_categorical.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-cv_extract_obs_residual.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-cv_metrics_binary.html</loc></url>
+<url><loc>https://matthewkling.github.io/analogs/reference/dot-cv_metrics_categorical.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-cv_metrics_continuous.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-cv_resolve_outcome_types.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/dot-detect_geo.html</loc></url>
@@ -35,6 +36,7 @@
 <url><loc>https://matthewkling.github.io/analogs/reference/index.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/is_analog_index.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/mahalanobis_transform.html</loc></url>
+<url><loc>https://matthewkling.github.io/analogs/reference/metadata.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/nrow_of.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/print.analog_index.html</loc></url>
 <url><loc>https://matthewkling.github.io/analogs/reference/query_analog_index.html</loc></url>

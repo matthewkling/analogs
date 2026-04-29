@@ -348,8 +348,10 @@ location, with the following variables:
 
 All results include metadata attributes (`select`, `stat`, `kernel`,
 etc.). Use
-[`analog_summary()`](https://matthewkling.github.io/analogs/reference/analog_summary.md)
-to view a formatted summary.
+[`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
+to retrieve them as a named list, or see
+[`?metadata`](https://matthewkling.github.io/analogs/reference/metadata.md)
+for a full reference.
 
 ## Details
 

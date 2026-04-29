@@ -43,7 +43,10 @@ analog_cv(
 
 - y:
 
-  Response variable(s). Numeric vector, matrix, data.frame, or
+  Response variable(s). For continuous prediction targets
+  (`weighted_mean`, `regression`): numeric vector, matrix, data.frame,
+  or SpatRaster. For categorical (`tabulate`): factor or coercible-to-
+  factor vector / character / integer / matrix / data.frame /
   SpatRaster. Must have exactly the same number of rows/cells as `pool`.
 
 - covariates:
@@ -71,9 +74,8 @@ analog_cv(
 
 - include_residuals:
 
-  Logical; if `TRUE` (default), the output includes `obs[_{yname}]` and
-  `residual[_{yname}]` columns for each `y` variable (when a prediction
-  target can be identified).
+  Logical; if `TRUE` (default), the output includes per-focal
+  residual-equivalent columns (see `@return`).
 
 - ...:
 
@@ -88,16 +90,36 @@ analog_cv(
 
 A data.frame or SpatRaster (matching the format of `pool`) with one row
 per pool location, containing all variables that `fun` would return,
-plus:
+plus the following residual-equivalent columns when
+`include_residuals = TRUE` and a prediction target is identified.
 
-- `obs` / `obs_{yname}`: observed y value at this location (when
-  `include_residuals = TRUE` and a prediction target is identified).
+For continuous prediction targets (`weighted_mean`, `regression`):
+
+- `obs` / `obs_{yname}`: observed y value at this location.
 
 - `residual` / `residual_{yname}`: observed minus held-out prediction.
 
+For categorical prediction target (`tabulate`):
+
+- `obs` / `obs_{yname}`: observed class label (character).
+
+- `primary` / `primary_{yname}`: predicted (modal) class label
+  (character; argmax across the per-class vote columns).
+
+- `brier` / `brier_{yname}`: per-focal Brier score, computed on
+  row-normalized vote shares (range 0-2).
+
+The underlying `n_<level>` vote columns from the analog search are also
+retained, so users can compute additional metrics (entropy, top-k
+accuracy, custom losses) in postprocessing.
+
+Always present:
+
 - `fold`: fold assignment (k-fold only).
 
-Rows are ordered to match `pool`'s input row order.
+Rows are ordered to match `pool`'s input row order. For SpatRaster
+output, character columns (`obs`, `primary`) are dropped with a message;
+pass `pool` as a data.frame to retain them.
 
 ## Details
 
@@ -125,14 +147,23 @@ validate.
 When `fun = analog_search`, residuals are computed against:
 
 - the `weighted_mean` column if `stat` includes `"weighted_mean"` but
-  not `"regression"`;
+  not `"regression"` or `"tabulate"`;
 
 - fitted values from regression coefficients if `stat` includes
-  `"regression"` but not `"weighted_mean"`;
+  `"regression"` but not `"weighted_mean"` or `"tabulate"`;
 
-If `stat` includes both, the prediction target is ambiguous and
-`analog_cv()` will error. If it includes neither, residuals are skipped
-and only the underlying search columns are returned.
+- per-class weighted votes if `stat` includes `"tabulate"` (categorical
+  y; produces Brier score and primary-class label rather than a numeric
+  residual).
+
+If `stat` includes more than one of these, the prediction target is
+ambiguous and `analog_cv()` will error. If it includes none, residuals
+are skipped and only the underlying search columns are returned.
+
+For categorical CV (`stat = "tabulate"`), `y` must be a factor or
+coercible-to-factor input (character, integer codes, single-layer
+categorical SpatRaster). The output uses different residual-equivalent
+columns: see `@return` below.
 
 ## See also
 
@@ -170,16 +201,20 @@ cv_reg <- analog_cv(
   n_folds     = 10
 )
 
-# Power-user CV via analog_search with a custom stat
-cv_custom <- analog_cv(
-  fun      = analog_search,
+# LOO categorical CV (vegetation projection)
+cv_veg <- analog_cv(
+  fun      = analog_impact,
   pool     = sites,
-  y        = sites$biomass,
-  select   = "knn_clim",
-  k        = 10,
-  stat     = c("count", "weighted_mean"),
+  y        = factor(sites$vegetation_type),
+  stat     = "tabulate",
+  max_clim = 0.5,
+  max_geog = 100,
   kernel   = "gaussian_clim",
-  theta    = 0.3
+  theta    = 0.2
 )
+# Per-focal Brier score and primary class are in cv_veg$brier and
+# cv_veg$primary; the n_<level> vote columns are also retained.
+accuracy <- mean(cv_veg$primary == cv_veg$obs, na.rm = TRUE)
+mean_brier <- mean(cv_veg$brier, na.rm = TRUE)
 } # }
 ```

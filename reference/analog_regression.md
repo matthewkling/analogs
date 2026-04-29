@@ -284,6 +284,12 @@ focal location containing:
 - When `x_covariates` is supplied: `pred` (single-y) or `pred_{varname}`
   (multi-y) giving the fitted value at each focal.
 
+See
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+for column-naming conventions across stats and
+[`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
+for attached metadata attributes.
+
 ## Details
 
 This function is a wrapper that calls

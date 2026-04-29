@@ -161,6 +161,15 @@ analog_impact(
   Additional arguments passed to
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
 
+## Value
+
+A data.frame, or a SpatRaster when `x` is one. Contains `index`, `x`,
+`y` plus one or more columns determined by `stat`. See
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+for column-naming conventions across stats and
+[`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
+for attached metadata attributes.
+
 ## Details
 
 ### The Analog Impact Model (AIM) Framework

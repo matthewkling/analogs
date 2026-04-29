@@ -172,31 +172,11 @@ is <code>FALSE</code>.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Return type depends on input format and query mode.</p>
-<p>Returns a data.frame, unless <code>x</code> is a SpatRaster and results have exactly one record per
-input cell (aggregation mode, or pairwise with <code>k = 1</code>), in which case returns a
-SpatRaster with one layer per output variable.</p>
-<p>Pairwise mode (<code>stat = NULL</code> or <code>"none"</code>) returns one row per focal-analog pair,
-with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location (1-based index and coordinates) corresponding to input <code>x</code></p></li>
-<li><p><code>analog_index</code>, <code>analog_x</code>, <code>analog_y</code>: Analog location corresponding to input <code>pool</code></p></li>
-<li><p><code>clim_dist</code>: Climate distance (Euclidean or Mahalanobis)</p></li>
-<li><p><code>geog_dist</code>: Geographic distance (km for lonlat, projection units otherwise)</p></li>
-<li><p>Value columns (if <code>y</code> provided): one per variable</p></li>
-</ul><p>Aggregation mode (one or more <code>stat</code> values) returns one row per focal location,
-with the following variables:</p><ul><li><p><code>index</code>, <code>x</code>, <code>y</code>: Focal location</p></li>
-<li><p>One column per requested statistic. For <code>stat</code> with single <code>y</code> variable:
-column named by stat (e.g., <code>sum</code>, <code>mean</code>). For <code>stat</code> with multiple <code>y</code>
-variables: columns named <code>{stat}_{varname}</code> (e.g., <code>sum_biomass</code>, <code>mean_richness</code>)</p></li>
-<li><p>For <code>stat = "regression"</code>: columns for <code>coef_intercept</code> and <code>coef_{covariate}</code>,
-or <code>coef_intercept_{varname}</code> and  <code>coef_{covariate}_{varname}</code> with multiple <code>y</code>
-variables.</p></li>
-<li><p>For <code>stat = "tabulate"</code>: one column per level of <code>y</code>, named <code>n_{level}</code> for a
-single unnamed <code>y</code>, or <code>{varname}_n_{level}</code> when <code>y</code> is named or has multiple
-columns.</p></li>
-<li><p>When <code>se != "none"</code>: matching SE columns (<code>se_weighted_mean</code>,
-<code>se_intercept</code>, etc.) for each SE-supporting stat.</p></li>
-</ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>kernel</code>, etc.).
-Use <code><a href="analog_summary.html">analog_summary()</a></code> to view a formatted summary.</p>
+    <p>A data.frame, or a SpatRaster when <code>x</code> is one and <code>k = 1</code>.
+Contains one row per focal-analog pair with <code>index</code>, <code>x</code>, <code>y</code>,
+<code>analog_index</code>, <code>analog_x</code>, <code>analog_y</code>, <code>clim_dist</code>, and
+<code>geog_dist</code>. See <code><a href="analog_search.html">analog_search()</a></code> for full column conventions
+and <code><a href="metadata.html">metadata()</a></code> for attached metadata attributes.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
