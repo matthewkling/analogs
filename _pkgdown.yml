@@ -17,6 +17,7 @@ reference:
 - contents:
   - analog_search
   - build_analog_index
+  - print.analog_index
   - metadata
 
 - title: Cross-validation
