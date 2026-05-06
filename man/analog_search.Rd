@@ -10,6 +10,7 @@ analog_search(
   x_cov = NULL,
   y = NULL,
   covariates = NULL,
+  weight = NULL,
   max_clim = NULL,
   max_geog = NULL,
   select = "all",
@@ -24,6 +25,7 @@ analog_search(
   downsample = 1,
   seed = NULL,
   index_res = "auto",
+  cell_area_weight = "auto",
   n_threads = NULL,
   progress = FALSE
 )
@@ -58,6 +60,25 @@ logical) for \code{stat = "tabulate"}.}
 \item{covariates}{Optional matrix/data.frame or SpatRaster giving
 covariate values for each reference location (must have same number of
 rows/cells as \code{pool}). Required when \code{stat} includes \code{"regression"}.}
+
+\item{weight}{Optional pool site weights for use in aggregation.
+Numeric vector, single-column matrix/data.frame, or single-layer
+SpatRaster, with one value per row/cell of \code{pool}. For aggregation
+stats like \code{"weighted_mean"}, \code{"regression"}, etc., weights multiply
+through the weighted aggregation alongside any kernel weighting and
+cell-area weighting; they do not influence which analogs are selected
+by \verb{knn_*} modes (selection remains distance-only). They are reported
+in pair mode as a \code{user_weight} column. Values must be non-negative;
+\code{NA} is allowed and treated as 0 (the point is excluded from
+aggregation). Default \code{NULL} means no user-supplied weights.
+
+If you want to exclude a static subset of pool sites entirely, masking
+\code{pool} (and any associated \code{y} / \code{covariates}) upfront is more
+efficient than passing \code{weight = 0} for those sites, since the
+lattice index will not have to scan or distance-compute against them.
+Use \code{weight = 0} for cases where the mask varies per query against a
+shared index, or where some sites have a continuous weight and others
+should be excluded.}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
@@ -219,6 +240,17 @@ relatively few rows, auto-tuning is skipped and a default resolution of
 
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
+\item{cell_area_weight}{Controls cell-area weighting when \code{pool} is a raster.
+One of \code{"auto"} (default; on for raster pools, off otherwise), \code{TRUE}
+(force on; errors if \code{pool} is not a SpatRaster), or \code{FALSE} (force
+off). Cell-area weights correct aggregation statistics for non-uniform
+cell areas (e.g. lonlat grids near the poles, or projected grids on
+non-equal-area projections); they are computed via
+\code{terra::cellSize()} and normalized to mean 1. When \code{pool} is a
+pre-built \code{analog_index}, this argument must agree with the index's
+stored configuration: \code{cell_area_weight = FALSE} errors if the index
+was built with cell-area weighting on (rebuild the index instead).}
+
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
@@ -276,7 +308,7 @@ then optionally aggregating the results.
 \subsection{Parameter categories}{
 \itemize{
 \item \emph{Data parameters}
-(\code{x}, \code{pool}, \code{x_cov}, \code{y}, \code{covariates}, \code{coord_type})
+(\code{x}, \code{pool}, \code{x_cov}, \code{y}, \code{covariates}, \code{weight}, \code{coord_type})
 give attributes of the data on which to operate.
 \item \emph{Selection parameters}
 (\code{select}, \code{max_clim}, \code{max_geog}, \code{k})

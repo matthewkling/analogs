@@ -12,6 +12,8 @@ tiled_analog_search(
   max_geog,
   y = NULL,
   x_cov = NULL,
+  weight = NULL,
+  cell_area_weight = "auto",
   ...,
   output_file = NULL,
   progress = TRUE
@@ -43,7 +45,21 @@ Must have spatial properties matching pool.}
 \item{x_cov}{Optional SpatRaster with covariates for focal points. Must have
 spatial properties matching x.}
 
-\item{...}{Additional arguments passed to fun. Must include max_geog.}
+\item{weight}{Optional single-layer SpatRaster of per-pool-cell weights.
+Must have the same CRS and extent as \code{pool}. See \code{\link[=analog_search]{analog_search()}} for
+details.}
+
+\item{cell_area_weight}{Controls cell-area weighting. One of \code{"auto"}
+(default; on for raster pools, which is always the case here), \code{TRUE},
+or \code{FALSE}. Unlike a non-tiled query, where weights are normalized to
+mean 1 over whatever pool is passed, here weights are normalized to
+mean 1 over the \emph{full pool raster} once at the outer level, and the
+resulting raster is sliced per tile. This keeps absolute magnitudes of
+weighted stats (e.g. \code{sum_weights}) consistent across tiles.}
+
+\item{...}{Additional arguments passed to fun. Must include max_geog.
+May include \code{covariates} as a SpatRaster matching \code{pool}'s CRS and
+extent (cropped per tile alongside \code{y}).}
 
 \item{output_file}{Optional filename for disk-based output. If specified and
 fun returns a SpatRaster, tiles are written to temporary files during

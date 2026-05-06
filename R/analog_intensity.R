@@ -77,6 +77,7 @@ analog_intensity <- function(
             x,
             pool,
             x_cov      = NULL,
+            weight     = NULL,
             coord_type = "auto",
 
             max_clim   = NULL,
@@ -88,6 +89,7 @@ analog_intensity <- function(
             theta      = NULL,
 
             index_res = "auto",
+            cell_area_weight = "auto",
             n_threads = NULL,
             downsample = 1.0,
             seed = NULL,
@@ -107,8 +109,10 @@ analog_intensity <- function(
             theta       = theta,
             x_cov       = x_cov,
             y           = NULL, # not relevant for intensity
+            weight      = weight,
             coord_type  = coord_type,
             index_res   = index_res,
+            cell_area_weight = cell_area_weight,
             n_threads   = n_threads,
             downsample  = downsample,
             seed        = seed,

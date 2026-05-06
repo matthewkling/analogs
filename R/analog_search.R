@@ -9,7 +9,7 @@
 #' ## Parameter categories
 #'
 #' - *Data parameters*
-#'   (`x`, `pool`, `x_cov`, `y`, `covariates`, `coord_type`)
+#'   (`x`, `pool`, `x_cov`, `y`, `covariates`, `weight`, `coord_type`)
 #'   give attributes of the data on which to operate.
 #' - *Selection parameters*
 #'   (`select`, `max_clim`, `max_geog`, `k`)
@@ -84,6 +84,34 @@
 #' @param covariates Optional matrix/data.frame or SpatRaster giving
 #'   covariate values for each reference location (must have same number of
 #'   rows/cells as `pool`). Required when `stat` includes `"regression"`.
+#' @param weight Optional pool site weights for use in aggregation.
+#'   Numeric vector, single-column matrix/data.frame, or single-layer
+#'   SpatRaster, with one value per row/cell of `pool`. For aggregation
+#'   stats like `"weighted_mean"`, `"regression"`, etc., weights multiply
+#'   through the weighted aggregation alongside any kernel weighting and
+#'   cell-area weighting; they do not influence which analogs are selected
+#'   by `knn_*` modes (selection remains distance-only). They are reported
+#'   in pair mode as a `user_weight` column. Values must be non-negative;
+#'   `NA` is allowed and treated as 0 (the point is excluded from
+#'   aggregation). Default `NULL` means no user-supplied weights.
+#'
+#'   If you want to exclude a static subset of pool sites entirely, masking
+#'   `pool` (and any associated `y` / `covariates`) upfront is more
+#'   efficient than passing `weight = 0` for those sites, since the
+#'   lattice index will not have to scan or distance-compute against them.
+#'   Use `weight = 0` for cases where the mask varies per query against a
+#'   shared index, or where some sites have a continuous weight and others
+#'   should be excluded.
+#' @param cell_area_weight Controls cell-area weighting when `pool` is a raster.
+#'   One of `"auto"` (default; on for raster pools, off otherwise), `TRUE`
+#'   (force on; errors if `pool` is not a SpatRaster), or `FALSE` (force
+#'   off). Cell-area weights correct aggregation statistics for non-uniform
+#'   cell areas (e.g. lonlat grids near the poles, or projected grids on
+#'   non-equal-area projections); they are computed via
+#'   `terra::cellSize()` and normalized to mean 1. When `pool` is a
+#'   pre-built `analog_index`, this argument must agree with the index's
+#'   stored configuration: `cell_area_weight = FALSE` errors if the index
+#'   was built with cell-area weighting on (rebuild the index instead).
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
 #'   climate constraint). Can be either:
 #'
@@ -305,6 +333,7 @@ analog_search <- function(
       x_cov = NULL,
       y = NULL,
       covariates = NULL,
+      weight = NULL,
 
       # candidate filtering
       max_clim = NULL,
@@ -327,6 +356,7 @@ analog_search <- function(
       downsample = 1.0,
       seed = NULL,
       index_res = "auto",
+      cell_area_weight = "auto",
 
       n_threads = NULL,
       progress = FALSE
@@ -338,10 +368,48 @@ analog_search <- function(
       # Must happen BEFORE pool is swapped for a built index below.
       .validate_exclude_self(exclude_self, x, pool, downsample, progress)
 
+      # Validate cell_area_weight format up front so error messages mention
+      # the user-facing argument and not internal helpers.
+      caw_is_vec <- is.numeric(cell_area_weight) && is.null(dim(cell_area_weight))
+      if (!(identical(cell_area_weight, "auto") ||
+            isTRUE(cell_area_weight) ||
+            isFALSE(cell_area_weight) ||
+            caw_is_vec)) {
+            stop('`cell_area_weight` must be "auto", TRUE, FALSE, or a numeric ',
+                 "vector of length nrow(pool).",
+                 call. = FALSE)
+      }
+
       # Check if pool is already an index
       if (is_analog_index(pool)) {
-            # Pool is pre-built index - use it directly
+            # Pool is pre-built index - use it directly.
             index <- pool
+
+            # cell_area_weight is determined at index build time and lives on
+            # the index. Reconcile the query-time argument with the stored
+            # state: silently accept "auto" or matching values, error on
+            # explicit disagreement.
+            index_has_area <- !is.null(index$cell_area_weight)
+            if (isTRUE(cell_area_weight) && !index_has_area) {
+                  stop("`cell_area_weight = TRUE` was requested but the supplied ",
+                       "`analog_index` was built without cell-area weighting. ",
+                       "Rebuild the index with `cell_area_weight = TRUE` (or ",
+                       '"auto" for a raster pool) before querying.',
+                       call. = FALSE)
+            }
+            if (isFALSE(cell_area_weight) && index_has_area) {
+                  stop("`cell_area_weight = FALSE` was requested but the supplied ",
+                       "`analog_index` was built with cell-area weighting on. ",
+                       "Rebuild the index with `cell_area_weight = FALSE` to ",
+                       "disable it.", call. = FALSE)
+            }
+            if (caw_is_vec) {
+                  stop("A numeric `cell_area_weight` vector cannot be applied ",
+                       "to a pre-built `analog_index`; cell-area weights are ",
+                       "baked in at build time. Rebuild the index with the ",
+                       "desired weights instead.",
+                       call. = FALSE)
+            }
 
       } else {
             # Pool is raw data - need to build index
@@ -382,7 +450,8 @@ analog_search <- function(
                   coord_type = coord_type,
                   index_res = index_res_int,
                   downsample = downsample,
-                  seed = seed
+                  seed = seed,
+                  cell_area_weight = cell_area_weight
             )
       }
 
@@ -397,6 +466,7 @@ analog_search <- function(
             x_cov = x_cov,
             y = y,
             covariates = covariates,
+            weight = weight,
             k = k,
             kernel = kernel,
             theta = theta,

@@ -21,6 +21,8 @@
   lambda,
   se_code,
   n_classes_per_var = integer(0),
+  area_weight = NULL,
+  user_weight = NULL,
   exclude_self = FALSE,
   show_progress = FALSE
 )

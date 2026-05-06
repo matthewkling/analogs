@@ -809,8 +809,131 @@
       }
 }
 
+# Compute cell-area weights for a SpatRaster pool.
+#
+# Returns a length-ncell numeric vector of weights, normalized so the mean
+# over finite (non-NA cellSize) values is 1.0. The first layer's NA mask is
+# *not* applied; cells with NA climate values still get a finite area weight
+# (they get filtered out via the climate-NA path during querying anyway).
+#
+# Used by build_analog_index() when cell_area_weight is "auto" (and pool is
+# a raster) or TRUE.
+.compute_cell_area_weights <- function(pool_raster) {
+      if (!requireNamespace("terra", quietly = TRUE)) {
+            stop("Package 'terra' is required to compute cell-area weights",
+                 call. = FALSE)
+      }
+      if (!inherits(pool_raster, "SpatRaster")) {
+            stop("Internal error: .compute_cell_area_weights requires a SpatRaster",
+                 call. = FALSE)
+      }
+
+      # cellSize returns geodesic km^2 for lonlat; planar projection-units^2
+      # otherwise. The unit here doesn't matter because we normalize.
+      area <- terra::values(terra::cellSize(pool_raster, mask = FALSE,
+                                            unit = "km"))
+      area <- as.numeric(area)
+
+      # Normalize to mean 1 over finite values
+      finite <- is.finite(area)
+      if (!any(finite)) {
+            stop("Internal error: cellSize returned no finite values.",
+                 call. = FALSE)
+      }
+      mean_area <- mean(area[finite])
+      if (mean_area <= 0 || !is.finite(mean_area)) {
+            stop("Internal error: non-positive mean cell area.", call. = FALSE)
+      }
+      area / mean_area
+}
+
+# Validate and format the user-supplied per-pool-point `weight` argument.
+#
+# Accepts numeric vector, single-column matrix/data.frame, or single-layer
+# SpatRaster (mirroring the `y` and `covariates` input patterns). Returns a
+# length-n_ref numeric vector with NAs converted to 0 (NA pool points are
+# excluded from any aggregation).
+#
+# Returns NULL if `weight` is NULL.
+.validate_and_format_weight <- function(weight, ref) {
+      if (is.null(weight)) return(NULL)
+
+      n_ref <- nrow(ref)
+
+      if (inherits(weight, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster weight",
+                       call. = FALSE)
+            }
+            if (terra::nlyr(weight) != 1L) {
+                  stop("`weight` SpatRaster must have exactly one layer.",
+                       call. = FALSE)
+            }
+            df <- terra::as.data.frame(weight, xy = FALSE, na.rm = FALSE)
+            if (nrow(df) != n_ref) {
+                  stop(sprintf(
+                        "weight SpatRaster has %d cells but pool has %d rows. They must match.",
+                        nrow(df), n_ref
+                  ), call. = FALSE)
+            }
+            w <- as.numeric(df[[1L]])
+
+      } else if (is.data.frame(weight)) {
+            if (ncol(weight) != 1L) {
+                  stop("`weight` data.frame must have exactly one column.",
+                       call. = FALSE)
+            }
+            if (nrow(weight) != n_ref) {
+                  stop(sprintf(
+                        "weight has %d rows but pool has %d rows. They must match.",
+                        nrow(weight), n_ref
+                  ), call. = FALSE)
+            }
+            w <- as.numeric(weight[[1L]])
+
+      } else if (is.matrix(weight)) {
+            if (ncol(weight) != 1L) {
+                  stop("`weight` matrix must have exactly one column.",
+                       call. = FALSE)
+            }
+            if (nrow(weight) != n_ref) {
+                  stop(sprintf(
+                        "weight has %d rows but pool has %d rows. They must match.",
+                        nrow(weight), n_ref
+                  ), call. = FALSE)
+            }
+            w <- as.numeric(weight[, 1L])
+
+      } else if (is.numeric(weight) && is.null(dim(weight))) {
+            if (length(weight) != n_ref) {
+                  stop(sprintf(
+                        "weight has length %d but pool has %d rows. They must match.",
+                        length(weight), n_ref
+                  ), call. = FALSE)
+            }
+            w <- as.numeric(weight)
+
+      } else {
+            stop("`weight` must be a numeric vector, single-column matrix or ",
+                 "data.frame, or single-layer SpatRaster.", call. = FALSE)
+      }
+
+      # Validate values: NAs allowed (converted to 0), other non-finite or
+      # negative values are errors.
+      bad <- !is.na(w) & (!is.finite(w) | w < 0)
+      if (any(bad)) {
+            stop("`weight` must contain only non-negative finite values (NAs allowed).",
+                 call. = FALSE)
+      }
+      w[is.na(w)] <- 0
+
+      w
+}
+
 .format_output <- function(out, x, stat, select, k, kernel, theta, x_cov_mat,
-                           lambda, se, exclude_self, downsample_actual){
+                           lambda, se, exclude_self, downsample_actual,
+                           cell_area_weight_applied = FALSE,
+                           weight_provided = FALSE){
 
       if(! requireNamespace("terra", quietly = TRUE) || # terra not available
          is.null(attr(x, "template")) || # x wasn't a raster
@@ -844,6 +967,8 @@
       attr(out, "exclude_self")       <- exclude_self
       attr(out, "x_cov_provided")     <- !is.null(x_cov_mat)
       attr(out, "downsample_actual")  <- downsample_actual
+      attr(out, "cell_area_weight")   <- cell_area_weight_applied
+      attr(out, "weight_provided")    <- weight_provided
 
       return(out)
 }

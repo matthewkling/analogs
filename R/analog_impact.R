@@ -185,6 +185,7 @@ analog_impact <- function(
             x,
             pool,
             y,
+            weight = NULL,
             covariates = NULL,
             max_geog = NULL,
             max_clim = 1.0,
@@ -197,6 +198,7 @@ analog_impact <- function(
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
+            cell_area_weight = "auto",
             n_threads = NULL,
             progress = FALSE,
             ...
@@ -225,6 +227,7 @@ analog_impact <- function(
             select      = "all",
             stat        = stat,
             y           = y,
+            weight      = weight,
             covariates  = covariates,
             max_clim    = max_clim,
             max_geog    = max_geog,
@@ -236,6 +239,7 @@ analog_impact <- function(
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,
+            cell_area_weight = cell_area_weight,
             n_threads   = n_threads,
             progress    = progress,
             ...

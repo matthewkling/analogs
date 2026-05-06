@@ -4,9 +4,18 @@
 \alias{.detect_geo}
 \title{Detect coordinate system from data ranges}
 \usage{
-.detect_geo(xy)
+.detect_geo(xy, input = NULL)
 }
 \description{
-Detect coordinate system from data ranges
+Resolves \code{coord_type = "auto"} to either \code{"lonlat"} or \code{"projected"}. When
+the input has CRS metadata (SpatRaster, SpatVector), that's authoritative.
+For raw matrix / data.frame inputs we fall back to a coordinate-magnitude
+heuristic: if all xy values fit within \verb{[-180, 180] x [-90, 90]}, treat as
+lonlat; otherwise projected.
+}
+\details{
+The magnitude heuristic is unavoidably ambiguous (a small projected
+region in meters can fit in lonlat bounds). Users with matrix-form
+projected data in that range should pass \code{coord_type} explicitly.
 }
 \keyword{internal}

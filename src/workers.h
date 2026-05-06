@@ -21,8 +21,14 @@ namespace analogs {
 
 // -------------------------------------------------------------------------
 // Worker for pair-returning modes: knn_clim, knn_geog, all
+//
 // Writes into out_indices[i] a vector<int> of 1-based ref indices.
-// Writes into out_weights[i] a vector<double> of sample weights.
+// Writes into the three parallel weight vectors:
+//   out_sample_weights[i] - bin-level downsampling weights (>=1.0 typically)
+//   out_area_weights[i]   - per-point cell-area weights (mean-1 normalized)
+//   out_user_weights[i]   - per-point user-provided weights
+// All three weight vectors are populated for every analog. The R-side
+// decides which to emit as columns based on which mechanisms are in use.
 // -------------------------------------------------------------------------
 struct PairWorker : public Worker {
       const double* focal_ptr;      // focal matrix (original coords + clim)
@@ -60,8 +66,18 @@ struct PairWorker : public Worker {
       int x_cov_stride;
       int n_cov_components;
 
-      std::vector< std::vector<int> >& out_indices;
-      std::vector< std::vector<double> >& out_weights;  // sample weights
+      // Per-point pool weights (length n_ref, indexed by 0-based pool index).
+      // When the corresponding has_* flag is false the pointer may be nullptr
+      // and the worker treats the weight as 1.0.
+      bool has_area_weight;
+      const double* area_weight_ptr;
+      bool has_user_weight;
+      const double* user_weight_ptr;
+
+      std::vector< std::vector<int> >&    out_indices;
+      std::vector< std::vector<double> >& out_sample_weights;
+      std::vector< std::vector<double> >& out_area_weights;
+      std::vector< std::vector<double> >& out_user_weights;
 
       // Thread-local storage for reusable allocations
       struct ThreadLocalStorage {
@@ -106,8 +122,14 @@ struct PairWorker : public Worker {
                  const double* x_cov_ptr_,
                  int x_cov_stride_,
                  int n_cov_components_,
-                 std::vector< std::vector<int> >& out_indices_,
-                 std::vector< std::vector<double> >& out_weights_)
+                 bool has_area_weight_,
+                 const double* area_weight_ptr_,
+                 bool has_user_weight_,
+                 const double* user_weight_ptr_,
+                 std::vector< std::vector<int> >&    out_indices_,
+                 std::vector< std::vector<double> >& out_sample_weights_,
+                 std::vector< std::vector<double> >& out_area_weights_,
+                 std::vector< std::vector<double> >& out_user_weights_)
             : focal_ptr(REAL(focal_mm)),
               ref_ptr(REAL(ref_mm)),
               ref_latt_ptr(ref_latt_ptr_),
@@ -135,8 +157,14 @@ struct PairWorker : public Worker {
               x_cov_ptr(x_cov_ptr_),
               x_cov_stride(x_cov_stride_),
               n_cov_components(n_cov_components_),
+              has_area_weight(has_area_weight_),
+              area_weight_ptr(area_weight_ptr_),
+              has_user_weight(has_user_weight_),
+              user_weight_ptr(user_weight_ptr_),
               out_indices(out_indices_),
-              out_weights(out_weights_)
+              out_sample_weights(out_sample_weights_),
+              out_area_weights(out_area_weights_),
+              out_user_weights(out_user_weights_)
       {}
 
       void operator()(std::size_t begin, std::size_t end);
@@ -146,6 +174,15 @@ struct PairWorker : public Worker {
 // -------------------------------------------------------------------------
 // Worker for aggregate modes: COUNT / SUM / MEAN / REGRESSION (potentially multiple)
 // Writes into agg[i * n_stats + s] the scalar aggregate for focal i, stat s.
+//
+// Combined weight semantics:
+//   combined_weight = dist_weight * sample_weight * area_weight * user_weight
+// Each weight is 1.0 when its corresponding mechanism is inactive.
+//
+// COUNT preserves its existing semantics: count += static_cast<int>(sample_weight),
+// adjusting for downsampling but unaffected by area/user weights. Users wanting
+// area- or user-weighted counts should request stat = "sum_weights" with
+// kernel = "uniform".
 // -------------------------------------------------------------------------
 struct AggWorker : public Worker {
       const double* focal_ptr;
@@ -197,6 +234,14 @@ struct AggWorker : public Worker {
       int covariates_stride;
       int n_covs;
       double lambda;
+
+      // Per-point pool weights (length n_ref, indexed by 0-based pool index).
+      // When the has_* flag is false the pointer may be nullptr and the
+      // worker treats the weight as 1.0.
+      bool has_area_weight;
+      const double* area_weight_ptr;
+      bool has_user_weight;
+      const double* user_weight_ptr;
 
       // SE variant (applies to weighted_mean and regression)
       SeCode se_code;
@@ -265,6 +310,10 @@ struct AggWorker : public Worker {
                 int covariates_stride_,
                 int n_covs_,
                 double lambda_,
+                bool has_area_weight_,
+                const double* area_weight_ptr_,
+                bool has_user_weight_,
+                const double* user_weight_ptr_,
                 SeCode se_code_,
                 const std::vector<int>& n_classes_per_var_,
                 bool exclude_self_,
@@ -309,6 +358,10 @@ struct AggWorker : public Worker {
               covariates_stride(covariates_stride_),
               n_covs(n_covs_),
               lambda(lambda_),
+              has_area_weight(has_area_weight_),
+              area_weight_ptr(area_weight_ptr_),
+              has_user_weight(has_user_weight_),
+              user_weight_ptr(user_weight_ptr_),
               se_code(se_code_),
               n_classes_per_var(n_classes_per_var_),
               exclude_self(exclude_self_),

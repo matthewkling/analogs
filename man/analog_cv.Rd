@@ -51,7 +51,7 @@ manually specify nonrandom folds, such as for spatial block cross-validation.}
 per-focal residual-equivalent columns (see \verb{@return}).}
 
 \item{...}{Additional arguments passed to \code{fun} (e.g., \code{max_clim},
-\code{max_geog}, \code{kernel}, \code{theta}, \code{k}, \code{lambda}, \code{select}, \code{se}). Note:
+\code{max_geog}, \code{kernel}, \code{theta}, \code{k}, \code{lambda}, \code{select}, \code{se}, \code{weight}). Note:
 \code{fun} must accept \code{exclude_self} (directly or via \code{...}); \code{\link[=analog_search]{analog_search()}}
 accepts it as a named parameter, and the wrapper helpers forward it via
 their own \code{...}.}

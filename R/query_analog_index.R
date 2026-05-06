@@ -9,6 +9,7 @@ query_analog_index <- function(x,
                                x_cov,
                                y,
                                covariates,
+                               weight = NULL,
                                k,
                                kernel,
                                theta,
@@ -26,6 +27,27 @@ query_analog_index <- function(x,
 
       # Validate compatibility
       .validate_analog_index(index, focal, validate_ranges = FALSE)
+
+      # Validate and normalize the user-supplied per-pool weight, if any.
+      # Returns a length-n_pool numeric vector with NAs zeroed out, or NULL.
+      user_weight_vec <- .validate_and_format_weight(weight, index$ref_data)
+
+      # Permissive warning: a downsampled index has discarded some pool points,
+      # so weights for those points are silently dropped. The user gets
+      # weights only for the surviving sample.
+      if (!is.null(user_weight_vec) &&
+          !is.null(index$downsample_actual) &&
+          index$downsample_actual < 1.0) {
+            warning(
+                  sprintf(
+                        "`weight` was provided for %d points, but the index was built with downsample = %.3f, retaining ~%.1f%% of points. Weights for discarded points have no effect; weights for surviving points are used as supplied.",
+                        length(user_weight_vec),
+                        index$downsample_target %||% NA_real_,
+                        100 * index$downsample_actual
+                  ),
+                  call. = FALSE
+            )
+      }
 
       # Validate and normalize query parameters
       params <- .validate_query_params(focal, index$ref_data,
@@ -145,6 +167,10 @@ query_analog_index <- function(x,
                  call. = FALSE)
       }
 
+      # Pool-weight streams. Cell-area weights live on the index (build-time
+      # property); user weights are query-time. Either may be NULL.
+      area_weight_vec <- index$cell_area_weight  # NULL if not applied
+
       # Call C++ query function (with optional chunking/progress)
       res <- .query_cpp_chunked(
             index = index,
@@ -163,6 +189,8 @@ query_analog_index <- function(x,
             lambda = lambda,
             se_code = se_code,
             n_classes_per_var = n_classes_per_var,
+            area_weight = area_weight_vec,
+            user_weight = user_weight_vec,
             exclude_self = exclude_self,
             show_progress = show_progress
       )
@@ -173,6 +201,13 @@ query_analog_index <- function(x,
       cpp_attrs$class <- NULL
       cpp_attrs$dim <- NULL
       cpp_attrs$dimnames <- NULL
+
+      # Emission flags for the three weight streams in pair mode. Each column
+      # is surfaced only when its mechanism is actually active for this query.
+      emit_sample_weight <- !is.null(index$downsample_actual) &&
+            index$downsample_actual < 1.0
+      emit_area_weight   <- !is.null(area_weight_vec)
+      emit_user_weight   <- !is.null(user_weight_vec)
 
       # Post-process results based on aggregate type
       if (identical(stat, "none") || (length(stat) == 1 && stat[1] == "none")) {
@@ -185,7 +220,10 @@ query_analog_index <- function(x,
                   geo_mode = index$coord_type,
                   x_cov = x_cov_mat,
                   values = values_mat,
-                  values_names = values_names
+                  values_names = values_names,
+                  emit_sample_weight = emit_sample_weight,
+                  emit_area_weight   = emit_area_weight,
+                  emit_user_weight   = emit_user_weight
             )
             names(out) <- gsub("focal_", "", names(out))
 
@@ -196,7 +234,9 @@ query_analog_index <- function(x,
             return(.format_output(out, focal, stat, select,
                                   k, kernel, theta, x_cov_mat,
                                   lambda, se, exclude_self,
-                                  index$downsample_actual))
+                                  index$downsample_actual,
+                                  cell_area_weight_applied = emit_area_weight,
+                                  weight_provided = emit_user_weight))
       }
 
       # Aggregation mode(s)
@@ -344,7 +384,9 @@ query_analog_index <- function(x,
       }
 
       return(.format_output(out, focal, stat, select, k, kernel, theta, x_cov_mat,
-                            lambda, se, exclude_self, index$downsample_actual))
+                            lambda, se, exclude_self, index$downsample_actual,
+                            cell_area_weight_applied = emit_area_weight,
+                            weight_provided = emit_user_weight))
 }
 
 
@@ -358,6 +400,8 @@ query_analog_index <- function(x,
                                select_code, aggregate_codes, weight_code, theta,
                                x_cov, y, covariates, lambda, se_code,
                                n_classes_per_var = integer(0),
+                               area_weight = NULL,
+                               user_weight = NULL,
                                exclude_self = FALSE,
                                show_progress = FALSE) {
 
@@ -380,6 +424,8 @@ query_analog_index <- function(x,
                   lambda = lambda,
                   se_code = se_code,
                   n_classes_per_var = n_classes_per_var,
+                  area_weight_sexp = area_weight,
+                  user_weight_sexp = user_weight,
                   exclude_self = exclude_self
             ))
       }
@@ -432,6 +478,8 @@ query_analog_index <- function(x,
                   lambda = lambda,
                   se_code = se_code,
                   n_classes_per_var = n_classes_per_var,
+                  area_weight_sexp = area_weight,
+                  user_weight_sexp = user_weight,
                   exclude_self = FALSE   # always FALSE in chunked path
             )
 
@@ -442,24 +490,22 @@ query_analog_index <- function(x,
       first <- results[[1]]
 
       if (is.list(first) && !is.matrix(first)) {
-            # Pairs mode: concatenate vectors in list
-            total_len <- sum(vapply(results, function(x) length(x[[1]]), integer(1)))
+            # Pairs mode. The C++ payload has four parallel sublists
+            #   indices, sample_weights, area_weights, user_weights
+            # each of length n_focal_chunk, concatenated end-to-end across
+            # chunks. Plus two scalar boolean flags (has_area_weight,
+            # has_user_weight) carried through unchanged from the first chunk.
+            sublist_names <- c("indices", "sample_weights",
+                               "area_weights", "user_weights")
+            scalar_names  <- c("has_area_weight", "has_user_weight")
 
-            merged <- lapply(seq_along(first), function(j) {
-                  if (is.integer(first[[j]])) {
-                        out <- integer(total_len)
-                  } else {
-                        out <- numeric(total_len)
-                  }
-                  pos <- 1L
-                  for (r in results) {
-                        n <- length(r[[j]])
-                        out[pos:(pos + n - 1)] <- r[[j]]
-                        pos <- pos + n
-                  }
-                  out
-            })
-            names(merged) <- names(first)
+            merged <- list()
+            for (nm in sublist_names) {
+                  merged[[nm]] <- do.call(c, lapply(results, function(r) r[[nm]]))
+            }
+            for (nm in scalar_names) {
+                  merged[[nm]] <- first[[nm]]
+            }
 
             for (nm in names(attributes(first))) {
                   if (!nm %in% c("names")) {

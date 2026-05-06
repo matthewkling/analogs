@@ -116,6 +116,7 @@ tune_index_res <- function(x,
             index <- build_analog_index(
                   pool = pool,
                   coord_type = coord_type,
+                  cell_area_weight = FALSE,
                   index_res = r,
                   downsample = downsample,
                   seed = seed

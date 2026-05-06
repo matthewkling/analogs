@@ -199,6 +199,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             double lambda,
                             int se_code,
                             const IntegerVector& n_classes_per_var,
+                            SEXP area_weight_sexp,
+                            SEXP user_weight_sexp,
                             bool exclude_self = false)
 {
       // Extract lattice and metadata from index
@@ -361,6 +363,30 @@ SEXP query_analog_index_cpp(SEXP index_list,
                                          n_classes_per_var.end());
       }
 
+      // Parse pool weight vectors (cell-area and user-supplied). Each is
+      // either NULL (mechanism inactive) or a numeric vector of length n_ref.
+      bool has_area_weight = false;
+      const double* area_weight_ptr = nullptr;
+      if (!Rf_isNull(area_weight_sexp) && area_weight_sexp != R_NilValue) {
+            NumericVector aw = as<NumericVector>(area_weight_sexp);
+            if (aw.size() != n_ref) {
+                  stop("area_weight must have length equal to nrow(pool)");
+            }
+            has_area_weight = true;
+            area_weight_ptr = REAL(aw);
+      }
+
+      bool has_user_weight = false;
+      const double* user_weight_ptr = nullptr;
+      if (!Rf_isNull(user_weight_sexp) && user_weight_sexp != R_NilValue) {
+            NumericVector uw = as<NumericVector>(user_weight_sexp);
+            if (uw.size() != n_ref) {
+                  stop("user_weight must have length equal to nrow(pool)");
+            }
+            has_user_weight = true;
+            user_weight_ptr = REAL(uw);
+      }
+
       // Get ECEF data pointer if applicable
       const double* ref_latt_ptr;
       int stride_latt_r;
@@ -385,8 +411,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
       if (return_pairs) {
             const int k_knn = (scode == SelectCode::ALL ? 0 : k);
             // Pair mode
-            std::vector< std::vector<int> > out_indices(n_focal);
-            std::vector< std::vector<double> > out_weights(n_focal);
+            std::vector< std::vector<int> >    out_indices(n_focal);
+            std::vector< std::vector<double> > out_sample_weights(n_focal);
+            std::vector< std::vector<double> > out_area_weights(n_focal);
+            std::vector< std::vector<double> > out_user_weights(n_focal);
 
             PairWorker worker(focal_mm,
                               ref_mm,
@@ -410,8 +438,14 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               x_cov_ptr,
                               x_cov_stride,
                               n_cov_components,
+                              has_area_weight,
+                              area_weight_ptr,
+                              has_user_weight,
+                              user_weight_ptr,
                               out_indices,
-                              out_weights);
+                              out_sample_weights,
+                              out_area_weights,
+                              out_user_weights);
 
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
 
@@ -420,13 +454,17 @@ SEXP query_analog_index_cpp(SEXP index_list,
                   for (int i = 0; i < n_focal; ++i) {
                         if (out_indices[i].empty()) {
                               out_indices[i].push_back(0);
-                              out_weights[i].push_back(1.0);
+                              out_sample_weights[i].push_back(1.0);
+                              out_area_weights[i].push_back(1.0);
+                              out_user_weights[i].push_back(1.0);
                         }
                   }
             }
 
-            // Convert to List with both indices and weights
-            // Structure: List with two named elements: "indices" and "weights"
+            // Convert to List with indices and three weight streams.
+            // Structure: List with named elements "indices", "sample_weights",
+            // "area_weights", "user_weights". Plus boolean flags telling the
+            // emitter which weight columns to actually surface to the user.
             List out;
 
             // Create indices list
@@ -440,21 +478,36 @@ SEXP query_analog_index_cpp(SEXP index_list,
                   indices_list[i] = idx_vec;
             }
 
-            // Create weights list
-            List weights_list(n_focal);
-            for (int i = 0; i < n_focal; ++i) {
-                  const std::vector<double>& w = out_weights[i];
-                  NumericVector wgt_vec(w.size());
-                  for (std::size_t j = 0; j < w.size(); ++j) {
-                        wgt_vec[j] = w[j];
+            // Helper lambda: convert vector<vector<double>> to List of NumericVector
+            auto build_weight_list = [&](const std::vector<std::vector<double>>& src) {
+                  List wl(n_focal);
+                  for (int i = 0; i < n_focal; ++i) {
+                        const std::vector<double>& w = src[i];
+                        NumericVector wgt_vec(w.size());
+                        for (std::size_t j = 0; j < w.size(); ++j) {
+                              wgt_vec[j] = w[j];
+                        }
+                        wl[i] = wgt_vec;
                   }
-                  weights_list[i] = wgt_vec;
-            }
+                  return wl;
+            };
 
-            // Package both into the output list
+            // Sample weights are emitted whenever downsampling is in effect.
+            // (Detected at the R level via index$downsample_actual; the C++
+            // side simply always supplies the data and lets R decide whether
+            // to surface the column.)
+            List sample_weights_list = build_weight_list(out_sample_weights);
+            List area_weights_list   = build_weight_list(out_area_weights);
+            List user_weights_list   = build_weight_list(out_user_weights);
+
+            // Package into the output list
             out = List::create(
-                  Named("indices") = indices_list,
-                  Named("weights") = weights_list
+                  Named("indices")        = indices_list,
+                  Named("sample_weights") = sample_weights_list,
+                  Named("area_weights")   = area_weights_list,
+                  Named("user_weights")   = user_weights_list,
+                  Named("has_area_weight") = has_area_weight,
+                  Named("has_user_weight") = has_user_weight
             );
 
             // Attach diagnostics
@@ -583,6 +636,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               covariates_stride,
                               n_covs,
                               lambda,
+                              has_area_weight,
+                              area_weight_ptr,
+                              has_user_weight,
+                              user_weight_ptr,
                               scode_se,
                               n_classes_per_var_std,
                               exclude_self,

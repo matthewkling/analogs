@@ -5,12 +5,12 @@ build_analog_index_cpp <- function(ref_mm, coord_type, index_res, downsample, se
     .Call(`_analogs_build_analog_index_cpp`, ref_mm, coord_type, index_res, downsample, seed)
 }
 
-query_analog_index_cpp <- function(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, exclude_self = FALSE) {
-    .Call(`_analogs_query_analog_index_cpp`, index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, exclude_self)
+query_analog_index_cpp <- function(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self = FALSE) {
+    .Call(`_analogs_query_analog_index_cpp`, index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self)
 }
 
-.emit_pairs_cpp <- function(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names) {
-    .Call(`_analogs_emit_pairs_cpp`, res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names)
+.emit_pairs_cpp <- function(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names, emit_sample_weight, emit_area_weight, emit_user_weight) {
+    .Call(`_analogs_emit_pairs_cpp`, res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names, emit_sample_weight, emit_area_weight, emit_user_weight)
 }
 
 analogs_euclid_cpp <- function(a, b) {

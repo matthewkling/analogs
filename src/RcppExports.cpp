@@ -26,8 +26,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, const IntegerVector& aggregate_codes, int weight_code, const NumericVector& theta, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, bool exclude_self);
-RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP exclude_selfSEXP) {
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, const IntegerVector& aggregate_codes, int weight_code, const NumericVector& theta, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, SEXP area_weight_sexp, SEXP user_weight_sexp, bool exclude_self);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP weight_codeSEXP, SEXP thetaSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP area_weight_sexpSEXP, SEXP user_weight_sexpSEXP, SEXP exclude_selfSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -47,14 +47,16 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
     Rcpp::traits::input_parameter< int >::type se_code(se_codeSEXP);
     Rcpp::traits::input_parameter< const IntegerVector& >::type n_classes_per_var(n_classes_per_varSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type area_weight_sexp(area_weight_sexpSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type user_weight_sexp(user_weight_sexpSEXP);
     Rcpp::traits::input_parameter< bool >::type exclude_self(exclude_selfSEXP);
-    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, exclude_self));
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, weight_code, theta, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self));
     return rcpp_result_gen;
 END_RCPP
 }
 // emit_pairs_cpp
-SEXP emit_pairs_cpp(List res, NumericMatrix focal_mm, NumericMatrix ref_mm, bool report_dist, std::string geo_mode, Nullable<NumericMatrix> x_cov, Nullable<NumericMatrix> values, Nullable<CharacterVector> values_names);
-RcppExport SEXP _analogs_emit_pairs_cpp(SEXP resSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP report_distSEXP, SEXP geo_modeSEXP, SEXP x_covSEXP, SEXP valuesSEXP, SEXP values_namesSEXP) {
+SEXP emit_pairs_cpp(List res, NumericMatrix focal_mm, NumericMatrix ref_mm, bool report_dist, std::string geo_mode, Nullable<NumericMatrix> x_cov, Nullable<NumericMatrix> values, Nullable<CharacterVector> values_names, bool emit_sample_weight, bool emit_area_weight, bool emit_user_weight);
+RcppExport SEXP _analogs_emit_pairs_cpp(SEXP resSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP report_distSEXP, SEXP geo_modeSEXP, SEXP x_covSEXP, SEXP valuesSEXP, SEXP values_namesSEXP, SEXP emit_sample_weightSEXP, SEXP emit_area_weightSEXP, SEXP emit_user_weightSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -66,7 +68,10 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Nullable<NumericMatrix> >::type x_cov(x_covSEXP);
     Rcpp::traits::input_parameter< Nullable<NumericMatrix> >::type values(valuesSEXP);
     Rcpp::traits::input_parameter< Nullable<CharacterVector> >::type values_names(values_namesSEXP);
-    rcpp_result_gen = Rcpp::wrap(emit_pairs_cpp(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names));
+    Rcpp::traits::input_parameter< bool >::type emit_sample_weight(emit_sample_weightSEXP);
+    Rcpp::traits::input_parameter< bool >::type emit_area_weight(emit_area_weightSEXP);
+    Rcpp::traits::input_parameter< bool >::type emit_user_weight(emit_user_weightSEXP);
+    rcpp_result_gen = Rcpp::wrap(emit_pairs_cpp(res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names, emit_sample_weight, emit_area_weight, emit_user_weight));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -97,8 +102,8 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 5},
-    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 17},
-    {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 8},
+    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 19},
+    {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 11},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
     {NULL, NULL, 0}

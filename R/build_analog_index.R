@@ -37,6 +37,31 @@
 #' @param seed Optional random seed for reproducible downsampling. If `NULL`
 #'   (default), uses current R random state.
 #'
+#' @param cell_area_weight Controls cell-area weighting for raster pools.
+#'   One of:
+#'   \itemize{
+#'     \item `"auto"` (default): Compute cell-area weights when `pool` is a
+#'       SpatRaster, and skip them otherwise. This corrects aggregation
+#'       statistics for non-uniform cell areas (e.g. lonlat grids where cell
+#'       area shrinks toward the poles, or projected grids on
+#'       non-equal-area projections).
+#'     \item `TRUE`: Force cell-area weighting on. Errors if `pool` is not a
+#'       SpatRaster.
+#'     \item `FALSE`: Force cell-area weighting off; treat all pool points
+#'       as having equal weight.
+#'     \item A numeric vector of length `nrow(pool)`: Use these
+#'       caller-supplied weights as-is, without any further normalization.
+#'       This is intended for advanced workflows like `tiled_analog_search()`
+#'       that need to maintain a globally consistent normalization across
+#'       multiple per-tile index builds; most users should use one of the
+#'       three options above.
+#'   }
+#'   When `"auto"` or `TRUE` triggers computation, weights are computed via
+#'   `terra::cellSize()` and normalized to mean 1 over finite values, so
+#'   absolute magnitudes of stats like `sum_weights` remain comparable to
+#'   the unweighted case. The weights are stored on the returned index and
+#'   used during all subsequent queries.
+#'
 #' @return An S3 object of class \code{"analog_index"} containing:
 #'   \itemize{
 #'     \item The compiled lattice index (internal C++ structure)
@@ -102,7 +127,8 @@ build_analog_index <- function(pool,
                                coord_type = c("auto", "lonlat", "projected"),
                                index_res = 16,
                                downsample = 1.0,
-                               seed = NULL) {
+                               seed = NULL,
+                               cell_area_weight = "auto") {
 
       # Validate inputs
       coord_type <- match.arg(coord_type)
@@ -117,6 +143,55 @@ build_analog_index <- function(pool,
             stop("downsample must be a number between 0 and 1 (exclusive of 0)")
       }
 
+      # Validate cell_area_weight: "auto", TRUE, FALSE, or a numeric vector
+      # of length n_pool. Numeric vectors are accepted as-is (caller-supplied
+      # already-normalized weights) and validated for length once we know
+      # n_pool below.
+      cell_area_weight_is_vec <- is.numeric(cell_area_weight) &&
+            is.null(dim(cell_area_weight))
+      if (!(identical(cell_area_weight, "auto") ||
+            isTRUE(cell_area_weight) ||
+            isFALSE(cell_area_weight) ||
+            cell_area_weight_is_vec)) {
+            stop('`cell_area_weight` must be "auto", TRUE, FALSE, or a numeric ',
+                 "vector of length nrow(pool).",
+                 call. = FALSE)
+      }
+
+      # Resolve cell_area_weight to one of three states:
+      #   - cell_area_weight_vec is NULL (off)
+      #   - cell_area_weight_vec is a numeric vector of length n_pool (on)
+      pool_is_raster <- inherits(pool, "SpatRaster")
+      if (identical(cell_area_weight, "auto")) {
+            compute_from_raster <- pool_is_raster
+            user_supplied_vec   <- FALSE
+      } else if (isTRUE(cell_area_weight)) {
+            if (!pool_is_raster) {
+                  stop("`cell_area_weight = TRUE` requires `pool` to be a SpatRaster.",
+                       call. = FALSE)
+            }
+            compute_from_raster <- TRUE
+            user_supplied_vec   <- FALSE
+      } else if (isFALSE(cell_area_weight)) {
+            compute_from_raster <- FALSE
+            user_supplied_vec   <- FALSE
+      } else {
+            # Numeric vector path. We trust whatever the caller hands us
+            # (no global re-normalization) — the helper that supplies it is
+            # expected to have done its own normalization. Vectors are
+            # accepted regardless of pool type since the caller may have a
+            # legitimate use case (e.g. tiled_analog_search slicing a global
+            # vector for a haloed matrix-form pool).
+            compute_from_raster <- FALSE
+            user_supplied_vec   <- TRUE
+
+            # Reject NA / negative / non-finite values up front.
+            if (any(!is.finite(cell_area_weight) | cell_area_weight < 0)) {
+                  stop("`cell_area_weight` numeric vector must contain only ",
+                       "non-negative finite values.", call. = FALSE)
+            }
+      }
+
       # Handle seed
       if (!is.null(seed)) {
             if (!is.numeric(seed) || length(seed) != 1L) {
@@ -128,12 +203,32 @@ build_analog_index <- function(pool,
             seed <- as.integer(sample.int(.Machine$integer.max, 1))
       }
 
+      # Resolve to a single numeric vector (or NULL) using the flags from above.
+      cell_area_weight_vec <- if (compute_from_raster) {
+            .compute_cell_area_weights(pool)
+      } else if (user_supplied_vec) {
+            as.numeric(cell_area_weight)
+      } else {
+            NULL
+      }
+
       # Normalize pool to standard matrix format
       ref_mm <- .format_data(pool)
 
-      # Detect coordinate system if auto
+      # Detect coordinate system if auto. We pass the original `pool` so
+      # the detector can consult CRS metadata (when pool is a SpatRaster);
+      # the xy matrix is a fallback for inputs that lack metadata.
       if (coord_type == "auto") {
-            coord_type <- .detect_geo(ref_mm[, 1:2, drop = FALSE])
+            coord_type <- .detect_geo(ref_mm[, 1:2, drop = FALSE], pool)
+      }
+
+      # Validate the cell-area weight vector length now that we know n_pool.
+      if (!is.null(cell_area_weight_vec) &&
+          length(cell_area_weight_vec) != nrow(ref_mm)) {
+            stop(sprintf(
+                  "`cell_area_weight` length (%d) does not match pool size (%d).",
+                  length(cell_area_weight_vec), nrow(ref_mm)
+            ), call. = FALSE)
       }
 
       # Call C++ to build index
@@ -171,6 +266,10 @@ build_analog_index <- function(pool,
 
                   # Internal flags
                   use_ecef = index_cpp$use_ecef,
+
+                  # Cell-area weighting (NULL if not applied; otherwise
+                  # mean-1-normalized numeric vector of length n_pool).
+                  cell_area_weight = cell_area_weight_vec,
 
                   # Diagnostics
                   total_bins = index_cpp$total_bins,
@@ -239,6 +338,10 @@ print.analog_index <- function(x, ...) {
 
       if (x$use_ecef) {
             cat("\n  Note: Using ECEF coordinates internally for lon/lat data\n")
+      }
+
+      if (!is.null(x$cell_area_weight)) {
+            cat("\n  Note: Cell-area weights applied to pool points\n")
       }
 
       invisible(x)
@@ -340,8 +443,36 @@ is_analog_index <- function(x) {
 
 
 #' Detect coordinate system from data ranges
+#'
+#' Resolves `coord_type = "auto"` to either `"lonlat"` or `"projected"`. When
+#' the input has CRS metadata (SpatRaster, SpatVector), that's authoritative.
+#' For raw matrix / data.frame inputs we fall back to a coordinate-magnitude
+#' heuristic: if all xy values fit within `[-180, 180] x [-90, 90]`, treat as
+#' lonlat; otherwise projected.
+#'
+#' The magnitude heuristic is unavoidably ambiguous (a small projected
+#' region in meters can fit in lonlat bounds). Users with matrix-form
+#' projected data in that range should pass `coord_type` explicitly.
+#'
 #' @keywords internal
-.detect_geo <- function(xy) {
+.detect_geo <- function(xy, input = NULL) {
+      # If we have CRS metadata, trust it. terra::is.lonlat() returns
+      # TRUE/FALSE/NA; only fall back to the magnitude check on NA (no CRS,
+      # or CRS recognized neither as lonlat nor as a known projection).
+      if (!is.null(input) &&
+          (inherits(input, "SpatRaster") || inherits(input, "SpatVector"))) {
+            if (requireNamespace("terra", quietly = TRUE)) {
+                  # terra::is.lonlat() emits a "[is.lonlat] unknown crs"
+                  # warning when CRS is missing, then returns NA. We treat
+                  # NA as a fallback signal, so suppress the warning to
+                  # avoid noise on legitimate no-CRS inputs.
+                  is_ll <- suppressWarnings(terra::is.lonlat(input))
+                  if (isTRUE(is_ll))  return("lonlat")
+                  if (isFALSE(is_ll)) return("projected")
+                  # is.na(is_ll): unknown CRS; fall through to magnitude check.
+            }
+      }
+
       lon_rng <- range(xy[, 1], na.rm = TRUE)
       lat_rng <- range(xy[, 2], na.rm = TRUE)
 

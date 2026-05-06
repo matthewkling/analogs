@@ -160,6 +160,7 @@ analog_regression <- function(
             x,
             pool,
             y,
+            weight = NULL,
             covariates,
             x_covariates = NULL,
             max_geog = NULL,
@@ -177,6 +178,7 @@ analog_regression <- function(
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
+            cell_area_weight = "auto",
             n_threads = NULL,
             progress = FALSE,
             ...
@@ -195,6 +197,7 @@ analog_regression <- function(
             select      = select,
             stat        = stat,
             y           = y,
+            weight      = weight,
             covariates  = covariates,
             max_clim    = max_clim,
             max_geog    = max_geog,
@@ -206,6 +209,7 @@ analog_regression <- function(
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,
+            cell_area_weight = cell_area_weight,
             n_threads   = n_threads,
             progress    = progress,
             ...

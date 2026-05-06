@@ -9,7 +9,8 @@ build_analog_index(
   coord_type = c("auto", "lonlat", "projected"),
   index_res = 16,
   downsample = 1,
-  seed = NULL
+  seed = NULL,
+  cell_area_weight = "auto"
 )
 }
 \arguments{
@@ -45,6 +46,31 @@ See Details for more info.}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
 (default), uses current R random state.}
+
+\item{cell_area_weight}{Controls cell-area weighting for raster pools.
+One of:
+\itemize{
+\item \code{"auto"} (default): Compute cell-area weights when \code{pool} is a
+SpatRaster, and skip them otherwise. This corrects aggregation
+statistics for non-uniform cell areas (e.g. lonlat grids where cell
+area shrinks toward the poles, or projected grids on
+non-equal-area projections).
+\item \code{TRUE}: Force cell-area weighting on. Errors if \code{pool} is not a
+SpatRaster.
+\item \code{FALSE}: Force cell-area weighting off; treat all pool points
+as having equal weight.
+\item A numeric vector of length \code{nrow(pool)}: Use these
+caller-supplied weights as-is, without any further normalization.
+This is intended for advanced workflows like \code{tiled_analog_search()}
+that need to maintain a globally consistent normalization across
+multiple per-tile index builds; most users should use one of the
+three options above.
+}
+When \code{"auto"} or \code{TRUE} triggers computation, weights are computed via
+\code{terra::cellSize()} and normalized to mean 1 over finite values, so
+absolute magnitudes of stats like \code{sum_weights} remain comparable to
+the unweighted case. The weights are stored on the returned index and
+used during all subsequent queries.}
 }
 \value{
 An S3 object of class \code{"analog_index"} containing:

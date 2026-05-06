@@ -18,7 +18,19 @@
 #'   Must have spatial properties matching pool.
 #' @param x_cov Optional SpatRaster with covariates for focal points. Must have
 #'   spatial properties matching x.
+#' @param weight Optional single-layer SpatRaster of per-pool-cell weights.
+#'   Must have the same CRS and extent as `pool`. See [analog_search()] for
+#'   details.
+#' @param cell_area_weight Controls cell-area weighting. One of `"auto"`
+#'   (default; on for raster pools, which is always the case here), `TRUE`,
+#'   or `FALSE`. Unlike a non-tiled query, where weights are normalized to
+#'   mean 1 over whatever pool is passed, here weights are normalized to
+#'   mean 1 over the *full pool raster* once at the outer level, and the
+#'   resulting raster is sliced per tile. This keeps absolute magnitudes of
+#'   weighted stats (e.g. `sum_weights`) consistent across tiles.
 #' @param ... Additional arguments passed to fun. Must include max_geog.
+#'   May include `covariates` as a SpatRaster matching `pool`'s CRS and
+#'   extent (cropped per tile alongside `y`).
 #' @param output_file Optional filename for disk-based output. If specified and
 #'   fun returns a SpatRaster, tiles are written to temporary files during
 #'   processing and merged to output_file at the end. This is useful when
@@ -59,6 +71,8 @@ tiled_analog_search <- function(
             max_geog,
             y = NULL,
             x_cov = NULL,
+            weight = NULL,
+            cell_area_weight = "auto",
             ...,
             output_file = NULL,
             progress = TRUE
@@ -107,6 +121,79 @@ tiled_analog_search <- function(
             if (!all(terra::ext(x_cov) == terra::ext(x))) {
                   stop("x_cov must have the same extent as x")
             }
+      }
+
+      # Validate and check weight if provided. Same shape rules as y: a
+      # single-layer SpatRaster with the same CRS and extent as pool.
+      if (!is.null(weight)) {
+            if (!inherits(weight, "SpatRaster")) {
+                  stop("weight must be a SpatRaster for tiled_analog_search")
+            }
+            if (terra::nlyr(weight) != 1L) {
+                  stop("weight must have exactly one layer")
+            }
+            if (!terra::same.crs(weight, pool)) {
+                  stop("weight must have the same CRS as pool")
+            }
+            if (!all(terra::ext(weight) == terra::ext(pool))) {
+                  stop("weight must have the same extent as pool")
+            }
+      }
+
+      # Pull `covariates` out of `...` so we can crop it per tile (it's a
+      # pool-side raster, like y). Without this, passing a SpatRaster
+      # `covariates` to tiled_analog_search would error out at the helper
+      # level: each tile's pool is a halo crop, but `covariates` would be
+      # the full-extent raster.
+      dot_args   <- list(...)
+      covariates <- dot_args$covariates
+      dot_args$covariates <- NULL
+
+      if (!is.null(covariates) && inherits(covariates, "SpatRaster")) {
+            if (!terra::same.crs(covariates, pool)) {
+                  stop("covariates must have the same CRS as pool")
+            }
+            if (!all(terra::ext(covariates) == terra::ext(pool))) {
+                  stop("covariates must have the same extent as pool")
+            }
+      } else if (!is.null(covariates)) {
+            stop("In tiled_analog_search, `covariates` must be a SpatRaster ",
+                 "(matching pool's extent and CRS).", call. = FALSE)
+      }
+
+      # Resolve cell_area_weight. We need globally consistent normalization
+      # across all tiles, so we precompute a normalized cell-area raster on
+      # the full pool here, then crop it per tile and feed the cropped
+      # values to each tile's index build via the numeric-vector form of
+      # `cell_area_weight`. This keeps absolute magnitudes of weighted
+      # stats (`sum_weights` etc.) comparable across tiles.
+      if (!(identical(cell_area_weight, "auto") ||
+            isTRUE(cell_area_weight) ||
+            isFALSE(cell_area_weight))) {
+            stop('`cell_area_weight` must be "auto", TRUE, or FALSE in ',
+                 "tiled_analog_search.", call. = FALSE)
+      }
+      apply_caw <- if (identical(cell_area_weight, "auto")) {
+            TRUE                                     # pool is always a raster here
+      } else {
+            isTRUE(cell_area_weight)
+      }
+      caw_raster_global <- if (apply_caw) {
+            r_area <- terra::cellSize(pool[[1]], mask = FALSE, unit = "km")
+            v <- terra::values(r_area)
+            finite <- is.finite(v)
+            if (!any(finite)) {
+                  stop("Internal error: cellSize returned no finite values.",
+                       call. = FALSE)
+            }
+            mean_area <- mean(v[finite])
+            if (mean_area <= 0 || !is.finite(mean_area)) {
+                  stop("Internal error: non-positive mean cell area.",
+                       call. = FALSE)
+            }
+            r_area / mean_area                        # mean-1 normalized SpatRaster
+      } else {
+            NULL
       }
 
       # Get extents
@@ -189,8 +276,34 @@ tiled_analog_search <- function(
                         fun_args$x_cov <- terra::crop(x_cov, tile_bbox)
                   }
 
-                  # Add any additional arguments from ...
-                  fun_args <- c(fun_args, list(...))
+                  # Add covariates if provided (cropped to halo, since they're
+                  # pool-side). `covariates` was pulled out of `...` upstream.
+                  if (!is.null(covariates)) {
+                        fun_args$covariates <- terra::crop(covariates, halo_bbox)
+                  }
+
+                  # Add weight if provided (cropped to halo, pool-side).
+                  if (!is.null(weight)) {
+                        fun_args$weight <- terra::crop(weight, halo_bbox)
+                  }
+
+                  # Cell-area weights: use the globally-normalized raster's
+                  # values within this tile's halo. We pass a numeric vector
+                  # (extracted from the cropped raster, ordered by cell) so
+                  # that build_analog_index uses these values as-is rather
+                  # than recomputing per-tile (which would give per-tile
+                  # local normalization).
+                  if (apply_caw) {
+                        caw_tile <- terra::crop(caw_raster_global, halo_bbox)
+                        fun_args$cell_area_weight <- as.numeric(terra::values(caw_tile))
+                  } else {
+                        # Force off explicitly to override any default in helpers
+                        fun_args$cell_area_weight <- FALSE
+                  }
+
+                  # Add any additional arguments from ... (covariates already
+                  # extracted above)
+                  fun_args <- c(fun_args, dot_args)
 
                   # Call function
                   result <- do.call(fun, fun_args)

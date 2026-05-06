@@ -234,3 +234,87 @@ test_that("build_analog_index works with downsampling", {
       )
       expect_equal(index_down$downsample_actual, index_down2$downsample_actual)
 })
+
+
+# test coord_type = "auto" detection ----------------------------
+
+# The detector should prefer CRS metadata (when available via SpatRaster /
+# SpatVector) over coordinate-magnitude heuristics. The magnitude heuristic
+# is the fallback for matrix / data.frame inputs that have no CRS, and for
+# rasters whose CRS is unknown.
+
+test_that(".detect_geo prefers SpatRaster CRS over coordinate magnitudes", {
+      skip_if_not_installed("terra")
+
+      # Pool with projected CRS but coordinate values that fall inside lonlat
+      # bounds (xmin/xmax/ymin/ymax all in [-180, 180] / [-90, 90]). Without
+      # the CRS-aware detector, magnitude alone would say lonlat. With it,
+      # the EPSG:32611 (UTM) metadata wins and we get projected.
+      r <- terra::rast(ncol = 5, nrow = 5,
+                       xmin = 0, xmax = 24, ymin = 0, ymax = 24,
+                       crs = "EPSG:32611")
+      terra::values(r) <- rnorm(25)
+
+      xy <- terra::crds(r)
+      expect_identical(.detect_geo(xy, r), "projected")
+
+      # Sanity: same xy without the SpatRaster falls back to magnitude
+      # heuristic, which (incorrectly but unavoidably) returns lonlat.
+      expect_identical(.detect_geo(xy), "lonlat")
+})
+
+
+test_that(".detect_geo recognizes a lonlat SpatRaster", {
+      skip_if_not_installed("terra")
+
+      r <- terra::rast(ncol = 5, nrow = 5,
+                       xmin = -10, xmax = 10, ymin = 30, ymax = 50,
+                       crs = "EPSG:4326")
+      terra::values(r) <- rnorm(25)
+
+      expect_identical(.detect_geo(terra::crds(r), r), "lonlat")
+})
+
+
+test_that(".detect_geo falls back to magnitude when SpatRaster CRS is unknown", {
+      skip_if_not_installed("terra")
+
+      r <- terra::rast(ncol = 5, nrow = 5,
+                       xmin = 0, xmax = 24, ymin = 0, ymax = 24,
+                       crs = "")                # empty CRS
+      terra::values(r) <- rnorm(25)
+
+      # is.lonlat() returns NA when CRS is unknown (terra also emits a
+      # warning, which our detector suppresses — assert no warning leaks).
+      # Magnitude fallback then says lonlat since values fit in lonlat bounds.
+      expect_no_warning(
+            res <- .detect_geo(terra::crds(r), r)
+      )
+      expect_identical(res, "lonlat")
+})
+
+
+test_that(".detect_geo magnitude check works for matrix/data.frame inputs", {
+      # Lon/lat-shaped values
+      m_ll <- cbind(runif(10, -180, 180), runif(10, -90, 90))
+      expect_identical(.detect_geo(m_ll), "lonlat")
+
+      # Out-of-lonlat values (e.g. UTM)
+      m_proj <- cbind(runif(10, 4e5, 5e5), runif(10, 4e6, 5e6))
+      expect_identical(.detect_geo(m_proj), "projected")
+})
+
+
+test_that("build_analog_index auto-detect uses CRS when pool is a SpatRaster", {
+      skip_if_not_installed("terra")
+
+      # Same setup as the .detect_geo test — coords inside lonlat bounds, but
+      # CRS is projected. Build the index and confirm the resolved coord_type.
+      r <- terra::rast(ncol = 5, nrow = 5,
+                       xmin = 0, xmax = 24, ymin = 0, ymax = 24,
+                       crs = "EPSG:32611")
+      terra::values(r) <- rnorm(25)
+
+      idx <- build_analog_index(r)         # coord_type defaults to "auto"
+      expect_identical(idx$coord_type, "projected")
+})

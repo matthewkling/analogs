@@ -68,7 +68,7 @@
 #' @param include_residuals Logical; if `TRUE` (default), the output includes
 #'   per-focal residual-equivalent columns (see `@return`).
 #' @param ... Additional arguments passed to `fun` (e.g., `max_clim`,
-#'   `max_geog`, `kernel`, `theta`, `k`, `lambda`, `select`, `se`). Note:
+#'   `max_geog`, `kernel`, `theta`, `k`, `lambda`, `select`, `se`, `weight`). Note:
 #'   `fun` must accept `exclude_self` (directly or via `...`); [analog_search()]
 #'   accepts it as a named parameter, and the wrapper helpers forward it via
 #'   their own `...`.
@@ -218,6 +218,42 @@ analog_cv <- function(fun,
       }
       extra$progress <- FALSE
 
+      # Intercept `weight` and `cell_area_weight` from extra so we can
+      # subset them per fold ourselves (they're pool-side quantities). We
+      # resolve both to length-n_pool numeric vectors here (or NULL), then
+      # strip them from extra. The runners will slice or pass full
+      # depending on LOO vs k-fold.
+      user_weight_vec <- .validate_and_format_weight(extra$weight, pool_mat)
+      extra$weight <- NULL
+
+      caw_arg <- if (is.null(extra$cell_area_weight)) "auto" else extra$cell_area_weight
+      extra$cell_area_weight <- NULL
+      if (!(identical(caw_arg, "auto") ||
+            isTRUE(caw_arg) ||
+            isFALSE(caw_arg))) {
+            stop('`cell_area_weight` in analog_cv must be "auto", TRUE, or FALSE.',
+                 call. = FALSE)
+      }
+      apply_caw_cv <- if (identical(caw_arg, "auto")) {
+            inherits(pool, "SpatRaster")
+      } else if (isTRUE(caw_arg)) {
+            if (!inherits(pool, "SpatRaster")) {
+                  stop("`cell_area_weight = TRUE` requires `pool` to be a SpatRaster.",
+                       call. = FALSE)
+            }
+            TRUE
+      } else {
+            FALSE
+      }
+      # Globally normalize once over the full pool, so that per-fold slices
+      # share a common scale even when folds are spatially structured (e.g.
+      # spatial block CV). This mirrors the tiled_analog_search() approach.
+      cell_area_weight_vec <- if (apply_caw_cv) {
+            .compute_cell_area_weights(pool)
+      } else {
+            NULL
+      }
+
       # Detect whether this is a tabulate-mode CV run. Different y semantics
       # (categorical vs continuous), different residual machinery downstream.
       is_tabulate <- .cv_is_tabulate_run(fun_name, extra)
@@ -308,6 +344,8 @@ analog_cv <- function(fun,
                   pool_mat = pool_mat,
                   y_for_inner = y_for_inner,
                   cov_mat = cov_mat,
+                  weight_vec = user_weight_vec,
+                  cell_area_weight_vec = cell_area_weight_vec,
                   extra = extra
             )
       } else {
@@ -319,6 +357,8 @@ analog_cv <- function(fun,
                   y_levels_list = y_levels_list,
                   y_names = y_names,
                   cov_mat = cov_mat,
+                  weight_vec = user_weight_vec,
+                  cell_area_weight_vec = cell_area_weight_vec,
                   folds = folds,
                   extra = extra
             )
@@ -620,7 +660,8 @@ analog_cv <- function(fun,
 # For fun = analog_regression, passes x_covariates = cov_mat so predictions
 # come back in the result (LOO: focals = pool, so focal-side covariates
 # are just cov_mat).
-.cv_run_loo <- function(fun, fun_name, pool_mat, y_for_inner, cov_mat, extra) {
+.cv_run_loo <- function(fun, fun_name, pool_mat, y_for_inner, cov_mat,
+                        weight_vec, cell_area_weight_vec, extra) {
       args <- c(
             list(
                   x    = pool_mat,
@@ -634,6 +675,11 @@ analog_cv <- function(fun,
       if (fun_name == "analog_regression" && !is.null(cov_mat)) {
             args$x_covariates <- cov_mat
       }
+      # Per-pool weights flow through unchanged. With exclude_self = TRUE
+      # the focal's own pool row is excluded from each neighborhood, so no
+      # per-fold subsetting needed.
+      if (!is.null(weight_vec))           args$weight           <- weight_vec
+      if (!is.null(cell_area_weight_vec)) args$cell_area_weight <- cell_area_weight_vec
       do.call(fun, args)
 }
 
@@ -644,7 +690,9 @@ analog_cv <- function(fun,
 # so per-fold predictions come back in the result, avoiding downstream
 # re-computation.
 .cv_run_kfold <- function(fun, fun_name, pool_mat, y_for_inner,
-                          y_levels_list, y_names, cov_mat, folds, extra) {
+                          y_levels_list, y_names, cov_mat,
+                          weight_vec, cell_area_weight_vec,
+                          folds, extra) {
       unique_folds <- sort(unique(folds))
 
       # Helper: subset y_for_inner by row, preserving type. Three shapes
@@ -700,6 +748,17 @@ analog_cv <- function(fun,
             }
             if (fun_name == "analog_regression" && !is.null(cov_mat)) {
                   args$x_covariates <- cov_mat[focal_rows, , drop = FALSE]
+            }
+            # Pool-side weights: subset to this fold's training rows. The
+            # cell-area vector was globally normalized to mean 1 over the
+            # full pool; we deliberately do NOT renormalize per fold so
+            # absolute scales of weighted stats stay comparable across
+            # folds (matters for spatial block CV).
+            if (!is.null(weight_vec)) {
+                  args$weight <- weight_vec[train_rows]
+            }
+            if (!is.null(cell_area_weight_vec)) {
+                  args$cell_area_weight <- cell_area_weight_vec[train_rows]
             }
 
             res_i <- do.call(fun, args)

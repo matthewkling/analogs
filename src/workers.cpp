@@ -27,6 +27,18 @@ inline bool focal_has_na(const double* focal_ptr, std::size_t i,
       return false;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers for per-point pool weights (cell-area and user-supplied).
+// Each returns 1.0 when the corresponding mechanism is inactive, otherwise
+// the per-point value at 0-based pool index j.
+// ---------------------------------------------------------------------------
+static inline double get_area_weight(bool has, const double* ptr, std::size_t j) {
+      return has ? ptr[j] : 1.0;
+}
+static inline double get_user_weight(bool has, const double* ptr, std::size_t j) {
+      return has ? ptr[j] : 1.0;
+}
+
 void PairWorker::operator()(std::size_t begin, std::size_t end) {
       const bool knn_mode      = (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG);
       const bool rank_by_clim  = (scode == SelectCode::KNN_CLIM);
@@ -149,15 +161,21 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                               cand_weights
                   );
 
-                  // Convert 0-based indices to 1-based for R and store weights
-                  std::vector<int> keep(cand.size());
-                  std::vector<double> weights(cand.size());
-                  for (std::size_t t = 0; t < cand.size(); ++t) {
-                        keep[t] = static_cast<int>(cand[t]) + 1;
-                        weights[t] = cand_weights[t];
+                  // Convert 0-based indices to 1-based and emit three weight streams.
+                  const int m = static_cast<int>(cand.size());
+                  std::vector<int>    keep(m);
+                  std::vector<double> sw(m), aw(m), uw(m);
+                  for (int t = 0; t < m; ++t) {
+                        const std::size_t j0 = static_cast<std::size_t>(cand[t]);
+                        keep[t] = static_cast<int>(j0) + 1;
+                        sw[t]   = cand_weights[t];
+                        aw[t]   = get_area_weight(has_area_weight, area_weight_ptr, j0);
+                        uw[t]   = get_user_weight(has_user_weight, user_weight_ptr, j0);
                   }
-                  out_indices[i] = std::move(keep);
-                  out_weights[i] = std::move(weights);
+                  out_indices[i]        = std::move(keep);
+                  out_sample_weights[i] = std::move(sw);
+                  out_area_weights[i]   = std::move(aw);
+                  out_user_weights[i]   = std::move(uw);
                   continue;
             }
 
@@ -221,10 +239,12 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             // Filter and collect results from candidates
             if (scode == SelectCode::ALL) {
-                  std::vector<int> keep;
-                  std::vector<double> weights;
+                  std::vector<int>    keep;
+                  std::vector<double> sw, aw, uw;
                   keep.reserve(cand.size());
-                  weights.reserve(cand.size());
+                  sw.reserve(cand.size());
+                  aw.reserve(cand.size());
+                  uw.reserve(cand.size());
 
                   double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
                   if (use_ecef) {
@@ -287,12 +307,17 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
                         if (!ok) continue;
 
-                        keep.push_back(j + 1); // 1-based
-                        weights.push_back(weight);
+                        const std::size_t j0 = static_cast<std::size_t>(j);
+                        keep.push_back(static_cast<int>(j0) + 1); // 1-based
+                        sw.push_back(weight);
+                        aw.push_back(get_area_weight(has_area_weight, area_weight_ptr, j0));
+                        uw.push_back(get_user_weight(has_user_weight, user_weight_ptr, j0));
                   }
 
-                  out_indices[i] = std::move(keep);
-                  out_weights[i] = std::move(weights);
+                  out_indices[i]        = std::move(keep);
+                  out_sample_weights[i] = std::move(sw);
+                  out_area_weights[i]   = std::move(aw);
+                  out_user_weights[i]   = std::move(uw);
                   continue;
             }
 
@@ -384,20 +409,27 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             }
 
             const int m = static_cast<int>(pq.size());
-            std::vector<int> idx_vec(m);
-            std::vector<double> wgt_vec(m);
+            std::vector<int>    idx_vec(m);
+            std::vector<double> sw_vec(m), aw_vec(m), uw_vec(m);
             for (int pos = m - 1; pos >= 0; --pos) {
                   const Neighbor& nb = pq.top();
-                  idx_vec[pos] = nb.second;
+                  const int idx_1based = nb.second;
+                  const std::size_t j0 = static_cast<std::size_t>(idx_1based - 1);
 
-                  // Look up weight for this analog (nb.second is 1-based)
-                  index_t idx_0based = static_cast<index_t>(nb.second - 1);
-                  wgt_vec[pos] = idx_to_weight[idx_0based];
+                  idx_vec[pos] = idx_1based;
+
+                  // sample_weight from the candidate map (bin-level downsampling)
+                  auto it = idx_to_weight.find(static_cast<index_t>(j0));
+                  sw_vec[pos] = (it != idx_to_weight.end()) ? it->second : 1.0;
+                  aw_vec[pos] = get_area_weight(has_area_weight, area_weight_ptr, j0);
+                  uw_vec[pos] = get_user_weight(has_user_weight, user_weight_ptr, j0);
 
                   pq.pop();
             }
-            out_indices[i] = std::move(idx_vec);
-            out_weights[i] = std::move(wgt_vec);
+            out_indices[i]        = std::move(idx_vec);
+            out_sample_weights[i] = std::move(sw_vec);
+            out_area_weights[i]   = std::move(aw_vec);
+            out_user_weights[i]   = std::move(uw_vec);
       }
 }
 
@@ -680,9 +712,21 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   ? weight_from_codes(wcode, clim_dist, gdist, weight_param1, weight_param2)
                         : 1.0;
 
-                  // Apply sample weight to count and sum_weights
+                  // Per-point pool weights (cell-area and user-supplied).
+                  // Each defaults to 1.0 when its mechanism is inactive.
+                  const std::size_t j0 = static_cast<std::size_t>(j);
+                  const double area_w = get_area_weight(has_area_weight, area_weight_ptr, j0);
+                  const double user_w = get_user_weight(has_user_weight, user_weight_ptr, j0);
+
+                  // COUNT preserves existing semantics: it adjusts for downsampling
+                  // (sample_weight) but is intentionally NOT affected by area_w or
+                  // user_w. Users wanting area- or user-weighted counts should
+                  // request stat = "sum_weights" with kernel = "uniform".
                   count += static_cast<int>(sample_weight);
-                  const double combined_weight = dist_weight * sample_weight;
+
+                  // Combined weight folds in all four streams: kernel,
+                  // downsampling, cell area, and user-provided.
+                  const double combined_weight = dist_weight * sample_weight * area_w * user_w;
                   sum_weights += combined_weight;
                   sum_weights_squared += (combined_weight * combined_weight);
 
@@ -702,7 +746,11 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         }
                   }
 
-                  // Update value stat accumulators
+                  // Update value stat accumulators.
+                  // SUM and MEAN treat area/user weights as case weights (no
+                  // kernel involvement); WEIGHTED_SUM and WEIGHTED_MEAN use
+                  // the full combined_weight.
+                  const double point_weight = sample_weight * area_w * user_w;
                   if (has_values && n_value > 0) {
                         for (int v = 0; v < n_vars; ++v) {
                               const double val = values_ptr[j + v * values_stride];
@@ -712,13 +760,13 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     int accum_idx = v * n_value + idx;
 
                                     if (acodes[s] == AggregateCode::SUM) {
-                                          value_accum[accum_idx] += (val * sample_weight);
+                                          value_accum[accum_idx] += (val * point_weight);
                                     } else if (acodes[s] == AggregateCode::MEAN) {
-                                          value_accum[accum_idx] += (val * sample_weight);
+                                          value_accum[accum_idx] += (val * point_weight);
                                     } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
-                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);
+                                          value_accum[accum_idx] += (val * combined_weight);
                                     } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
-                                          value_accum[accum_idx] += (val * dist_weight * sample_weight);
+                                          value_accum[accum_idx] += (val * combined_weight);
                                     }
                               }
 
