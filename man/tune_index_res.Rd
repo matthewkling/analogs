@@ -43,7 +43,9 @@ or SpatRaster with climate variable layers, OR
 \item{downsample}{Optional downsampling rate (0-1) for the reference pool,
 indicating the proportion of points to retain. Values < 1 reduce memory
 and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-Ignored if \code{pool} is a pre-built index.}
+Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, \code{index_res}
+must be set explicitly (auto-tuning is not supported in this case; see
+the \code{index_res} parameter for details).}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
 (default), uses current R random state. Ignored if \code{pool} is a pre-built

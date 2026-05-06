@@ -10,7 +10,7 @@ reference:
   - analog_regression
   - analog_velocity
   - analog_availability
-  - analog_intensity
+  - analog_density
   - analog_similarity
 
 - title: Core architecture

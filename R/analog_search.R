@@ -247,7 +247,9 @@
 #' @param downsample Optional downsampling rate (0-1) for the reference pool,
 #'   indicating the proportion of points to retain. Values < 1 reduce memory
 #'   and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-#'   Ignored if `pool` is a pre-built index.
+#'   Ignored if `pool` is a pre-built index. When `downsample < 1`, `index_res`
+#'   must be set explicitly (auto-tuning is not supported in this case; see
+#'   the `index_res` parameter for details).
 #'
 #' @param seed Optional random seed for reproducible downsampling. If `NULL`
 #'   (default), uses current R random state. Ignored if `pool` is a pre-built
@@ -260,7 +262,11 @@
 #'   - `"auto"` (the default): Automatically tune the index resolution
 #'     by optimizing compute time on a subsample of focal points. If focal has
 #'     relatively few rows, auto-tuning is skipped and a default resolution of
-#'     16 is used.
+#'     16 is used. Auto-tuning is **not supported** when `downsample < 1`,
+#'     because the speed-optimal resolution can sometimes result in higher
+#'     uncertainty of stat results under downsampling. In that case set
+#'     `index_res` explicitly; finer values (e.g. 32) generally give better
+#'     accuracy at the possible cost of query speed.
 #'
 #'   Ignored if `pool` is an `analog_index` (uses index's resolution).
 #'
@@ -321,7 +327,7 @@
 #'
 #' @seealso [tiled_analog_search()] offers memory-safe searches on large raster
 #'   datasets. Helper functions such as [analog_impact()], [analog_velocity()],
-#'   and [analog_density()] offer simpler interfaces for common search types.
+#'   and [analog_intensity()] offer simpler interfaces for common search types.
 #'   [analog_cv()] provides cross-validation workflows.
 #'
 #' @export
@@ -416,6 +422,22 @@ analog_search <- function(
 
             # Tune resolution if needed
             if (identical(index_res, "auto")) {
+                  # Auto-tuning is not safe when downsampling is in effect:
+                  # tune_index_res() optimizes for query *speed*, but at
+                  # downsample < 1 the speed-optimal resolution can produce
+                  # systematically biased and/or high-variance aggregations.
+                  # Force the user to choose explicitly.
+                  if (downsample < 1) {
+                        stop(
+                              'Auto-tuning of `index_res` is not supported when ',
+                              '`downsample < 1`. The speed-optimal resolution ',
+                              'can produce biased and high-variance results ',
+                              'under downsampling. Set `index_res` explicitly: ',
+                              'finer values (e.g. 32) generally give better ',
+                              'accuracy at the cost of query speed.',
+                              call. = FALSE
+                        )
+                  }
                   # Use tune_index_res for auto-tuning
                   index_res_int <- tune_index_res(
                         x = x,

@@ -222,7 +222,9 @@ assumes \code{max_geog} is in projection units).
 \item{downsample}{Optional downsampling rate (0-1) for the reference pool,
 indicating the proportion of points to retain. Values < 1 reduce memory
 and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-Ignored if \code{pool} is a pre-built index.}
+Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, \code{index_res}
+must be set explicitly (auto-tuning is not supported in this case; see
+the \code{index_res} parameter for details).}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
 (default), uses current R random state. Ignored if \code{pool} is a pre-built
@@ -235,7 +237,11 @@ of the internally-used lattice search index. Either:
 \item \code{"auto"} (the default): Automatically tune the index resolution
 by optimizing compute time on a subsample of focal points. If focal has
 relatively few rows, auto-tuning is skipped and a default resolution of
-16 is used.
+16 is used. Auto-tuning is \strong{not supported} when \code{downsample < 1},
+because the speed-optimal resolution can sometimes result in higher
+uncertainty of stat results under downsampling. In that case set
+\code{index_res} explicitly; finer values (e.g. 32) generally give better
+accuracy at the possible cost of query speed.
 }
 
 Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
@@ -379,6 +385,6 @@ Meteorology and Climatology}, \strong{52}(4), 733-752.
 \seealso{
 \code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large raster
 datasets. Helper functions such as \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_velocity]{analog_velocity()}},
-and \code{\link[=analog_density]{analog_density()}} offer simpler interfaces for common search types.
+and \code{\link[=analog_intensity]{analog_intensity()}} offer simpler interfaces for common search types.
 \code{\link[=analog_cv]{analog_cv()}} provides cross-validation workflows.
 }
