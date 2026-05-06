@@ -39,7 +39,7 @@ The table below shows how each wrapper maps to the framework:
 | `analog_velocity()` | k nearest geographic, climate-constrained | Pairs | Where is this climate moving? |
 | `analog_similarity()` | k nearest climatic, geographically-constrained | Pairs | What climates are reachable? |
 | `analog_availability()` | All within thresholds | Count | Where do analogs exist? |
-| `analog_intensity()` | All within thresholds | Weighted sum | How strong are analog matches? |
+| `analog_density()` | All within thresholds | Weighted sum | How strong are analog matches? |
 | `analog_impact()` | All within thresholds | Weighted mean | What ecological conditions to expect? |
 | `analog_regression()` | Flexible | Local regression | How do covariates predict outcomes within neighborhoods? |
 
@@ -192,12 +192,12 @@ plot(avail, main = "Analog availability (count)")
 ```
 
 
-## Analog intensity
+## Analog density
 
 Similar to availability, but weighted by climate similarity and/or geographic proximity rather than simply counted. This captures both the number and quality of analog matches.
 
-```{r intensity}
-intens <- analog_intensity(
+```{r density}
+intens <- analog_density(
       x = fut,
       pool = hist,
       max_clim = 0.5,
@@ -206,7 +206,7 @@ intens <- analog_intensity(
       theta = 0.15
 )
 
-plot(intens, main = "Analog intensity")
+plot(intens, main = "Analog density")
 ```
 
 

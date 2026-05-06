@@ -27,12 +27,11 @@ analog_impact(
 )
 }
 \arguments{
-\item{x}{Focal locations (usually future climate conditions for AIM, or baseline
-conditions for static interpolation). Should be a matrix/data.frame with columns x, y, and
-climate variables, or a SpatRaster with climate variable layers.}
+\item{x}{Focal locations for which analogs will be found. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a
+SpatRaster with climate variable layers.}
 
-\item{pool}{The reference dataset (generally representing baseline climate conditions).
-Either:
+\item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
 \item Matrix/data.frame with columns x, y, and climate variables,
 or SpatRaster with climate variable layers, OR
@@ -40,34 +39,71 @@ or SpatRaster with climate variable layers, OR
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
 
-\item{y}{Ecological or environmental variable(s) for the same era as \code{pool},
-to aggregate across climate analogs. For continuous stats
-(\code{weighted_mean}, \code{sum}, etc.), \code{y} should be numeric: occupancy of focal
-species, species richness, biomass, or any other numeric ecological state.
-For \code{stat = "tabulate"} (categorical aggregation), \code{y} should be a factor
-or a vector that can be coerced to a factor (e.g., character vector of
-vegetation type names, integer class codes, or a single-layer
-categorical SpatRaster). Can be a vector / factor (single variable),
-matrix or data.frame (multiple variables), or a SpatRaster with one or
-more layers. Must have exactly the same number of reference locations
-as \code{pool}.}
+\item{y}{Optional vector, factor, matrix/data.frame, or SpatRaster giving
+values for each reference location (must have same number of rows/cells
+as \code{pool}). Required for stats \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
+\code{"weighted_mean"}, \code{"regression"}, and \code{"tabulate"}. Numeric for
+continuous stats; factor or coercible-to-factor (character, integer,
+logical) for \code{stat = "tabulate"}.}
 
-\item{covariates}{Covariates to use with \code{stat = "regression"} (NULL
-otherwise; see \code{\link[=analog_regression]{analog_regression()}} for the regression-focused
-wrapper).}
+\item{weight}{Optional pool site weights for use in aggregation.
+Numeric vector, single-column matrix/data.frame, or single-layer
+SpatRaster, with one value per row/cell of \code{pool}. For aggregation
+stats like \code{"weighted_mean"}, \code{"regression"}, etc., weights multiply
+through the weighted aggregation alongside any kernel weighting and
+cell-area weighting; they do not influence which analogs are selected
+by \verb{knn_*} modes (selection remains distance-only). They are reported
+in pair mode as a \code{user_weight} column. Values must be non-negative;
+\code{NA} is allowed and treated as 0 (the point is excluded from
+aggregation). Default \code{NULL} means no user-supplied weights.
 
-\item{max_geog}{Maximum geographic distance for analogs (km if lonlat;
-projection units otherwise). Acts as a hard dispersal constraint.}
+If you want to exclude a static subset of pool sites entirely, masking
+\code{pool} (and any associated \code{y} / \code{covariates}) upfront is more
+efficient than passing \code{weight = 0} for those sites, since the
+lattice index will not have to scan or distance-compute against them.
+Use \code{weight = 0} for cases where the mask varies per query against a
+shared index, or where some sites have a continuous weight and others
+should be excluded.}
 
-\item{max_clim}{Maximum climate distance threshold defining what counts
-as an analog (default: 1.0).}
+\item{covariates}{Optional matrix/data.frame or SpatRaster giving
+covariate values for each reference location (must have same number of
+rows/cells as \code{pool}). Required when \code{stat} includes \code{"regression"}.}
+
+\item{max_geog}{Maximum geographic distance constraint (default:
+NULL = no geographic constraint). When specified, only reference locations
+within this distance are considered. Radius units should be specified in
+kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
+if \code{coord_type = "projected"}.}
+
+\item{max_clim}{Maximum climate distance constraint (default: NULL = no
+climate constraint). Can be either:
+\itemize{
+\item A scalar: Euclidean radius in climate space (e.g., 0.5)
+\item A vector: Per-variable absolute differences (length must equal
+number of climate variables)
+}
+
+Only reference locations within this climate distance are considered.
+When \code{x_cov} is provided, scalar thresholds are interpreted in
+Mahalanobis distance units.}
 
 \item{kernel}{Kernel decay function for weighting analogs during aggregation. Only
 weighting options that are based on \emph{climate} are allowed:
 \code{"inverse_clim"} (default), \code{"gaussian_clim"}, \code{"inverse_joint"},
 \code{"gaussian_joint"}. See \code{\link[=analog_search]{analog_search()}} for details.}
 
-\item{theta}{Kernel bandwidth (default: 0.25). See \code{\link[=analog_search]{analog_search()}}.}
+\item{theta}{Optional numeric parameter controlling the shape of the
+weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
+\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
+Interpretation depends on \code{kernel}:
+\itemize{
+\item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
+added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
+\item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
+parameter (scalar; larger values = slower decay with distance).
+\item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
+\code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
+}}
 
 \item{stat}{Statistic(s) to compute across analogs (default: c("count",
 "sum_weights", "weighted_mean")). See \code{\link[=analog_search]{analog_search()}} for the full list
@@ -81,28 +117,80 @@ categorical y. Output has one column per class, named
 \code{mean}/\code{weighted_sum}/\code{regression}, but can be combined with
 \code{count}, \code{sum_weights}, \code{mean_weights}, and \code{ess}.
 \item \code{"count"}: Analog availability (number of analogs)
-\item \code{"sum_weights"}: Analog intensity (sum of climate-similarity
+\item \code{"sum_weights"}: Analog density (sum of climate-similarity
 weights across analogs)
 }
 The default \code{c("count", "sum_weights", "weighted_mean")} is appropriate
 for continuous \code{y}; for categorical \code{y}, swap \code{weighted_mean} for
 \code{tabulate}.}
 
-\item{lambda}{Ridge penalty for regression (default 0).}
+\item{lambda}{Ridge penalty parameter for \code{stat = "regression"}
+(default: 0, giving ordinary weighted least squares). Higher values
+shrink covariate coefficients toward zero, with the intercept
+approaching the weighted mean as \code{lambda -> Inf}. Ignored when
+\code{"regression"} is not in \code{stat}.}
 
-\item{se}{One of "none" (default), "ess", or "design"; SE variant for
-\code{weighted_mean} and \code{regression}.}
+\item{se}{Standard-error framing to apply to SE-supporting stats
+(\code{"weighted_mean"} and \code{"regression"}). One of:
+\itemize{
+\item \code{"none"} (default): no SE columns are returned.
+\item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
+\code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
+effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
+\verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
+using \code{n_eff - p} degrees of freedom.
+\item \code{"design"}: design-based framing (no assumption that weights are
+precisions). For \code{weighted_mean},
+\verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
+}}
 
-\item{x_cov}{Optional covariance matrices for Mahalanobis distance
-(one per focal point), as expected by \code{\link[=analog_search]{analog_search()}}.}
+\item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
+distance calculations. Should be a matrix or data.frame with one row per
+focal location and one column per unique covariance component, or a
+SpatRaster with a layer for each component. For n climate variables,
+there are n*(n+1)/2 unique components, ordered as: variances first
+(diagonals), then covariances (upper triangle by row).}
 
-\item{coord_type}{One of "auto", "lonlat", or "projected".}
+\item{coord_type}{Coordinate system type:
+\itemize{
+\item \code{"auto"} (default): Automatically detect from coordinate ranges.
+\item \code{"lonlat"}: Unprojected lon/lat coordinates (uses great-circle distance;
+assumes \code{max_geog} is in km).
+\item \code{"projected"}: Projected XY coordinates (uses planar distance;
+assumes \code{max_geog} is in projection units).
+}}
 
-\item{index_res}{Resolution parameter for the lattice index (or "auto").}
+\item{index_res}{Tuning parameter giving the number of bins per dimension
+of the internally-used lattice search index. Either:
+\itemize{
+\item A positive integer.
+\item \code{"auto"} (the default): Automatically tune the index resolution
+by optimizing compute time on a subsample of focal points. If focal has
+relatively few rows, auto-tuning is skipped and a default resolution of
+16 is used.
+}
 
-\item{n_threads}{Optional integer number of threads.}
+Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
 
-\item{progress}{Logical; show a progress bar.}
+\item{cell_area_weight}{Controls cell-area weighting when \code{pool} is a raster.
+One of \code{"auto"} (default; on for raster pools, off otherwise), \code{TRUE}
+(force on; errors if \code{pool} is not a SpatRaster), or \code{FALSE} (force
+off). Cell-area weights correct aggregation statistics for non-uniform
+cell areas (e.g. lonlat grids near the poles, or projected grids on
+non-equal-area projections); they are computed via
+\code{terra::cellSize()} and normalized to mean 1. When \code{pool} is a
+pre-built \code{analog_index}, this argument must agree with the index's
+stored configuration: \code{cell_area_weight = FALSE} errors if the index
+was built with cell-area weighting on (rebuild the index instead).}
+
+\item{n_threads}{Optional integer number of threads to use for the
+computation. If \code{NULL} (default), the global RcppParallel setting
+is used (see \code{RcppParallel::setThreadOptions}).}
+
+\item{progress}{Logical; if \code{TRUE}, display a progress bar during
+computation. Progress tracking works by splitting the focal dataset into
+chunks and processing them sequentially. Useful for large datasets. Default
+is \code{FALSE}.}
 
 \item{...}{Additional arguments passed to \code{\link[=analog_search]{analog_search()}}.}
 }
@@ -180,7 +268,7 @@ ecological transformation (cf. Hoecker et al. 2026).
 \item \code{count}: How many analogs exist within max_clim and max_geog? Low counts
 indicate limited analog availability, while zero counts indicate climates
 that are novel within the geographic search radius.
-\item \code{sum_weights}: Total analog intensity. Low values indicate sparse
+\item \code{sum_weights}: Total analog density. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
 of analogs. Interpretation details vary based on the \code{kernel} parameter.
 }

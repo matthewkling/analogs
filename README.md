@@ -37,8 +37,8 @@ analysis types:
   geographic constraint
 - `analog_availability()` counts analogs that meet climate and distance
   thresholds
-- `analog_intensity()` computes distance-weighted aggregations of analog
-  properties
+- `analog_density()` computes weighted sums of analog proximity and
+  climate similarity
 
 ## Distance metrics
 

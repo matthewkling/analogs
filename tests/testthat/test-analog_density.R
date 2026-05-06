@@ -1,14 +1,14 @@
-test_that("`analog_intensity` result matches manual calculation", {
+test_that("`analog_density` result matches manual calculation", {
 
       d <- sim_test_data()
       max_clim <- 2
       max_geog <- 2
 
-      # intensity
-      nn <- analog_intensity(d$focal, d$ref, max_clim = max_clim, max_geog = max_geog,
+      # density
+      nn <- analog_density(d$focal, d$ref, max_clim = max_clim, max_geog = max_geog,
                              kernel = "inverse_clim", coord_type = "projected")
 
-      # manual intensity calculation
+      # manual density calculation
       dclim <- xdist(d$focal, d$ref, "clim")
       dgeog <- xdist(d$focal, d$ref, "geog")
       dclim[dclim > max_clim] <- Inf
@@ -18,12 +18,12 @@ test_that("`analog_intensity` result matches manual calculation", {
       expect_equal(nn$sum_weights, intens)
 })
 
-test_that("analog_intensity works with x/pool parameter names", {
+test_that("analog_density works with x/pool parameter names", {
 
       d <- sim_test_data()
 
       # Test with raw data
-      i <- analog_intensity(
+      i <- analog_density(
             x = d$focal,
             pool = d$ref,
             max_clim = 1,
@@ -40,7 +40,7 @@ test_that("analog_intensity works with x/pool parameter names", {
 })
 
 
-test_that("analog_intensity works with analog_index", {
+test_that("analog_density works with analog_index", {
 
       d <- sim_test_data()
 
@@ -48,7 +48,7 @@ test_that("analog_intensity works with analog_index", {
       index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
 
       # Query with index
-      i <- analog_intensity(
+      i <- analog_density(
             x = d$focal,
             pool = index,
             max_clim = 1,
@@ -67,7 +67,7 @@ test_that("gaussian_clim kernel works", {
       d <- sim_test_data()
 
       # Test with gaussian_clim
-      result <- analog_intensity(
+      result <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -88,7 +88,7 @@ test_that("gaussian_geog kernel works", {
       d <- sim_test_data()
 
       # Test with gaussian_geog
-      result <- analog_intensity(
+      result <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -109,7 +109,7 @@ test_that("gaussian_joint kernel works", {
       d <- sim_test_data()
 
       # Test with gaussian_joint (requires theta length 2)
-      result <- analog_intensity(
+      result <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -130,7 +130,7 @@ test_that("inverse_joint kernel works", {
       d <- sim_test_data()
 
       # Test with inverse_joint
-      result <- analog_intensity(
+      result <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -151,7 +151,7 @@ test_that("gaussian kernels respect theta parameter", {
       d <- sim_test_data()
 
       # Smaller theta should produce more localized (smaller) kernels
-      r1 <- analog_intensity(
+      r1 <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -160,7 +160,7 @@ test_that("gaussian kernels respect theta parameter", {
             coord_type = "projected"
       )
 
-      r2 <- analog_intensity(
+      r2 <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -182,7 +182,7 @@ test_that("gaussian_joint requires 2-element theta", {
 
       # Should error with scalar theta
       expect_error(
-            analog_intensity(
+            analog_density(
                   d$focal, d$ref,
                   max_clim = 2,
                   kernel = "gaussian_joint",
@@ -194,7 +194,7 @@ test_that("gaussian_joint requires 2-element theta", {
 
       # Should error with NULL theta
       expect_error(
-            analog_intensity(
+            analog_density(
                   d$focal, d$ref,
                   max_clim = 2,
                   kernel = "gaussian_joint",
@@ -212,7 +212,7 @@ test_that("inverse_joint requires 2-element theta", {
 
       # Should error with scalar theta
       expect_error(
-            analog_intensity(
+            analog_density(
                   d$focal, d$ref,
                   max_clim = 2,
                   kernel = "inverse_joint",
@@ -232,7 +232,7 @@ test_that("new kernels work with analog_index", {
       index <- build_analog_index(d$ref, coord_type = "projected", index_res = 10)
 
       # Test each new kernel with index
-      r1 <- analog_intensity(
+      r1 <- analog_density(
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
@@ -241,7 +241,7 @@ test_that("new kernels work with analog_index", {
       )
       expect_true(all(is.finite(r1$sum_weights)))
 
-      r2 <- analog_intensity(
+      r2 <- analog_density(
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
@@ -250,7 +250,7 @@ test_that("new kernels work with analog_index", {
       )
       expect_true(all(is.finite(r2$sum_weights)))
 
-      r3 <- analog_intensity(
+      r3 <- analog_density(
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
@@ -259,7 +259,7 @@ test_that("new kernels work with analog_index", {
       )
       expect_true(all(is.finite(r3$sum_weights)))
 
-      r4 <- analog_intensity(
+      r4 <- analog_density(
             d$focal, index,
             max_clim = 2,
             max_geog = 2,
@@ -275,7 +275,7 @@ test_that("gaussian and inverse kernels produce different results", {
       d <- sim_test_data()
 
       # Compare gaussian vs inverse with similar parameterization
-      r_gauss <- analog_intensity(
+      r_gauss <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -284,7 +284,7 @@ test_that("gaussian and inverse kernels produce different results", {
             coord_type = "projected"
       )
 
-      r_inv <- analog_intensity(
+      r_inv <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -303,7 +303,7 @@ test_that("joint kernels combine both dimensions appropriately", {
       d <- sim_test_data()
 
       # Joint should differ from single-dimension kernels
-      r_joint <- analog_intensity(
+      r_joint <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,
@@ -312,7 +312,7 @@ test_that("joint kernels combine both dimensions appropriately", {
             coord_type = "projected"
       )
 
-      r_clim_only <- analog_intensity(
+      r_clim_only <- analog_density(
             d$focal, d$ref,
             max_clim = 2,
             max_geog = 2,

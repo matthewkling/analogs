@@ -522,12 +522,12 @@ test_that("x_cov works with sum mode and weights", {
       x_cov[, 3] <- 0.3  # moderate correlation
 
       # Test with inverse_clim weight
-      s1 <- analog_intensity(d$focal, d$ref,
+      s1 <- analog_density(d$focal, d$ref,
                              max_clim = 1, max_geog = 2,
                              kernel = "inverse_clim",
                              coord_type = "projected", index_res = 10)
 
-      s2 <- analog_intensity(d$focal, d$ref,
+      s2 <- analog_density(d$focal, d$ref,
                              max_clim = 1, max_geog = 2,
                              kernel = "inverse_clim",
                              coord_type = "projected", index_res = 10,

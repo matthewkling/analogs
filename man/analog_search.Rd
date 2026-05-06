@@ -379,6 +379,6 @@ Meteorology and Climatology}, \strong{52}(4), 733-752.
 \seealso{
 \code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large raster
 datasets. Helper functions such as \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_velocity]{analog_velocity()}},
-and \code{\link[=analog_intensity]{analog_intensity()}} offer simpler interfaces for common search types.
+and \code{\link[=analog_density]{analog_density()}} offer simpler interfaces for common search types.
 \code{\link[=analog_cv]{analog_cv()}} provides cross-validation workflows.
 }

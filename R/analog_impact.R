@@ -9,28 +9,6 @@
 #' characteristics weighted by climate similarity. Aggregation can be a weighted mean
 #' for continuous outcomes or a weighted class count for categorical outcomes.
 #'
-#' @param x Focal locations (usually future climate conditions for AIM, or baseline
-#'   conditions for static interpolation). Should be a matrix/data.frame with columns x, y, and
-#'   climate variables, or a SpatRaster with climate variable layers.
-#' @param pool The reference dataset (generally representing baseline climate conditions).
-#' Either:
-#'   \itemize{
-#'     \item Matrix/data.frame with columns x, y, and climate variables,
-#'       or SpatRaster with climate variable layers, OR
-#'     \item An `analog_index` object created by
-#'       [build_analog_index()] (for repeated queries).
-#'   }
-#' @param y Ecological or environmental variable(s) for the same era as `pool`,
-#'   to aggregate across climate analogs. For continuous stats
-#'   (`weighted_mean`, `sum`, etc.), `y` should be numeric: occupancy of focal
-#'   species, species richness, biomass, or any other numeric ecological state.
-#'   For `stat = "tabulate"` (categorical aggregation), `y` should be a factor
-#'   or a vector that can be coerced to a factor (e.g., character vector of
-#'   vegetation type names, integer class codes, or a single-layer
-#'   categorical SpatRaster). Can be a vector / factor (single variable),
-#'   matrix or data.frame (multiple variables), or a SpatRaster with one or
-#'   more layers. Must have exactly the same number of reference locations
-#'   as `pool`.
 #' @param stat Statistic(s) to compute across analogs (default: c("count",
 #'   "sum_weights", "weighted_mean")). See [analog_search()] for the full list
 #'   of options. Common choices:
@@ -43,7 +21,7 @@
 #'       `mean`/`weighted_sum`/`regression`, but can be combined with
 #'       `count`, `sum_weights`, `mean_weights`, and `ess`.
 #'     \item `"count"`: Analog availability (number of analogs)
-#'     \item `"sum_weights"`: Analog intensity (sum of climate-similarity
+#'     \item `"sum_weights"`: Analog density (sum of climate-similarity
 #'       weights across analogs)
 #'   }
 #'   The default `c("count", "sum_weights", "weighted_mean")` is appropriate
@@ -53,23 +31,7 @@
 #'   weighting options that are based on *climate* are allowed:
 #'   `"inverse_clim"` (default), `"gaussian_clim"`, `"inverse_joint"`,
 #'   `"gaussian_joint"`. See [analog_search()] for details.
-#' @param theta Kernel bandwidth (default: 0.25). See [analog_search()].
-#' @param max_geog Maximum geographic distance for analogs (km if lonlat;
-#'   projection units otherwise). Acts as a hard dispersal constraint.
-#' @param max_clim Maximum climate distance threshold defining what counts
-#'   as an analog (default: 1.0).
-#' @param covariates Covariates to use with `stat = "regression"` (NULL
-#'   otherwise; see [analog_regression()] for the regression-focused
-#'   wrapper).
-#' @param lambda Ridge penalty for regression (default 0).
-#' @param se One of "none" (default), "ess", or "design"; SE variant for
-#'   `weighted_mean` and `regression`.
-#' @param x_cov Optional covariance matrices for Mahalanobis distance
-#'   (one per focal point), as expected by [analog_search()].
-#' @param coord_type One of "auto", "lonlat", or "projected".
-#' @param index_res Resolution parameter for the lattice index (or "auto").
-#' @param n_threads Optional integer number of threads.
-#' @param progress Logical; show a progress bar.
+#' @inheritParams analog_search
 #' @param ... Additional arguments passed to [analog_search()].
 #'
 #' @details
@@ -129,7 +91,7 @@
 #'   \item `count`: How many analogs exist within max_clim and max_geog? Low counts
 #'     indicate limited analog availability, while zero counts indicate climates
 #'     that are novel within the geographic search radius.
-#'   \item `sum_weights`: Total analog intensity. Low values indicate sparse
+#'   \item `sum_weights`: Total analog density. Low values indicate sparse
 #'     or distant climate matches. This metric captures both the number and quality
 #'     of analogs. Interpretation details vary based on the `kernel` parameter.
 #' }

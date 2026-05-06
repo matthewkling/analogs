@@ -321,7 +321,7 @@
 #'
 #' @seealso [tiled_analog_search()] offers memory-safe searches on large raster
 #'   datasets. Helper functions such as [analog_impact()], [analog_velocity()],
-#'   and [analog_intensity()] offer simpler interfaces for common search types.
+#'   and [analog_density()] offer simpler interfaces for common search types.
 #'   [analog_cv()] provides cross-validation workflows.
 #'
 #' @export

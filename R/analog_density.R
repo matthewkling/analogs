@@ -1,4 +1,4 @@
-#' Analog intensity: kernel-weighted sum of analogs within climate/geographic limits
+#' Analog density: kernel-weighted sum of analogs within climate/geographic limits
 #'
 #' Computes, for each focal location, the sum of weights of all reference locations
 #' that satisfy the supplied climate and geographic constraints. The weights are
@@ -33,7 +33,7 @@
 #' @examples
 #' \dontrun{
 #' # One-shot query with inverse kernel weighting
-#' intens <- analog_intensity(
+#' intens <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
 #'   max_clim = 0.5,
@@ -42,7 +42,7 @@
 #' )
 #'
 #' # Gaussian weighting by climate distance
-#' intens_gauss <- analog_intensity(
+#' intens_gauss <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
 #'   max_clim = 0.5,
@@ -52,7 +52,7 @@
 #' )
 #'
 #' # Joint Gaussian weighting (both climate and geography)
-#' intens_joint <- analog_intensity(
+#' intens_joint <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
 #'   max_clim = 0.5,
@@ -63,9 +63,9 @@
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(climate_data)
-#' i1 <- analog_intensity(x = sites1, pool = index, max_clim = 0.5,
+#' i1 <- analog_density(x = sites1, pool = index, max_clim = 0.5,
 #'                        kernel = "inverse_clim")
-#' i2 <- analog_intensity(x = sites2, pool = index, max_geog = 100,
+#' i2 <- analog_density(x = sites2, pool = index, max_geog = 100,
 #'                        kernel = "inverse_geog")
 #' }
 #'
@@ -73,7 +73,7 @@
 #'   [tiled_analog_search()] for memory-safe searches on large raster datasets.
 #'
 #' @export
-analog_intensity <- function(
+analog_density <- function(
             x,
             pool,
             x_cov      = NULL,
@@ -108,7 +108,7 @@ analog_intensity <- function(
             kernel      = kernel,
             theta       = theta,
             x_cov       = x_cov,
-            y           = NULL, # not relevant for intensity
+            y           = NULL, # not relevant for density
             weight      = weight,
             coord_type  = coord_type,
             index_res   = index_res,
