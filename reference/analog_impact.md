@@ -18,6 +18,7 @@ analog_impact(
   x,
   pool,
   y,
+  weight = NULL,
   covariates = NULL,
   max_geog = NULL,
   max_clim = 1,
@@ -29,6 +30,7 @@ analog_impact(
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
+  cell_area_weight = "auto",
   n_threads = NULL,
   progress = FALSE,
   ...

@@ -50,7 +50,8 @@ avoiding the need to rebuild the lattice for each query.</p>
 <span>  coord_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"lonlat"</span>, <span class="st">"projected"</span><span class="op">)</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="fl">16</span>,</span>
 <span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  seed <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -94,6 +95,30 @@ See Details for more info.</p></dd>
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Optional random seed for reproducible downsampling. If <code>NULL</code>
 (default), uses current R random state.</p></dd>
+
+
+<dt id="arg-cell-area-weight">cell_area_weight<a class="anchor" aria-label="anchor" href="#arg-cell-area-weight"></a></dt>
+<dd><p>Controls cell-area weighting for raster pools.
+One of:</p><ul><li><p><code>"auto"</code> (default): Compute cell-area weights when <code>pool</code> is a
+SpatRaster, and skip them otherwise. This corrects aggregation
+statistics for non-uniform cell areas (e.g. lonlat grids where cell
+area shrinks toward the poles, or projected grids on
+non-equal-area projections).</p></li>
+<li><p><code>TRUE</code>: Force cell-area weighting on. Errors if <code>pool</code> is not a
+SpatRaster.</p></li>
+<li><p><code>FALSE</code>: Force cell-area weighting off; treat all pool points
+as having equal weight.</p></li>
+<li><p>A numeric vector of length <code>nrow(pool)</code>: Use these
+caller-supplied weights as-is, without any further normalization.
+This is intended for advanced workflows like <code><a href="tiled_analog_search.html">tiled_analog_search()</a></code>
+that need to maintain a globally consistent normalization across
+multiple per-tile index builds; most users should use one of the
+three options above.</p></li>
+</ul><p>When <code>"auto"</code> or <code>TRUE</code> triggers computation, weights are computed via
+<code><a href="https://rspatial.github.io/terra/reference/cellSize.html" class="external-link">terra::cellSize()</a></code> and normalized to mean 1 over finite values, so
+absolute magnitudes of stats like <code>sum_weights</code> remain comparable to
+the unweighted case. The weights are stored on the returned index and
+used during all subsequent queries.</p></dd>
 
 </dl></div>
     <div class="section level2">

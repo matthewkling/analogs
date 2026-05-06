@@ -71,6 +71,7 @@ You can install the development version of analogs from
 [GitHub](https://github.com/) with:
 
 ``` r
+
 pak::pak("matthewkling/analogs")
 ```
 

@@ -12,7 +12,8 @@ build_analog_index(
   coord_type = c("auto", "lonlat", "projected"),
   index_res = 16,
   downsample = 1,
-  seed = NULL
+  seed = NULL,
+  cell_area_weight = "auto"
 )
 ```
 
@@ -62,6 +63,37 @@ build_analog_index(
 
   Optional random seed for reproducible downsampling. If `NULL`
   (default), uses current R random state.
+
+- cell_area_weight:
+
+  Controls cell-area weighting for raster pools. One of:
+
+  - `"auto"` (default): Compute cell-area weights when `pool` is a
+    SpatRaster, and skip them otherwise. This corrects aggregation
+    statistics for non-uniform cell areas (e.g. lonlat grids where cell
+    area shrinks toward the poles, or projected grids on non-equal-area
+    projections).
+
+  - `TRUE`: Force cell-area weighting on. Errors if `pool` is not a
+    SpatRaster.
+
+  - `FALSE`: Force cell-area weighting off; treat all pool points as
+    having equal weight.
+
+  - A numeric vector of length `nrow(pool)`: Use these caller-supplied
+    weights as-is, without any further normalization. This is intended
+    for advanced workflows like
+    [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
+    that need to maintain a globally consistent normalization across
+    multiple per-tile index builds; most users should use one of the
+    three options above.
+
+  When `"auto"` or `TRUE` triggers computation, weights are computed via
+  [`terra::cellSize()`](https://rspatial.github.io/terra/reference/cellSize.html)
+  and normalized to mean 1 over finite values, so absolute magnitudes of
+  stats like `sum_weights` remain comparable to the unweighted case. The
+  weights are stored on the returned index and used during all
+  subsequent queries.
 
 ## Value
 

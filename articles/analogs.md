@@ -1,6 +1,7 @@
 # Introduction to analogs
 
 ``` r
+
 library(analogs)
 library(terra)
 ```
@@ -28,14 +29,14 @@ along with simplified wrappers for common analysis types.
 
 The table below shows how each wrapper maps to the framework:
 
-| Function                                                                                           | Neighborhood                                   | Summary          | Use case                                                 |
-|----------------------------------------------------------------------------------------------------|------------------------------------------------|------------------|----------------------------------------------------------|
-| [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md)         | k nearest geographic, climate-constrained      | Pairs            | Where is this climate moving?                            |
-| [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md)     | k nearest climatic, geographically-constrained | Pairs            | What climates are reachable?                             |
-| [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md) | All within thresholds                          | Count            | Where do analogs exist?                                  |
-| [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)       | All within thresholds                          | Weighted sum     | How strong are analog matches?                           |
-| [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)             | All within thresholds                          | Weighted mean    | What ecological conditions to expect?                    |
-| [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)     | Flexible                                       | Local regression | How do covariates predict outcomes within neighborhoods? |
+| Function | Neighborhood | Summary | Use case |
+|----|----|----|----|
+| [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md) | k nearest geographic, climate-constrained | Pairs | Where is this climate moving? |
+| [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md) | k nearest climatic, geographically-constrained | Pairs | What climates are reachable? |
+| [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md) | All within thresholds | Count | Where do analogs exist? |
+| [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md) | All within thresholds | Weighted sum | How strong are analog matches? |
+| [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md) | All within thresholds | Weighted mean | What ecological conditions to expect? |
+| [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md) | Flexible | Local regression | How do covariates predict outcomes within neighborhoods? |
 
 As described below, these functions fall into two categories: analog
 enumeration functions (which find analogs for each focal site and either
@@ -78,6 +79,7 @@ projection (2041–2070, SSP585). These are used throughout this vignette.
 Let’s unpack them and make some quick maps:
 
 ``` r
+
 clim <- example_rasters()
 hist <- clim$historic
 fut <- clim$future
@@ -123,6 +125,7 @@ climate variables), use
 to pre-whiten the data:
 
 ``` r
+
 transformed <- mahalanobis_transform(x = hist, pool = fut)
 vel_mahal <- analog_velocity(
       x = transformed$x,
@@ -156,6 +159,39 @@ thumb: set `theta` so that the weight decays to near zero at the
 For joint kernels, `theta` is a 2-element vector
 `c(theta_clim, theta_geog)`.
 
+### Analog weights
+
+Beyond the kernel weights described above, the framework supports two
+other ways to weight pool sites in summary statistics. Both get
+multiplied through any kernel weighting and influence which analogs
+receive more weight in the aggregation, but do not affect which analogs
+are selected.
+
+- **Cell-area weights** correct for the fact that raster grid cells
+  often have non-uniform area. Without correction, naive summaries over
+  multiple analog grid cells are biased toward regions of small cells
+  (e.g. high latitudes on a lon-lat grid, or distorted regions of a
+  non-equal-area projection). When `pool` is a raster, analog functions
+  compute and apply cell-area weights by default. You can override this
+  with `cell_area_weight = FALSE` to disable it.
+- **User weights** let you express ecological or methodological
+  variation across pool sites — for example, sampling effort, ecological
+  intactness, occurrence probabilities for a focal species, or any other
+  per-site weight that should influence aggregation. Pass them via the
+  `weight` argument as a numeric vector, single-column matrix or data
+  frame, or single-layer SpatRaster matching `pool`. Values must be
+  non-negative; `NA` is allowed and is treated as zero (the site
+  contributes nothing). User weights are reported alongside the analog
+  index in pair-mode output, making it easy to filter or post-process
+  based on the weight of each match.
+- Also note that a fourth source of weighting, **sample weights**,
+  arises only when you set `downsample < 1` to accelerate queries on a
+  large pool (as discussed below). The package rescales the surviving
+  points’ weights to keep aggregations unbiased, and these weights get
+  multiplied with the other three. You generally do not need to think
+  about them; they are surfaced as a `sample_weight` column in pair-mode
+  output for the rare case where you want to inspect them.
+
 ## Analog enumeration functions
 
 This category of analyses includes functions that simply identify and
@@ -184,6 +220,7 @@ that analog, divided by the time elapsed, is the velocity. Sites with no
 analog in the reference pool—an important category— have `NA` results.
 
 ``` r
+
 fwd_vel <- analog_velocity(
       x = hist,
       pool = fut,
@@ -215,6 +252,7 @@ downstream analyses, including visualizing the direction from a site to
 its analog location:
 
 ``` r
+
 fwd_vel$bearing <- geosphere::bearing(crds(fwd_vel, na.rm = FALSE),
                                       values(fwd_vel)[, c("analog_x", "analog_y")])
 
@@ -236,6 +274,7 @@ into how much climate change organisms must tolerate given limited
 dispersal capacity.
 
 ``` r
+
 sim <- analog_similarity(
       x = fut,
       pool = hist,
@@ -259,6 +298,7 @@ potential for adaptive dispersal under climate change, while locations
 with zero analogs represent novel or disappearing climates.
 
 ``` r
+
 avail <- analog_availability(
       x = fut,
       pool = hist,
@@ -280,6 +320,7 @@ geographic proximity rather than simply counted. This captures both the
 number and quality of analog matches.
 
 ``` r
+
 intens <- analog_intensity(
       x = fut,
       pool = hist,
@@ -326,6 +367,7 @@ compute standard errors based on effective sample size for each grid
 cell.
 
 ``` r
+
 # Use historical CWD as a proxy ecological variable
 eco_var <- hist$CWD
 
@@ -375,6 +417,7 @@ determined by the `theta` parameters and the shape of the selected
 `kernel` function.
 
 ``` r
+
 # Simulate sparse field observations at 500 random locations
 set.seed(123)
 n_sites <- 500
@@ -426,6 +469,7 @@ The typical approach for choosing a `lambda` value is cross-validation
 below), but here we’ll arbitrarily pick a modest value.
 
 ``` r
+
 # Simulate covariates for the pool (just using AET for expediency)
 set.seed(42)
 pool_covariates <- data.frame(
@@ -473,6 +517,7 @@ underlying framework — no climate constraint, geographic kernel, local
 regression on covariates.
 
 ``` r
+
 # GWR: geographic neighborhood, geographic kernel weighting
 gwr <- analog_regression(
       x = hist,
@@ -535,6 +580,7 @@ performance. If we wanted to tune a model parameter (`labmda`
 values to identify the best-performing settings.
 
 ``` r
+
 # Run cross-validation and plot residuals
 cv <- analog_cv(
       fun = analog_impact, pool = hist, y = eco_var,
@@ -550,14 +596,15 @@ plot of chunk cv
 
 ``` r
 
+
 # Calculate prediction error metrics
 cv_performance(cv)
 #>   variable       type metric         value
 #> 1        y continuous      n  2.288230e+05
-#> 2        y continuous   rmse  4.061223e-02
-#> 3        y continuous    mae  3.096715e-02
-#> 4        y continuous   bias -1.895618e-03
-#> 5        y continuous     r2  9.983305e-01
+#> 2        y continuous   rmse  4.058843e-02
+#> 3        y continuous    mae  3.093594e-02
+#> 4        y continuous   bias -2.237632e-03
+#> 5        y continuous     r2  9.983324e-01
 ```
 
 ## Computational performance
@@ -571,6 +618,7 @@ When running multiple queries against the same reference pool, build the
 lattice index once and reuse it:
 
 ``` r
+
 idx <- build_analog_index(hist)
 
 # Multiple queries reuse the same index
@@ -585,6 +633,7 @@ repeated queries with the same configuration, you can tune once and
 reuse:
 
 ``` r
+
 res <- tune_index_res(
       x = fut, pool = hist,
       stat = "count",
@@ -599,6 +648,7 @@ idx <- build_analog_index(hist, index_res = res)
 Use the `n_threads` parameter to parallelize across focal locations:
 
 ``` r
+
 result <- analog_velocity(fut, hist, max_clim = 0.5, k = 1, n_threads = 4)
 ```
 
@@ -609,6 +659,7 @@ For rasters too large to fit in memory,
 processes the focal data in spatial tiles:
 
 ``` r
+
 result <- tiled_analog_search(
       x = very_large_raster,
       pool = idx,
@@ -625,9 +676,12 @@ For very large reference pools, downsampling reduces computation. The
 package uses an adaptive sampling routine that reduces the effects on
 precision by downsampling more heavily in dense regions of
 climatic-geographic space in order to preserve coverage in sparse
-regions:
+regions. As noted above, each `pool` site in the downsampled data gets a
+sample weight that’s used to correct summary statistics so that
+downsampling doesn’t bias the results:
 
 ``` r
+
 result <- analog_availability(
       x = fut, pool = hist,
       max_clim = 0.5, max_geog = 200,

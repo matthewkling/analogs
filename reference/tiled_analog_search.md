@@ -16,6 +16,8 @@ tiled_analog_search(
   max_geog,
   y = NULL,
   x_cov = NULL,
+  weight = NULL,
+  cell_area_weight = "auto",
   ...,
   output_file = NULL,
   progress = TRUE
@@ -63,9 +65,28 @@ tiled_analog_search(
   Optional SpatRaster with covariates for focal points. Must have
   spatial properties matching x.
 
+- weight:
+
+  Optional single-layer SpatRaster of per-pool-cell weights. Must have
+  the same CRS and extent as `pool`. See
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  for details.
+
+- cell_area_weight:
+
+  Controls cell-area weighting. One of `"auto"` (default; on for raster
+  pools, which is always the case here), `TRUE`, or `FALSE`. Unlike a
+  non-tiled query, where weights are normalized to mean 1 over whatever
+  pool is passed, here weights are normalized to mean 1 over the *full
+  pool raster* once at the outer level, and the resulting raster is
+  sliced per tile. This keeps absolute magnitudes of weighted stats
+  (e.g. `sum_weights`) consistent across tiles.
+
 - ...:
 
-  Additional arguments passed to fun. Must include max_geog.
+  Additional arguments passed to fun. Must include max_geog. May include
+  `covariates` as a SpatRaster matching `pool`'s CRS and extent (cropped
+  per tile alongside `y`).
 
 - output_file:
 

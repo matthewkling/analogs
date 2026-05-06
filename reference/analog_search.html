@@ -54,6 +54,7 @@ then optionally aggregating the results.</p>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_clim <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  select <span class="op">=</span> <span class="st">"all"</span>,</span>
@@ -68,6 +69,7 @@ then optionally aggregating the results.</p>
 <span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -113,6 +115,26 @@ logical) for <code>stat = "tabulate"</code>.</p></dd>
 <dd><p>Optional matrix/data.frame or SpatRaster giving
 covariate values for each reference location (must have same number of
 rows/cells as <code>pool</code>). Required when <code>stat</code> includes <code>"regression"</code>.</p></dd>
+
+
+<dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
+<dd><p>Optional pool site weights for use in aggregation.
+Numeric vector, single-column matrix/data.frame, or single-layer
+SpatRaster, with one value per row/cell of <code>pool</code>. For aggregation
+stats like <code>"weighted_mean"</code>, <code>"regression"</code>, etc., weights multiply
+through the weighted aggregation alongside any kernel weighting and
+cell-area weighting; they do not influence which analogs are selected
+by <code>knn_*</code> modes (selection remains distance-only). They are reported
+in pair mode as a <code>user_weight</code> column. Values must be non-negative;
+<code>NA</code> is allowed and treated as 0 (the point is excluded from
+aggregation). Default <code>NULL</code> means no user-supplied weights.</p>
+<p>If you want to exclude a static subset of pool sites entirely, masking
+<code>pool</code> (and any associated <code>y</code> / <code>covariates</code>) upfront is more
+efficient than passing <code>weight = 0</code> for those sites, since the
+lattice index will not have to scan or distance-compute against them.
+Use <code>weight = 0</code> for cases where the mask varies per query against a
+shared index, or where some sites have a continuous weight and others
+should be excluded.</p></dd>
 
 
 <dt id="arg-max-clim">max_clim<a class="anchor" aria-label="anchor" href="#arg-max-clim"></a></dt>
@@ -283,6 +305,19 @@ relatively few rows, auto-tuning is skipped and a default resolution of
 </ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
 
 
+<dt id="arg-cell-area-weight">cell_area_weight<a class="anchor" aria-label="anchor" href="#arg-cell-area-weight"></a></dt>
+<dd><p>Controls cell-area weighting when <code>pool</code> is a raster.
+One of <code>"auto"</code> (default; on for raster pools, off otherwise), <code>TRUE</code>
+(force on; errors if <code>pool</code> is not a SpatRaster), or <code>FALSE</code> (force
+off). Cell-area weights correct aggregation statistics for non-uniform
+cell areas (e.g. lonlat grids near the poles, or projected grids on
+non-equal-area projections); they are computed via
+<code><a href="https://rspatial.github.io/terra/reference/cellSize.html" class="external-link">terra::cellSize()</a></code> and normalized to mean 1. When <code>pool</code> is a
+pre-built <code>analog_index</code>, this argument must agree with the index's
+stored configuration: <code>cell_area_weight = FALSE</code> errors if the index
+was built with cell-area weighting on (rebuild the index instead).</p></dd>
+
+
 <dt id="arg-n-threads">n_threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
 <dd><p>Optional integer number of threads to use for the
 computation. If <code>NULL</code> (default), the global RcppParallel setting
@@ -332,7 +367,7 @@ Use <code><a href="metadata.html">metadata()</a></code> to retrieve them as a na
 <h3 id="parameter-categories">Parameter categories<a class="anchor" aria-label="anchor" href="#parameter-categories"></a></h3>
 
 <ul><li><p><em>Data parameters</em>
-(<code>x</code>, <code>pool</code>, <code>x_cov</code>, <code>y</code>, <code>covariates</code>, <code>coord_type</code>)
+(<code>x</code>, <code>pool</code>, <code>x_cov</code>, <code>y</code>, <code>covariates</code>, <code>weight</code>, <code>coord_type</code>)
 give attributes of the data on which to operate.</p></li>
 <li><p><em>Selection parameters</em>
 (<code>select</code>, <code>max_clim</code>, <code>max_geog</code>, <code>k</code>)

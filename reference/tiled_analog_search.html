@@ -56,6 +56,8 @@ function.</p>
 <span>  <span class="va">max_geog</span>,</span>
 <span>  y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  <span class="va">...</span>,</span>
 <span>  output_file <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  progress <span class="op">=</span> <span class="cn">TRUE</span></span>
@@ -105,8 +107,26 @@ Must have spatial properties matching pool.</p></dd>
 spatial properties matching x.</p></dd>
 
 
+<dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
+<dd><p>Optional single-layer SpatRaster of per-pool-cell weights.
+Must have the same CRS and extent as <code>pool</code>. See <code><a href="analog_search.html">analog_search()</a></code> for
+details.</p></dd>
+
+
+<dt id="arg-cell-area-weight">cell_area_weight<a class="anchor" aria-label="anchor" href="#arg-cell-area-weight"></a></dt>
+<dd><p>Controls cell-area weighting. One of <code>"auto"</code>
+(default; on for raster pools, which is always the case here), <code>TRUE</code>,
+or <code>FALSE</code>. Unlike a non-tiled query, where weights are normalized to
+mean 1 over whatever pool is passed, here weights are normalized to
+mean 1 over the <em>full pool raster</em> once at the outer level, and the
+resulting raster is sliced per tile. This keeps absolute magnitudes of
+weighted stats (e.g. <code>sum_weights</code>) consistent across tiles.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Additional arguments passed to fun. Must include max_geog.</p></dd>
+<dd><p>Additional arguments passed to fun. Must include max_geog.
+May include <code>covariates</code> as a SpatRaster matching <code>pool</code>'s CRS and
+extent (cropped per tile alongside <code>y</code>).</p></dd>
 
 
 <dt id="arg-output-file">output_file<a class="anchor" aria-label="anchor" href="#arg-output-file"></a></dt>

@@ -266,6 +266,46 @@ decays to near zero at the <code>max_clim</code> or
 <p>For joint kernels, <code>theta</code> is a 2-element vector
 <code>c(theta_clim, theta_geog)</code>.</p>
 </div>
+<div class="section level3">
+<h3 id="analog-weights">Analog weights<a class="anchor" aria-label="anchor" href="#analog-weights"></a>
+</h3>
+<p>Beyond the kernel weights described above, the framework supports two
+other ways to weight pool sites in summary statistics. Both get
+multiplied through any kernel weighting and influence which analogs
+receive more weight in the aggregation, but do not affect which analogs
+are selected.</p>
+<ul>
+<li>
+<strong>Cell-area weights</strong> correct for the fact that raster
+grid cells often have non-uniform area. Without correction, naive
+summaries over multiple analog grid cells are biased toward regions of
+small cells (e.g. high latitudes on a lon-lat grid, or distorted regions
+of a non-equal-area projection). When <code>pool</code> is a raster,
+analog functions compute and apply cell-area weights by default. You can
+override this with <code>cell_area_weight = FALSE</code> to disable
+it.</li>
+<li>
+<strong>User weights</strong> let you express ecological or
+methodological variation across pool sites — for example, sampling
+effort, ecological intactness, occurrence probabilities for a focal
+species, or any other per-site weight that should influence aggregation.
+Pass them via the <code>weight</code> argument as a numeric vector,
+single-column matrix or data frame, or single-layer SpatRaster matching
+<code>pool</code>. Values must be non-negative; <code>NA</code> is
+allowed and is treated as zero (the site contributes nothing). User
+weights are reported alongside the analog index in pair-mode output,
+making it easy to filter or post-process based on the weight of each
+match.</li>
+<li>Also note that a fourth source of weighting, <strong>sample
+weights</strong>, arises only when you set
+<code>downsample &lt; 1</code> to accelerate queries on a large pool (as
+discussed below). The package rescales the surviving points’ weights to
+keep aggregations unbiased, and these weights get multiplied with the
+other three. You generally do not need to think about them; they are
+surfaced as a <code>sample_weight</code> column in pair-mode output for
+the rare case where you want to inspect them.</li>
+</ul>
+</div>
 </div>
 <div class="section level2">
 <h2 id="analog-enumeration-functions">Analog enumeration functions<a class="anchor" aria-label="anchor" href="#analog-enumeration-functions"></a>
@@ -635,10 +675,10 @@ parameter values to identify the best-performing settings.</p>
 <span><span class="fu"><a href="../reference/cv_performance.html">cv_performance</a></span><span class="op">(</span><span class="va">cv</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   variable       type metric         value</span></span>
 <span><span class="co">#&gt; 1        y continuous      n  2.288230e+05</span></span>
-<span><span class="co">#&gt; 2        y continuous   rmse  4.061223e-02</span></span>
-<span><span class="co">#&gt; 3        y continuous    mae  3.096715e-02</span></span>
-<span><span class="co">#&gt; 4        y continuous   bias -1.895618e-03</span></span>
-<span><span class="co">#&gt; 5        y continuous     r2  9.983305e-01</span></span></code></pre></div>
+<span><span class="co">#&gt; 2        y continuous   rmse  4.058843e-02</span></span>
+<span><span class="co">#&gt; 3        y continuous    mae  3.093594e-02</span></span>
+<span><span class="co">#&gt; 4        y continuous   bias -2.237632e-03</span></span>
+<span><span class="co">#&gt; 5        y continuous     r2  9.983324e-01</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
@@ -704,7 +744,9 @@ tiles:</p>
 package uses an adaptive sampling routine that reduces the effects on
 precision by downsampling more heavily in dense regions of
 climatic-geographic space in order to preserve coverage in sparse
-regions:</p>
+regions. As noted above, each <code>pool</code> site in the downsampled
+data gets a sample weight that’s used to correct summary statistics so
+that downsampling doesn’t bias the results:</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>,</span>

@@ -15,6 +15,7 @@ query_analog_index(
   x_cov,
   y,
   covariates,
+  weight = NULL,
   k,
   kernel,
   theta,

@@ -11,10 +11,12 @@ analog_availability(
   x,
   pool,
   x_cov = NULL,
+  weight = NULL,
   coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
   index_res = "auto",
+  cell_area_weight = "auto",
   n_threads = NULL,
   downsample = 1,
   seed = NULL,
@@ -49,6 +51,27 @@ analog_availability(
   SpatRaster with a layer for each component. For n climate variables,
   there are n\*(n+1)/2 unique components, ordered as: variances first
   (diagonals), then covariances (upper triangle by row).
+
+- weight:
+
+  Optional pool site weights for use in aggregation. Numeric vector,
+  single-column matrix/data.frame, or single-layer SpatRaster, with one
+  value per row/cell of `pool`. For aggregation stats like
+  `"weighted_mean"`, `"regression"`, etc., weights multiply through the
+  weighted aggregation alongside any kernel weighting and cell-area
+  weighting; they do not influence which analogs are selected by `knn_*`
+  modes (selection remains distance-only). They are reported in pair
+  mode as a `user_weight` column. Values must be non-negative; `NA` is
+  allowed and treated as 0 (the point is excluded from aggregation).
+  Default `NULL` means no user-supplied weights.
+
+  If you want to exclude a static subset of pool sites entirely, masking
+  `pool` (and any associated `y` / `covariates`) upfront is more
+  efficient than passing `weight = 0` for those sites, since the lattice
+  index will not have to scan or distance-compute against them. Use
+  `weight = 0` for cases where the mask varies per query against a
+  shared index, or where some sites have a continuous weight and others
+  should be excluded.
 
 - coord_type:
 
@@ -97,6 +120,20 @@ analog_availability(
     of 16 is used.
 
   Ignored if `pool` is an `analog_index` (uses index's resolution).
+
+- cell_area_weight:
+
+  Controls cell-area weighting when `pool` is a raster. One of `"auto"`
+  (default; on for raster pools, off otherwise), `TRUE` (force on;
+  errors if `pool` is not a SpatRaster), or `FALSE` (force off).
+  Cell-area weights correct aggregation statistics for non-uniform cell
+  areas (e.g. lonlat grids near the poles, or projected grids on
+  non-equal-area projections); they are computed via
+  [`terra::cellSize()`](https://rspatial.github.io/terra/reference/cellSize.html)
+  and normalized to mean 1. When `pool` is a pre-built `analog_index`,
+  this argument must agree with the index's stored configuration:
+  `cell_area_weight = FALSE` errors if the index was built with
+  cell-area weighting on (rebuild the index instead).
 
 - n_threads:
 
