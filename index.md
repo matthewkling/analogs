@@ -30,8 +30,8 @@ functions configure it for common analysis types:
   finds the nearest climate analogs within a geographic constraint
 - [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md)
   counts analogs that meet climate and distance thresholds
-- [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
-  computes distance-weighted aggregations of analog properties
+- [`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md)
+  computes weighted sums of analog proximity and climate similarity
 
 ## Distance metrics
 

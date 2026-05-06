@@ -34,7 +34,7 @@ The table below shows how each wrapper maps to the framework:
 | [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md) | k nearest geographic, climate-constrained | Pairs | Where is this climate moving? |
 | [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md) | k nearest climatic, geographically-constrained | Pairs | What climates are reachable? |
 | [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md) | All within thresholds | Count | Where do analogs exist? |
-| [`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md) | All within thresholds | Weighted sum | How strong are analog matches? |
+| [`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md) | All within thresholds | Weighted sum | How strong are analog matches? |
 | [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md) | All within thresholds | Weighted mean | What ecological conditions to expect? |
 | [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md) | Flexible | Local regression | How do covariates predict outcomes within neighborhoods? |
 
@@ -241,10 +241,6 @@ plot(vel, range = range(minmax(vel)),
      main = c("Forward velocity (km/dec)", "Reverse velocity (km/dec)"))
 ```
 
-![plot of chunk velocity](figures/velocity-1.png)
-
-plot of chunk velocity
-
 In addition to geographic and climatic distances, the result also
 includes the spatial coordinates of each site’s nearest analog (as well
 as the analog’s index in the `pool`). This can be used for a variety of
@@ -313,7 +309,7 @@ plot(avail, main = "Analog availability (count)")
 
 plot of chunk availability
 
-### Analog intensity
+### Analog density
 
 Similar to availability, but weighted by climate similarity and/or
 geographic proximity rather than simply counted. This captures both the
@@ -321,7 +317,7 @@ number and quality of analog matches.
 
 ``` r
 
-intens <- analog_intensity(
+intens <- analog_density(
       x = fut,
       pool = hist,
       max_clim = 0.5,
@@ -330,12 +326,12 @@ intens <- analog_intensity(
       theta = 0.15
 )
 
-plot(intens, main = "Analog intensity")
+plot(intens, main = "Analog density")
 ```
 
-![plot of chunk intensity](figures/intensity-1.png)
+![plot of chunk density](figures/density-1.png)
 
-plot of chunk intensity
+plot of chunk density
 
 ## Prediction functions
 

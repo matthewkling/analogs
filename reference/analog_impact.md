@@ -41,15 +41,13 @@ analog_impact(
 
 - x:
 
-  Focal locations (usually future climate conditions for AIM, or
-  baseline conditions for static interpolation). Should be a
+  Focal locations for which analogs will be found. Should be a
   matrix/data.frame with columns x, y, and climate variables, or a
   SpatRaster with climate variable layers.
 
 - pool:
 
-  The reference dataset (generally representing baseline climate
-  conditions). Either:
+  The reference dataset to search for analogs. Either:
 
   - Matrix/data.frame with columns x, y, and climate variables, or
     SpatRaster with climate variable layers, OR
@@ -60,33 +58,61 @@ analog_impact(
 
 - y:
 
-  Ecological or environmental variable(s) for the same era as `pool`, to
-  aggregate across climate analogs. For continuous stats
-  (`weighted_mean`, `sum`, etc.), `y` should be numeric: occupancy of
-  focal species, species richness, biomass, or any other numeric
-  ecological state. For `stat = "tabulate"` (categorical aggregation),
-  `y` should be a factor or a vector that can be coerced to a factor
-  (e.g., character vector of vegetation type names, integer class codes,
-  or a single-layer categorical SpatRaster). Can be a vector / factor
-  (single variable), matrix or data.frame (multiple variables), or a
-  SpatRaster with one or more layers. Must have exactly the same number
-  of reference locations as `pool`.
+  Optional vector, factor, matrix/data.frame, or SpatRaster giving
+  values for each reference location (must have same number of
+  rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
+  `"weighted_sum"`, `"weighted_mean"`, `"regression"`, and `"tabulate"`.
+  Numeric for continuous stats; factor or coercible-to-factor
+  (character, integer, logical) for `stat = "tabulate"`.
+
+- weight:
+
+  Optional pool site weights for use in aggregation. Numeric vector,
+  single-column matrix/data.frame, or single-layer SpatRaster, with one
+  value per row/cell of `pool`. For aggregation stats like
+  `"weighted_mean"`, `"regression"`, etc., weights multiply through the
+  weighted aggregation alongside any kernel weighting and cell-area
+  weighting; they do not influence which analogs are selected by `knn_*`
+  modes (selection remains distance-only). They are reported in pair
+  mode as a `user_weight` column. Values must be non-negative; `NA` is
+  allowed and treated as 0 (the point is excluded from aggregation).
+  Default `NULL` means no user-supplied weights.
+
+  If you want to exclude a static subset of pool sites entirely, masking
+  `pool` (and any associated `y` / `covariates`) upfront is more
+  efficient than passing `weight = 0` for those sites, since the lattice
+  index will not have to scan or distance-compute against them. Use
+  `weight = 0` for cases where the mask varies per query against a
+  shared index, or where some sites have a continuous weight and others
+  should be excluded.
 
 - covariates:
 
-  Covariates to use with `stat = "regression"` (NULL otherwise; see
-  [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
-  for the regression-focused wrapper).
+  Optional matrix/data.frame or SpatRaster giving covariate values for
+  each reference location (must have same number of rows/cells as
+  `pool`). Required when `stat` includes `"regression"`.
 
 - max_geog:
 
-  Maximum geographic distance for analogs (km if lonlat; projection
-  units otherwise). Acts as a hard dispersal constraint.
+  Maximum geographic distance constraint (default: NULL = no geographic
+  constraint). When specified, only reference locations within this
+  distance are considered. Radius units should be specified in
+  kilometers if `coord_type = "lonlat"`, or in projected coordinate
+  units if `coord_type = "projected"`.
 
 - max_clim:
 
-  Maximum climate distance threshold defining what counts as an analog
-  (default: 1.0).
+  Maximum climate distance constraint (default: NULL = no climate
+  constraint). Can be either:
+
+  - A scalar: Euclidean radius in climate space (e.g., 0.5)
+
+  - A vector: Per-variable absolute differences (length must equal
+    number of climate variables)
+
+  Only reference locations within this climate distance are considered.
+  When `x_cov` is provided, scalar thresholds are interpreted in
+  Mahalanobis distance units.
 
 - kernel:
 
@@ -99,8 +125,20 @@ analog_impact(
 
 - theta:
 
-  Kernel bandwidth (default: 0.25). See
-  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
+  Optional numeric parameter controlling the shape of the weighting
+  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
+  includes a weighted aggregation) and `kernel` is not `"uniform"`.
+  Interpretation depends on `kernel`:
+
+  - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
+    distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
+
+  - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
+    parameter (scalar; larger values = slower decay with distance).
+
+  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
+    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
+    geography).
 
 - stat:
 
@@ -120,7 +158,7 @@ analog_impact(
 
   - `"count"`: Analog availability (number of analogs)
 
-  - `"sum_weights"`: Analog intensity (sum of climate-similarity weights
+  - `"sum_weights"`: Analog density (sum of climate-similarity weights
     across analogs)
 
   The default `c("count", "sum_weights", "weighted_mean")` is
@@ -129,34 +167,92 @@ analog_impact(
 
 - lambda:
 
-  Ridge penalty for regression (default 0).
+  Ridge penalty parameter for `stat = "regression"` (default: 0, giving
+  ordinary weighted least squares). Higher values shrink covariate
+  coefficients toward zero, with the intercept approaching the weighted
+  mean as `lambda -> Inf`. Ignored when `"regression"` is not in `stat`.
 
 - se:
 
-  One of "none" (default), "ess", or "design"; SE variant for
-  `weighted_mean` and `regression`.
+  Standard-error framing to apply to SE-supporting stats
+  (`"weighted_mean"` and `"regression"`). One of:
+
+  - `"none"` (default): no SE columns are returned.
+
+  - `"ess"`: effective-sample-size framing. For `weighted_mean`,
+    `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
+    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
+    regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
+    variance corrected using `n_eff - p` degrees of freedom.
+
+  - `"design"`: design-based framing (no assumption that weights are
+    precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
 
 - x_cov:
 
-  Optional covariance matrices for Mahalanobis distance (one per focal
-  point), as expected by
-  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md).
+  Optional focal-specific covariance matrices for Mahalanobis distance
+  calculations. Should be a matrix or data.frame with one row per focal
+  location and one column per unique covariance component, or a
+  SpatRaster with a layer for each component. For n climate variables,
+  there are n\*(n+1)/2 unique components, ordered as: variances first
+  (diagonals), then covariances (upper triangle by row).
 
 - coord_type:
 
-  One of "auto", "lonlat", or "projected".
+  Coordinate system type:
+
+  - `"auto"` (default): Automatically detect from coordinate ranges.
+
+  - `"lonlat"`: Unprojected lon/lat coordinates (uses great-circle
+    distance; assumes `max_geog` is in km).
+
+  - `"projected"`: Projected XY coordinates (uses planar distance;
+    assumes `max_geog` is in projection units).
 
 - index_res:
 
-  Resolution parameter for the lattice index (or "auto").
+  Tuning parameter giving the number of bins per dimension of the
+  internally-used lattice search index. Either:
+
+  - A positive integer.
+
+  - `"auto"` (the default): Automatically tune the index resolution by
+    optimizing compute time on a subsample of focal points. If focal has
+    relatively few rows, auto-tuning is skipped and a default resolution
+    of 16 is used. Auto-tuning is **not supported** when
+    `downsample < 1`, because the speed-optimal resolution can sometimes
+    result in higher uncertainty of stat results under downsampling. In
+    that case set `index_res` explicitly; finer values (e.g. 32)
+    generally give better accuracy at the possible cost of query speed.
+
+  Ignored if `pool` is an `analog_index` (uses index's resolution).
+
+- cell_area_weight:
+
+  Controls cell-area weighting when `pool` is a raster. One of `"auto"`
+  (default; on for raster pools, off otherwise), `TRUE` (force on;
+  errors if `pool` is not a SpatRaster), or `FALSE` (force off).
+  Cell-area weights correct aggregation statistics for non-uniform cell
+  areas (e.g. lonlat grids near the poles, or projected grids on
+  non-equal-area projections); they are computed via
+  [`terra::cellSize()`](https://rspatial.github.io/terra/reference/cellSize.html)
+  and normalized to mean 1. When `pool` is a pre-built `analog_index`,
+  this argument must agree with the index's stored configuration:
+  `cell_area_weight = FALSE` errors if the index was built with
+  cell-area weighting on (rebuild the index instead).
 
 - n_threads:
 
-  Optional integer number of threads.
+  Optional integer number of threads to use for the computation. If
+  `NULL` (default), the global RcppParallel setting is used (see
+  [`RcppParallel::setThreadOptions`](https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html)).
 
 - progress:
 
-  Logical; show a progress bar.
+  Logical; if `TRUE`, display a progress bar during computation.
+  Progress tracking works by splitting the focal dataset into chunks and
+  processing them sequentially. Useful for large datasets. Default is
+  `FALSE`.
 
 - ...:
 
@@ -237,7 +333,7 @@ lets the kernel function (via `theta`) naturally control influence.
   counts indicate limited analog availability, while zero counts
   indicate climates that are novel within the geographic search radius.
 
-- `sum_weights`: Total analog intensity. Low values indicate sparse or
+- `sum_weights`: Total analog density. Low values indicate sparse or
   distant climate matches. This metric captures both the number and
   quality of analogs. Interpretation details vary based on the `kernel`
   parameter.

@@ -88,14 +88,13 @@ for continuous outcomes or a weighted class count for categorical outcomes.</p>
 
 
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
-<dd><p>Focal locations (usually future climate conditions for AIM, or baseline
-conditions for static interpolation). Should be a matrix/data.frame with columns x, y, and
-climate variables, or a SpatRaster with climate variable layers.</p></dd>
+<dd><p>Focal locations for which analogs will be found. Should be a
+matrix/data.frame with columns x, y, and climate variables, or a
+SpatRaster with climate variable layers.</p></dd>
 
 
 <dt id="arg-pool">pool<a class="anchor" aria-label="anchor" href="#arg-pool"></a></dt>
-<dd><p>The reference dataset (generally representing baseline climate conditions).
-Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and climate variables,
+<dd><p>The reference dataset to search for analogs. Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and climate variables,
 or SpatRaster with climate variable layers, OR</p></li>
 <li><p>An <code>analog_index</code> object created by
 <code><a href="build_analog_index.html">build_analog_index()</a></code> (for repeated queries).</p></li>
@@ -103,33 +102,56 @@ or SpatRaster with climate variable layers, OR</p></li>
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
-<dd><p>Ecological or environmental variable(s) for the same era as <code>pool</code>,
-to aggregate across climate analogs. For continuous stats
-(<code>weighted_mean</code>, <code>sum</code>, etc.), <code>y</code> should be numeric: occupancy of focal
-species, species richness, biomass, or any other numeric ecological state.
-For <code>stat = "tabulate"</code> (categorical aggregation), <code>y</code> should be a factor
-or a vector that can be coerced to a factor (e.g., character vector of
-vegetation type names, integer class codes, or a single-layer
-categorical SpatRaster). Can be a vector / factor (single variable),
-matrix or data.frame (multiple variables), or a SpatRaster with one or
-more layers. Must have exactly the same number of reference locations
-as <code>pool</code>.</p></dd>
+<dd><p>Optional vector, factor, matrix/data.frame, or SpatRaster giving
+values for each reference location (must have same number of rows/cells
+as <code>pool</code>). Required for stats <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
+<code>"weighted_mean"</code>, <code>"regression"</code>, and <code>"tabulate"</code>. Numeric for
+continuous stats; factor or coercible-to-factor (character, integer,
+logical) for <code>stat = "tabulate"</code>.</p></dd>
+
+
+<dt id="arg-weight">weight<a class="anchor" aria-label="anchor" href="#arg-weight"></a></dt>
+<dd><p>Optional pool site weights for use in aggregation.
+Numeric vector, single-column matrix/data.frame, or single-layer
+SpatRaster, with one value per row/cell of <code>pool</code>. For aggregation
+stats like <code>"weighted_mean"</code>, <code>"regression"</code>, etc., weights multiply
+through the weighted aggregation alongside any kernel weighting and
+cell-area weighting; they do not influence which analogs are selected
+by <code>knn_*</code> modes (selection remains distance-only). They are reported
+in pair mode as a <code>user_weight</code> column. Values must be non-negative;
+<code>NA</code> is allowed and treated as 0 (the point is excluded from
+aggregation). Default <code>NULL</code> means no user-supplied weights.</p>
+<p>If you want to exclude a static subset of pool sites entirely, masking
+<code>pool</code> (and any associated <code>y</code> / <code>covariates</code>) upfront is more
+efficient than passing <code>weight = 0</code> for those sites, since the
+lattice index will not have to scan or distance-compute against them.
+Use <code>weight = 0</code> for cases where the mask varies per query against a
+shared index, or where some sites have a continuous weight and others
+should be excluded.</p></dd>
 
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
-<dd><p>Covariates to use with <code>stat = "regression"</code> (NULL
-otherwise; see <code><a href="analog_regression.html">analog_regression()</a></code> for the regression-focused
-wrapper).</p></dd>
+<dd><p>Optional matrix/data.frame or SpatRaster giving
+covariate values for each reference location (must have same number of
+rows/cells as <code>pool</code>). Required when <code>stat</code> includes <code>"regression"</code>.</p></dd>
 
 
 <dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
-<dd><p>Maximum geographic distance for analogs (km if lonlat;
-projection units otherwise). Acts as a hard dispersal constraint.</p></dd>
+<dd><p>Maximum geographic distance constraint (default:
+NULL = no geographic constraint). When specified, only reference locations
+within this distance are considered. Radius units should be specified in
+kilometers if <code>coord_type = "lonlat"</code>, or in projected coordinate units
+if <code>coord_type = "projected"</code>.</p></dd>
 
 
 <dt id="arg-max-clim">max_clim<a class="anchor" aria-label="anchor" href="#arg-max-clim"></a></dt>
-<dd><p>Maximum climate distance threshold defining what counts
-as an analog (default: 1.0).</p></dd>
+<dd><p>Maximum climate distance constraint (default: NULL = no
+climate constraint). Can be either:</p><ul><li><p>A scalar: Euclidean radius in climate space (e.g., 0.5)</p></li>
+<li><p>A vector: Per-variable absolute differences (length must equal
+number of climate variables)</p></li>
+</ul><p>Only reference locations within this climate distance are considered.
+When <code>x_cov</code> is provided, scalar thresholds are interpreted in
+Mahalanobis distance units.</p></dd>
 
 
 <dt id="arg-kernel">kernel<a class="anchor" aria-label="anchor" href="#arg-kernel"></a></dt>
@@ -140,7 +162,16 @@ weighting options that are based on <em>climate</em> are allowed:
 
 
 <dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
-<dd><p>Kernel bandwidth (default: 0.25). See <code><a href="analog_search.html">analog_search()</a></code>.</p></dd>
+<dd><p>Optional numeric parameter controlling the shape of the
+weighting <code>kernel</code>, used whenever <code>kernel</code> is active (i.e. whenever
+<code>stat</code> includes a weighted aggregation) and <code>kernel</code> is not <code>"uniform"</code>.
+Interpretation depends on <code>kernel</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
+added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
+<li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
+parameter (scalar; larger values = slower decay with distance).</p></li>
+<li><p>For <code>"gaussian_joint"</code> or <code>"inverse_joint"</code>: 2-element vector
+<code>c(theta_clim, theta_geog)</code> (defaults: 1 for climate, 1 for geography).</p></li>
+</ul></dd>
 
 
 <dt id="arg-stat">stat<a class="anchor" aria-label="anchor" href="#arg-stat"></a></dt>
@@ -154,7 +185,7 @@ categorical y. Output has one column per class, named
 <code>mean</code>/<code>weighted_sum</code>/<code>regression</code>, but can be combined with
 <code>count</code>, <code>sum_weights</code>, <code>mean_weights</code>, and <code>ess</code>.</p></li>
 <li><p><code>"count"</code>: Analog availability (number of analogs)</p></li>
-<li><p><code>"sum_weights"</code>: Analog intensity (sum of climate-similarity
+<li><p><code>"sum_weights"</code>: Analog density (sum of climate-similarity
 weights across analogs)</p></li>
 </ul><p>The default <code>c("count", "sum_weights", "weighted_mean")</code> is appropriate
 for continuous <code>y</code>; for categorical <code>y</code>, swap <code>weighted_mean</code> for
@@ -162,33 +193,83 @@ for continuous <code>y</code>; for categorical <code>y</code>, swap <code>weight
 
 
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
-<dd><p>Ridge penalty for regression (default 0).</p></dd>
+<dd><p>Ridge penalty parameter for <code>stat = "regression"</code>
+(default: 0, giving ordinary weighted least squares). Higher values
+shrink covariate coefficients toward zero, with the intercept
+approaching the weighted mean as <code>lambda -&gt; Inf</code>. Ignored when
+<code>"regression"</code> is not in <code>stat</code>.</p></dd>
 
 
 <dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
-<dd><p>One of "none" (default), "ess", or "design"; SE variant for
-<code>weighted_mean</code> and <code>regression</code>.</p></dd>
+<dd><p>Standard-error framing to apply to SE-supporting stats
+(<code>"weighted_mean"</code> and <code>"regression"</code>). One of:</p><ul><li><p><code>"none"</code> (default): no SE columns are returned.</p></li>
+<li><p><code>"ess"</code>: effective-sample-size framing. For <code>weighted_mean</code>,
+<code>SE = sqrt(var_w(y) / n_eff)</code>, where <code>n_eff = (Σw)² / Σw²</code> is Kish's
+effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regression,
+<code>Var(β̂) = σ²_ess · (X'WX + λI)⁻¹</code>, with residual variance corrected
+using <code>n_eff - p</code> degrees of freedom.</p></li>
+<li><p><code>"design"</code>: design-based framing (no assumption that weights are
+precisions). For <code>weighted_mean</code>,
+<code>SE = sqrt(Σ w²(y - ȳ_w)²) / Σw</code>.</p></li>
+</ul></dd>
 
 
 <dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
-<dd><p>Optional covariance matrices for Mahalanobis distance
-(one per focal point), as expected by <code><a href="analog_search.html">analog_search()</a></code>.</p></dd>
+<dd><p>Optional focal-specific covariance matrices for Mahalanobis
+distance calculations. Should be a matrix or data.frame with one row per
+focal location and one column per unique covariance component, or a
+SpatRaster with a layer for each component. For n climate variables,
+there are n*(n+1)/2 unique components, ordered as: variances first
+(diagonals), then covariances (upper triangle by row).</p></dd>
 
 
 <dt id="arg-coord-type">coord_type<a class="anchor" aria-label="anchor" href="#arg-coord-type"></a></dt>
-<dd><p>One of "auto", "lonlat", or "projected".</p></dd>
+<dd><p>Coordinate system type:</p><ul><li><p><code>"auto"</code> (default): Automatically detect from coordinate ranges.</p></li>
+<li><p><code>"lonlat"</code>: Unprojected lon/lat coordinates (uses great-circle distance;
+assumes <code>max_geog</code> is in km).</p></li>
+<li><p><code>"projected"</code>: Projected XY coordinates (uses planar distance;
+assumes <code>max_geog</code> is in projection units).</p></li>
+</ul></dd>
 
 
 <dt id="arg-index-res">index_res<a class="anchor" aria-label="anchor" href="#arg-index-res"></a></dt>
-<dd><p>Resolution parameter for the lattice index (or "auto").</p></dd>
+<dd><p>Tuning parameter giving the number of bins per dimension
+of the internally-used lattice search index. Either:</p><ul><li><p>A positive integer.</p></li>
+<li><p><code>"auto"</code> (the default): Automatically tune the index resolution
+by optimizing compute time on a subsample of focal points. If focal has
+relatively few rows, auto-tuning is skipped and a default resolution of
+16 is used. Auto-tuning is <strong>not supported</strong> when <code>downsample &lt; 1</code>,
+because the speed-optimal resolution can sometimes result in higher
+uncertainty of stat results under downsampling. In that case set
+<code>index_res</code> explicitly; finer values (e.g. 32) generally give better
+accuracy at the possible cost of query speed.</p></li>
+</ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
+
+
+<dt id="arg-cell-area-weight">cell_area_weight<a class="anchor" aria-label="anchor" href="#arg-cell-area-weight"></a></dt>
+<dd><p>Controls cell-area weighting when <code>pool</code> is a raster.
+One of <code>"auto"</code> (default; on for raster pools, off otherwise), <code>TRUE</code>
+(force on; errors if <code>pool</code> is not a SpatRaster), or <code>FALSE</code> (force
+off). Cell-area weights correct aggregation statistics for non-uniform
+cell areas (e.g. lonlat grids near the poles, or projected grids on
+non-equal-area projections); they are computed via
+<code><a href="https://rspatial.github.io/terra/reference/cellSize.html" class="external-link">terra::cellSize()</a></code> and normalized to mean 1. When <code>pool</code> is a
+pre-built <code>analog_index</code>, this argument must agree with the index's
+stored configuration: <code>cell_area_weight = FALSE</code> errors if the index
+was built with cell-area weighting on (rebuild the index instead).</p></dd>
 
 
 <dt id="arg-n-threads">n_threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
-<dd><p>Optional integer number of threads.</p></dd>
+<dd><p>Optional integer number of threads to use for the
+computation. If <code>NULL</code> (default), the global RcppParallel setting
+is used (see <code><a href="https://rdrr.io/pkg/RcppParallel/man/setThreadOptions.html" class="external-link">RcppParallel::setThreadOptions</a></code>).</p></dd>
 
 
 <dt id="arg-progress">progress<a class="anchor" aria-label="anchor" href="#arg-progress"></a></dt>
-<dd><p>Logical; show a progress bar.</p></dd>
+<dd><p>Logical; if <code>TRUE</code>, display a progress bar during
+computation. Progress tracking works by splitting the focal dataset into
+chunks and processing them sequentially. Useful for large datasets. Default
+is <code>FALSE</code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -260,7 +341,7 @@ ecological transformation (cf. Hoecker et al. 2026).</p></li>
 <li><p><code>count</code>: How many analogs exist within max_clim and max_geog? Low counts
 indicate limited analog availability, while zero counts indicate climates
 that are novel within the geographic search radius.</p></li>
-<li><p><code>sum_weights</code>: Total analog intensity. Low values indicate sparse
+<li><p><code>sum_weights</code>: Total analog density. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
 of analogs. Interpretation details vary based on the <code>kernel</code> parameter.</p></li>
 </ul></div>

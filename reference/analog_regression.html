@@ -283,7 +283,11 @@ of the internally-used lattice search index. Either:</p><ul><li><p>A positive in
 <li><p><code>"auto"</code> (the default): Automatically tune the index resolution
 by optimizing compute time on a subsample of focal points. If focal has
 relatively few rows, auto-tuning is skipped and a default resolution of
-16 is used.</p></li>
+16 is used. Auto-tuning is <strong>not supported</strong> when <code>downsample &lt; 1</code>,
+because the speed-optimal resolution can sometimes result in higher
+uncertainty of stat results under downsampling. In that case set
+<code>index_res</code> explicitly; finer values (e.g. 32) generally give better
+accuracy at the possible cost of query speed.</p></li>
 </ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
 
 

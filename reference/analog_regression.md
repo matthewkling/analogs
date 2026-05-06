@@ -261,7 +261,11 @@ analog_regression(
   - `"auto"` (the default): Automatically tune the index resolution by
     optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution
-    of 16 is used.
+    of 16 is used. Auto-tuning is **not supported** when
+    `downsample < 1`, because the speed-optimal resolution can sometimes
+    result in higher uncertainty of stat results under downsampling. In
+    that case set `index_res` explicitly; finer values (e.g. 32)
+    generally give better accuracy at the possible cost of query speed.
 
   Ignored if `pool` is an `analog_index` (uses index's resolution).
 

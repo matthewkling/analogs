@@ -1,24 +1,24 @@
-# Climate velocity: geographically nearest climate analogs
+# Analog density: kernel-weighted sum of analogs within climate/geographic limits
 
-Finds, for each focal location, the geographic nearest neighbor(s) in a
-reference dataset that satisfy a specified maximum climate distance
-threshold. Distances to these analogs, divided by time elapsed, give
-analog-based climate velocity (Hamann et al. 2015; Dobrowski and Parks
-2016).
+Computes, for each focal location, the sum of weights of all reference
+locations that satisfy the supplied climate and geographic constraints.
+The weights are controlled by the `weight` and `theta` arguments and are
+applied after filtering.
 
 ## Usage
 
 ``` r
-analog_velocity(
+analog_density(
   x,
   pool,
   x_cov = NULL,
-  y = NULL,
   weight = NULL,
   coord_type = "auto",
-  max_clim,
+  max_clim = NULL,
   max_geog = NULL,
-  k = 1,
+  kernel = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
+    "gaussian_joint", "inverse_joint"),
+  theta = NULL,
   index_res = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -55,15 +55,6 @@ analog_velocity(
   SpatRaster with a layer for each component. For n climate variables,
   there are n\*(n+1)/2 unique components, ordered as: variances first
   (diagonals), then covariances (upper triangle by row).
-
-- y:
-
-  Optional vector, factor, matrix/data.frame, or SpatRaster giving
-  values for each reference location (must have same number of
-  rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
-  `"weighted_sum"`, `"weighted_mean"`, `"regression"`, and `"tabulate"`.
-  Numeric for continuous stats; factor or coercible-to-factor
-  (character, integer, logical) for `stat = "tabulate"`.
 
 - weight:
 
@@ -120,11 +111,53 @@ analog_velocity(
   kilometers if `coord_type = "lonlat"`, or in projected coordinate
   units if `coord_type = "projected"`.
 
-- k:
+- kernel:
 
-  Number of nearest analogs to return per focal location for kNN
-  selection modes. Required when `select` is `"knn_geog"` or
-  `"knn_clim"`; must be `NULL` for `select = "all"`.
+  Kernel decay function for weighting matches, used only when `stat`
+  includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
+  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
+  `"tabulate"`). One of:
+
+  - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
+
+  - `"inverse_clim"`: Inverse climate distance, kernel weight = 1 /
+    (climate_distance + eps), with epsilon given by `theta`.
+
+  - `"inverse_geog"`: Inverse geographic distance, kernel weight = 1 /
+    (geographic_distance + eps), with epsilon given by `theta`.
+
+  - `"gaussian_clim"`: Gaussian kernel on climate distance, kernel
+    weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by
+    `theta`.
+
+  - `"gaussian_geog"`: Gaussian kernel on geographic distance, kernel
+    weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given
+    by `theta`.
+
+  - `"gaussian_joint"`: Gaussian kernel on combined distance, kernel
+    weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2
+    sigma_geog^2))), with sigmas given by `theta`.
+
+  - `"inverse_joint"`: Inverse joint distance, kernel weight = 1 /
+    (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
+    `theta`.
+
+- theta:
+
+  Optional numeric parameter controlling the shape of the weighting
+  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
+  includes a weighted aggregation) and `kernel` is not `"uniform"`.
+  Interpretation depends on `kernel`:
+
+  - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
+    distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
+
+  - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
+    parameter (scalar; larger values = slower decay with distance).
+
+  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
+    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
+    geography).
 
 - index_res:
 
@@ -189,11 +222,8 @@ analog_velocity(
 
 ## Value
 
-A data.frame, or a SpatRaster when `x` is one and `k = 1`. Contains one
-row per focal-analog pair with `index`, `x`, `y`, `analog_index`,
-`analog_x`, `analog_y`, `clim_dist`, and `geog_dist`. See
-[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-for full column conventions and
+A data.frame, or a SpatRaster when `x` is one. Contains `index`, `x`,
+`y`, and `sum_weights`. See
 [`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
 for attached metadata attributes.
 
@@ -201,23 +231,24 @@ for attached metadata attributes.
 
 This function is a wrapper that calls
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-using `select = "knn_geog"` and `stat = "none"`. Note that it **does not
-return velocity per se**—it returns geographic and climatic distances to
-each focal site's nearest analog(s); to compute velocity, you can divide
-these geographic distances by the length of time elapsed between your
-`x` and `pool` datasets.
+using `select = "all"` and `stat = "sum_weights"`.
 
 ## References
 
-Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity
-of climate change algorithms for guiding conservation and management."
-*Global Change Biology*, **21**(2), 997-1004.
-[doi:10.1111/gcb.12736](https://doi.org/10.1111/gcb.12736)
+Mahony CR, Cannon AJ, Wang T, Aitken SN (2017). "A closer look at novel
+climates: New methods and insights at continental to landscape scales."
+*Global Change Biology*, **23**(9), 3934-3955.
+[doi:10.1111/gcb.13645](https://doi.org/10.1111/gcb.13645)
 
-Dobrowski SZ, Parks SA (2016). "Climate change velocity underestimates
-climate change exposure in mountainous regions." *Nature
-Communications*, **7**, 12349.
-[doi:10.1038/ncomms12349](https://doi.org/10.1038/ncomms12349)
+Abatzoglou JT, Dobrowski SZ, Parks SA (2020). "Multivariate climate
+departures have outpaced univariate changes across global lands."
+*Scientific Reports*, **10**(1), 3891.
+[doi:10.1038/s41598-020-60270-5](https://doi.org/10.1038/s41598-020-60270-5)
+
+Williams JW, Jackson ST, Kutzbach JE (2007). "Projected distributions of
+novel and disappearing climates by 2100 AD." *Proceedings of the
+National Academy of Sciences*, **104**(14), 5738-5742.
+[doi:10.1073/pnas.0606292104](https://doi.org/10.1073/pnas.0606292104)
 
 ## See also
 
@@ -230,26 +261,40 @@ for memory-safe searches on large raster datasets.
 
 ``` r
 if (FALSE) { # \dontrun{
-# One-shot query
-v <- analog_velocity(
-  x = clim$clim1,
-  pool = clim$clim2,
+# One-shot query with inverse kernel weighting
+intens <- analog_density(
+  x = sites,
+  pool = climate_data,
   max_clim = 0.5,
-  k = 1
+  max_geog = 100,
+  kernel = "inverse_clim"
+)
+
+# Gaussian weighting by climate distance
+intens_gauss <- analog_density(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel = "gaussian_clim",
+  theta = 0.2  # bandwidth parameter
+)
+
+# Joint Gaussian weighting (both climate and geography)
+intens_joint <- analog_density(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel = "gaussian_joint",
+  theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
 )
 
 # With pre-built index (for repeated queries)
-index <- build_analog_index(clim$clim2)
-v1 <- analog_velocity(x = sites1, pool = index, max_clim = 0.5, k = 1)
-v2 <- analog_velocity(x = sites2, pool = index, max_clim = 0.3, k = 1)
-
-# With focal-specific covariance matrices
-v_mahal <- analog_velocity(
-  x = clim$clim1,
-  pool = clim$clim2,
-  x_cov = baseline_covariances,
-  max_clim = 2,  # In Mahalanobis distance units
-  k = 1
-)
+index <- build_analog_index(climate_data)
+i1 <- analog_density(x = sites1, pool = index, max_clim = 0.5,
+                       kernel = "inverse_clim")
+i2 <- analog_density(x = sites2, pool = index, max_geog = 100,
+                       kernel = "inverse_geog")
 } # }
 ```

@@ -288,7 +288,10 @@ analog_search(
   Optional downsampling rate (0-1) for the reference pool, indicating
   the proportion of points to retain. Values \< 1 reduce memory and
   improve speed at some cost to precision. Default is 1.0 (no
-  downsampling). Ignored if `pool` is a pre-built index.
+  downsampling). Ignored if `pool` is a pre-built index. When
+  `downsample < 1`, `index_res` must be set explicitly (auto-tuning is
+  not supported in this case; see the `index_res` parameter for
+  details).
 
 - seed:
 
@@ -306,7 +309,11 @@ analog_search(
   - `"auto"` (the default): Automatically tune the index resolution by
     optimizing compute time on a subsample of focal points. If focal has
     relatively few rows, auto-tuning is skipped and a default resolution
-    of 16 is used.
+    of 16 is used. Auto-tuning is **not supported** when
+    `downsample < 1`, because the speed-optimal resolution can sometimes
+    result in higher uncertainty of stat results under downsampling. In
+    that case set `index_res` explicitly; finer values (e.g. 32)
+    generally give better accuracy at the possible cost of query speed.
 
   Ignored if `pool` is an `analog_index` (uses index's resolution).
 
@@ -477,8 +484,7 @@ offers memory-safe searches on large raster datasets. Helper functions
 such as
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md),
 [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md),
-and
-[`analog_intensity()`](https://matthewkling.github.io/analogs/reference/analog_intensity.md)
-offer simpler interfaces for common search types.
+and `analog_intensity()` offer simpler interfaces for common search
+types.
 [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
 provides cross-validation workflows.

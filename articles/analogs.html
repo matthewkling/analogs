@@ -122,7 +122,7 @@ wrappers for common analysis types.</p>
 <td>Where do analogs exist?</td>
 </tr>
 <tr class="even">
-<td><code><a href="../reference/analog_intensity.html">analog_intensity()</a></code></td>
+<td><code><a href="../reference/analog_density.html">analog_density()</a></code></td>
 <td>All within thresholds</td>
 <td>Weighted sum</td>
 <td>How strong are analog matches?</td>
@@ -354,9 +354,6 @@ Sites with no analog in the reference pool—an important category— have
 <span><span class="va">vel</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">fwd_vel</span><span class="op">$</span><span class="va">geog_dist</span>, <span class="va">rev_vel</span><span class="op">$</span><span class="va">geog_dist</span><span class="op">)</span> <span class="op">/</span> <span class="va">decades</span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">vel</span>, range <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/minmax.html" class="external-link">minmax</a></span><span class="op">(</span><span class="va">vel</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Forward velocity (km/dec)"</span>, <span class="st">"Reverse velocity (km/dec)"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/velocity-1.png" alt="plot of chunk velocity"><div class="figcaption">plot of chunk velocity</div>
-</div>
 <p>In addition to geographic and climatic distances, the result also
 includes the spatial coordinates of each site’s nearest analog (as well
 as the analog’s index in the <code>pool</code>). This can be used for a
@@ -416,13 +413,13 @@ with zero analogs represent novel or disappearing climates.</p>
 </div>
 </div>
 <div class="section level3">
-<h3 id="analog-intensity">Analog intensity<a class="anchor" aria-label="anchor" href="#analog-intensity"></a>
+<h3 id="analog-density">Analog density<a class="anchor" aria-label="anchor" href="#analog-density"></a>
 </h3>
 <p>Similar to availability, but weighted by climate similarity and/or
 geographic proximity rather than simply counted. This captures both the
 number and quality of analog matches.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">intens</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_intensity.html">analog_intensity</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">intens</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_density.html">analog_density</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      max_clim <span class="op">=</span> <span class="fl">0.5</span>,</span>
@@ -431,9 +428,9 @@ number and quality of analog matches.</p>
 <span>      theta <span class="op">=</span> <span class="fl">0.15</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">intens</span>, main <span class="op">=</span> <span class="st">"Analog intensity"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">intens</span>, main <span class="op">=</span> <span class="st">"Analog density"</span><span class="op">)</span></span></code></pre></div>
 <div class="float">
-<img src="figures/intensity-1.png" alt="plot of chunk intensity"><div class="figcaption">plot of chunk intensity</div>
+<img src="figures/density-1.png" alt="plot of chunk density"><div class="figcaption">plot of chunk density</div>
 </div>
 </div>
 </div>
