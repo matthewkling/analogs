@@ -484,7 +484,8 @@ offers memory-safe searches on large raster datasets. Helper functions
 such as
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md),
 [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md),
-and `analog_intensity()` offer simpler interfaces for common search
-types.
+and
+[`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md)
+offer simpler interfaces for common search types.
 [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
 provides cross-validation workflows.
