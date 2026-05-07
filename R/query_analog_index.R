@@ -22,15 +22,24 @@ query_analog_index <- function(x,
       # Validate index
       .validate_analog_index(index)
 
-      # Format focal data (needed for validation)
-      focal <- .format_data(x)
+      # Format focal data. purpose = "focal" preserves NA rows so that
+      # rasterized output stays aligned to the input grid; NA focals
+      # produce NA results via the focal_has_na() guard in workers.cpp.
+      focal <- .format_data(x, purpose = "focal")
 
       # Validate compatibility
       .validate_analog_index(index, focal, validate_ranges = FALSE)
 
       # Validate and normalize the user-supplied per-pool weight, if any.
-      # Returns a length-n_pool numeric vector with NAs zeroed out, or NULL.
-      user_weight_vec <- .validate_and_format_weight(weight, index$ref_data)
+      # Returns a length-n_pool_used numeric vector with NAs zeroed out, or
+      # NULL. User input is keyed to the original pool size; pool_row_map
+      # translates to the post-NA-strip ordering used by ref_data and C++.
+      user_weight_vec <- .validate_and_format_weight(
+            weight,
+            index$ref_data,
+            pool_row_map = index$pool_row_map,
+            n_pool_original = index$n_pool
+      )
 
       # Permissive warning: a downsampled index has discarded some pool points,
       # so weights for those points are silently dropped. The user gets
@@ -49,13 +58,18 @@ query_analog_index <- function(x,
             )
       }
 
-      # Validate and normalize query parameters
+      # Validate and normalize query parameters. pool_row_map and n_pool
+      # let the per-pool validators (y, covariates) accept user input keyed
+      # to the original pool size, then translate to the post-NA-strip
+      # ordering used by ref_data and the C++ side.
       params <- .validate_query_params(focal, index$ref_data,
                                        x_cov, y, covariates,
                                        max_clim, max_geog,
                                        select, k,
                                        stat, kernel, theta, lambda,
-                                       se)
+                                       se,
+                                       pool_row_map = index$pool_row_map,
+                                       n_pool_original = index$n_pool)
       select <- params$select
       stat <- params$stat
       k <- params$k
@@ -226,6 +240,19 @@ query_analog_index <- function(x,
                   emit_user_weight   = emit_user_weight
             )
             names(out) <- gsub("focal_", "", names(out))
+
+            # Remap analog_index from stripped-pool indexing (what the C++
+            # workers see) back to original-pool indexing (what the user
+            # passed in). NULL pool_row_map means identity, no remap needed.
+            # Preserve NA values, which mark focals with no analog.
+            if (!is.null(index$pool_row_map) && !is.null(out$analog_index)) {
+                  ai <- out$analog_index
+                  na_mask <- is.na(ai)
+                  if (any(!na_mask)) {
+                        ai[!na_mask] <- index$pool_row_map[ai[!na_mask]]
+                  }
+                  out$analog_index <- ai
+            }
 
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]

@@ -20,7 +20,14 @@
                                    select, k,
                                    stat, kernel, theta,
                                    lambda = 0,
-                                   se = "none") {
+                                   se = "none",
+                                   pool_row_map = NULL,
+                                   n_pool_original = NULL) {
+
+      # `ref` (post-NA-strip pool) and `n_pool_original` (user's original pool
+      # size) differ when the pool contained NA rows. User-supplied per-pool
+      # arguments (y, covariates) are keyed to the original pool; downstream
+      # validators apply pool_row_map (when non-NULL) to align them with ref.
 
       # Validate select
       select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
@@ -241,14 +248,22 @@
             }
 
             if ("tabulate" %in% stat) {
-                  result <- .validate_and_format_y_categorical(y, ref)
+                  result <- .validate_and_format_y_categorical(
+                        y, ref,
+                        pool_row_map = pool_row_map,
+                        n_pool_original = n_pool_original
+                  )
                   values_mat    <- result$matrix
                   values_names  <- result$names
                   values_levels <- result$levels
             } else {
                   # Existing continuous path. If y is a factor here, we error
                   # with a hint pointing the user at stat = "tabulate".
-                  result <- .validate_and_format_values(y, ref)
+                  result <- .validate_and_format_values(
+                        y, ref,
+                        pool_row_map = pool_row_map,
+                        n_pool_original = n_pool_original
+                  )
                   values_mat   <- result$matrix
                   values_names <- result$names
             }
@@ -262,7 +277,11 @@
                   stop("Internal error: ref required for covariates validation")
             }
 
-            result <- .validate_and_format_covariates(covariates, ref)
+            result <- .validate_and_format_covariates(
+                  covariates, ref,
+                  pool_row_map = pool_row_map,
+                  n_pool_original = n_pool_original
+            )
             covariates_mat <- result$matrix
             covariates_names <- result$names
       }
@@ -287,9 +306,15 @@
 
 
 # Validate and format covariates parameter
-.validate_and_format_covariates <- function(covariates, ref) {
+.validate_and_format_covariates <- function(covariates, ref,
+                                            pool_row_map = NULL,
+                                            n_pool_original = NULL) {
 
+      # User input is keyed to the original pool; ref is the post-NA-strip
+      # version. When pool_row_map is non-NULL, validate against original
+      # size and translate; otherwise the two are equivalent.
       n_ref <- nrow(ref)
+      n_user <- if (is.null(pool_row_map)) n_ref else n_pool_original
 
       # Handle SpatRaster input
       if (inherits(covariates, "SpatRaster")) {
@@ -299,10 +324,10 @@
 
             df <- terra::as.data.frame(covariates, xy = FALSE, na.rm = FALSE)
 
-            if (nrow(df) != n_ref) {
+            if (nrow(df) != n_user) {
                   stop(sprintf(
                         "covariates SpatRaster has %d cells but pool has %d rows. They must match.",
-                        nrow(df), n_ref
+                        nrow(df), n_user
                   ))
             }
 
@@ -310,10 +335,10 @@
             mat <- as.matrix(df)
 
       } else if (is.data.frame(covariates)) {
-            if (nrow(covariates) != n_ref) {
+            if (nrow(covariates) != n_user) {
                   stop(sprintf(
                         "covariates has %d rows but pool has %d rows. They must match.",
-                        nrow(covariates), n_ref
+                        nrow(covariates), n_user
                   ))
             }
 
@@ -328,10 +353,10 @@
             mat <- as.matrix(covariates)
 
       } else if (is.matrix(covariates)) {
-            if (nrow(covariates) != n_ref) {
+            if (nrow(covariates) != n_user) {
                   stop(sprintf(
                         "covariates has %d rows but pool has %d rows. They must match.",
-                        nrow(covariates), n_ref
+                        nrow(covariates), n_user
                   ))
             }
             if (!is.numeric(covariates)) {
@@ -343,10 +368,10 @@
 
       } else if (is.numeric(covariates) && is.null(dim(covariates))) {
             # Numeric vector — single covariate
-            if (length(covariates) != n_ref) {
+            if (length(covariates) != n_user) {
                   stop(sprintf(
                         "covariates has length %d but pool has %d rows. They must match.",
-                        length(covariates), n_ref
+                        length(covariates), n_user
                   ))
             }
 
@@ -354,6 +379,11 @@
             mat <- matrix(covariates, ncol = 1)
       } else {
             stop("covariates must be a numeric vector, matrix, data.frame, or SpatRaster.")
+      }
+
+      # Translate to ref (post-strip) ordering if applicable.
+      if (!is.null(pool_row_map)) {
+            mat <- mat[pool_row_map, , drop = FALSE]
       }
 
       # Ensure names exist
@@ -365,9 +395,12 @@
 }
 
 # Validate and format y parameter (continuous path)
-.validate_and_format_values <- function(y, ref) {
+.validate_and_format_values <- function(y, ref,
+                                        pool_row_map = NULL,
+                                        n_pool_original = NULL) {
 
       n_ref <- nrow(ref)
+      n_user <- if (is.null(pool_row_map)) n_ref else n_pool_original
 
       # Catch factor input early with a clear hint.
       if (is.factor(y) ||
@@ -387,11 +420,11 @@
             # Convert to data.frame (keeps all cells including NA)
             df <- terra::as.data.frame(y, xy = FALSE, na.rm = FALSE)
 
-            # Check dimensions match ref
-            if (nrow(df) != n_ref) {
+            # Check dimensions match user-supplied pool size
+            if (nrow(df) != n_user) {
                   stop(sprintf(
                         "y SpatRaster has %d cells but pool has %d rows. They must match.",
-                        nrow(df), n_ref
+                        nrow(df), n_user
                   ))
             }
 
@@ -414,17 +447,22 @@
             stop("'y' must be a vector, matrix, data.frame, or SpatRaster")
       }
 
-      # Validate dimensions
-      if (nrow(y) != n_ref) {
+      # Validate dimensions against original pool size
+      if (nrow(y) != n_user) {
             stop(sprintf(
                   "'y' must have same number of rows as pool (%d), but has %d rows",
-                  n_ref, nrow(y)
+                  n_user, nrow(y)
             ))
       }
 
       # Check for numeric
       if (!is.numeric(y)) {
             stop("'y' must be numeric")
+      }
+
+      # Translate to ref (post-strip) ordering if applicable.
+      if (!is.null(pool_row_map)) {
+            y <- y[pool_row_map, , drop = FALSE]
       }
 
       # Generate names if missing
@@ -458,9 +496,12 @@
 #   names   - character vector of variable names
 #   levels  - list (length n_vars) of character vectors giving each variable's
 #             factor levels (i.e., the column/layer names per output bin)
-.validate_and_format_y_categorical <- function(y, ref) {
+.validate_and_format_y_categorical <- function(y, ref,
+                                               pool_row_map = NULL,
+                                               n_pool_original = NULL) {
 
       n_ref <- nrow(ref)
+      n_user <- if (is.null(pool_row_map)) n_ref else n_pool_original
 
       # First, normalize y into a list of per-variable vectors plus a names
       # vector, so we can factor each column independently regardless of the
@@ -473,10 +514,10 @@
                   stop("Package 'terra' is required for SpatRaster 'y'", call. = FALSE)
             }
             df <- terra::as.data.frame(y, xy = FALSE, na.rm = FALSE)
-            if (nrow(df) != n_ref) {
+            if (nrow(df) != n_user) {
                   stop(sprintf(
                         "y SpatRaster has %d cells but pool has %d rows. They must match.",
-                        nrow(df), n_ref
+                        nrow(df), n_user
                   ))
             }
             values_names <- names(df)
@@ -484,30 +525,30 @@
 
       } else if (is.factor(y)) {
             # Bare factor vector
-            if (length(y) != n_ref) {
+            if (length(y) != n_user) {
                   stop(sprintf(
                         "'y' length is %d but pool has %d rows. They must match.",
-                        length(y), n_ref
+                        length(y), n_user
                   ))
             }
             cols <- list(y)
             values_names <- "y1"
 
       } else if (is.data.frame(y)) {
-            if (nrow(y) != n_ref) {
+            if (nrow(y) != n_user) {
                   stop(sprintf(
                         "'y' has %d rows but pool has %d rows. They must match.",
-                        nrow(y), n_ref
+                        nrow(y), n_user
                   ))
             }
             values_names <- names(y)
             cols <- as.list(y)
 
       } else if (is.matrix(y)) {
-            if (nrow(y) != n_ref) {
+            if (nrow(y) != n_user) {
                   stop(sprintf(
                         "'y' has %d rows but pool has %d rows. They must match.",
-                        nrow(y), n_ref
+                        nrow(y), n_user
                   ))
             }
             values_names <- colnames(y)
@@ -515,10 +556,10 @@
 
       } else if (is.atomic(y) && is.null(dim(y))) {
             # Plain vector (numeric, integer, character, logical)
-            if (length(y) != n_ref) {
+            if (length(y) != n_user) {
                   stop(sprintf(
                         "'y' length is %d but pool has %d rows. They must match.",
-                        length(y), n_ref
+                        length(y), n_user
                   ))
             }
             cols <- list(y)
@@ -527,6 +568,15 @@
       } else {
             stop("'y' must be a vector, factor, matrix, data.frame, or SpatRaster",
                  call. = FALSE)
+      }
+
+      # Translate each column to ref (post-strip) ordering if applicable.
+      # We strip BEFORE factoring so dropped (NA-pool) rows don't influence
+      # the factor levels selected by droplevels(). This matters when an
+      # NA-pool row happened to be the only carrier of a level that was
+      # otherwise absent in valid pool rows.
+      if (!is.null(pool_row_map)) {
+            cols <- lapply(cols, function(col) col[pool_row_map])
       }
 
       n_vars <- length(cols)
@@ -789,8 +839,32 @@
       cbind(coords, climate)
 }
 
-# Normalize input to standard format
-.format_data <- function(r) {
+# Normalize input to standard format.
+#
+# The `purpose` argument controls handling of rows containing NA values:
+#
+# - "focal" (default): preserve all rows including NAs. Required for raster
+#   alignment so C++ output can be rasterized back onto the original grid
+#   via the "template" attribute. NA-containing focal rows are recognized
+#   downstream (workers.cpp) and produce NA results without contaminating
+#   neighbor selection or aggregation.
+#
+# - "pool": strip rows where any column (coords or climate) is NA. Pool rows
+#   are an unordered collection used only for analog lookup; preserving NA
+#   rows wastes memory in `ref_data`/ECEF/lattice and silently corrupts
+#   aggregation (NaN distances bypass `>` filters, polluting counts and
+#   weighted means). The number of rows kept may be smaller than the input
+#   row count.
+#
+# When `purpose = "pool"` and any rows are stripped, the returned matrix has
+# an integer attribute `row_map` such that `row_map[i]` is the original-pool
+# row index of the kept row `i`. Length(row_map) == nrow(out). When no rows
+# are stripped, `row_map` is NULL, signaling identity mapping (no remap
+# needed downstream). This map is used by build_analog_index() to translate
+# C++ analog indices back into original-pool indices in pair-mode results.
+.format_data <- function(r, purpose = c("focal", "pool")) {
+      purpose <- match.arg(purpose)
+
       if (inherits(r, "SpatRaster")) {
             # Convert SpatRaster to data.frame
             if (!requireNamespace("terra", quietly = TRUE)) {
@@ -799,14 +873,34 @@
             df <- terra::as.data.frame(r, xy = TRUE, na.rm = FALSE)
             df <- .select_xy_climate(df)
             attr(df, "template") <- stats::setNames(terra::setValues(r[[1]], NA), "raster")
-            return(df)
       } else if (is.matrix(r) || is.data.frame(r)) {
             df <- .select_xy_climate(r)
             attr(df, "template") <- NULL
-            return(df)
       } else {
             stop("Input must be a data.frame, matrix, or SpatRaster")
       }
+
+      if (purpose == "pool") {
+            # Strip rows where any column is NA. Build a row_map only if any
+            # rows were actually dropped, so the common no-NA case incurs no
+            # extra allocation.
+            keep <- stats::complete.cases(df)
+            n_total <- length(keep)
+            n_kept  <- sum(keep)
+
+            if (n_kept < n_total) {
+                  template <- attr(df, "template")
+                  row_map  <- which(keep)            # original-row indices of kept rows
+                  df       <- df[keep, , drop = FALSE]
+                  attr(df, "template") <- template   # preserve template (focal-only paths
+                  # don't go through "pool", but be safe)
+                  attr(df, "row_map")  <- row_map
+            } else {
+                  attr(df, "row_map")  <- NULL       # identity mapping
+            }
+      }
+
+      df
 }
 
 # Compute cell-area weights for a SpatRaster pool.
@@ -855,10 +949,19 @@
 # excluded from any aggregation).
 #
 # Returns NULL if `weight` is NULL.
-.validate_and_format_weight <- function(weight, ref) {
+.validate_and_format_weight <- function(weight, ref, pool_row_map = NULL,
+                                        n_pool_original = NULL) {
       if (is.null(weight)) return(NULL)
 
+      # Two row-count conventions to reconcile:
+      # - User-supplied weights (vector, matrix, data.frame, SpatRaster) are
+      #   keyed to the *original* pool the user passed to build_analog_index().
+      # - The C++ side and `ref` are keyed to the post-NA-strip pool.
+      # When pool_row_map is non-NULL, validate user input against the
+      # original pool size, then translate to ref ordering. When NULL
+      # (no NA stripping happened), the two are equivalent.
       n_ref <- nrow(ref)
+      n_user <- if (is.null(pool_row_map)) n_ref else n_pool_original
 
       if (inherits(weight, "SpatRaster")) {
             if (!requireNamespace("terra", quietly = TRUE)) {
@@ -870,10 +973,10 @@
                        call. = FALSE)
             }
             df <- terra::as.data.frame(weight, xy = FALSE, na.rm = FALSE)
-            if (nrow(df) != n_ref) {
+            if (nrow(df) != n_user) {
                   stop(sprintf(
                         "weight SpatRaster has %d cells but pool has %d rows. They must match.",
-                        nrow(df), n_ref
+                        nrow(df), n_user
                   ), call. = FALSE)
             }
             w <- as.numeric(df[[1L]])
@@ -883,10 +986,10 @@
                   stop("`weight` data.frame must have exactly one column.",
                        call. = FALSE)
             }
-            if (nrow(weight) != n_ref) {
+            if (nrow(weight) != n_user) {
                   stop(sprintf(
                         "weight has %d rows but pool has %d rows. They must match.",
-                        nrow(weight), n_ref
+                        nrow(weight), n_user
                   ), call. = FALSE)
             }
             w <- as.numeric(weight[[1L]])
@@ -896,19 +999,19 @@
                   stop("`weight` matrix must have exactly one column.",
                        call. = FALSE)
             }
-            if (nrow(weight) != n_ref) {
+            if (nrow(weight) != n_user) {
                   stop(sprintf(
                         "weight has %d rows but pool has %d rows. They must match.",
-                        nrow(weight), n_ref
+                        nrow(weight), n_user
                   ), call. = FALSE)
             }
             w <- as.numeric(weight[, 1L])
 
       } else if (is.numeric(weight) && is.null(dim(weight))) {
-            if (length(weight) != n_ref) {
+            if (length(weight) != n_user) {
                   stop(sprintf(
                         "weight has length %d but pool has %d rows. They must match.",
-                        length(weight), n_ref
+                        length(weight), n_user
                   ), call. = FALSE)
             }
             w <- as.numeric(weight)
@@ -916,6 +1019,11 @@
       } else {
             stop("`weight` must be a numeric vector, single-column matrix or ",
                  "data.frame, or single-layer SpatRaster.", call. = FALSE)
+      }
+
+      # Translate to ref (post-strip) ordering if applicable.
+      if (!is.null(pool_row_map)) {
+            w <- w[pool_row_map]
       }
 
       # Validate values: NAs allowed (converted to 0), other non-finite or

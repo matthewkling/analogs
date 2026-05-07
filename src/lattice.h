@@ -15,6 +15,25 @@
 
 namespace analogs {
 
+// Helper: check if any value in a reference row is NaN.
+// Used as a defensive guard in Lattice::build() to skip rows with missing
+// data. Under normal operation, rows with NaN values should have been
+// stripped on the R side by .format_data(., purpose = "pool"); this guard
+// exists so that direct calls into the C++ build path (e.g. from tests or
+// future code paths) remain robust.
+//
+// Returns true if any of the n_dims values for row j (across the columns
+// of a column-major matrix with the given stride) is NaN.
+inline bool row_has_nan(const double* ref_ptr,
+                        size_tu j,
+                        size_tu stride_r,
+                        size_tu n_dims) {
+      for (size_tu d = 0; d < n_dims; ++d) {
+            if (std::isnan(ref_ptr[j + d * stride_r])) return true;
+      }
+      return false;
+}
+
 // Bin structure: stores point IDs and sampling weight
 struct Bin {
       std::vector<index_t> point_ids;
@@ -178,30 +197,45 @@ inline void Lattice::build(const double* ref_ptr,
       }
 
       // First pass: compute mins/maxs over all dims.
+      // Skip rows containing any NaN (defensive guard; R-side should have
+      // already stripped NA pool rows). Track whether we've seen any valid
+      // row so we initialize mins/maxs from the first valid (not the first
+      // overall) row.
+      bool initialized = false;
       for (size_tu j = 0; j < n_ref; ++j) {
-            // geo dims
-            for (size_tu g = 0; g < n_geo_dims; ++g) {
-                  double v = ref_ptr[j + g * stride_r];
-                  if (j == 0) {
+            if (row_has_nan(ref_ptr, j, stride_r, n_dims)) continue;
+
+            if (!initialized) {
+                  // Seed mins/maxs from this first valid row
+                  for (size_tu g = 0; g < n_geo_dims; ++g) {
+                        double v = ref_ptr[j + g * stride_r];
                         mins[g] = maxs[g] = v;
-                  } else {
+                  }
+                  for (size_tu k = 0; k < n_clim_dims; ++k) {
+                        size_tu d = n_geo_dims + k;
+                        double v = ref_ptr[j + d * stride_r];
+                        mins[d] = maxs[d] = v;
+                  }
+                  initialized = true;
+            } else {
+                  for (size_tu g = 0; g < n_geo_dims; ++g) {
+                        double v = ref_ptr[j + g * stride_r];
                         if (v < mins[g]) mins[g] = v;
                         if (v > maxs[g]) maxs[g] = v;
                   }
-            }
-
-            // climate dims
-            for (size_tu k = 0; k < n_clim_dims; ++k) {
-                  size_tu d = n_geo_dims + k;
-                  double v = ref_ptr[j + d * stride_r];
-                  if (j == 0) {
-                        mins[d] = maxs[d] = v;
-                  } else {
+                  for (size_tu k = 0; k < n_clim_dims; ++k) {
+                        size_tu d = n_geo_dims + k;
+                        double v = ref_ptr[j + d * stride_r];
                         if (v < mins[d]) mins[d] = v;
                         if (v > maxs[d]) maxs[d] = v;
                   }
             }
       }
+
+      // If every row was NaN, leave mins/maxs at their zero defaults.
+      // The bin assignment loop below will skip every row (all NaN),
+      // resulting in an empty lattice. Downstream queries should return
+      // empty results / NA outputs for all focals.
 
       // Choose per-dimension bin widths and bin counts.
       //
@@ -248,9 +282,11 @@ inline void Lattice::build(const double* ref_ptr,
 
 
       // Second pass: assign points to bins.
+      // Skip rows containing any NaN (defensive guard, matches Pass 1).
       std::vector<size_tu> idx(n_dims);
 
       for (size_tu j = 0; j < n_ref; ++j) {
+            if (row_has_nan(ref_ptr, j, stride_r, n_dims)) continue;
             // geo dims
             for (size_tu g = 0; g < n_geo_dims; ++g) {
                   double v = ref_ptr[j + g * stride_r];

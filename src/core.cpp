@@ -57,29 +57,45 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
       const double* ref_ptr = REAL(ref_mm);
       const int stride = n_ref;
 
+      // Skip rows containing any NaN (defensive guard; R-side should have
+      // already stripped NA pool rows via .format_data). Initialize mins/maxs
+      // from the first valid row, not row 0, in case row 0 is NaN.
+      bool ranges_initialized = false;
       for (int i = 0; i < n_ref; ++i) {
-            // Coordinate ranges
-            for (int d = 0; d < 2; ++d) {
-                  double v = ref_ptr[i + d * stride];
-                  if (i == 0) {
+            // Check whether this row contains any NaN across coords + clim
+            bool row_nan = false;
+            for (int d = 0; d < ncol_ref; ++d) {
+                  if (std::isnan(ref_ptr[i + d * stride])) { row_nan = true; break; }
+            }
+            if (row_nan) continue;
+
+            if (!ranges_initialized) {
+                  for (int d = 0; d < 2; ++d) {
+                        double v = ref_ptr[i + d * stride];
                         coord_mins[d] = coord_maxs[d] = v;
-                  } else {
+                  }
+                  for (int k = 0; k < n_clim; ++k) {
+                        double v = ref_ptr[i + (2 + k) * stride];
+                        clim_mins[k] = clim_maxs[k] = v;
+                  }
+                  ranges_initialized = true;
+            } else {
+                  for (int d = 0; d < 2; ++d) {
+                        double v = ref_ptr[i + d * stride];
                         if (v < coord_mins[d]) coord_mins[d] = v;
                         if (v > coord_maxs[d]) coord_maxs[d] = v;
                   }
-            }
-
-            // Climate ranges
-            for (int k = 0; k < n_clim; ++k) {
-                  double v = ref_ptr[i + (2 + k) * stride];
-                  if (i == 0) {
-                        clim_mins[k] = clim_maxs[k] = v;
-                  } else {
+                  for (int k = 0; k < n_clim; ++k) {
+                        double v = ref_ptr[i + (2 + k) * stride];
                         if (v < clim_mins[k]) clim_mins[k] = v;
                         if (v > clim_maxs[k]) clim_maxs[k] = v;
                   }
             }
       }
+      // If every row was NaN, ranges stay at their zero defaults from the
+      // initial vector construction. Lattice::build will produce an empty
+      // lattice (n_cells_nonempty = 0), and downstream queries will return
+      // empty / NA results for all focals.
 
       // Prepare data for lattice building
       const double* lattice_data_ptr;
@@ -214,7 +230,20 @@ SEXP query_analog_index_cpp(SEXP index_list,
       }
 
       std::string coord_type = as<std::string>(idx["coord_type"]);
-      int n_ref = as<int>(idx["n_pool"]);
+      // n_pool_used reflects the count of usable (non-NA) rows actually
+      // held in ref_data and indexed by the lattice. It differs from
+      // n_pool (the original pool size) when the input contained NAs.
+      // Fall back to n_pool when n_pool_used is absent (legacy index
+      // objects predating NA stripping).
+      int n_ref;            // post-strip count, must match nrow(ref_mm)
+      int n_pool_original;  // original pool size, surfaced on output attrs
+      if (idx.containsElementNamed("n_pool_used")) {
+            n_ref = as<int>(idx["n_pool_used"]);
+            n_pool_original = as<int>(idx["n_pool"]);
+      } else {
+            n_ref = as<int>(idx["n_pool"]);
+            n_pool_original = n_ref;
+      }
       int n_clim = as<int>(idx["n_clim"]);
       bool use_ecef = as<bool>(idx["use_ecef"]);
 
@@ -512,7 +541,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
 
             // Attach diagnostics
             out.attr("n_x") = n_focal;
-            out.attr("n_pool") = n_ref;
+            out.attr("n_pool") = n_pool_original;
             out.attr("n_clim") = n_clim;
             out.attr("max_geog") = max_geog;
             out.attr("max_clim") = max_clim;
@@ -658,7 +687,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
 
             // Add diagnostics as attributes
             agg.attr("n_x") = n_focal;
-            agg.attr("n_pool") = n_ref;
+            agg.attr("n_pool") = n_pool_original;
             agg.attr("n_clim") = n_clim;
             agg.attr("max_geog") = max_geog;
             agg.attr("max_clim") = max_clim;

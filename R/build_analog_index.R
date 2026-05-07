@@ -212,8 +212,27 @@ build_analog_index <- function(pool,
             NULL
       }
 
-      # Normalize pool to standard matrix format
-      ref_mm <- .format_data(pool)
+      # Normalize pool to standard matrix format. NA pool rows (e.g. ocean
+      # cells in a global raster) are stripped here; `row_map` records the
+      # original-pool row index of each kept row so we can translate C++
+      # analog indices back to the user's pool indexing in pairs mode.
+      ref_mm <- .format_data(pool, purpose = "pool")
+      pool_row_map <- attr(ref_mm, "row_map")  # NULL if no rows stripped
+
+      # Original (pre-strip) pool size, for length-checking user-supplied
+      # weight vectors against the input the user actually passed.
+      n_pool_original <- if (is.null(pool_row_map)) {
+            nrow(ref_mm)
+      } else {
+            # row_map indices are into the original pool; max index = original size
+            # only if the last row was retained, so use the dataset's true row count.
+            # We recover that from the input.
+            if (inherits(pool, "SpatRaster")) {
+                  terra::ncell(pool)
+            } else {
+                  nrow(pool)
+            }
+      }
 
       # Detect coordinate system if auto. We pass the original `pool` so
       # the detector can consult CRS metadata (when pool is a SpatRaster);
@@ -222,13 +241,19 @@ build_analog_index <- function(pool,
             coord_type <- .detect_geo(ref_mm[, 1:2, drop = FALSE], pool)
       }
 
-      # Validate the cell-area weight vector length now that we know n_pool.
-      if (!is.null(cell_area_weight_vec) &&
-          length(cell_area_weight_vec) != nrow(ref_mm)) {
-            stop(sprintf(
-                  "`cell_area_weight` length (%d) does not match pool size (%d).",
-                  length(cell_area_weight_vec), nrow(ref_mm)
-            ), call. = FALSE)
+      # Validate cell-area weight vector length against the *original* pool
+      # size (the user supplied it for the pool they passed in), then strip
+      # to align with the NA-filtered ref_mm if any rows were dropped.
+      if (!is.null(cell_area_weight_vec)) {
+            if (length(cell_area_weight_vec) != n_pool_original) {
+                  stop(sprintf(
+                        "`cell_area_weight` length (%d) does not match pool size (%d).",
+                        length(cell_area_weight_vec), n_pool_original
+                  ), call. = FALSE)
+            }
+            if (!is.null(pool_row_map)) {
+                  cell_area_weight_vec <- cell_area_weight_vec[pool_row_map]
+            }
       }
 
       # Call C++ to build index
@@ -247,12 +272,24 @@ build_analog_index <- function(pool,
                   lattice_xptr = index_cpp$lattice_xptr,
                   ecef_xptr = index_cpp$ecef_xptr,
 
-                  # Reference data (needed for distance calculations)
+                  # Reference data (needed for distance calculations).
+                  # NA-filtered: rows where any coord/clim was NA have been
+                  # stripped. See `pool_row_map` for original-pool indexing.
                   ref_data = ref_mm,
 
-                  # Metadata
+                  # Map from stripped (ref_data) row index -> original-pool
+                  # row index. NULL when no rows were stripped (identity
+                  # mapping). Used by query_analog_index() to translate C++
+                  # analog indices back to user-pool indexing in pair mode.
+                  pool_row_map = pool_row_map,
+
+                  # Metadata. n_pool reports the original pool size as the
+                  # user passed it; n_pool_used reports the count of usable
+                  # (non-NA) rows actually held in ref_data and indexed by
+                  # the lattice. These differ when the input contained NAs.
                   coord_type = coord_type,
-                  n_pool = index_cpp$n_pool,
+                  n_pool = n_pool_original,
+                  n_pool_used = index_cpp$n_pool,
                   n_clim = index_cpp$n_clim,
                   index_res = index_res,
 
@@ -268,7 +305,8 @@ build_analog_index <- function(pool,
                   use_ecef = index_cpp$use_ecef,
 
                   # Cell-area weighting (NULL if not applied; otherwise
-                  # mean-1-normalized numeric vector of length n_pool).
+                  # mean-1-normalized numeric vector of length n_pool_used,
+                  # aligned to ref_data rows after any NA stripping).
                   cell_area_weight = cell_area_weight_vec,
 
                   # Diagnostics
@@ -300,7 +338,14 @@ print.analog_index <- function(x, ...) {
       cat("============\n\n")
 
       cat("Reference data:\n")
-      cat(sprintf("  %d locations\n", x$n_pool))
+      # n_pool_used may be absent on legacy index objects; fall back to n_pool.
+      n_used <- x$n_pool_used %||% x$n_pool
+      if (!is.null(x$n_pool_used) && x$n_pool_used != x$n_pool) {
+            cat(sprintf("  %d locations (%d usable after NA filtering)\n",
+                        x$n_pool, n_used))
+      } else {
+            cat(sprintf("  %d locations\n", x$n_pool))
+      }
       cat(sprintf("  %d climate variables\n", x$n_clim))
       cat(sprintf("  Coordinate type: %s\n", x$coord_type))
 
@@ -322,7 +367,7 @@ print.analog_index <- function(x, ...) {
                   100 * x$n_bins_nonempty / x$total_bins))
 
       if (x$n_bins_nonempty > 0) {
-            avg_occ <- x$n_pool / x$n_bins_nonempty
+            avg_occ <- n_used / x$n_bins_nonempty
             cat(sprintf("  Bin occupancy: %d-%d (avg: %.1f) points per bin\n",
                         x$min_bin_occupancy, x$max_bin_occupancy, avg_occ))
       }
