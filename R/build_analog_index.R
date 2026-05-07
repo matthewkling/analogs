@@ -216,7 +216,7 @@ build_analog_index <- function(pool,
       # cells in a global raster) are stripped here; `row_map` records the
       # original-pool row index of each kept row so we can translate C++
       # analog indices back to the user's pool indexing in pairs mode.
-      ref_mm <- .format_data(pool, purpose = "pool")
+      ref_mm <- .format_data(pool)
       pool_row_map <- attr(ref_mm, "row_map")  # NULL if no rows stripped
 
       # Original (pre-strip) pool size, for length-checking user-supplied

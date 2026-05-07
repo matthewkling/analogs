@@ -22,12 +22,17 @@
                                    lambda = 0,
                                    se = "none",
                                    pool_row_map = NULL,
-                                   n_pool_original = NULL) {
+                                   n_pool_original = NULL,
+                                   focal_row_map = NULL,
+                                   n_focal_original = NULL) {
 
       # `ref` (post-NA-strip pool) and `n_pool_original` (user's original pool
-      # size) differ when the pool contained NA rows. User-supplied per-pool
-      # arguments (y, covariates) are keyed to the original pool; downstream
-      # validators apply pool_row_map (when non-NULL) to align them with ref.
+      # size) differ when the pool contained NA rows. Likewise, `focal`
+      # (post-NA-strip focal) and `n_focal_original` differ when the focal
+      # contained NA rows. User-supplied per-pool arguments (y, covariates)
+      # are keyed to the original pool; per-focal arguments (x_cov) are keyed
+      # to the original focal. Downstream validators apply the appropriate
+      # row_map (when non-NULL) to align inputs with the stripped data.
 
       # Validate select
       select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
@@ -230,7 +235,11 @@
             if (is.null(focal)) {
                   stop("Internal error: focal required for x_cov validation")
             }
-            x_cov_mat <- .validate_and_format_x_cov(x_cov, focal)
+            x_cov_mat <- .validate_and_format_x_cov(
+                  x_cov, focal,
+                  focal_row_map = focal_row_map,
+                  n_focal_original = n_focal_original
+            )
       }
 
       # Validate and format y values if provided.
@@ -667,11 +676,17 @@
 }
 
 # Validate and format x_cov parameter
-.validate_and_format_x_cov <- function(x_cov, focal) {
+.validate_and_format_x_cov <- function(x_cov, focal,
+                                       focal_row_map = NULL,
+                                       n_focal_original = NULL) {
 
-      # focal is already formatted matrix with coords + climate
+      # focal is already formatted matrix (post NA-strip) with coords + climate
       n_focal <- nrow(focal)
       n_clim <- ncol(focal) - 2
+      # User input is keyed to the original focal size; focal is post-strip.
+      # When focal_row_map is non-NULL, validate against original size and
+      # translate; otherwise the two are equivalent.
+      n_user <- if (is.null(focal_row_map)) n_focal else n_focal_original
 
       # Expected number of covariance components
       n_cov_components <- n_clim * (n_clim + 1) / 2
@@ -690,11 +705,11 @@
             stop("x_cov must be a matrix, data.frame, or SpatRaster")
       }
 
-      # Validate dimensions
-      if (nrow(x_cov) != n_focal) {
+      # Validate dimensions against the user's original focal size
+      if (nrow(x_cov) != n_user) {
             stop(sprintf(
                   "x_cov must have same number of rows as focal data (%d), but has %d rows",
-                  n_focal, nrow(x_cov)
+                  n_user, nrow(x_cov)
             ))
       }
 
@@ -705,7 +720,15 @@
             ))
       }
 
-      # Check for non-finite values
+      # Strip to align with the post-NA-strip focal BEFORE the finite-value
+      # check, so NA values at stripped focal positions (e.g. ocean cells)
+      # don't trigger an error. The kept rows are the ones that will actually
+      # be processed by C++ workers and must have finite covariance entries.
+      if (!is.null(focal_row_map)) {
+            x_cov <- x_cov[focal_row_map, , drop = FALSE]
+      }
+
+      # Check for non-finite values on the rows we'll actually use
       if (any(!is.finite(x_cov))) {
             stop("x_cov contains non-finite values")
       }
@@ -839,34 +862,33 @@
       cbind(coords, climate)
 }
 
-# Normalize input to standard format.
+# Normalize input to standard format and strip rows containing any NA.
 #
-# The `purpose` argument controls handling of rows containing NA values:
+# Both pool and focal data flow through this function with identical
+# treatment: NA-containing rows (in coords or climate) are removed, since
+# they cannot participate meaningfully in distance computations. When any
+# rows are stripped, a `row_map` attribute records the original-row index
+# of each kept row, so downstream code can translate stripped-space indices
+# back to user-space.
 #
-# - "focal" (default): preserve all rows including NAs. Required for raster
-#   alignment so C++ output can be rasterized back onto the original grid
-#   via the "template" attribute. NA-containing focal rows are recognized
-#   downstream (workers.cpp) and produce NA results without contaminating
-#   neighbor selection or aggregation.
+# - For pool data, downstream code uses row_map to (a) translate
+#   analog_index in pairs-mode results back to the user's pool indexing,
+#   and (b) align user-supplied per-pool data (y, covariates, weight,
+#   cell_area_weight) to the stripped pool.
 #
-# - "pool": strip rows where any column (coords or climate) is NA. Pool rows
-#   are an unordered collection used only for analog lookup; preserving NA
-#   rows wastes memory in `ref_data`/ECEF/lattice and silently corrupts
-#   aggregation (NaN distances bypass `>` filters, polluting counts and
-#   weighted means). The number of rows kept may be smaller than the input
-#   row count.
+# - For focal data, downstream code uses row_map to (a) translate the
+#   `index` column in pairs-mode results back to the user's focal indexing
+#   (and rasterize correctly when applicable), (b) reconstruct full-length
+#   aggregation-mode output with NA at stripped positions, and (c) align
+#   x_cov to the stripped focal.
 #
-# When `purpose = "pool"` and any rows are stripped, the returned matrix has
-# an integer attribute `row_map` such that `row_map[i]` is the original-pool
-# row index of the kept row `i`. Length(row_map) == nrow(out). When no rows
-# are stripped, `row_map` is NULL, signaling identity mapping (no remap
-# needed downstream). This map is used by build_analog_index() to translate
-# C++ analog indices back into original-pool indices in pair-mode results.
-.format_data <- function(r, purpose = c("focal", "pool")) {
-      purpose <- match.arg(purpose)
-
+# When no rows are stripped, row_map is NULL (signaling identity mapping,
+# no remap needed downstream).
+#
+# A `template` attribute is also attached for SpatRaster inputs; it is
+# consumed by .format_output() for rasterization of focal results.
+.format_data <- function(r) {
       if (inherits(r, "SpatRaster")) {
-            # Convert SpatRaster to data.frame
             if (!requireNamespace("terra", quietly = TRUE)) {
                   stop("Package 'terra' is required for SpatRaster inputs")
             }
@@ -880,24 +902,18 @@
             stop("Input must be a data.frame, matrix, or SpatRaster")
       }
 
-      if (purpose == "pool") {
-            # Strip rows where any column is NA. Build a row_map only if any
-            # rows were actually dropped, so the common no-NA case incurs no
-            # extra allocation.
-            keep <- stats::complete.cases(df)
-            n_total <- length(keep)
-            n_kept  <- sum(keep)
-
-            if (n_kept < n_total) {
-                  template <- attr(df, "template")
-                  row_map  <- which(keep)            # original-row indices of kept rows
-                  df       <- df[keep, , drop = FALSE]
-                  attr(df, "template") <- template   # preserve template (focal-only paths
-                  # don't go through "pool", but be safe)
-                  attr(df, "row_map")  <- row_map
-            } else {
-                  attr(df, "row_map")  <- NULL       # identity mapping
-            }
+      # Strip NA-containing rows. Build a row_map only when any rows are
+      # actually dropped, so the common no-NA case incurs no extra
+      # allocation and downstream code can short-circuit on NULL.
+      keep <- stats::complete.cases(df)
+      if (sum(keep) < length(keep)) {
+            template <- attr(df, "template")
+            row_map  <- which(keep)            # original-row indices of kept rows
+            df       <- df[keep, , drop = FALSE]
+            attr(df, "template") <- template
+            attr(df, "row_map")  <- row_map
+      } else {
+            attr(df, "row_map")  <- NULL       # identity mapping
       }
 
       df

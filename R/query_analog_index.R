@@ -22,10 +22,26 @@ query_analog_index <- function(x,
       # Validate index
       .validate_analog_index(index)
 
-      # Format focal data. purpose = "focal" preserves NA rows so that
-      # rasterized output stays aligned to the input grid; NA focals
-      # produce NA results via the focal_has_na() guard in workers.cpp.
-      focal <- .format_data(x, purpose = "focal")
+      # Capture the original focal size (before NA stripping below) so we
+      # can reconstruct full-length output and validate user-supplied
+      # focal-keyed inputs (x_cov) against the user's actual input shape.
+      n_focal_original <- if (inherits(x, "SpatRaster")) {
+            if (!requireNamespace("terra", quietly = TRUE)) {
+                  stop("Package 'terra' is required for SpatRaster inputs",
+                       call. = FALSE)
+            }
+            terra::ncell(x)
+      } else {
+            nrow(x)
+      }
+
+      # Format focal data. NA-containing rows are stripped here; row_map
+      # records the original-focal row index of each kept row. Downstream
+      # post-processing scatters C++ output back to original-focal indexing
+      # (NA at stripped positions) and remaps the `index` column in pairs
+      # mode. Identical mechanism to pool-side stripping in build_analog_index().
+      focal <- .format_data(x)
+      focal_row_map <- attr(focal, "row_map")  # NULL if no rows stripped
 
       # Validate compatibility
       .validate_analog_index(index, focal, validate_ranges = FALSE)
@@ -58,10 +74,12 @@ query_analog_index <- function(x,
             )
       }
 
-      # Validate and normalize query parameters. pool_row_map and n_pool
-      # let the per-pool validators (y, covariates) accept user input keyed
-      # to the original pool size, then translate to the post-NA-strip
-      # ordering used by ref_data and the C++ side.
+      # Validate and normalize query parameters. The four row_map / size
+      # arguments let the per-pool validators (y, covariates) accept user
+      # input keyed to the original pool size, and the focal-side validator
+      # (x_cov) accept input keyed to the original focal size, then
+      # translate each to the post-NA-strip ordering used by ref_data /
+      # focal and the C++ side.
       params <- .validate_query_params(focal, index$ref_data,
                                        x_cov, y, covariates,
                                        max_clim, max_geog,
@@ -69,7 +87,9 @@ query_analog_index <- function(x,
                                        stat, kernel, theta, lambda,
                                        se,
                                        pool_row_map = index$pool_row_map,
-                                       n_pool_original = index$n_pool)
+                                       n_pool_original = index$n_pool,
+                                       focal_row_map = focal_row_map,
+                                       n_focal_original = n_focal_original)
       select <- params$select
       stat <- params$stat
       k <- params$k
@@ -254,6 +274,70 @@ query_analog_index <- function(x,
                   out$analog_index <- ai
             }
 
+            # Focal-side remapping. Two cases when focal NA stripping
+            # happened:
+            # (1) k == 1 && select != "all": exactly one row per (stripped)
+            #     focal. Reconstruct to n_focal_original rows, with NA in
+            #     all columns at stripped focal positions, so the result
+            #     can rasterize back onto the user's input grid.
+            # (2) Otherwise: variable rows per focal. We don't reconstruct
+            #     (it's not rasterizable), but we still remap the `index`
+            #     column from stripped-focal indexing back to original-
+            #     focal indexing so user-side joins work.
+            if (!is.null(focal_row_map)) {
+                  # When focal NA stripping happened, two cases for the
+                  # output:
+                  # (1) Single row per focal (k == 1 && select != "all"):
+                  #     reconstruct to n_focal_original rows with NA at
+                  #     stripped focal positions. This matches the shape
+                  #     users would get without NA stripping (one row per
+                  #     input cell, with NA pair data for NA focals), and
+                  #     enables rasterization for SpatRaster inputs.
+                  # (2) Variable rows per focal (k > 1 or select == "all"):
+                  #     output has variable rows per focal. We don't
+                  #     reconstruct (it's not rasterizable and the row
+                  #     count is naturally smaller without NA focals);
+                  #     just remap the `index` column so the user's
+                  #     existing-input row indexing still works.
+                  single_row_per_focal <- isTRUE(k == 1) &&
+                        !identical(select, "all")
+
+                  if (single_row_per_focal) {
+                        # Reconstruct to n_focal_original rows, NA at stripped
+                        # positions. After this, `out$index` is 1:n_focal_original
+                        # (matches user-input row order).
+                        n_out <- n_focal_original
+                        scat <- function(col, na_val) {
+                              full <- rep(na_val, n_out)
+                              full[focal_row_map] <- col
+                              full
+                        }
+                        out_full <- list()
+                        for (nm in names(out)) {
+                              col <- out[[nm]]
+                              if (identical(nm, "index")) {
+                                    out_full[[nm]] <- seq_len(n_out)
+                              } else if (is.integer(col)) {
+                                    out_full[[nm]] <- scat(col, NA_integer_)
+                              } else {
+                                    out_full[[nm]] <- scat(col, NA_real_)
+                              }
+                        }
+                        out <- as.data.frame(out_full,
+                                             stringsAsFactors = FALSE)
+                  } else {
+                        # Multi-row-per-focal; just remap the `index` column.
+                        if (!is.null(out$index)) {
+                              idx_col <- out$index
+                              na_mask <- is.na(idx_col)
+                              if (any(!na_mask)) {
+                                    idx_col[!na_mask] <- focal_row_map[idx_col[!na_mask]]
+                              }
+                              out$index <- idx_col
+                        }
+                  }
+            }
+
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
@@ -275,11 +359,31 @@ query_analog_index <- function(x,
             stop("Internal error: stat result rows do not match number of focals.")
       }
 
+      # Reconstruct output at original focal length when focal NA stripping
+      # was applied. C++ produced n_focal_used rows; we scatter them into
+      # n_focal_original rows with NA at stripped positions. This keeps the
+      # output aligned to the user's input shape (essential for raster
+      # output, where row order corresponds to cell index).
+      if (is.null(focal_row_map)) {
+            n_out <- nrow(focal)
+            res_full <- res
+            x_full <- focal[, 1]
+            y_full <- focal[, 2]
+      } else {
+            n_out <- n_focal_original
+            res_full <- matrix(NA_real_, nrow = n_out, ncol = ncol(res))
+            res_full[focal_row_map, ] <- res
+            x_full <- rep(NA_real_, n_out)
+            y_full <- rep(NA_real_, n_out)
+            x_full[focal_row_map] <- focal[, 1]
+            y_full[focal_row_map] <- focal[, 2]
+      }
+
       # Build output data.frame
       out <- data.frame(
-            index = seq_len(nrow(focal)),
-            x = focal[, 1],
-            y = focal[, 2]
+            index = seq_len(n_out),
+            x = x_full,
+            y = y_full
       )
 
       col_idx <- 1L
@@ -290,7 +394,7 @@ query_analog_index <- function(x,
       regular_stats <- intersect(stat,
                                  c("count", "sum_weights", "mean_weights", "ess"))
       for (s in regular_stats) {
-            out[[s]] <- res[, col_idx]
+            out[[s]] <- res_full[, col_idx]
             col_idx <- col_idx + 1L
       }
 
@@ -308,14 +412,14 @@ query_analog_index <- function(x,
 
                   for (s in value_stats) {
                         col_name <- if (n_vals == 1L) s else paste0(s, "_", var_name)
-                        out[[col_name]] <- res[, col_idx]
+                        out[[col_name]] <- res_full[, col_idx]
                         col_idx <- col_idx + 1L
 
                         # weighted_mean SE is emitted immediately after
                         if (s == "weighted_mean" && want_se) {
                               se_name <- if (n_vals == 1L) "se_weighted_mean" else
                                     paste0("se_weighted_mean_", var_name)
-                              out[[se_name]] <- res[, col_idx]
+                              out[[se_name]] <- res_full[, col_idx]
                               col_idx <- col_idx + 1L
                         }
                   }
@@ -351,7 +455,7 @@ query_analog_index <- function(x,
                         } else {
                               paste0("n_", lev[kk])
                         }
-                        out[[col_name]] <- res[, col_idx]
+                        out[[col_name]] <- res_full[, col_idx]
                         col_idx <- col_idx + 1L
                   }
             }
@@ -367,12 +471,12 @@ query_analog_index <- function(x,
 
             if (n_vals == 1) {
                   for (d in seq_len(reg_dim)) {
-                        out[[paste0("coef_", base_names[d])]] <- res[, col_idx]
+                        out[[paste0("coef_", base_names[d])]] <- res_full[, col_idx]
                         col_idx <- col_idx + 1
                   }
                   if (want_se) {
                         for (d in seq_len(reg_dim)) {
-                              out[[paste0("se_", base_names[d])]] <- res[, col_idx]
+                              out[[paste0("se_", base_names[d])]] <- res_full[, col_idx]
                               col_idx <- col_idx + 1
                         }
                   }
@@ -385,7 +489,7 @@ query_analog_index <- function(x,
                         }
                         for (d in seq_len(reg_dim)) {
                               col_name <- paste0("coef_", base_names[d], "_", var_name)
-                              out[[col_name]] <- res[, col_idx]
+                              out[[col_name]] <- res_full[, col_idx]
                               col_idx <- col_idx + 1
                         }
                   }
@@ -398,7 +502,7 @@ query_analog_index <- function(x,
                               }
                               for (d in seq_len(reg_dim)) {
                                     col_name <- paste0("se_", base_names[d], "_", var_name)
-                                    out[[col_name]] <- res[, col_idx]
+                                    out[[col_name]] <- res_full[, col_idx]
                                     col_idx <- col_idx + 1
                               }
                         }

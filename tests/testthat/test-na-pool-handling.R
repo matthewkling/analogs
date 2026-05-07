@@ -1,9 +1,9 @@
-# Tests for NA handling in pool data.
+# Tests for NA handling in pool and focal data.
 #
 # Layers covered:
 #
-# 1. .format_data() with purpose = "pool" strips NA rows and attaches a
-#    row_map; with purpose = "focal" preserves all rows.
+# 1. .format_data() strips NA rows from any input (pool OR focal) and
+#    attaches a row_map attribute mapping kept-row -> original-row indices.
 #
 # 2. build_analog_index() captures pool_row_map, exposes n_pool (original)
 #    and n_pool_used (post-strip), and aligns cell_area_weight to ref_data
@@ -19,6 +19,12 @@
 #
 # 5. Empty-pool edge case (all rows NA) doesn't crash and produces all-NA
 #    or zero-count results.
+#
+# 6. Focal NA stripping: query_analog_index strips NA focal rows; results
+#    are reconstructed to the original focal length for single-row-per-focal
+#    queries (so SpatRaster outputs rasterize correctly), and the `index`
+#    column in pairs output is remapped back to original-focal indexing in
+#    multi-row-per-focal queries.
 
 # Helpers ------------------------------------------------------------------
 
@@ -52,47 +58,39 @@ strip_na_pool <- function(pool) {
 
 # 1. .format_data behavior --------------------------------------------------
 
-test_that(".format_data(purpose = 'focal') preserves NA rows", {
-      pool <- sim_pool_with_nas(n = 100, na_frac = 0.4)
+# Note: previous behavior had a `purpose` argument distinguishing focal
+# (preserve NAs) from pool (strip NAs). Both sides now strip identically.
 
-      out <- analogs:::.format_data(pool, purpose = "focal")
-
-      expect_equal(nrow(out), 100)
-      expect_null(attr(out, "row_map"))
-      expect_equal(sum(stats::complete.cases(out)),
-                   sum(stats::complete.cases(pool)))
-})
-
-test_that(".format_data(purpose = 'pool') strips NA rows and sets row_map", {
+test_that(".format_data strips NA rows and sets row_map", {
       pool <- sim_pool_with_nas(n = 100, na_frac = 0.4)
       n_complete <- sum(stats::complete.cases(pool))
 
-      out <- analogs:::.format_data(pool, purpose = "pool")
+      out <- analogs:::.format_data(pool)
 
       expect_equal(nrow(out), n_complete)
       expect_true(!is.null(attr(out, "row_map")))
       expect_equal(length(attr(out, "row_map")), n_complete)
       expect_true(all(stats::complete.cases(out)))
 
-      # row_map should index back into original pool correctly
+      # row_map should index back into original input correctly
       row_map <- attr(out, "row_map")
       expect_equal(out[, 3], pool[row_map, "clim1"])
       expect_equal(out[, 4], pool[row_map, "clim2"])
 })
 
-test_that(".format_data(purpose = 'pool') with no NAs sets row_map = NULL", {
+test_that(".format_data with no NAs sets row_map = NULL", {
       pool <- sim_pool_with_nas(n = 100, na_frac = 0)
 
-      out <- analogs:::.format_data(pool, purpose = "pool")
+      out <- analogs:::.format_data(pool)
 
       expect_equal(nrow(out), 100)
       expect_null(attr(out, "row_map"))
 })
 
-test_that(".format_data(purpose = 'pool') strips fully-NA pool to zero rows", {
+test_that(".format_data strips fully-NA input to zero rows", {
       pool <- sim_pool_with_nas(n = 50, na_frac = 1.0)
 
-      out <- analogs:::.format_data(pool, purpose = "pool")
+      out <- analogs:::.format_data(pool)
 
       expect_equal(nrow(out), 0)
       # row_map is integer(0), NOT NULL, when stripping happened (even if to zero)
@@ -100,7 +98,7 @@ test_that(".format_data(purpose = 'pool') strips fully-NA pool to zero rows", {
       expect_equal(length(attr(out, "row_map")), 0L)
 })
 
-test_that(".format_data 'pool' works with SpatRaster input", {
+test_that(".format_data works with SpatRaster input", {
       skip_if_not_installed("terra")
 
       r <- terra::rast(nrows = 10, ncols = 10, nlyrs = 2,
@@ -112,7 +110,7 @@ test_that(".format_data 'pool' works with SpatRaster input", {
       vals[c(8, 25, 60), 2] <- NA
       terra::values(r) <- vals
 
-      out <- analogs:::.format_data(r, purpose = "pool")
+      out <- analogs:::.format_data(r)
 
       n_complete <- sum(stats::complete.cases(terra::values(r)))
       expect_equal(nrow(out), n_complete)
@@ -390,4 +388,204 @@ test_that("query against fully-NA pool returns NA results without crashing", {
       )
       expect_equal(nrow(res_pair), 10)
       expect_true(all(is.na(res_pair$analog_index)))
+})
+
+# 8. Focal NA stripping -----------------------------------------------------
+
+# Build a small reproducible focal with specified NA pattern (mirror of
+# sim_pool_with_nas for clarity in focal-side tests).
+sim_focal_with_nas <- function(n = 50, seed = 99, na_frac = 0.3) {
+      sim_pool_with_nas(n = n, seed = seed, na_frac = na_frac)
+}
+
+test_that("agg-mode results match between NA-containing and pre-stripped focal", {
+      set.seed(101)
+      pool <- sim_pool_with_nas(n = 300, na_frac = 0)         # clean pool
+      focal_full <- sim_focal_with_nas(n = 50, na_frac = 0.3)
+      focal_clean <- focal_full[stats::complete.cases(focal_full), , drop = FALSE]
+      kept <- which(stats::complete.cases(focal_full))
+
+      args <- list(
+            pool = pool,
+            select = "all", stat = "count",
+            max_clim = 1.5, max_geog = 5,
+            coord_type = "projected", index_res = 8
+      )
+
+      res_na    <- do.call(analog_search, c(args, list(x = focal_full)))
+      res_clean <- do.call(analog_search, c(args, list(x = focal_clean)))
+
+      # Output for NA-containing focal must have nrow == n_focal_original (50);
+      # output for stripped focal has nrow == n_kept.
+      expect_equal(nrow(res_na), nrow(focal_full))
+      expect_equal(nrow(res_clean), nrow(focal_clean))
+
+      # At kept positions, results should match
+      expect_equal(res_na$count[kept], res_clean$count)
+      # At stripped positions, results should be NA
+      expect_true(all(is.na(res_na$count[-kept])))
+      # x / y at kept positions match focal coords; NA at stripped positions
+      expect_equal(res_na$x[kept], focal_full[kept, "x"])
+      expect_true(all(is.na(res_na$x[-kept])))
+})
+
+test_that("pairs-mode k=1 reconstructs to n_focal_original rows", {
+      set.seed(102)
+      pool <- sim_pool_with_nas(n = 300, na_frac = 0)
+      focal_full <- sim_focal_with_nas(n = 30, na_frac = 0.4)
+      kept <- which(stats::complete.cases(focal_full))
+
+      res <- analog_search(
+            x = focal_full, pool = pool,
+            select = "knn_clim", k = 1, max_geog = 5,
+            coord_type = "projected", index_res = 8
+      )
+
+      # Output should have nrow == n_focal_original
+      expect_equal(nrow(res), nrow(focal_full))
+      # Stripped focal positions should have NA pair data
+      expect_true(all(is.na(res$analog_index[-kept])))
+      expect_true(all(is.na(res$clim_dist[-kept])))
+      # Kept focal positions should have valid pair data
+      expect_true(all(!is.na(res$analog_index[kept])))
+})
+
+test_that("pairs-mode k>1 remaps `index` column to original focal indexing", {
+      set.seed(103)
+      pool <- sim_pool_with_nas(n = 300, na_frac = 0)
+      focal_full <- sim_focal_with_nas(n = 30, na_frac = 0.4)
+      kept <- which(stats::complete.cases(focal_full))
+
+      res <- analog_search(
+            x = focal_full, pool = pool,
+            select = "knn_clim", k = 3, max_geog = 5,
+            coord_type = "projected", index_res = 8
+      )
+
+      # `index` column should reference original focal positions.
+      # Every value should be in `kept` (no stripped focal positions
+      # appear, since stripped focals don't produce pair rows in k>1
+      # mode -- they were dropped at ingestion).
+      expect_true(all(res$index %in% kept))
+      # And no NA focal indices
+      expect_true(all(!is.na(res$index)))
+})
+
+test_that("focal SpatRaster with NA cells rasterizes correctly post-strip", {
+      skip_if_not_installed("terra")
+
+      # Pool: clean projected matrix
+      set.seed(104)
+      pool <- sim_pool_with_nas(n = 200, na_frac = 0)
+
+      # Focal: SpatRaster with some NA cells
+      r <- terra::rast(nrows = 8, ncols = 8, nlyrs = 2,
+                       xmin = -2, xmax = 2, ymin = -2, ymax = 2)
+      vals <- matrix(rnorm(128), ncol = 2)
+      vals[c(3, 7, 12, 25, 40, 55), 1] <- NA
+      vals[c(5, 22), 2] <- NA
+      terra::values(r) <- vals
+
+      kept <- which(stats::complete.cases(terra::values(r)))
+
+      res <- analog_search(
+            x = r, pool = pool,
+            select = "all", stat = "count",
+            max_clim = 1.5, max_geog = 5,
+            coord_type = "projected", index_res = 6
+      )
+
+      # Should rasterize back to a SpatRaster (single-row-per-focal agg mode)
+      expect_true(inherits(res, "SpatRaster"))
+      # Count layer values: NA at NA-focal cells, finite elsewhere
+      cnt <- terra::values(res[["count"]])[, 1]
+      expect_true(all(is.na(cnt[-kept])))
+      expect_true(all(!is.na(cnt[kept])))
+})
+
+test_that("x_cov is correctly stripped to align with NA-stripped focal", {
+      skip_if_not_installed("terra")
+
+      # Build a focal raster with NA cells
+      r <- terra::rast(nrows = 6, ncols = 6, nlyrs = 2,
+                       xmin = -1, xmax = 1, ymin = -1, ymax = 1)
+      set.seed(105)
+      vals <- matrix(rnorm(72), ncol = 2)
+      vals[c(3, 11, 22), 1] <- NA
+      terra::values(r) <- vals
+      kept <- which(stats::complete.cases(terra::values(r)))
+
+      # x_cov: 3 components per focal cell (n_clim = 2, so 2*(2+1)/2 = 3).
+      # Layout (per .reconstruct_cov_matrix): diagonals first, then off-
+      # diagonals row-major. For 2 climate vars: [var(c1), var(c2), cov(c1,c2)].
+      n_focal <- terra::ncell(r)
+      x_cov <- matrix(c(rep(1, n_focal),    # var(c1)
+                        rep(1, n_focal),    # var(c2)
+                        rep(0, n_focal)),   # cov(c1,c2)
+                      ncol = 3)
+      # Set x_cov to NA at the same stripped positions to mirror typical
+      # SpatRaster x_cov use (it would have NAs at ocean cells too).
+      x_cov[c(3, 11, 22), ] <- NA
+
+      pool <- sim_pool_with_nas(n = 200, na_frac = 0)
+
+      # The point of this test: NA in x_cov at stripped focal positions
+      # should NOT cause an error. (Ancillary warnings from elsewhere in the
+      # query are unrelated to the NA-in-x_cov scenario and out of scope.)
+      expect_no_error(
+            res <- analog_search(
+                  x = r, pool = pool,
+                  select = "knn_clim", k = 1, max_geog = 5,
+                  x_cov = x_cov,
+                  coord_type = "projected", index_res = 6
+            )
+      )
+      expect_true(inherits(res, "SpatRaster"))
+})
+
+test_that("focal NAs and pool NAs both stripped correctly in single query", {
+      set.seed(106)
+      pool_full <- sim_pool_with_nas(n = 200, na_frac = 0.3)
+      focal_full <- sim_focal_with_nas(n = 30, na_frac = 0.3)
+      pool_clean <- pool_full[stats::complete.cases(pool_full), , drop = FALSE]
+      focal_clean <- focal_full[stats::complete.cases(focal_full), , drop = FALSE]
+      kept_focal <- which(stats::complete.cases(focal_full))
+
+      args <- list(
+            select = "all", stat = c("count", "sum_weights"),
+            kernel = "gaussian_clim", theta = 1,
+            max_clim = 1.5, max_geog = 5,
+            coord_type = "projected", index_res = 8
+      )
+
+      res_na    <- do.call(analog_search, c(args, list(x = focal_full, pool = pool_full)))
+      res_clean <- do.call(analog_search, c(args, list(x = focal_clean, pool = pool_clean)))
+
+      # Same shape: NA-containing focal output is reconstructed to original size
+      expect_equal(nrow(res_na), nrow(focal_full))
+      expect_equal(nrow(res_clean), nrow(focal_clean))
+
+      # At kept focal positions, results should match
+      expect_equal(res_na$count[kept_focal],       res_clean$count)
+      expect_equal(res_na$sum_weights[kept_focal], res_clean$sum_weights,
+                   tolerance = 1e-10)
+      # At stripped focal positions, results should be NA
+      expect_true(all(is.na(res_na$count[-kept_focal])))
+})
+
+test_that("fully-NA focal produces all-NA output without crashing", {
+      set.seed(107)
+      pool <- sim_pool_with_nas(n = 100, na_frac = 0)
+      focal_all_na <- sim_focal_with_nas(n = 20, na_frac = 1.0)
+
+      expect_silent(
+            res <- analog_search(
+                  x = focal_all_na, pool = pool,
+                  select = "all", stat = "count",
+                  max_clim = 1.5, max_geog = 5,
+                  coord_type = "projected", index_res = 4
+            )
+      )
+      expect_equal(nrow(res), nrow(focal_all_na))
+      expect_true(all(is.na(res$count)))
 })
