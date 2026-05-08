@@ -11,7 +11,10 @@ auxiliary predictors. Supports ordinary and ridge-penalized weighted
 least squares. With purely geographic neighborhoods, this is equivalent
 to geographically weighted regression (GWR); with climate-based
 neighborhoods, it extends the analog impact model (AIM) framework to
-incorporate local covariate effects.
+incorporate local covariate effects. This function is a wrapper that
+calls
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+with `"regression"` included in `stat`.
 
 ## Usage
 
@@ -33,6 +36,7 @@ analog_regression(
   lambda = 0,
   stat = c("count", "ess", "regression"),
   se = c("none", "ess", "design"),
+  normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -230,6 +234,17 @@ analog_regression(
   - `"design"`: design-based framing (no assumption that weights are
     precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
 
+- normalize:
+
+  One of `TRUE`, `FALSE`, or `"auto"` (default). Only used if `stat`
+  includes `"sum_weights"` or `"tabulate"` and `pool` is a raster. When
+  active, results for these stats are divided by a global scalar so that
+  they represent a fraction of a theoretically "perfect" scenario where
+  the full search area within `max_geog` is occupied wall-to-wall by
+  cells whose climate exactly matches `x`. See details under
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  for more info.
+
 - x_cov:
 
   Optional focal-specific covariance matrices for Mahalanobis distance
@@ -332,10 +347,6 @@ for column-naming conventions across stats and
 for attached metadata attributes.
 
 ## Details
-
-This function is a wrapper that calls
-[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-with `"regression"` included in `stat`.
 
 ### Method
 

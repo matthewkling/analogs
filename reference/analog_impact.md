@@ -27,6 +27,7 @@ analog_impact(
   stat = c("weighted_mean", "count", "sum_weights"),
   lambda = 0,
   se = c("none", "ess", "design"),
+  normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -188,6 +189,17 @@ analog_impact(
   - `"design"`: design-based framing (no assumption that weights are
     precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
 
+- normalize:
+
+  One of `TRUE`, `FALSE`, or `"auto"` (default). Only used if `stat`
+  includes `"sum_weights"` or `"tabulate"` and `pool` is a raster. When
+  active, results for these stats are divided by a global scalar so that
+  they represent a fraction of a theoretically "perfect" scenario where
+  the full search area within `max_geog` is occupied wall-to-wall by
+  cells whose climate exactly matches `x`. See details under
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  for more info.
+
 - x_cov:
 
   Optional focal-specific covariance matrices for Mahalanobis distance
@@ -336,7 +348,11 @@ lets the kernel function (via `theta`) naturally control influence.
 - `sum_weights`: Total analog density. Low values indicate sparse or
   distant climate matches. This metric captures both the number and
   quality of analogs. Interpretation details vary based on the `kernel`
-  parameter.
+  parameter. Pass `normalize = TRUE` to express `sum_weights` (and any
+  `tabulate` columns) as a fraction of theoretical maximum analog
+  availability, on roughly `[0, 1]`. See
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  for preconditions.
 
 ## See also
 

@@ -73,6 +73,7 @@ for continuous outcomes or a weighted class count for categorical outcomes.</p>
 <span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"weighted_mean"</span>, <span class="st">"count"</span>, <span class="st">"sum_weights"</span><span class="op">)</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"ess"</span>, <span class="st">"design"</span><span class="op">)</span>,</span>
+<span>  normalize <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
@@ -214,6 +215,16 @@ precisions). For <code>weighted_mean</code>,
 </ul></dd>
 
 
+<dt id="arg-normalize">normalize<a class="anchor" aria-label="anchor" href="#arg-normalize"></a></dt>
+<dd><p>One of <code>TRUE</code>, <code>FALSE</code>, or <code>"auto"</code> (default). Only used
+if <code>stat</code> includes <code>"sum_weights"</code> or <code>"tabulate"</code> and <code>pool</code> is a raster.
+When active, results for these stats are divided by a global scalar so that
+they represent a fraction of a theoretically "perfect" scenario where
+the full search area within <code>max_geog</code> is occupied wall-to-wall by cells
+whose climate exactly matches <code>x</code>. See details under <code><a href="analog_search.html">analog_search()</a></code> for
+more info.</p></dd>
+
+
 <dt id="arg-x-cov">x_cov<a class="anchor" aria-label="anchor" href="#arg-x-cov"></a></dt>
 <dd><p>Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
@@ -343,7 +354,10 @@ indicate limited analog availability, while zero counts indicate climates
 that are novel within the geographic search radius.</p></li>
 <li><p><code>sum_weights</code>: Total analog density. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
-of analogs. Interpretation details vary based on the <code>kernel</code> parameter.</p></li>
+of analogs. Interpretation details vary based on the <code>kernel</code> parameter.
+Pass <code>normalize = TRUE</code> to express <code>sum_weights</code> (and any <code>tabulate</code>
+columns) as a fraction of theoretical maximum analog availability,
+on roughly <code>[0, 1]</code>. See <code><a href="analog_search.html">analog_search()</a></code> for preconditions.</p></li>
 </ul></div>
 
     </div>

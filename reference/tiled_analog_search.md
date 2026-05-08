@@ -86,7 +86,12 @@ tiled_analog_search(
 
   Additional arguments passed to fun. Must include max_geog. May include
   `covariates` as a SpatRaster matching `pool`'s CRS and extent (cropped
-  per tile alongside `y`).
+  per tile alongside `y`). May also include `normalize` for helpers that
+  support it (e.g.
+  [`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md));
+  when normalization is requested, the global mean cell area is computed
+  once over the full pool and propagated to each tile so per-tile
+  `D_max` values are consistent.
 
 - output_file:
 

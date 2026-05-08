@@ -117,7 +117,9 @@ with smallest geographic distance, subject to filters.</p></li>
 <dd><p>Statistic(s) used to aggregate selected analogs. Either:</p><ul><li><p><code>NULL</code> or <code>"none"</code>: Return all selected analog pairs as a data.frame.</p></li>
 <li><p><code>"count"</code>: For each focal, count the number of selected analogs.</p></li>
 <li><p><code>"sum_weights"</code>: For each focal, sum the weights of selected
-analogs (see <code>kernel</code> and <code>theta</code>).</p></li>
+analogs (see <code>kernel</code> and <code>theta</code>). When <code>normalize = TRUE</code>, the
+reported value is the normalized density <code>D / D_max</code>, on roughly
+<code>[0, 1]</code>; otherwise it is the raw kernel-weight sum.</p></li>
 <li><p><code>"mean_weights"</code>: For each focal, mean of weights of selected
 analogs.</p></li>
 <li><p><code>"sum"</code>: Sum of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
@@ -133,16 +135,15 @@ squared sum of weights divided by the sum of squared weights
 of <code>y</code> on <code>covariates</code> within each analog neighborhood.
 Returns intercept and slope coefficients. Requires <code>y</code>,
 <code>covariates</code>, and <code>kernel</code>. See <code>lambda</code> for regularization.</p></li>
-<li><p><code>"tabulate"</code>: For each focal and each level of categorical <code>y</code>,
-sum the kernel weights of analogs whose <code>y</code> falls in that level.
+<li><p><code>"tabulate"</code>: if <code>y</code> is categorical, separately sum the kernel weights
+of analogs matching each level of <code>y</code>.
 With <code>kernel = "uniform"</code> this reduces to a per-class vote count;
 with a distance-decay kernel it gives similarity-weighted support
-per class. Requires <code>y</code> (factor or coercible-to-factor) and
-<code>kernel</code>. Output has one column per class. <code>"tabulate"</code> is
-mutually exclusive with <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
-<code>"weighted_mean"</code>, and <code>"regression"</code> (different <code>y</code> semantics);
-it can be combined with <code>"count"</code>, <code>"sum_weights"</code>,
-<code>"mean_weights"</code>, and <code>"ess"</code>.</p></li>
+per class. Requires <code>y</code> (factor or coercible-to-factor) and <code>kernel</code>.
+Output has one column per class. <code>"tabulate"</code> is mutually exclusive with
+<code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>
+(different <code>y</code> semantics); it can be combined with <code>"count"</code>,
+<code>"sum_weights"</code>, <code>"mean_weights"</code>, and <code>"ess"</code>.</p></li>
 <li><p>A character vector combining multiple stats (e.g.,
 <code>c("count", "weighted_mean", "regression")</code>).
 Note: <code>"none"</code> cannot be combined with other stats.</p></li>

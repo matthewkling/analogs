@@ -13,7 +13,8 @@ build_analog_index(
   index_res = 16,
   downsample = 1,
   seed = NULL,
-  cell_area_weight = "auto"
+  cell_area_weight = "auto",
+  mean_cell_area = NULL
 )
 ```
 
@@ -94,6 +95,16 @@ build_analog_index(
   stats like `sum_weights` remain comparable to the unweighted case. The
   weights are stored on the returned index and used during all
   subsequent queries.
+
+- mean_cell_area:
+
+  Optional scalar mean cell area (in km^2) to attach to the index,
+  overriding any value auto-computed from the raster pool. Intended for
+  internal use by
+  [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
+  to propagate a globally-consistent mean area across per-tile index
+  builds (so that `analog_density(normalize = TRUE)` produces consistent
+  values across tiles). Most users should leave this `NULL`.
 
 ## Value
 

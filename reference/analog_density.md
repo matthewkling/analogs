@@ -1,9 +1,8 @@
-# Analog density: kernel-weighted sum of analogs within climate/geographic limits
+# Analog density: kernel-weighted analog count within climate/geographic limits
 
-Computes, for each focal location, the sum of weights of all reference
-locations that satisfy the supplied climate and geographic constraints.
-The weights are controlled by the `weight` and `theta` arguments and are
-applied after filtering.
+Computes, for each focal location, the kernel-weighted sum of all
+reference locations that satisfy the supplied climate and geographic
+constraints.
 
 ## Usage
 
@@ -14,17 +13,20 @@ analog_density(
   x_cov = NULL,
   weight = NULL,
   coord_type = "auto",
+  stat = c("sum_weights"),
   max_clim = NULL,
   max_geog = NULL,
   kernel = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
     "gaussian_joint", "inverse_joint"),
   theta = NULL,
+  normalize = "auto",
   index_res = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
   downsample = 1,
   seed = NULL,
-  progress = FALSE
+  progress = FALSE,
+  ...
 )
 ```
 
@@ -88,6 +90,14 @@ analog_density(
 
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
+
+- stat:
+
+  Character vector of one or more density-style summary statistics.
+  Allowed options: `"sum_weights"` (default), `"mean_weights"`,
+  `"count"`, `"ess"`. See
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  for detailed stat descriptions.
 
 - max_clim:
 
@@ -159,6 +169,17 @@ analog_density(
     `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
     geography).
 
+- normalize:
+
+  One of `TRUE`, `FALSE`, or `"auto"` (default). Only used if `stat`
+  includes `"sum_weights"` or `"tabulate"` and `pool` is a raster. When
+  active, results for these stats are divided by a global scalar so that
+  they represent a fraction of a theoretically "perfect" scenario where
+  the full search area within `max_geog` is occupied wall-to-wall by
+  cells whose climate exactly matches `x`. See details under
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  for more info.
+
 - index_res:
 
   Tuning parameter giving the number of bins per dimension of the
@@ -220,10 +241,17 @@ analog_density(
   processing them sequentially. Useful for large datasets. Default is
   `FALSE`.
 
+- ...:
+
+  Additional arguments forwarded to
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  (e.g. `mean_cell_area` for tiled workflows).
+
 ## Value
 
 A data.frame, or a SpatRaster when `x` is one. Contains `index`, `x`,
-`y`, and `sum_weights`. See
+`y`, and `sum_weights`. When `normalize = TRUE`, the value of `D_max` is
+attached as a result attribute. See
 [`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
 for attached metadata attributes.
 
@@ -231,7 +259,16 @@ for attached metadata attributes.
 
 This function is a wrapper that calls
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-using `select = "all"` and `stat = "sum_weights"`.
+using `select = "all"` and `stat = "sum_weights"`. It also supports
+`"count"`, `"mean_weights"`, and `"ess"` as additional stats.
+
+By default (`normalize = "auto"`), the returned `sum_weights` column is
+divided by a global scalar `D_max` whenever `pool` meets the
+prerequisites (raster `pool` with cell-area weighting active). This
+gives values on roughly `[0, 1]`, interpretable as the fraction of
+theoretical maximum analog density achieved at each focal. See
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+for more details.
 
 ## References
 
@@ -261,23 +298,26 @@ for memory-safe searches on large raster datasets.
 
 ``` r
 if (FALSE) { # \dontrun{
-# One-shot query with inverse kernel weighting
-intens <- analog_density(
-  x = sites,
-  pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel = "inverse_clim"
-)
-
-# Gaussian weighting by climate distance
-intens_gauss <- analog_density(
+# Normalized density (default): returns sum_weights on roughly [0, 1]
+dens <- analog_density(
   x = sites,
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
   kernel = "gaussian_clim",
-  theta = 0.2  # bandwidth parameter
+  theta = 0.2
+)
+attr(dens, "D_max")  # the global denominator used
+
+# Raw (unnormalized) kernel-weighted sums
+dens_raw <- analog_density(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel = "gaussian_clim",
+  theta = 0.2,
+  normalize = FALSE
 )
 
 # Joint Gaussian weighting (both climate and geography)
@@ -293,8 +333,8 @@ intens_joint <- analog_density(
 # With pre-built index (for repeated queries)
 index <- build_analog_index(climate_data)
 i1 <- analog_density(x = sites1, pool = index, max_clim = 0.5,
-                       kernel = "inverse_clim")
+                     max_geog = 100, kernel = "inverse_clim")
 i2 <- analog_density(x = sites2, pool = index, max_geog = 100,
-                       kernel = "inverse_geog")
+                     kernel = "gaussian_clim", theta = 0.3)
 } # }
 ```

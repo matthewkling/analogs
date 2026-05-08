@@ -90,7 +90,9 @@ tune_index_res(
   - `"count"`: For each focal, count the number of selected analogs.
 
   - `"sum_weights"`: For each focal, sum the weights of selected analogs
-    (see `kernel` and `theta`).
+    (see `kernel` and `theta`). When `normalize = TRUE`, the reported
+    value is the normalized density `D / D_max`, on roughly `[0, 1]`;
+    otherwise it is the raw kernel-weight sum.
 
   - `"mean_weights"`: For each focal, mean of weights of selected
     analogs.
@@ -114,8 +116,8 @@ tune_index_res(
     and slope coefficients. Requires `y`, `covariates`, and `kernel`.
     See `lambda` for regularization.
 
-  - `"tabulate"`: For each focal and each level of categorical `y`, sum
-    the kernel weights of analogs whose `y` falls in that level. With
+  - `"tabulate"`: if `y` is categorical, separately sum the kernel
+    weights of analogs matching each level of `y`. With
     `kernel = "uniform"` this reduces to a per-class vote count; with a
     distance-decay kernel it gives similarity-weighted support per
     class. Requires `y` (factor or coercible-to-factor) and `kernel`.

@@ -126,7 +126,11 @@ weighted stats (e.g. <code>sum_weights</code>) consistent across tiles.</p></dd>
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Additional arguments passed to fun. Must include max_geog.
 May include <code>covariates</code> as a SpatRaster matching <code>pool</code>'s CRS and
-extent (cropped per tile alongside <code>y</code>).</p></dd>
+extent (cropped per tile alongside <code>y</code>). May also include <code>normalize</code>
+for helpers that support it (e.g. <code><a href="analog_density.html">analog_density()</a></code>); when normalization
+is requested, the global mean cell area is computed once over the full
+pool and propagated to each tile so per-tile <code>D_max</code> values are
+consistent.</p></dd>
 
 
 <dt id="arg-output-file">output_file<a class="anchor" aria-label="anchor" href="#arg-output-file"></a></dt>

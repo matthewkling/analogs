@@ -64,12 +64,14 @@ then optionally aggregating the results.</p>
 <span>  theta <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"ess"</span>, <span class="st">"design"</span><span class="op">)</span>,</span>
+<span>  normalize <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  exclude_self <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"lonlat"</span>, <span class="st">"projected"</span><span class="op">)</span>,</span>
 <span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  mean_cell_area <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -176,7 +178,9 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 <dd><p>Statistic(s) used to aggregate selected analogs. Either:</p><ul><li><p><code>NULL</code> or <code>"none"</code>: Return all selected analog pairs as a data.frame.</p></li>
 <li><p><code>"count"</code>: For each focal, count the number of selected analogs.</p></li>
 <li><p><code>"sum_weights"</code>: For each focal, sum the weights of selected
-analogs (see <code>kernel</code> and <code>theta</code>).</p></li>
+analogs (see <code>kernel</code> and <code>theta</code>). When <code>normalize = TRUE</code>, the
+reported value is the normalized density <code>D / D_max</code>, on roughly
+<code>[0, 1]</code>; otherwise it is the raw kernel-weight sum.</p></li>
 <li><p><code>"mean_weights"</code>: For each focal, mean of weights of selected
 analogs.</p></li>
 <li><p><code>"sum"</code>: Sum of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
@@ -192,16 +196,15 @@ squared sum of weights divided by the sum of squared weights
 of <code>y</code> on <code>covariates</code> within each analog neighborhood.
 Returns intercept and slope coefficients. Requires <code>y</code>,
 <code>covariates</code>, and <code>kernel</code>. See <code>lambda</code> for regularization.</p></li>
-<li><p><code>"tabulate"</code>: For each focal and each level of categorical <code>y</code>,
-sum the kernel weights of analogs whose <code>y</code> falls in that level.
+<li><p><code>"tabulate"</code>: if <code>y</code> is categorical, separately sum the kernel weights
+of analogs matching each level of <code>y</code>.
 With <code>kernel = "uniform"</code> this reduces to a per-class vote count;
 with a distance-decay kernel it gives similarity-weighted support
-per class. Requires <code>y</code> (factor or coercible-to-factor) and
-<code>kernel</code>. Output has one column per class. <code>"tabulate"</code> is
-mutually exclusive with <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
-<code>"weighted_mean"</code>, and <code>"regression"</code> (different <code>y</code> semantics);
-it can be combined with <code>"count"</code>, <code>"sum_weights"</code>,
-<code>"mean_weights"</code>, and <code>"ess"</code>.</p></li>
+per class. Requires <code>y</code> (factor or coercible-to-factor) and <code>kernel</code>.
+Output has one column per class. <code>"tabulate"</code> is mutually exclusive with
+<code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>
+(different <code>y</code> semantics); it can be combined with <code>"count"</code>,
+<code>"sum_weights"</code>, <code>"mean_weights"</code>, and <code>"ess"</code>.</p></li>
 <li><p>A character vector combining multiple stats (e.g.,
 <code>c("count", "weighted_mean", "regression")</code>).
 Note: <code>"none"</code> cannot be combined with other stats.</p></li>
@@ -264,6 +267,16 @@ precisions). For <code>weighted_mean</code>,
 </ul></dd>
 
 
+<dt id="arg-normalize">normalize<a class="anchor" aria-label="anchor" href="#arg-normalize"></a></dt>
+<dd><p>One of <code>TRUE</code>, <code>FALSE</code>, or <code>"auto"</code> (default). Only used
+if <code>stat</code> includes <code>"sum_weights"</code> or <code>"tabulate"</code> and <code>pool</code> is a raster.
+When active, results for these stats are divided by a global scalar so that
+they represent a fraction of a theoretically "perfect" scenario where
+the full search area within <code>max_geog</code> is occupied wall-to-wall by cells
+whose climate exactly matches <code>x</code>. See details under <code>analog_search()</code> for
+more info.</p></dd>
+
+
 <dt id="arg-exclude-self">exclude_self<a class="anchor" aria-label="anchor" href="#arg-exclude-self"></a></dt>
 <dd><p>Logical, default <code>FALSE</code>. <code>TRUE</code> is typically used
 for cross-validation, such as via <code><a href="analog_cv.html">analog_cv()</a></code>, in which case each focal
@@ -324,6 +337,15 @@ stored configuration: <code>cell_area_weight = FALSE</code> errors if the index
 was built with cell-area weighting on (rebuild the index instead).</p></dd>
 
 
+<dt id="arg-mean-cell-area">mean_cell_area<a class="anchor" aria-label="anchor" href="#arg-mean-cell-area"></a></dt>
+<dd><p>Optional scalar mean cell area to attach to the
+index when one is built from raw <code>pool</code> data. Mainly intended for
+internal use by <code><a href="tiled_analog_search.html">tiled_analog_search()</a></code> to propagate a globally
+consistent value across per-tile index builds; most users should
+leave this <code>NULL</code> (auto-computed from the raster pool). See
+<code><a href="build_analog_index.html">build_analog_index()</a></code> for details.</p></dd>
+
+
 <dt id="arg-n-threads">n_threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
 <dd><p>Optional integer number of threads to use for the
 computation. If <code>NULL</code> (default), the global RcppParallel setting
@@ -363,8 +385,8 @@ columns.</p></li>
 <li><p>When <code>se != "none"</code>: matching SE columns (<code>se_weighted_mean</code>,
 <code>se_intercept</code>, etc.) for each SE-supporting stat.</p></li>
 </ul><p>All results include metadata attributes (<code>select</code>, <code>stat</code>, <code>kernel</code>, etc.).
-Use <code><a href="metadata.html">metadata()</a></code> to retrieve them as a named list, or see
-<code><a href="metadata.html">?metadata</a></code> for a full reference.</p>
+Use <code><a href="metadata.html">metadata()</a></code> to retrieve them as a named list, or see  <code><a href="metadata.html">?metadata</a></code> for a full
+reference.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -379,7 +401,7 @@ give attributes of the data on which to operate.</p></li>
 (<code>select</code>, <code>max_clim</code>, <code>max_geog</code>, <code>k</code>)
 define which analogs to <code>select</code> from the <code>pool</code> for each <code>x</code>.</p></li>
 <li><p><em>Aggregation parameters</em>
-(<code>stat</code>, <code>kernel</code>, <code>theta</code>, <code>lambda</code>, <code>se</code>)
+(<code>stat</code>, <code>kernel</code>, <code>theta</code>, <code>lambda</code>, <code>se</code>, <code>normalize</code>)
 control how selected analogs are summarized.</p></li>
 <li><p><em>Computation parameters</em>
 (<code>n_threads</code>, <code>index_res</code>, <code>downsample</code>, <code>seed</code>, <code>progress</code>)
@@ -428,6 +450,35 @@ a progress bar during computation.</p></li>
 <p>For honest prediction error when <code>x</code> and <code>pool</code> are the same dataset, use
 <code><a href="analog_cv.html">analog_cv()</a></code> or set <code>exclude_self = TRUE</code> to exclude each focal's own row
 from its analog neighborhood.</p>
+</div>
+
+<div class="section">
+<h3 id="normalization">Normalization<a class="anchor" aria-label="anchor" href="#normalization"></a></h3>
+
+
+<p>Normalization divides <code>D</code> (the density result from <code>sum_weights</code> or <code>tabulate</code>)
+by the  global scalar <code>D_max</code>. <code>D_max</code> (which is also attached to the result as
+an attribute) is the highest <code>D</code> you could theoretically expect given <code>max_geog</code>,
+<code>kernel</code>, and <code>theta</code>, i.e. the density value you'd get if the entire the geographic
+search radius were filled with grid cells whose climate exactly matches <code>x</code>.
+It is calculated as the analytic integral
+<code>(1 / mean_cell_area) * integral_0^max_geog K(0, r) * 2*pi*r dr</code>,
+which is the kernel-weighted count an idealized focal would accumulate
+from a continuous uniform pool of perfect climate matches out to
+<code>max_geog</code>. The resulting columns are unitless availability fractions
+on roughly <code>[0, 1]</code>.</p>
+<p>Because <code>D_max</code> is a continuous-domain idealization while <code>D</code> is a discrete sum over a finite grid, normalized
+values can occasionally exceed 1 by small amounts (typically a few percent). This
+is a grid discretization artifact, not an error, and at certain <code>(cell_size, max_geog)</code>
+ratios this is more pronounced. Using a higher-resolution pool grid or choosing
+a <code>max_geog</code> that isn't an integer multiple of the cell size both reduce the effect.</p>
+<p><code>normalize = "auto"</code> activates normalization if every precondition
+is met: raster-derived index with cell-area weighting, a kernel set
+(any of the supported types), and a finite positive <code>max_geog</code>.
+Explicit <code>TRUE</code> errors on any missing precondition. <code>normalize</code> is silently
+ignored when no normalizable stat is requested. For non-raster pools, <code>"auto"</code> falls
+back to raw kernel-weighted sums. Pass <code>normalize = TRUE</code> to require normalization or
+<code>normalize = FALSE</code> to always return raw sums.</p>
 </div>
 
     </div>

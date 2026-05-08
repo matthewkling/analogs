@@ -21,6 +21,7 @@ query_analog_index(
   theta,
   lambda,
   se,
+  normalize = "auto",
   exclude_self = FALSE,
   n_threads,
   show_progress = FALSE

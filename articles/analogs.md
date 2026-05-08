@@ -241,6 +241,10 @@ plot(vel, range = range(minmax(vel)),
      main = c("Forward velocity (km/dec)", "Reverse velocity (km/dec)"))
 ```
 
+![plot of chunk velocity](figures/velocity-1.png)
+
+plot of chunk velocity
+
 In addition to geographic and climatic distances, the result also
 includes the spatial coordinates of each site’s nearest analog (as well
 as the analog’s index in the `pool`). This can be used for a variety of
@@ -311,19 +315,22 @@ plot of chunk availability
 
 ### Analog density
 
-Similar to availability, but weighted by climate similarity and/or
-geographic proximity rather than simply counted. This captures both the
-number and quality of analog matches.
+Similar to availability, but weighted by climate kernel-based similarity
+and/or geographic proximity rather than simply counted. This captures
+both the quantity and quality (proximity/suitability) of analog matches.
+By default, raw density is normalized by dividing it by its theoretical
+maximum value (calculated from `kernel`, `max_geog`, and `theta`) to
+make it interpretable.
 
 ``` r
 
 intens <- analog_density(
       x = fut,
       pool = hist,
-      max_clim = 0.5,
-      max_geog = 200,
-      kernel = "gaussian_clim",
-      theta = 0.15
+      max_clim = 0.6,
+      max_geog = 150,
+      kernel = "gaussian_joint",
+      theta = c(0.2, 50)
 )
 
 plot(intens, main = "Analog density")
@@ -583,24 +590,13 @@ cv <- analog_cv(
       max_geog = 200, max_clim = 0.5, theta = 0.15,
       se = "ess", cv_method = "loo"
 )
+#> Error: `y` must have exactly 228823 rows/cells to match pool.
 plot(cv$residual, main = "Cross-validation residual")
-```
-
-![plot of chunk cv](figures/cv-1.png)
-
-plot of chunk cv
-
-``` r
-
+#> Error in h(simpleError(msg, call)): error in evaluating the argument 'x' in selecting a method for function 'plot': object 'cv' not found
 
 # Calculate prediction error metrics
 cv_performance(cv)
-#>   variable       type metric         value
-#> 1        y continuous      n  2.288230e+05
-#> 2        y continuous   rmse  4.058843e-02
-#> 3        y continuous    mae  3.093594e-02
-#> 4        y continuous   bias -2.237632e-03
-#> 5        y continuous     r2  9.983324e-01
+#> Error: object 'cv' not found
 ```
 
 ## Computational performance

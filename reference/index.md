@@ -12,7 +12,7 @@
   : Analog availability: count of all analogs within climate/geographic
   limits
 - [`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md)
-  : Analog density: kernel-weighted sum of analogs within
+  : Analog density: kernel-weighted analog count within
   climate/geographic limits
 - [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md)
   : Analog similarity: best climate analogs within a geographic envelope

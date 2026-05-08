@@ -51,7 +51,8 @@ avoiding the need to rebuild the lattice for each query.</p>
 <span>  index_res <span class="op">=</span> <span class="fl">16</span>,</span>
 <span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span></span>
+<span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  mean_cell_area <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -119,6 +120,15 @@ three options above.</p></li>
 absolute magnitudes of stats like <code>sum_weights</code> remain comparable to
 the unweighted case. The weights are stored on the returned index and
 used during all subsequent queries.</p></dd>
+
+
+<dt id="arg-mean-cell-area">mean_cell_area<a class="anchor" aria-label="anchor" href="#arg-mean-cell-area"></a></dt>
+<dd><p>Optional scalar mean cell area (in km^2) to attach
+to the index, overriding any value auto-computed from the raster pool.
+Intended for internal use by <code><a href="tiled_analog_search.html">tiled_analog_search()</a></code> to propagate a
+globally-consistent mean area across per-tile index builds (so that
+<code>analog_density(normalize = TRUE)</code> produces consistent values across
+tiles). Most users should leave this <code>NULL</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

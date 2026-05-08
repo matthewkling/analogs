@@ -24,12 +24,14 @@ analog_search(
   theta = NULL,
   lambda = 0,
   se = c("none", "ess", "design"),
+  normalize = "auto",
   exclude_self = FALSE,
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
   index_res = "auto",
   cell_area_weight = "auto",
+  mean_cell_area = NULL,
   n_threads = NULL,
   progress = FALSE
 )
@@ -150,7 +152,9 @@ analog_search(
   - `"count"`: For each focal, count the number of selected analogs.
 
   - `"sum_weights"`: For each focal, sum the weights of selected analogs
-    (see `kernel` and `theta`).
+    (see `kernel` and `theta`). When `normalize = TRUE`, the reported
+    value is the normalized density `D / D_max`, on roughly `[0, 1]`;
+    otherwise it is the raw kernel-weight sum.
 
   - `"mean_weights"`: For each focal, mean of weights of selected
     analogs.
@@ -174,8 +178,8 @@ analog_search(
     and slope coefficients. Requires `y`, `covariates`, and `kernel`.
     See `lambda` for regularization.
 
-  - `"tabulate"`: For each focal and each level of categorical `y`, sum
-    the kernel weights of analogs whose `y` falls in that level. With
+  - `"tabulate"`: if `y` is categorical, separately sum the kernel
+    weights of analogs matching each level of `y`. With
     `kernel = "uniform"` this reduces to a per-class vote count; with a
     distance-decay kernel it gives similarity-weighted support per
     class. Requires `y` (factor or coercible-to-factor) and `kernel`.
@@ -259,6 +263,16 @@ analog_search(
   - `"design"`: design-based framing (no assumption that weights are
     precisions). For `weighted_mean`, `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
 
+- normalize:
+
+  One of `TRUE`, `FALSE`, or `"auto"` (default). Only used if `stat`
+  includes `"sum_weights"` or `"tabulate"` and `pool` is a raster. When
+  active, results for these stats are divided by a global scalar so that
+  they represent a fraction of a theoretically "perfect" scenario where
+  the full search area within `max_geog` is occupied wall-to-wall by
+  cells whose climate exactly matches `x`. See details under
+  `analog_search()` for more info.
+
 - exclude_self:
 
   Logical, default `FALSE`. `TRUE` is typically used for
@@ -330,6 +344,17 @@ analog_search(
   this argument must agree with the index's stored configuration:
   `cell_area_weight = FALSE` errors if the index was built with
   cell-area weighting on (rebuild the index instead).
+
+- mean_cell_area:
+
+  Optional scalar mean cell area to attach to the index when one is
+  built from raw `pool` data. Mainly intended for internal use by
+  [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
+  to propagate a globally consistent value across per-tile index builds;
+  most users should leave this `NULL` (auto-computed from the raster
+  pool). See
+  [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
+  for details.
 
 - n_threads:
 
@@ -407,8 +432,8 @@ for a full reference.
 - *Selection parameters* (`select`, `max_clim`, `max_geog`, `k`) define
   which analogs to `select` from the `pool` for each `x`.
 
-- *Aggregation parameters* (`stat`, `kernel`, `theta`, `lambda`, `se`)
-  control how selected analogs are summarized.
+- *Aggregation parameters* (`stat`, `kernel`, `theta`, `lambda`, `se`,
+  `normalize`) control how selected analogs are summarized.
 
 - *Computation parameters* (`n_threads`, `index_res`, `downsample`,
   `seed`, `progress`) specify behavior for controlling compute
@@ -464,6 +489,37 @@ use
 [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)
 or set `exclude_self = TRUE` to exclude each focal's own row from its
 analog neighborhood.
+
+### Normalization
+
+Normalization divides `D` (the density result from `sum_weights` or
+`tabulate`) by the global scalar `D_max`. `D_max` (which is also
+attached to the result as an attribute) is the highest `D` you could
+theoretically expect given `max_geog`, `kernel`, and `theta`, i.e. the
+density value you'd get if the entire the geographic search radius were
+filled with grid cells whose climate exactly matches `x`. It is
+calculated as the analytic integral
+`(1 / mean_cell_area) * integral_0^max_geog K(0, r) * 2*pi*r dr`, which
+is the kernel-weighted count an idealized focal would accumulate from a
+continuous uniform pool of perfect climate matches out to `max_geog`.
+The resulting columns are unitless availability fractions on roughly
+`[0, 1]`.
+
+Because `D_max` is a continuous-domain idealization while `D` is a
+discrete sum over a finite grid, normalized values can occasionally
+exceed 1 by small amounts (typically a few percent). This is a grid
+discretization artifact, not an error, and at certain
+`(cell_size, max_geog)` ratios this is more pronounced. Using a
+higher-resolution pool grid or choosing a `max_geog` that isn't an
+integer multiple of the cell size both reduce the effect.
+
+`normalize = "auto"` activates normalization if every precondition is
+met: raster-derived index with cell-area weighting, a kernel set (any of
+the supported types), and a finite positive `max_geog`. Explicit `TRUE`
+errors on any missing precondition. `normalize` is silently ignored when
+no normalizable stat is requested. For non-raster pools, `"auto"` falls
+back to raw kernel-weighted sums. Pass `normalize = TRUE` to require
+normalization or `normalize = FALSE` to always return raw sums.
 
 ## References
 
