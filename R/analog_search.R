@@ -5,85 +5,36 @@
 #' two-stage approach: first selecting analogs based on specified criteria,
 #' then optionally aggregating the results.
 #'
-#' @details
-#' ## Parameter categories
-#'
-#' - *Data parameters*
-#'   (`x`, `pool`, `x_cov`, `y`, `covariates`, `weight`, `coord_type`)
-#'   give attributes of the data on which to operate.
-#' - *Selection parameters*
-#'   (`select`, `max_clim`, `max_geog`, `k`)
-#'   define which analogs to `select` from the `pool` for each `x`.
-#' - *Aggregation parameters*
-#'   (`stat`, `kernel`, `theta`, `lambda`, `se`)
-#'   control how selected analogs are summarized.
-#' - *Computation parameters*
-#'   (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
-#'   specify behavior for controlling compute performance.
-#'
-#' ## Distance metrics
-#'
-#' Geographic distance can be computed for lon/lat coordinates (great-circle
-#' distance) or projected coordinates (planar distance).
-#'
-#' Climate similarity is measured using Euclidean or Mahalanobis distance in
-#' climate space. In general, when multiple climate variables are used, it is
-#' recommended to use pre-whitened (scaled) climate data, to avoid major artifacts
-#' from climate variables with different units. Pre-whitening can be done using
-#' `scale()` for dataset-wide Euclidean distances, or `mahalanobis_transform()`
-#' for dataset-wide Mahalanobis distances.
-#'
-#' The function also supports climate distance calculations based on
-#' *local temporal* covariance structure at focal locations, via the `x_cov`
-#' parameter. These local covariance values need to be pre-calculated.
-#'
-#' ## Computational optimization
-#'
-#' The analog search architecture is designed with compute performance in mind:
-#'
-#' - All internal computations are done in C++.
-#' - Searches use a lattice-based indexing structure to efficiently
-#'   search through large reference datasets. By default, the lattice
-#'   resolution is tuned for optimal performance.
-#' - Parallel processing is available via the `n_threads` parameter.
-#' - You can `downsample` prohibitively large reference pool datasets
-#'   to improve speed and memory, using a stratified sampling
-#'   scheme that reduces loss of precision relative to random sampling.
-#' - For large datasets, enable `progress = TRUE` to display
-#'   a progress bar during computation.
-#' - For raster datasets that are too large to fit in memory,
-#'   `tiled_analog_search()` offers a memory-safe option.
-#'
-#' ## Cross-validation
-#'
-#' For honest prediction error when `x` and `pool` are the same dataset, use
-#' [analog_cv()] or set `exclude_self = TRUE` to exclude each focal's own row
-#' from its analog neighborhood.
 #'
 #' @param x Focal locations for which analogs will be found. Should be a
 #'   matrix/data.frame with columns x, y, and climate variables, or a
 #'   SpatRaster with climate variable layers.
+#'
 #' @param pool The reference dataset to search for analogs. Either:
 #'
 #'   - Matrix/data.frame with columns x, y, and climate variables,
 #'     or SpatRaster with climate variable layers, OR
 #'   - An `analog_index` object created by
 #'     [build_analog_index()] (for repeated queries).
+#'
 #' @param x_cov Optional focal-specific covariance matrices for Mahalanobis
 #'   distance calculations. Should be a matrix or data.frame with one row per
 #'   focal location and one column per unique covariance component, or a
 #'   SpatRaster with a layer for each component. For n climate variables,
 #'   there are n*(n+1)/2 unique components, ordered as: variances first
 #'   (diagonals), then covariances (upper triangle by row).
+#'
 #' @param y Optional vector, factor, matrix/data.frame, or SpatRaster giving
 #'   values for each reference location (must have same number of rows/cells
 #'   as `pool`). Required for stats `"sum"`, `"mean"`, `"weighted_sum"`,
 #'   `"weighted_mean"`, `"regression"`, and `"tabulate"`. Numeric for
 #'   continuous stats; factor or coercible-to-factor (character, integer,
 #'   logical) for `stat = "tabulate"`.
+#'
 #' @param covariates Optional matrix/data.frame or SpatRaster giving
 #'   covariate values for each reference location (must have same number of
 #'   rows/cells as `pool`). Required when `stat` includes `"regression"`.
+#'
 #' @param weight Optional pool site weights for use in aggregation.
 #'   Numeric vector, single-column matrix/data.frame, or single-layer
 #'   SpatRaster, with one value per row/cell of `pool`. For aggregation
@@ -102,6 +53,7 @@
 #'   Use `weight = 0` for cases where the mask varies per query against a
 #'   shared index, or where some sites have a continuous weight and others
 #'   should be excluded.
+#'
 #' @param cell_area_weight Controls cell-area weighting when `pool` is a raster.
 #'   One of `"auto"` (default; on for raster pools, off otherwise), `TRUE`
 #'   (force on; errors if `pool` is not a SpatRaster), or `FALSE` (force
@@ -112,6 +64,7 @@
 #'   pre-built `analog_index`, this argument must agree with the index's
 #'   stored configuration: `cell_area_weight = FALSE` errors if the index
 #'   was built with cell-area weighting on (rebuild the index instead).
+#'
 #' @param max_clim Maximum climate distance constraint (default: NULL = no
 #'   climate constraint). Can be either:
 #'
@@ -148,7 +101,9 @@
 #'   - `NULL` or `"none"`: Return all selected analog pairs as a data.frame.
 #'   - `"count"`: For each focal, count the number of selected analogs.
 #'   - `"sum_weights"`: For each focal, sum the weights of selected
-#'     analogs (see `kernel` and `theta`).
+#'     analogs (see `kernel` and `theta`). When `normalize = TRUE`, the
+#'     reported value is the normalized density `D / D_max`, on roughly
+#'     `[0, 1]`; otherwise it is the raw kernel-weight sum.
 #'   - `"mean_weights"`: For each focal, mean of weights of selected
 #'     analogs.
 #'   - `"sum"`: Sum of `y` values across analogs (requires `y`).
@@ -164,16 +119,15 @@
 #'     of `y` on `covariates` within each analog neighborhood.
 #'     Returns intercept and slope coefficients. Requires `y`,
 #'     `covariates`, and `kernel`. See `lambda` for regularization.
-#'   - `"tabulate"`: For each focal and each level of categorical `y`,
-#'     sum the kernel weights of analogs whose `y` falls in that level.
+#'   - `"tabulate"`: if `y` is categorical, separately sum the kernel weights
+#'     of analogs matching each level of `y`.
 #'     With `kernel = "uniform"` this reduces to a per-class vote count;
 #'     with a distance-decay kernel it gives similarity-weighted support
-#'     per class. Requires `y` (factor or coercible-to-factor) and
-#'     `kernel`. Output has one column per class. `"tabulate"` is
-#'     mutually exclusive with `"sum"`, `"mean"`, `"weighted_sum"`,
-#'     `"weighted_mean"`, and `"regression"` (different `y` semantics);
-#'     it can be combined with `"count"`, `"sum_weights"`,
-#'     `"mean_weights"`, and `"ess"`.
+#'     per class. Requires `y` (factor or coercible-to-factor) and `kernel`.
+#'     Output has one column per class. `"tabulate"` is mutually exclusive with
+#'     `"sum"`, `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`
+#'     (different `y` semantics); it can be combined with `"count"`,
+#'     `"sum_weights"`, `"mean_weights"`, and `"ess"`.
 #'   - A character vector combining multiple stats (e.g.,
 #'     `c("count", "weighted_mean", "regression")`).
 #'     Note: `"none"` cannot be combined with other stats.
@@ -229,6 +183,14 @@
 #'     precisions). For `weighted_mean`,
 #'     `SE = sqrt(Σ w²(y - ȳ_w)²) / Σw`.
 #'
+#' @param normalize One of `TRUE`, `FALSE`, or `"auto"` (default). Only used
+#'   if `stat` includes `"sum_weights"` or `"tabulate"` and `pool` is a raster.
+#'   When active, results for these stats are divided by a global scalar so that
+#'   they represent a fraction of a theoretically "perfect" scenario where
+#'   the full search area within `max_geog` is occupied wall-to-wall by cells
+#'   whose climate exactly matches `x`. See details under [analog_search()] for
+#'   more info.
+#'
 #' @param exclude_self Logical, default `FALSE`. `TRUE` is typically used
 #'   for cross-validation, such as via [analog_cv()], in which case each focal
 #'   excludes the pool row at the same index from its analog neighborhood.
@@ -269,6 +231,13 @@
 #'     accuracy at the possible cost of query speed.
 #'
 #'   Ignored if `pool` is an `analog_index` (uses index's resolution).
+#'
+#' @param mean_cell_area Optional scalar mean cell area to attach to the
+#'   index when one is built from raw `pool` data. Mainly intended for
+#'   internal use by `tiled_analog_search()` to propagate a globally
+#'   consistent value across per-tile index builds; most users should
+#'   leave this `NULL` (auto-computed from the raster pool). See
+#'   [build_analog_index()] for details.
 #'
 #' @param n_threads Optional integer number of threads to use for the
 #'   computation. If `NULL` (default), the global RcppParallel setting
@@ -311,8 +280,91 @@
 #'   `se_intercept`, etc.) for each SE-supporting stat.
 #'
 #' All results include metadata attributes (`select`, `stat`, `kernel`, etc.).
-#' Use [metadata()] to retrieve them as a named list, or see
-#' `?metadata` for a full reference.
+#' Use [metadata()] to retrieve them as a named list, or see  `?metadata` for a full
+#' reference.
+#'
+#' @details
+#' ## Parameter categories
+#'
+#' - *Data parameters*
+#'   (`x`, `pool`, `x_cov`, `y`, `covariates`, `weight`, `coord_type`)
+#'   give attributes of the data on which to operate.
+#' - *Selection parameters*
+#'   (`select`, `max_clim`, `max_geog`, `k`)
+#'   define which analogs to `select` from the `pool` for each `x`.
+#' - *Aggregation parameters*
+#'   (`stat`, `kernel`, `theta`, `lambda`, `se`, `normalize`)
+#'   control how selected analogs are summarized.
+#' - *Computation parameters*
+#'   (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
+#'   specify behavior for controlling compute performance.
+#'
+#' ## Distance metrics
+#'
+#' Geographic distance can be computed for lon/lat coordinates (great-circle
+#' distance) or projected coordinates (planar distance).
+#'
+#' Climate similarity is measured using Euclidean or Mahalanobis distance in
+#' climate space. In general, when multiple climate variables are used, it is
+#' recommended to use pre-whitened (scaled) climate data, to avoid major artifacts
+#' from climate variables with different units. Pre-whitening can be done using
+#' `scale()` for dataset-wide Euclidean distances, or `mahalanobis_transform()`
+#' for dataset-wide Mahalanobis distances.
+#'
+#' The function also supports climate distance calculations based on
+#' *local temporal* covariance structure at focal locations, via the `x_cov`
+#' parameter. These local covariance values need to be pre-calculated.
+#'
+#' ## Computational optimization
+#'
+#' The analog search architecture is designed with compute performance in mind:
+#'
+#' - All internal computations are done in C++.
+#' - Searches use a lattice-based indexing structure to efficiently
+#'   search through large reference datasets. By default, the lattice
+#'   resolution is tuned for optimal performance.
+#' - Parallel processing is available via the `n_threads` parameter.
+#' - You can `downsample` prohibitively large reference pool datasets
+#'   to improve speed and memory, using a stratified sampling
+#'   scheme that reduces loss of precision relative to random sampling.
+#' - For large datasets, enable `progress = TRUE` to display
+#'   a progress bar during computation.
+#' - For raster datasets that are too large to fit in memory,
+#'   `tiled_analog_search()` offers a memory-safe option.
+#'
+#' ## Cross-validation
+#'
+#' For honest prediction error when `x` and `pool` are the same dataset, use
+#' [analog_cv()] or set `exclude_self = TRUE` to exclude each focal's own row
+#' from its analog neighborhood.
+#'
+#' ## Normalization
+#'
+#' Normalization divides `D` (the density result from `sum_weights` or `tabulate`)
+#' by the  global scalar `D_max`. `D_max` (which is also attached to the result as
+#' an attribute) is the highest `D` you could theoretically expect given `max_geog`,
+#' `kernel`, and `theta`, i.e. the density value you'd get if the entire the geographic
+#' search radius were filled with grid cells whose climate exactly matches `x`.
+#' It is calculated as the analytic integral
+#' `(1 / mean_cell_area) * integral_0^max_geog K(0, r) * 2*pi*r dr`,
+#' which is the kernel-weighted count an idealized focal would accumulate
+#' from a continuous uniform pool of perfect climate matches out to
+#' `max_geog`. The resulting columns are unitless availability fractions
+#' on roughly `[0, 1]`.
+#'
+#' Because `D_max` is a continuous-domain idealization while `D` is a discrete sum over a finite grid, normalized
+#' values can occasionally exceed 1 by small amounts (typically a few percent). This
+#' is a grid discretization artifact, not an error, and at certain `(cell_size, max_geog)`
+#' ratios this is more pronounced. Using a higher-resolution pool grid or choosing
+#' a `max_geog` that isn't an integer multiple of the cell size both reduce the effect.
+#'
+#' `normalize = "auto"` activates normalization if every precondition
+#' is met: raster-derived index with cell-area weighting, a kernel set
+#' (any of the supported types), and a finite positive `max_geog`.
+#' Explicit `TRUE` errors on any missing precondition. `normalize` is silently
+#' ignored when no normalizable stat is requested. For non-raster pools, `"auto"` falls
+#' back to raw kernel-weighted sums. Pass `normalize = TRUE` to require normalization or
+#' `normalize = FALSE` to always return raw sums.
 #'
 #' @references
 #' Hamann A, Roberts DR, Barber QE, Carroll C, Nielsen SE (2015). "Velocity of
@@ -353,6 +405,7 @@ analog_search <- function(
       theta = NULL,
       lambda = 0,
       se = c("none", "ess", "design"),
+      normalize = "auto",
 
       # cross-validation
       exclude_self = FALSE,
@@ -363,12 +416,24 @@ analog_search <- function(
       seed = NULL,
       index_res = "auto",
       cell_area_weight = "auto",
+      mean_cell_area = NULL,
 
       n_threads = NULL,
       progress = FALSE
 ) {
 
       se <- match.arg(se)
+
+      # Validate normalize argument format up front. Accepts TRUE, FALSE,
+      # or the string "auto". Compatibility with kernel/max_geog/index/etc.
+      # is checked inside query_analog_index() once those values are
+      # resolved (and "auto" is resolved to a logical based on whether the
+      # index supplies the structural prerequisites for normalization).
+      if (!(identical(normalize, "auto") ||
+            (is.logical(normalize) && length(normalize) == 1L &&
+             !is.na(normalize)))) {
+            stop('`normalize` must be TRUE, FALSE, or "auto".', call. = FALSE)
+      }
 
       # Validate exclude_self against x, pool, downsample, progress.
       # Must happen BEFORE pool is swapped for a built index below.
@@ -415,6 +480,16 @@ analog_search <- function(
                        "baked in at build time. Rebuild the index with the ",
                        "desired weights instead.",
                        call. = FALSE)
+            }
+
+            # mean_cell_area also lives on the index. Silently accept NULL
+            # (the common case); error on explicit disagreement so users
+            # don't think a passed value is being honored.
+            if (!is.null(mean_cell_area)) {
+                  stop("`mean_cell_area` cannot be applied to a pre-built ",
+                       "`analog_index`; it was set at build time. Rebuild ",
+                       "the index with the desired `mean_cell_area`, or ",
+                       "leave the argument NULL.", call. = FALSE)
             }
 
       } else {
@@ -473,7 +548,8 @@ analog_search <- function(
                   index_res = index_res_int,
                   downsample = downsample,
                   seed = seed,
-                  cell_area_weight = cell_area_weight
+                  cell_area_weight = cell_area_weight,
+                  mean_cell_area = mean_cell_area
             )
       }
 
@@ -494,6 +570,7 @@ analog_search <- function(
             theta = theta,
             lambda = lambda,
             se = se,
+            normalize = normalize,
             exclude_self = exclude_self,
             n_threads = n_threads,
             show_progress = progress

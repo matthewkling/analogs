@@ -20,12 +20,14 @@ analog_search(
   theta = NULL,
   lambda = 0,
   se = c("none", "ess", "design"),
+  normalize = "auto",
   exclude_self = FALSE,
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
   index_res = "auto",
   cell_area_weight = "auto",
+  mean_cell_area = NULL,
   n_threads = NULL,
   progress = FALSE
 )
@@ -118,7 +120,9 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
 \item \code{"count"}: For each focal, count the number of selected analogs.
 \item \code{"sum_weights"}: For each focal, sum the weights of selected
-analogs (see \code{kernel} and \code{theta}).
+analogs (see \code{kernel} and \code{theta}). When \code{normalize = TRUE}, the
+reported value is the normalized density \code{D / D_max}, on roughly
+\verb{[0, 1]}; otherwise it is the raw kernel-weight sum.
 \item \code{"mean_weights"}: For each focal, mean of weights of selected
 analogs.
 \item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
@@ -134,16 +138,15 @@ squared sum of weights divided by the sum of squared weights
 of \code{y} on \code{covariates} within each analog neighborhood.
 Returns intercept and slope coefficients. Requires \code{y},
 \code{covariates}, and \code{kernel}. See \code{lambda} for regularization.
-\item \code{"tabulate"}: For each focal and each level of categorical \code{y},
-sum the kernel weights of analogs whose \code{y} falls in that level.
+\item \code{"tabulate"}: if \code{y} is categorical, separately sum the kernel weights
+of analogs matching each level of \code{y}.
 With \code{kernel = "uniform"} this reduces to a per-class vote count;
 with a distance-decay kernel it gives similarity-weighted support
-per class. Requires \code{y} (factor or coercible-to-factor) and
-\code{kernel}. Output has one column per class. \code{"tabulate"} is
-mutually exclusive with \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
-\code{"weighted_mean"}, and \code{"regression"} (different \code{y} semantics);
-it can be combined with \code{"count"}, \code{"sum_weights"},
-\code{"mean_weights"}, and \code{"ess"}.
+per class. Requires \code{y} (factor or coercible-to-factor) and \code{kernel}.
+Output has one column per class. \code{"tabulate"} is mutually exclusive with
+\code{"sum"}, \code{"mean"}, \code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}
+(different \code{y} semantics); it can be combined with \code{"count"},
+\code{"sum_weights"}, \code{"mean_weights"}, and \code{"ess"}.
 \item A character vector combining multiple stats (e.g.,
 \code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.
@@ -203,6 +206,14 @@ precisions). For \code{weighted_mean},
 \verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
 }}
 
+\item{normalize}{One of \code{TRUE}, \code{FALSE}, or \code{"auto"} (default). Only used
+if \code{stat} includes \code{"sum_weights"} or \code{"tabulate"} and \code{pool} is a raster.
+When active, results for these stats are divided by a global scalar so that
+they represent a fraction of a theoretically "perfect" scenario where
+the full search area within \code{max_geog} is occupied wall-to-wall by cells
+whose climate exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
+more info.}
+
 \item{exclude_self}{Logical, default \code{FALSE}. \code{TRUE} is typically used
 for cross-validation, such as via \code{\link[=analog_cv]{analog_cv()}}, in which case each focal
 excludes the pool row at the same index from its analog neighborhood.
@@ -257,6 +268,13 @@ pre-built \code{analog_index}, this argument must agree with the index's
 stored configuration: \code{cell_area_weight = FALSE} errors if the index
 was built with cell-area weighting on (rebuild the index instead).}
 
+\item{mean_cell_area}{Optional scalar mean cell area to attach to the
+index when one is built from raw \code{pool} data. Mainly intended for
+internal use by \code{tiled_analog_search()} to propagate a globally
+consistent value across per-tile index builds; most users should
+leave this \code{NULL} (auto-computed from the raster pool). See
+\code{\link[=build_analog_index]{build_analog_index()}} for details.}
+
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
@@ -301,8 +319,8 @@ columns.
 }
 
 All results include metadata attributes (\code{select}, \code{stat}, \code{kernel}, etc.).
-Use \code{\link[=metadata]{metadata()}} to retrieve them as a named list, or see
-\code{?metadata} for a full reference.
+Use \code{\link[=metadata]{metadata()}} to retrieve them as a named list, or see  \code{?metadata} for a full
+reference.
 }
 \description{
 Identifies locations in a reference dataset that are climatically similar
@@ -320,7 +338,7 @@ give attributes of the data on which to operate.
 (\code{select}, \code{max_clim}, \code{max_geog}, \code{k})
 define which analogs to \code{select} from the \code{pool} for each \code{x}.
 \item \emph{Aggregation parameters}
-(\code{stat}, \code{kernel}, \code{theta}, \code{lambda}, \code{se})
+(\code{stat}, \code{kernel}, \code{theta}, \code{lambda}, \code{se}, \code{normalize})
 control how selected analogs are summarized.
 \item \emph{Computation parameters}
 (\code{n_threads}, \code{index_res}, \code{downsample}, \code{seed}, \code{progress})
@@ -369,6 +387,35 @@ a progress bar during computation.
 For honest prediction error when \code{x} and \code{pool} are the same dataset, use
 \code{\link[=analog_cv]{analog_cv()}} or set \code{exclude_self = TRUE} to exclude each focal's own row
 from its analog neighborhood.
+}
+
+\subsection{Normalization}{
+
+Normalization divides \code{D} (the density result from \code{sum_weights} or \code{tabulate})
+by the  global scalar \code{D_max}. \code{D_max} (which is also attached to the result as
+an attribute) is the highest \code{D} you could theoretically expect given \code{max_geog},
+\code{kernel}, and \code{theta}, i.e. the density value you'd get if the entire the geographic
+search radius were filled with grid cells whose climate exactly matches \code{x}.
+It is calculated as the analytic integral
+\verb{(1 / mean_cell_area) * integral_0^max_geog K(0, r) * 2*pi*r dr},
+which is the kernel-weighted count an idealized focal would accumulate
+from a continuous uniform pool of perfect climate matches out to
+\code{max_geog}. The resulting columns are unitless availability fractions
+on roughly \verb{[0, 1]}.
+
+Because \code{D_max} is a continuous-domain idealization while \code{D} is a discrete sum over a finite grid, normalized
+values can occasionally exceed 1 by small amounts (typically a few percent). This
+is a grid discretization artifact, not an error, and at certain \verb{(cell_size, max_geog)}
+ratios this is more pronounced. Using a higher-resolution pool grid or choosing
+a \code{max_geog} that isn't an integer multiple of the cell size both reduce the effect.
+
+\code{normalize = "auto"} activates normalization if every precondition
+is met: raster-derived index with cell-area weighting, a kernel set
+(any of the supported types), and a finite positive \code{max_geog}.
+Explicit \code{TRUE} errors on any missing precondition. \code{normalize} is silently
+ignored when no normalizable stat is requested. For non-raster pools, \code{"auto"} falls
+back to raw kernel-weighted sums. Pass \code{normalize = TRUE} to require normalization or
+\code{normalize = FALSE} to always return raw sums.
 }
 }
 \references{

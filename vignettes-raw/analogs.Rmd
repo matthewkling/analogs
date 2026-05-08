@@ -194,16 +194,16 @@ plot(avail, main = "Analog availability (count)")
 
 ## Analog density
 
-Similar to availability, but weighted by climate similarity and/or geographic proximity rather than simply counted. This captures both the number and quality of analog matches.
+Similar to availability, but weighted by climate kernel-based similarity and/or geographic proximity rather than simply counted. This captures both the quantity and quality (proximity/suitability) of analog matches. By default, raw density is normalized by dividing it by its theoretical maximum value (calculated from `kernel`, `max_geog`, and `theta`) to make it interpretable.
 
 ```{r density}
 intens <- analog_density(
       x = fut,
       pool = hist,
-      max_clim = 0.5,
-      max_geog = 200,
-      kernel = "gaussian_clim",
-      theta = 0.15
+      max_clim = 0.6,
+      max_geog = 150,
+      kernel = "gaussian_joint",
+      theta = c(0.2, 50)
 )
 
 plot(intens, main = "Analog density")

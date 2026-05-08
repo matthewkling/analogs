@@ -62,6 +62,13 @@
 #'   the unweighted case. The weights are stored on the returned index and
 #'   used during all subsequent queries.
 #'
+#' @param mean_cell_area Optional scalar mean cell area (in km^2) to attach
+#'   to the index, overriding any value auto-computed from the raster pool.
+#'   Intended for internal use by `tiled_analog_search()` to propagate a
+#'   globally-consistent mean area across per-tile index builds (so that
+#'   `analog_density(normalize = TRUE)` produces consistent values across
+#'   tiles). Most users should leave this `NULL`.
+#'
 #' @return An S3 object of class \code{"analog_index"} containing:
 #'   \itemize{
 #'     \item The compiled lattice index (internal C++ structure)
@@ -128,7 +135,8 @@ build_analog_index <- function(pool,
                                index_res = 16,
                                downsample = 1.0,
                                seed = NULL,
-                               cell_area_weight = "auto") {
+                               cell_area_weight = "auto",
+                               mean_cell_area = NULL) {
 
       # Validate inputs
       coord_type <- match.arg(coord_type)
@@ -156,6 +164,16 @@ build_analog_index <- function(pool,
             stop('`cell_area_weight` must be "auto", TRUE, FALSE, or a numeric ',
                  "vector of length nrow(pool).",
                  call. = FALSE)
+      }
+
+      # Validate optional mean_cell_area override.
+      if (!is.null(mean_cell_area)) {
+            if (!is.numeric(mean_cell_area) || length(mean_cell_area) != 1L ||
+                !is.finite(mean_cell_area) || mean_cell_area <= 0) {
+                  stop("`mean_cell_area` must be a single positive finite number, or NULL.",
+                       call. = FALSE)
+            }
+            mean_cell_area <- as.numeric(mean_cell_area)
       }
 
       # Resolve cell_area_weight to one of three states:
@@ -204,12 +222,31 @@ build_analog_index <- function(pool,
       }
 
       # Resolve to a single numeric vector (or NULL) using the flags from above.
-      cell_area_weight_vec <- if (compute_from_raster) {
-            .compute_cell_area_weights(pool)
+      # When auto-computing from a raster, we also capture the mean cell area
+      # used in the normalization. Caller-supplied numeric vectors are taken
+      # as-is; in that case the caller is responsible for also supplying
+      # `mean_cell_area` if downstream `analog_density(normalize = TRUE)` is
+      # to be supported on this index.
+      cell_area_weight_vec <- NULL
+      computed_mean_area   <- NULL
+      if (compute_from_raster) {
+            caw <- .compute_cell_area_weights(pool)
+            cell_area_weight_vec <- caw$weights
+            computed_mean_area   <- caw$mean_area
       } else if (user_supplied_vec) {
-            as.numeric(cell_area_weight)
+            cell_area_weight_vec <- as.numeric(cell_area_weight)
+      }
+
+      # Resolve final mean_cell_area to store on the index.
+      # Priority: explicit `mean_cell_area` argument > value computed from
+      # the raster (when auto-computing). For pure user-supplied numeric
+      # vectors with no `mean_cell_area` argument, this stays NULL — the
+      # caller (e.g. tiled_analog_search) must pass it explicitly to
+      # support density normalization.
+      mean_cell_area_final <- if (!is.null(mean_cell_area)) {
+            mean_cell_area
       } else {
-            NULL
+            computed_mean_area  # may be NULL
       }
 
       # Normalize pool to standard matrix format. NA pool rows (e.g. ocean
@@ -309,6 +346,14 @@ build_analog_index <- function(pool,
                   # aligned to ref_data rows after any NA stripping).
                   cell_area_weight = cell_area_weight_vec,
 
+                  # Mean cell area (km^2) used to normalize the cell-area
+                  # weights. Stored regardless of which pool form was used
+                  # (raster auto-compute, user-supplied vector with explicit
+                  # `mean_cell_area`, etc.). NULL when neither path supplied
+                  # a value — in that case `analog_density(normalize = TRUE)`
+                  # cannot be used against this index.
+                  mean_cell_area = mean_cell_area_final,
+
                   # Diagnostics
                   total_bins = index_cpp$total_bins,
                   n_bins_nonempty = index_cpp$n_bins_nonempty,
@@ -387,6 +432,10 @@ print.analog_index <- function(x, ...) {
 
       if (!is.null(x$cell_area_weight)) {
             cat("\n  Note: Cell-area weights applied to pool points\n")
+            if (!is.null(x$mean_cell_area)) {
+                  cat(sprintf("        (mean cell area: %.3f km^2)\n",
+                              x$mean_cell_area))
+            }
       }
 
       invisible(x)

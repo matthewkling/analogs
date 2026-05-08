@@ -59,7 +59,11 @@ weighted stats (e.g. \code{sum_weights}) consistent across tiles.}
 
 \item{...}{Additional arguments passed to fun. Must include max_geog.
 May include \code{covariates} as a SpatRaster matching \code{pool}'s CRS and
-extent (cropped per tile alongside \code{y}).}
+extent (cropped per tile alongside \code{y}). May also include \code{normalize}
+for helpers that support it (e.g. \code{analog_density()}); when normalization
+is requested, the global mean cell area is computed once over the full
+pool and propagated to each tile so per-tile \code{D_max} values are
+consistent.}
 
 \item{output_file}{Optional filename for disk-based output. If specified and
 fun returns a SpatRaster, tiles are written to temporary files during

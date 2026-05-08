@@ -921,10 +921,32 @@
 
 # Compute cell-area weights for a SpatRaster pool.
 #
-# Returns a length-ncell numeric vector of weights, normalized so the mean
-# over finite (non-NA cellSize) values is 1.0. The first layer's NA mask is
-# *not* applied; cells with NA climate values still get a finite area weight
-# (they get filtered out via the climate-NA path during querying anyway).
+# Returns a list with:
+#   weights        - length-ncell numeric vector of physical-area-based
+#                    weights, normalized so the mean over finite (non-NA
+#                    cellSize) values is 1.0. Always derived from
+#                    terra::cellSize(unit = "km"), which returns physical
+#                    geodesic km^2 regardless of CRS. The mean-1
+#                    normalization makes them dimensionless ratios.
+#   mean_area      - the scalar mean cell area used for downstream density
+#                    normalization, *in units that match max_geog for the
+#                    given coord_type*:
+#                      - lonlat:    km^2 (physical, geodesic), matching
+#                                   max_geog in km. Computed as the mean of
+#                                   cellSize(unit = "km").
+#                      - projected: projection-units^2 (planar), matching
+#                                   max_geog in the CRS's linear units.
+#                                   Computed as prod(res(pool_raster)).
+#                    Stored on the index for use by
+#                    `analog_density(normalize = TRUE)`. The value is
+#                    intentionally NOT the same scale as `weights`'s
+#                    normalization (which is physical-area-based for both
+#                    coord types); these serve different purposes and need
+#                    different units.
+#
+# The first layer's NA mask is *not* applied to weights; cells with NA
+# climate values still get a finite area weight (they get filtered out via
+# the climate-NA path during querying anyway).
 #
 # Used by build_analog_index() when cell_area_weight is "auto" (and pool is
 # a raster) or TRUE.
@@ -938,23 +960,49 @@
                  call. = FALSE)
       }
 
-      # cellSize returns geodesic km^2 for lonlat; planar projection-units^2
-      # otherwise. The unit here doesn't matter because we normalize.
+      # Existing weight semantics: physical (geodesic) km^2 from cellSize,
+      # normalized to mean 1. Unchanged from prior versions; aggregation
+      # statistics rely on this being physical-area-based.
       area <- terra::values(terra::cellSize(pool_raster, mask = FALSE,
                                             unit = "km"))
       area <- as.numeric(area)
 
-      # Normalize to mean 1 over finite values
       finite <- is.finite(area)
       if (!any(finite)) {
             stop("Internal error: cellSize returned no finite values.",
                  call. = FALSE)
       }
-      mean_area <- mean(area[finite])
-      if (mean_area <= 0 || !is.finite(mean_area)) {
+      mean_area_physical <- mean(area[finite])
+      if (mean_area_physical <= 0 || !is.finite(mean_area_physical)) {
             stop("Internal error: non-positive mean cell area.", call. = FALSE)
       }
-      area / mean_area
+
+      weights <- area / mean_area_physical
+
+      # mean_area for D_max needs to match max_geog's units. C++ workers
+      # compute distances in:
+      #   - lonlat:    km (Haversine)        -> mean_area in km^2 (physical)
+      #   - projected: projection units      -> mean_area in projection-units^2
+      #                (planar). For non-equal-area projections this differs
+      #                from the physical km^2 mean by a CRS-dependent
+      #                distortion factor; we use planar units here so the
+      #                D_max integral is unit-consistent with max_geog and
+      #                with the planar distances the C++ kernel sees.
+      is_ll <- suppressWarnings(terra::is.lonlat(pool_raster))
+      mean_area <- if (isTRUE(is_ll)) {
+            mean_area_physical
+      } else {
+            # Planar projection-units^2 = (x-resolution) * (y-resolution).
+            # This is uniform across the raster (a property of the grid),
+            # so no per-cell averaging is needed.
+            r <- terra::res(pool_raster)
+            as.numeric(r[1]) * as.numeric(r[2])
+      }
+
+      list(
+            weights   = weights,
+            mean_area = mean_area
+      )
 }
 
 # Validate and format the user-supplied per-pool-point `weight` argument.

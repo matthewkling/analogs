@@ -248,10 +248,16 @@ analog_cv <- function(fun,
       # Globally normalize once over the full pool, so that per-fold slices
       # share a common scale even when folds are spatially structured (e.g.
       # spatial block CV). This mirrors the tiled_analog_search() approach.
-      cell_area_weight_vec <- if (apply_caw_cv) {
-            .compute_cell_area_weights(pool)
-      } else {
-            NULL
+      # We capture both the mean-1 normalized weights vector and the global
+      # mean_cell_area scalar; the latter is propagated through to inner
+      # analog_search() calls so any per-fold normalize = TRUE / "auto"
+      # uses the same D_max denominator across folds.
+      cell_area_weight_vec  <- NULL
+      mean_cell_area_global <- NULL
+      if (apply_caw_cv) {
+            caw <- .compute_cell_area_weights(pool)
+            cell_area_weight_vec  <- caw$weights
+            mean_cell_area_global <- caw$mean_area
       }
 
       # Detect whether this is a tabulate-mode CV run. Different y semantics
@@ -346,6 +352,7 @@ analog_cv <- function(fun,
                   cov_mat = cov_mat,
                   weight_vec = user_weight_vec,
                   cell_area_weight_vec = cell_area_weight_vec,
+                  mean_cell_area = mean_cell_area_global,
                   extra = extra
             )
       } else {
@@ -359,6 +366,7 @@ analog_cv <- function(fun,
                   cov_mat = cov_mat,
                   weight_vec = user_weight_vec,
                   cell_area_weight_vec = cell_area_weight_vec,
+                  mean_cell_area = mean_cell_area_global,
                   folds = folds,
                   extra = extra
             )
@@ -661,7 +669,8 @@ analog_cv <- function(fun,
 # come back in the result (LOO: focals = pool, so focal-side covariates
 # are just cov_mat).
 .cv_run_loo <- function(fun, fun_name, pool_mat, y_for_inner, cov_mat,
-                        weight_vec, cell_area_weight_vec, extra) {
+                        weight_vec, cell_area_weight_vec,
+                        mean_cell_area = NULL, extra) {
       args <- c(
             list(
                   x    = pool_mat,
@@ -680,6 +689,19 @@ analog_cv <- function(fun,
       # per-fold subsetting needed.
       if (!is.null(weight_vec))           args$weight           <- weight_vec
       if (!is.null(cell_area_weight_vec)) args$cell_area_weight <- cell_area_weight_vec
+
+      # Pass the global mean_cell_area through so any inner normalize =
+      # TRUE / "auto" uses a consistent D_max denominator. Only inject
+      # when the helper accepts the argument (named formal or `...`); for
+      # helpers that don't, we silently skip rather than error.
+      if (!is.null(mean_cell_area)) {
+            fun_formals <- names(formals(fun))
+            if ("mean_cell_area" %in% fun_formals ||
+                "..." %in% fun_formals) {
+                  args$mean_cell_area <- mean_cell_area
+            }
+      }
+
       do.call(fun, args)
 }
 
@@ -692,8 +714,17 @@ analog_cv <- function(fun,
 .cv_run_kfold <- function(fun, fun_name, pool_mat, y_for_inner,
                           y_levels_list, y_names, cov_mat,
                           weight_vec, cell_area_weight_vec,
+                          mean_cell_area = NULL,
                           folds, extra) {
       unique_folds <- sort(unique(folds))
+
+      # Pre-compute whether we should inject mean_cell_area into per-fold
+      # calls. Only inject when the helper accepts the argument (named
+      # formal or `...`). Computed once outside the loop.
+      inject_mca <- !is.null(mean_cell_area) && {
+            fun_formals <- names(formals(fun))
+            "mean_cell_area" %in% fun_formals || "..." %in% fun_formals
+      }
 
       # Helper: subset y_for_inner by row, preserving type. Three shapes
       # are possible:
@@ -759,6 +790,9 @@ analog_cv <- function(fun,
             }
             if (!is.null(cell_area_weight_vec)) {
                   args$cell_area_weight <- cell_area_weight_vec[train_rows]
+            }
+            if (inject_mca) {
+                  args$mean_cell_area <- mean_cell_area
             }
 
             res_i <- do.call(fun, args)

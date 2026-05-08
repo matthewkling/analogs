@@ -10,21 +10,12 @@
 #' Supports ordinary and ridge-penalized weighted least squares. With purely geographic
 #' neighborhoods, this is equivalent to geographically weighted regression
 #' (GWR); with climate-based neighborhoods, it extends the analog impact
-#' model (AIM) framework to incorporate local covariate effects.
-#'
-#' This function is a wrapper that calls [analog_search()] with
-#' `"regression"` included in `stat`.
+#' model (AIM) framework to incorporate local covariate effects. This function is
+#' a wrapper that calls [analog_search()] with `"regression"` included in `stat`.
 #'
 #' @param x Focal locations for which regressions will be fit. Should be a
 #'   matrix/data.frame with columns x, y, and climate variables, or a
 #'   SpatRaster with climate variable layers.
-#' @param pool The reference dataset to search for analogs. Either:
-#'   \itemize{
-#'     \item Matrix/data.frame with columns x, y, and climate variables,
-#'       or SpatRaster with climate variable layers, OR
-#'     \item An `analog_index` object created by
-#'       [build_analog_index()] (for repeated queries).
-#'   }
 #' @param y Response variable(s) to model via local regression.
 #'   Can be a numeric vector, matrix, data.frame, or SpatRaster.
 #'   Must have exactly the same number of rows/cells as `pool`.
@@ -175,6 +166,7 @@ analog_regression <- function(
             lambda = 0,
             stat = c("count", "ess", "regression"),
             se = c("none", "ess", "design"),
+            normalize = "auto",
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
@@ -206,6 +198,7 @@ analog_regression <- function(
             theta       = theta,
             lambda      = lambda,
             se          = se,
+            normalize   = normalize,
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,
@@ -314,7 +307,7 @@ analog_regression <- function(
       if (is_raster_result) {
             pred_layers <- lapply(seq_len(n_y), function(j) {
                   stats::setNames(terra::setValues(result[[1]], preds[, j]),
-                           pred_colnames[j])
+                                  pred_colnames[j])
             })
             # Preserve existing attributes by appending the new layer(s)
             att <- attributes(result)

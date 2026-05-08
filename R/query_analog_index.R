@@ -15,6 +15,7 @@ query_analog_index <- function(x,
                                theta,
                                lambda,
                                se,
+                               normalize = "auto",
                                exclude_self = FALSE,
                                n_threads,
                                show_progress = FALSE) {
@@ -103,6 +104,28 @@ query_analog_index <- function(x,
       values_levels <- params$values_levels   # NULL unless tabulate
       covariates_mat <- params$covariates
       covariates_names <- params$covariates_names
+
+      # Resolve `normalize = "auto"` to a concrete logical. `"auto"` does
+      # the right thing whenever it can: TRUE iff every precondition is
+      # met (raster-derived index with active cell-area weighting AND a
+      # climate-aware kernel AND a finite max_geog), FALSE otherwise. This
+      # silent fall-back lets the same call work across raster vs.
+      # non-raster pools, with vs. without max_geog, and with any kernel
+      # choice -- without the user having to manually toggle the argument.
+      #
+      # Explicit `normalize = TRUE` is stricter: any precondition failure
+      # raises an error in .validate_normalize_compat() below. That gives
+      # users who explicitly opted in clear feedback about why
+      # normalization can't apply.
+      if (identical(normalize, "auto")) {
+            normalize <- .normalize_is_feasible(stat, kernel, max_geog, index)
+      }
+
+      # Validate normalize compatibility now that kernel/max_geog/etc. are
+      # resolved and we have the index in hand. Throws on any
+      # incompatibility (uniform/geo-only kernel, missing max_geog,
+      # non-raster index, missing cell-area weighting, etc.).
+      .validate_normalize_compat(normalize, stat, kernel, max_geog, index)
 
       # Parse constraints
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
@@ -205,6 +228,25 @@ query_analog_index <- function(x,
       # property); user weights are query-time. Either may be NULL.
       area_weight_vec <- index$cell_area_weight  # NULL if not applied
 
+      # Compute the global D_max scalar once per query, if normalization is
+      # both requested AND would actually apply to a stat in this query.
+      # Validation above ensures preconditions are met when we reach
+      # .compute_global_dmax(). The stat-relevance gate mirrors the
+      # validator's short-circuit so an explicit `normalize = TRUE` with
+      # stat = "count" (no normalizable column) is a silent no-op and
+      # doesn't fail trying to integrate against a missing kernel.
+      do_dmax <- isTRUE(normalize) && any(stat %in% c("sum_weights", "tabulate"))
+      D_max <- if (do_dmax) {
+            .compute_global_dmax(
+                  kernel         = kernel,
+                  theta          = theta,
+                  max_geog       = max_geog_num,
+                  mean_cell_area = index$mean_cell_area
+            )
+      } else {
+            NA_real_
+      }
+
       # Call C++ query function (with optional chunking/progress)
       res <- .query_cpp_chunked(
             index = index,
@@ -245,7 +287,10 @@ query_analog_index <- function(x,
 
       # Post-process results based on aggregate type
       if (identical(stat, "none") || (length(stat) == 1 && stat[1] == "none")) {
-            # Pairs mode - res is a list
+            # Pairs mode - res is a list. Normalization does not apply to
+            # pairs mode (per-pair kernel weights are reported as-is); if
+            # normalize = TRUE was requested with stat = "none", the
+            # validation above would have warned about no-op stat anyway.
             out <- .emit_pairs_cpp(
                   res,
                   focal,
@@ -342,6 +387,10 @@ query_analog_index <- function(x,
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
 
+            # Pair-mode normalization is not currently defined; attach
+            # normalize attribute for transparency but no D_max.
+            attr(out, "normalize") <- isTRUE(normalize)
+
             return(.format_output(out, focal, stat, select,
                                   k, kernel, theta, x_cov_mat,
                                   lambda, se, exclude_self,
@@ -389,6 +438,11 @@ query_analog_index <- function(x,
       col_idx <- 1L
       n_vals <- if (is.null(values_mat)) 0L else ncol(values_mat)
       want_se <- (se != "none")
+
+      # Track tabulate column names as we assemble them, so the
+      # post-aggregation normalization step can find them without having
+      # to reconstruct the naming convention.
+      tabulate_col_names <- character(0)
 
       # Regular stats (count, sum_weights, mean_weights, ess): 1 col each
       regular_stats <- intersect(stat,
@@ -457,6 +511,9 @@ query_analog_index <- function(x,
                         }
                         out[[col_name]] <- res_full[, col_idx]
                         col_idx <- col_idx + 1L
+
+                        # Track for downstream normalization.
+                        tabulate_col_names <- c(tabulate_col_names, col_name)
                   }
             }
       }
@@ -513,6 +570,23 @@ query_analog_index <- function(x,
       for (nm in names(cpp_attrs)) {
             attr(out, nm) <- cpp_attrs[[nm]]
       }
+
+      # Apply D_max normalization to sum_weights and tabulate columns,
+      # if requested AND if a normalizable stat is present. The
+      # `do_dmax` predicate (computed once above) is the single source
+      # of truth for "did we actually normalize anything?" -- it covers
+      # the silent-no-op case where the user passed normalize = TRUE
+      # explicitly but the requested stat doesn't include any
+      # normalizable column.
+      if (do_dmax) {
+            out <- .apply_dmax_normalization(out, D_max, stat, tabulate_col_names)
+      }
+
+      # Record normalization metadata on the output. We report what the
+      # user *requested* (resolved logical) for the `normalize` attribute,
+      # and the actual D_max used (NA when no normalization was applied).
+      attr(out, "normalize") <- isTRUE(normalize)
+      attr(out, "D_max")     <- if (do_dmax) D_max else NA_real_
 
       return(.format_output(out, focal, stat, select, k, kernel, theta, x_cov_mat,
                             lambda, se, exclude_self, index$downsample_actual,

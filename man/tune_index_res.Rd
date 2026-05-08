@@ -67,7 +67,9 @@ with smallest geographic distance, subject to filters.
 \item \code{NULL} or \code{"none"}: Return all selected analog pairs as a data.frame.
 \item \code{"count"}: For each focal, count the number of selected analogs.
 \item \code{"sum_weights"}: For each focal, sum the weights of selected
-analogs (see \code{kernel} and \code{theta}).
+analogs (see \code{kernel} and \code{theta}). When \code{normalize = TRUE}, the
+reported value is the normalized density \code{D / D_max}, on roughly
+\verb{[0, 1]}; otherwise it is the raw kernel-weight sum.
 \item \code{"mean_weights"}: For each focal, mean of weights of selected
 analogs.
 \item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
@@ -83,16 +85,15 @@ squared sum of weights divided by the sum of squared weights
 of \code{y} on \code{covariates} within each analog neighborhood.
 Returns intercept and slope coefficients. Requires \code{y},
 \code{covariates}, and \code{kernel}. See \code{lambda} for regularization.
-\item \code{"tabulate"}: For each focal and each level of categorical \code{y},
-sum the kernel weights of analogs whose \code{y} falls in that level.
+\item \code{"tabulate"}: if \code{y} is categorical, separately sum the kernel weights
+of analogs matching each level of \code{y}.
 With \code{kernel = "uniform"} this reduces to a per-class vote count;
 with a distance-decay kernel it gives similarity-weighted support
-per class. Requires \code{y} (factor or coercible-to-factor) and
-\code{kernel}. Output has one column per class. \code{"tabulate"} is
-mutually exclusive with \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
-\code{"weighted_mean"}, and \code{"regression"} (different \code{y} semantics);
-it can be combined with \code{"count"}, \code{"sum_weights"},
-\code{"mean_weights"}, and \code{"ess"}.
+per class. Requires \code{y} (factor or coercible-to-factor) and \code{kernel}.
+Output has one column per class. \code{"tabulate"} is mutually exclusive with
+\code{"sum"}, \code{"mean"}, \code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}
+(different \code{y} semantics); it can be combined with \code{"count"},
+\code{"sum_weights"}, \code{"mean_weights"}, and \code{"ess"}.
 \item A character vector combining multiple stats (e.g.,
 \code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.

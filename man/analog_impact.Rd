@@ -17,6 +17,7 @@ analog_impact(
   stat = c("weighted_mean", "count", "sum_weights"),
   lambda = 0,
   se = c("none", "ess", "design"),
+  normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -143,6 +144,14 @@ using \code{n_eff - p} degrees of freedom.
 precisions). For \code{weighted_mean},
 \verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
 }}
+
+\item{normalize}{One of \code{TRUE}, \code{FALSE}, or \code{"auto"} (default). Only used
+if \code{stat} includes \code{"sum_weights"} or \code{"tabulate"} and \code{pool} is a raster.
+When active, results for these stats are divided by a global scalar so that
+they represent a fraction of a theoretically "perfect" scenario where
+the full search area within \code{max_geog} is occupied wall-to-wall by cells
+whose climate exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
+more info.}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
@@ -275,6 +284,9 @@ that are novel within the geographic search radius.
 \item \code{sum_weights}: Total analog density. Low values indicate sparse
 or distant climate matches. This metric captures both the number and quality
 of analogs. Interpretation details vary based on the \code{kernel} parameter.
+Pass \code{normalize = TRUE} to express \code{sum_weights} (and any \code{tabulate}
+columns) as a fraction of theoretical maximum analog availability,
+on roughly \verb{[0, 1]}. See \code{\link[=analog_search]{analog_search()}} for preconditions.
 }
 }
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/analog_density.R
 \name{analog_density}
 \alias{analog_density}
-\title{Analog density: kernel-weighted sum of analogs within climate/geographic limits}
+\title{Analog density: kernel-weighted analog count within climate/geographic limits}
 \usage{
 analog_density(
   x,
@@ -10,17 +10,20 @@ analog_density(
   x_cov = NULL,
   weight = NULL,
   coord_type = "auto",
+  stat = c("sum_weights"),
   max_clim = NULL,
   max_geog = NULL,
   kernel = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
     "gaussian_joint", "inverse_joint"),
   theta = NULL,
+  normalize = "auto",
   index_res = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
   downsample = 1,
   seed = NULL,
-  progress = FALSE
+  progress = FALSE,
+  ...
 )
 }
 \arguments{
@@ -70,6 +73,10 @@ assumes \code{max_geog} is in km).
 \item \code{"projected"}: Projected XY coordinates (uses planar distance;
 assumes \code{max_geog} is in projection units).
 }}
+
+\item{stat}{Character vector of one or more density-style summary statistics.
+Allowed options: \code{"sum_weights"} (default), \code{"mean_weights"}, \code{"count"},
+\code{"ess"}. See \code{\link[=analog_search]{analog_search()}} for detailed stat descriptions.}
 
 \item{max_clim}{Maximum climate distance constraint (default: NULL = no
 climate constraint). Can be either:
@@ -123,6 +130,14 @@ parameter (scalar; larger values = slower decay with distance).
 \code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
 }}
 
+\item{normalize}{One of \code{TRUE}, \code{FALSE}, or \code{"auto"} (default). Only used
+if \code{stat} includes \code{"sum_weights"} or \code{"tabulate"} and \code{pool} is a raster.
+When active, results for these stats are divided by a global scalar so that
+they represent a fraction of a theoretically "perfect" scenario where
+the full search area within \code{max_geog} is occupied wall-to-wall by cells
+whose climate exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
+more info.}
+
 \item{index_res}{Tuning parameter giving the number of bins per dimension
 of the internally-used lattice search index. Either:
 \itemize{
@@ -169,41 +184,53 @@ index or \code{downsample = 1}.}
 computation. Progress tracking works by splitting the focal dataset into
 chunks and processing them sequentially. Useful for large datasets. Default
 is \code{FALSE}.}
+
+\item{...}{Additional arguments forwarded to \code{\link[=analog_search]{analog_search()}} (e.g.
+\code{mean_cell_area} for tiled workflows).}
 }
 \value{
 A data.frame, or a SpatRaster when \code{x} is one. Contains
-\code{index}, \code{x}, \code{y}, and \code{sum_weights}.
-See \code{\link[=metadata]{metadata()}} for attached metadata attributes.
+\code{index}, \code{x}, \code{y}, and \code{sum_weights}. When \code{normalize = TRUE}, the
+value of \code{D_max} is attached as a result attribute. See \code{\link[=metadata]{metadata()}}
+for attached metadata attributes.
 }
 \description{
-Computes, for each focal location, the sum of weights of all reference locations
-that satisfy the supplied climate and geographic constraints. The weights are
-controlled by the \code{weight} and \code{theta} arguments and are applied
-after filtering.
+Computes, for each focal location, the kernel-weighted sum of all reference
+locations that satisfy the supplied climate and geographic constraints.
 }
 \details{
-This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using \code{select = "all"}
-and \code{stat = "sum_weights"}.
+This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using
+\code{select = "all"} and \code{stat = "sum_weights"}. It also supports \code{"count"},
+\code{"mean_weights"}, and \code{"ess"} as additional stats.
+
+By default (\code{normalize = "auto"}), the returned \code{sum_weights} column is
+divided by a global scalar \code{D_max} whenever \code{pool} meets the prerequisites
+(raster \code{pool} with cell-area weighting active). This gives values on roughly
+\verb{[0, 1]}, interpretable as the fraction of theoretical maximum analog density
+achieved at each focal. See \code{\link[=analog_search]{analog_search()}} for more details.
 }
 \examples{
 \dontrun{
-# One-shot query with inverse kernel weighting
-intens <- analog_density(
-  x = sites,
-  pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel = "inverse_clim"
-)
-
-# Gaussian weighting by climate distance
-intens_gauss <- analog_density(
+# Normalized density (default): returns sum_weights on roughly [0, 1]
+dens <- analog_density(
   x = sites,
   pool = climate_data,
   max_clim = 0.5,
   max_geog = 100,
   kernel = "gaussian_clim",
-  theta = 0.2  # bandwidth parameter
+  theta = 0.2
+)
+attr(dens, "D_max")  # the global denominator used
+
+# Raw (unnormalized) kernel-weighted sums
+dens_raw <- analog_density(
+  x = sites,
+  pool = climate_data,
+  max_clim = 0.5,
+  max_geog = 100,
+  kernel = "gaussian_clim",
+  theta = 0.2,
+  normalize = FALSE
 )
 
 # Joint Gaussian weighting (both climate and geography)
@@ -219,9 +246,9 @@ intens_joint <- analog_density(
 # With pre-built index (for repeated queries)
 index <- build_analog_index(climate_data)
 i1 <- analog_density(x = sites1, pool = index, max_clim = 0.5,
-                       kernel = "inverse_clim")
+                     max_geog = 100, kernel = "inverse_clim")
 i2 <- analog_density(x = sites2, pool = index, max_geog = 100,
-                       kernel = "inverse_geog")
+                     kernel = "gaussian_clim", theta = 0.3)
 }
 
 }

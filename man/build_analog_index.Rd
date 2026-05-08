@@ -10,7 +10,8 @@ build_analog_index(
   index_res = 16,
   downsample = 1,
   seed = NULL,
-  cell_area_weight = "auto"
+  cell_area_weight = "auto",
+  mean_cell_area = NULL
 )
 }
 \arguments{
@@ -71,6 +72,13 @@ When \code{"auto"} or \code{TRUE} triggers computation, weights are computed via
 absolute magnitudes of stats like \code{sum_weights} remain comparable to
 the unweighted case. The weights are stored on the returned index and
 used during all subsequent queries.}
+
+\item{mean_cell_area}{Optional scalar mean cell area (in km^2) to attach
+to the index, overriding any value auto-computed from the raster pool.
+Intended for internal use by \code{tiled_analog_search()} to propagate a
+globally-consistent mean area across per-tile index builds (so that
+\code{analog_density(normalize = TRUE)} produces consistent values across
+tiles). Most users should leave this \code{NULL}.}
 }
 \value{
 An S3 object of class \code{"analog_index"} containing:

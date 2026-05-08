@@ -21,6 +21,7 @@ analog_regression(
   lambda = 0,
   stat = c("count", "ess", "regression"),
   se = c("none", "ess", "design"),
+  normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
   index_res = "auto",
@@ -175,6 +176,14 @@ precisions). For \code{weighted_mean},
 \verb{SE = sqrt(Σ w²(y - ȳ_w)²) / Σw}.
 }}
 
+\item{normalize}{One of \code{TRUE}, \code{FALSE}, or \code{"auto"} (default). Only used
+if \code{stat} includes \code{"sum_weights"} or \code{"tabulate"} and \code{pool} is a raster.
+When active, results for these stats are divided by a global scalar so that
+they represent a fraction of a theoretically "perfect" scenario where
+the full search area within \code{max_geog} is occupied wall-to-wall by cells
+whose climate exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
+more info.}
+
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
@@ -260,11 +269,10 @@ variation — by resolving variation driven by these auxiliary predictors.
 Supports ordinary and ridge-penalized weighted least squares. With purely geographic
 neighborhoods, this is equivalent to geographically weighted regression
 (GWR); with climate-based neighborhoods, it extends the analog impact
-model (AIM) framework to incorporate local covariate effects.
+model (AIM) framework to incorporate local covariate effects. This function is
+a wrapper that calls \code{\link[=analog_search]{analog_search()}} with \code{"regression"} included in \code{stat}.
 }
 \details{
-This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} with
-\code{"regression"} included in \code{stat}.
 \subsection{Method}{
 
 For each focal location, the function:

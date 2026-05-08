@@ -30,7 +30,11 @@
 #'   weighted stats (e.g. `sum_weights`) consistent across tiles.
 #' @param ... Additional arguments passed to fun. Must include max_geog.
 #'   May include `covariates` as a SpatRaster matching `pool`'s CRS and
-#'   extent (cropped per tile alongside `y`).
+#'   extent (cropped per tile alongside `y`). May also include `normalize`
+#'   for helpers that support it (e.g. `analog_density()`); when normalization
+#'   is requested, the global mean cell area is computed once over the full
+#'   pool and propagated to each tile so per-tile `D_max` values are
+#'   consistent.
 #' @param output_file Optional filename for disk-based output. If specified and
 #'   fun returns a SpatRaster, tiles are written to temporary files during
 #'   processing and merged to output_file at the end. This is useful when
@@ -178,7 +182,43 @@ tiled_analog_search <- function(
       } else {
             isTRUE(cell_area_weight)
       }
-      caw_raster_global <- if (apply_caw) {
+
+      # Determine coord_type once, here in the wrapper, using the same
+      # detection logic the rest of the package uses (.detect_geo respects
+      # CRS metadata first and falls back to coordinate-magnitude only when
+      # CRS is unknown). The resolved value is then forwarded explicitly
+      # to every per-tile analog_search() call, so all tiles agree even if
+      # individual tiles' coordinate ranges would have triggered a
+      # different fallback magnitude check than the full raster would.
+      #
+      # We pass the raster's extent corners (a 2x2 matrix) as the xy
+      # fallback. This is consulted by .detect_geo() only when CRS is
+      # unknown (terra::is.lonlat returns NA) and gives the magnitude
+      # check the full data range without materializing every cell.
+      xy_for_detect <- {
+            ex <- terra::ext(x)
+            matrix(
+                  c(ex[1], ex[2], ex[3], ex[4]),
+                  nrow = 2, ncol = 2,
+                  dimnames = list(NULL, c("x", "y"))
+            )
+      }
+      coord_type <- .detect_geo(xy_for_detect, input = x)
+      if (!coord_type %in% c("lonlat", "projected")) {
+            stop("Could not determine coord_type from `x`. ",
+                 "Provide a SpatRaster with a recognized CRS, or set the ",
+                 "CRS explicitly before calling tiled_analog_search().",
+                 call. = FALSE)
+      }
+
+      # Compute the globally-consistent normalized cell-area raster AND the
+      # global mean cell area scalar in one pass. Both must use the same
+      # subset of cells (finite cellSize values over the full pool) for
+      # consistency between per-tile aggregation and per-tile D_max
+      # normalization.
+      caw_raster_global   <- NULL
+      mean_cell_area_global <- NULL
+      if (apply_caw) {
             r_area <- terra::cellSize(pool[[1]], mask = FALSE, unit = "km")
             v <- terra::values(r_area)
             finite <- is.finite(v)
@@ -186,14 +226,23 @@ tiled_analog_search <- function(
                   stop("Internal error: cellSize returned no finite values.",
                        call. = FALSE)
             }
-            mean_area <- mean(v[finite])
-            if (mean_area <= 0 || !is.finite(mean_area)) {
+            mean_area_physical <- mean(v[finite])
+            if (mean_area_physical <= 0 || !is.finite(mean_area_physical)) {
                   stop("Internal error: non-positive mean cell area.",
                        call. = FALSE)
             }
-            r_area / mean_area                        # mean-1 normalized SpatRaster
-      } else {
-            NULL
+            caw_raster_global <- r_area / mean_area_physical  # mean-1 normalized
+
+            # Match the per-coord-type units used by .compute_cell_area_weights()
+            # (and consumed by .compute_global_dmax()):
+            #   - lonlat:    physical km^2
+            #   - projected: planar projection-units^2 (prod(res(pool)))
+            mean_cell_area_global <- if (identical(coord_type, "lonlat")) {
+                  mean_area_physical
+            } else {
+                  r <- terra::res(pool)
+                  as.numeric(r[1]) * as.numeric(r[2])
+            }
       }
 
       # Get extents
@@ -211,9 +260,6 @@ tiled_analog_search <- function(
 
       tile_width <- domain_width / n_x
       tile_height <- domain_height / n_y
-
-      # Determine coord_type based on full focal raster
-      coord_type <- if (terra::is.lonlat(x)) "lonlat" else "projected"
 
       # Warning for ineffective tiling
       check_tiling_effectiveness(
@@ -296,6 +342,20 @@ tiled_analog_search <- function(
                   if (apply_caw) {
                         caw_tile <- terra::crop(caw_raster_global, halo_bbox)
                         fun_args$cell_area_weight <- as.numeric(terra::values(caw_tile))
+
+                        # Pass the global mean_cell_area through to the
+                        # helper so any per-tile call with `normalize = TRUE`
+                        # uses the same D_max denominator across tiles.
+                        # Only inject when the helper accepts it -- either
+                        # explicitly (named formal) or via `...`. Helpers
+                        # that don't take either would error on the unused
+                        # argument; in those cases (which can't currently
+                        # use normalization anyway) we silently skip.
+                        fun_formals <- names(formals(fun))
+                        if ("mean_cell_area" %in% fun_formals ||
+                            "..." %in% fun_formals) {
+                              fun_args$mean_cell_area <- mean_cell_area_global
+                        }
                   } else {
                         # Force off explicitly to override any default in helpers
                         fun_args$cell_area_weight <- FALSE

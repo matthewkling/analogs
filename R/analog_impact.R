@@ -94,6 +94,9 @@
 #'   \item `sum_weights`: Total analog density. Low values indicate sparse
 #'     or distant climate matches. This metric captures both the number and quality
 #'     of analogs. Interpretation details vary based on the `kernel` parameter.
+#'     Pass `normalize = TRUE` to express `sum_weights` (and any `tabulate`
+#'     columns) as a fraction of theoretical maximum analog availability,
+#'     on roughly `[0, 1]`. See [analog_search()] for preconditions.
 #' }
 #'
 #' @return A data.frame, or a SpatRaster when `x` is one. Contains
@@ -157,6 +160,7 @@ analog_impact <- function(
             stat = c("weighted_mean", "count", "sum_weights"),
             lambda = 0,
             se = c("none", "ess", "design"),
+            normalize = "auto",
             x_cov = NULL,
             coord_type = "auto",
             index_res = "auto",
@@ -198,6 +202,7 @@ analog_impact <- function(
             theta       = theta,
             lambda      = lambda,
             se          = se,
+            normalize   = normalize,
             x_cov       = x_cov,
             coord_type  = coord_type,
             index_res   = index_res,
