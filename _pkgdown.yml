@@ -30,7 +30,8 @@ reference:
   - tiled_analog_search
   - tune_index_res
 
-- title: Input data
+- title: Other
 - contents:
   - mahalanobis_transform
   - example_rasters
+  - kernel_params

@@ -164,6 +164,9 @@
 #'   - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
 #'     `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for geography).
 #'
+#'   See [kernel_params()] for help choosing `theta` and `max_clim` /
+#'   `max_geog` values that work well together.
+#'
 #' @param lambda Ridge penalty parameter for `stat = "regression"`
 #'   (default: 0, giving ordinary weighted least squares). Higher values
 #'   shrink covariate coefficients toward zero, with the intercept
@@ -377,7 +380,8 @@
 #' Meteorology and Climatology*, **52**(4), 733-752.
 #' \doi{10.1175/JAMC-D-12-0170.1}
 #'
-#' @seealso [tiled_analog_search()] offers memory-safe searches on large raster
+#' @seealso [kernel_params()] recommends parameter values calibrated to target
+#'   kernel coverage. [tiled_analog_search()] offers memory-safe searches on large raster
 #'   datasets. Helper functions such as [analog_impact()], [analog_velocity()],
 #'   and [analog_density()] offer simpler interfaces for common search types.
 #'   [analog_cv()] provides cross-validation workflows.

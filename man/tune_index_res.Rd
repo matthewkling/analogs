@@ -153,7 +153,10 @@ added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
 parameter (scalar; larger values = slower decay with distance).
 \item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
 \code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
-}}
+}
+
+See \code{\link[=kernel_params]{kernel_params()}} for help choosing \code{theta} and \code{max_clim} /
+\code{max_geog} values that work well together.}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per

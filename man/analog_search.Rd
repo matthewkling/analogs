@@ -184,7 +184,10 @@ added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
 parameter (scalar; larger values = slower decay with distance).
 \item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
 \code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
-}}
+}
+
+See \code{\link[=kernel_params]{kernel_params()}} for help choosing \code{theta} and \code{max_clim} /
+\code{max_geog} values that work well together.}
 
 \item{lambda}{Ridge penalty parameter for \code{stat = "regression"}
 (default: 0, giving ordinary weighted least squares). Higher values
@@ -430,7 +433,8 @@ Meteorology and Climatology}, \strong{52}(4), 733-752.
 \doi{10.1175/JAMC-D-12-0170.1}
 }
 \seealso{
-\code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large raster
+\code{\link[=kernel_params]{kernel_params()}} recommends parameter values calibrated to target
+kernel coverage. \code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large raster
 datasets. Helper functions such as \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_velocity]{analog_velocity()}},
 and \code{\link[=analog_density]{analog_density()}} offer simpler interfaces for common search types.
 \code{\link[=analog_cv]{analog_cv()}} provides cross-validation workflows.

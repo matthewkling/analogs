@@ -106,9 +106,24 @@ The `kernel` parameter controls how analog weights decay with distance, which is
 - `"inverse_clim"` / `"inverse_geog"` — inverse distance weighting
 - `"gaussian_joint"` / `"inverse_joint"` — kernels on combined climate and geographic distance
 
-The `theta` parameter controls the kernel bandwidth. For Gaussian kernels, `theta` is the standard deviation of the kernel. A rule of thumb: set `theta` so that the weight decays to near zero at the `max_clim` or `max_geog` boundary (roughly `theta ≈ max / 3`).
+The `theta` parameter controls the kernel bandwidth. For Gaussian kernels, `theta` is the standard deviation of the kernel (but note that the appropriate value depends on the number of climate variables; see below). For joint kernels, `theta` is a 2-element vector `c(theta_clim, theta_geog)`.
 
-For joint kernels, `theta` is a 2-element vector `c(theta_clim, theta_geog)`.
+When using a kernel that weights climatic and/or geographic distances, the combination of parameters should be set so that kernel weight decays to near zero at the `max_clim` or `max_geog` boundary. This allows the kernel function to drive the results while the max cutoffs function mainly to reduce run time by minimizing unneeded computation.
+
+The helper function `kernel_params()` is useful for determining what values to choose for `theta`, `max_clim`, and `max_geog`. It gives theoretical answers to the questions, "How big should `theta` be in order for my kernel to capture a given fraction of pool sites for the typical focal site?" and "How big should `max_clim` or `max_geog` be so that it truncates only a given percentage of kernel weight for the typical focal site?" The answers are theoretical, assuming that `pool` follows a multivariate normal distribution (as approximately achieved by `mahalanobis_transform()`) or a uniform distribution, and that the focal site is randomly sampled from `pool`. Importantly, the answers are also subject to the curse of dimensionality and depend on the number of climate variables, so intuition does not always hold. 
+
+For example, if you had `d = 2` climate variables and wanted to size your Gaussian climate kernel so that it captures 10% of the `pool` for the average site during the baseline era (and assuming you had run `mahanobis_transform()` so that your data were approximately multivariate normal), here's how you get kernel parameter recommendations:
+
+
+``` r
+kernel_params(fraction = 0.10, d = 2, loss = 0.01, 
+              kernel = "gaussian", data_dist = "mvn")
+#> $theta
+#> [1] 0.3333333
+#> 
+#> $max
+#> [1] 0.9597052
+```
 
 
 ## Analog weights
