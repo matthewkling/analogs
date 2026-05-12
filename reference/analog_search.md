@@ -240,6 +240,11 @@ analog_search(
     `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
     geography).
 
+  See
+  [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+  for help choosing `theta` and `max_clim` / `max_geog` values that work
+  well together.
+
 - lambda:
 
   Ridge penalty parameter for `stat = "regression"` (default: 0, giving
@@ -535,6 +540,8 @@ of Applied Meteorology and Climatology*, **52**(4), 733-752.
 
 ## See also
 
+[`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+recommends parameter values calibrated to target kernel coverage.
 [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
 offers memory-safe searches on large raster datasets. Helper functions
 such as

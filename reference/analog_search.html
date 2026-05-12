@@ -242,7 +242,8 @@ added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p>
 parameter (scalar; larger values = slower decay with distance).</p></li>
 <li><p>For <code>"gaussian_joint"</code> or <code>"inverse_joint"</code>: 2-element vector
 <code>c(theta_clim, theta_geog)</code> (defaults: 1 for climate, 1 for geography).</p></li>
-</ul></dd>
+</ul><p>See <code><a href="kernel_params.html">kernel_params()</a></code> for help choosing <code>theta</code> and <code>max_clim</code> /
+<code>max_geog</code> values that work well together.</p></dd>
 
 
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
@@ -495,7 +496,8 @@ Meteorology and Climatology</em>, <strong>52</strong>(4), 733-752.
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="tiled_analog_search.html">tiled_analog_search()</a></code> offers memory-safe searches on large raster
+    <div class="dont-index"><p><code><a href="kernel_params.html">kernel_params()</a></code> recommends parameter values calibrated to target
+kernel coverage. <code><a href="tiled_analog_search.html">tiled_analog_search()</a></code> offers memory-safe searches on large raster
 datasets. Helper functions such as <code><a href="analog_impact.html">analog_impact()</a></code>, <code><a href="analog_velocity.html">analog_velocity()</a></code>,
 and <code><a href="analog_density.html">analog_density()</a></code> offer simpler interfaces for common search types.
 <code><a href="analog_cv.html">analog_cv()</a></code> provides cross-validation workflows.</p></div>

@@ -129,12 +129,14 @@ for a complete index of functions.
 - [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md)
   : Tune Index Resolution
 
-## Input data
+## Other
 
 - [`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md)
   : Transform Climate Data for Global Mahalanobis Distance
 - [`example_rasters()`](https://matthewkling.github.io/analogs/reference/example_rasters.md)
   : Example spatiotemporal climate rasters
+- [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+  : Kernel parameter recommendations
 
 # Articles
 

@@ -169,6 +169,11 @@ analog_density(
     `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
     geography).
 
+  See
+  [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+  for help choosing `theta` and `max_clim` / `max_geog` values that work
+  well together.
+
 - normalize:
 
   One of `TRUE`, `FALSE`, or `"auto"` (default). Only used if `stat`

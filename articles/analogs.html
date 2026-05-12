@@ -259,12 +259,44 @@ kernels on combined climate and geographic distance</li>
 </ul>
 <p>The <code>theta</code> parameter controls the kernel bandwidth. For
 Gaussian kernels, <code>theta</code> is the standard deviation of the
-kernel. A rule of thumb: set <code>theta</code> so that the weight
-decays to near zero at the <code>max_clim</code> or
-<code>max_geog</code> boundary (roughly
-<code>theta ≈ max / 3</code>).</p>
-<p>For joint kernels, <code>theta</code> is a 2-element vector
-<code>c(theta_clim, theta_geog)</code>.</p>
+kernel (but note that the appropriate value depends on the number of
+climate variables; see below). For joint kernels, <code>theta</code> is
+a 2-element vector <code>c(theta_clim, theta_geog)</code>.</p>
+<p>When using a kernel that weights climatic and/or geographic
+distances, the combination of parameters should be set so that kernel
+weight decays to near zero at the <code>max_clim</code> or
+<code>max_geog</code> boundary. This allows the kernel function to drive
+the results while the max cutoffs function mainly to reduce run time by
+minimizing unneeded computation.</p>
+<p>The helper function <code><a href="../reference/kernel_params.html">kernel_params()</a></code> is useful for
+determining what values to choose for <code>theta</code>,
+<code>max_clim</code>, and <code>max_geog</code>. It gives theoretical
+answers to the questions, “How big should <code>theta</code> be in order
+for my kernel to capture a given fraction of pool sites for the typical
+focal site?” and “How big should <code>max_clim</code> or
+<code>max_geog</code> be so that it truncates only a given percentage of
+kernel weight for the typical focal site?” The answers are theoretical,
+assuming that <code>pool</code> follows a multivariate normal
+distribution (as approximately achieved by
+<code><a href="../reference/mahalanobis_transform.html">mahalanobis_transform()</a></code>) or a uniform distribution, and
+that the focal site is randomly sampled from <code>pool</code>.
+Importantly, the answers are also subject to the curse of dimensionality
+and depend on the number of climate variables, so intuition does not
+always hold.</p>
+<p>For example, if you had <code>d = 2</code> climate variables and
+wanted to size your Gaussian climate kernel so that it captures 10% of
+the <code>pool</code> for the average site during the baseline era (and
+assuming you had run <code>mahanobis_transform()</code> so that your
+data were approximately multivariate normal), here’s how you get kernel
+parameter recommendations:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/kernel_params.html">kernel_params</a></span><span class="op">(</span>fraction <span class="op">=</span> <span class="fl">0.10</span>, d <span class="op">=</span> <span class="fl">2</span>, loss <span class="op">=</span> <span class="fl">0.01</span>, </span>
+<span>              kernel <span class="op">=</span> <span class="st">"gaussian"</span>, data_dist <span class="op">=</span> <span class="st">"mvn"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; $theta</span></span>
+<span><span class="co">#&gt; [1] 0.3333333</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $max</span></span>
+<span><span class="co">#&gt; [1] 0.9597052</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="analog-weights">Analog weights<a class="anchor" aria-label="anchor" href="#analog-weights"></a>
@@ -335,7 +367,7 @@ the climate similarity threshold <code>max_clim</code>). The geographic
 distance to that analog, divided by the time elapsed, is the velocity.
 Sites with no analog in the reference pool—an important category— have
 <code>NA</code> results.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fwd_vel</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_velocity.html">analog_velocity</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">fut</span>,</span>
@@ -362,7 +394,7 @@ includes the spatial coordinates of each site’s nearest analog (as well
 as the analog’s index in the <code>pool</code>). This can be used for a
 variety of downstream analyses, including visualizing the direction from
 a site to its analog location:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fwd_vel</span><span class="op">$</span><span class="va">bearing</span> <span class="op">&lt;-</span> <span class="fu">geosphere</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/geosphere/man/bearing.html" class="external-link">bearing</a></span><span class="op">(</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/crds.html" class="external-link">crds</a></span><span class="op">(</span><span class="va">fwd_vel</span>, na.rm <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span>,</span>
 <span>                                      <span class="fu"><a href="https://rspatial.github.io/terra/reference/values.html" class="external-link">values</a></span><span class="op">(</span><span class="va">fwd_vel</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"analog_x"</span>, <span class="st">"analog_y"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
 <span></span>
@@ -381,7 +413,7 @@ within a given geographic radius? This finds the most climatically
 similar locations that are geographically reachable, which can provide
 insight into how much climate change organisms must tolerate given
 limited dispersal capacity.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_similarity.html">analog_similarity</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
@@ -402,7 +434,7 @@ thresholds? This maps the density of suitable analogs across the
 landscape. Locations with large numbers of nearby analogs have greater
 potential for adaptive dispersal under climate change, while locations
 with zero analogs represent novel or disappearing climates.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">avail</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
@@ -425,7 +457,7 @@ matches. By default, raw density is normalized by dividing it by its
 theoretical maximum value (calculated from <code>kernel</code>,
 <code>max_geog</code>, and <code>theta</code>) to make it
 interpretable.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">intens</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_density.html">analog_density</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
@@ -468,7 +500,7 @@ example, let’s use CWD values from the historical period as a stand-in
 for an ecological response variable. To assess uncertainty in weighted
 means, let’s also specify <code>se = "ess"</code> to compute standard
 errors based on effective sample size for each grid cell.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Use historical CWD as a proxy ecological variable</span></span>
 <span><span class="va">eco_var</span> <span class="op">&lt;-</span> <span class="va">hist</span><span class="op">$</span><span class="va">CWD</span></span>
 <span></span>
@@ -513,7 +545,7 @@ contribute more than a nearby site with different climate.</p>
 similarity and geographic proximity, with their relative importance
 determined by the <code>theta</code> parameters and the shape of the
 selected <code>kernel</code> function.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate sparse field observations at 500 random locations</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
 <span><span class="va">n_sites</span> <span class="op">&lt;-</span> <span class="fl">500</span></span>
@@ -561,7 +593,7 @@ weighted mean, i.e. the behavior of <code><a href="../reference/analog_impact.h
 typical approach for choosing a <code>lambda</code> value is
 cross-validation (see the section on <code><a href="../reference/analog_cv.html">analog_cv()</a></code> below),
 but here we’ll arbitrarily pick a modest value.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate covariates for the pool (just using AET for expediency)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
 <span><span class="va">pool_covariates</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -606,7 +638,7 @@ regression (GWR) by using geographic neighborhoods and geographic
 distance kernel weighting. This is a different configuration of the same
 underlying framework — no climate constraint, geographic kernel, local
 regression on covariates.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># GWR: geographic neighborhood, geographic kernel weighting</span></span>
 <span><span class="va">gwr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_regression.html">analog_regression</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">hist</span>,</span>
@@ -662,7 +694,7 @@ performance. If we wanted to tune a model parameter (<code>labmda</code>
 <code>max_geog</code>, <code>theta</code>, etc.), we could call
 <code>cv_performance(analog_cv(...))</code> repeatedly with different
 parameter values to identify the best-performing settings.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Run cross-validation and plot residuals</span></span>
 <span><span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_cv.html">analog_cv</a></span><span class="op">(</span></span>
 <span>      fun <span class="op">=</span> <span class="va">analog_impact</span>, pool <span class="op">=</span> <span class="va">hist</span>, y <span class="op">=</span> <span class="va">eco_var</span>,</span>
@@ -688,7 +720,7 @@ of pairwise comparisons.</p>
 </h4>
 <p>When running multiple queries against the same reference pool, build
 the lattice index once and reuse it:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Multiple queries reuse the same index</span></span>
@@ -701,7 +733,7 @@ the lattice index once and reuse it:</p>
 <p>By default, the lattice resolution is auto-tuned for each query. For
 repeated queries with the same configuration, you can tune once and
 reuse:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tune_index_res.html">tune_index_res</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      stat <span class="op">=</span> <span class="st">"count"</span>,</span>
@@ -715,7 +747,7 @@ reuse:</p>
 </h4>
 <p>Use the <code>n_threads</code> parameter to parallelize across focal
 locations:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_velocity.html">analog_velocity</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">hist</span>, max_clim <span class="op">=</span> <span class="fl">0.5</span>, k <span class="op">=</span> <span class="fl">1</span>, n_threads <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
@@ -724,7 +756,7 @@ locations:</p>
 <p>For rasters too large to fit in memory,
 <code><a href="../reference/tiled_analog_search.html">tiled_analog_search()</a></code> processes the focal data in spatial
 tiles:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tiled_analog_search.html">tiled_analog_search</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">very_large_raster</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">idx</span>,</span>
@@ -744,7 +776,7 @@ climatic-geographic space in order to preserve coverage in sparse
 regions. As noted above, each <code>pool</code> site in the downsampled
 data gets a sample weight that’s used to correct summary statistics so
 that downsampling doesn’t bias the results:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      max_clim <span class="op">=</span> <span class="fl">0.5</span>, max_geog <span class="op">=</span> <span class="fl">200</span>,</span>

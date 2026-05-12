@@ -230,7 +230,8 @@ added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p>
 parameter (scalar; larger values = slower decay with distance).</p></li>
 <li><p>For <code>"gaussian_joint"</code> or <code>"inverse_joint"</code>: 2-element vector
 <code>c(theta_clim, theta_geog)</code> (defaults: 1 for climate, 1 for geography).</p></li>
-</ul></dd>
+</ul><p>See <code><a href="kernel_params.html">kernel_params()</a></code> for help choosing <code>theta</code> and <code>max_clim</code> /
+<code>max_geog</code> values that work well together.</p></dd>
 
 
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
