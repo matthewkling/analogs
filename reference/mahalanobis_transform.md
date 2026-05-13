@@ -52,7 +52,15 @@ If `pool` is provided: Returns a list with two components:
 
 - `$pool`: Transformed version of `pool`
 
-Both use the same format as their respective inputs.
+Both use the same format as their respective inputs. Output variables
+inherit input names with a `_transformed` suffix (e.g. `tmean` becomes
+`tmean_transformed`); each transformed axis is the whitened counterpart
+of its corresponding input variable.
+
+Rows / cells with NA values in any coordinate or climate column are
+excluded from the covariance estimation but preserved as NA in the
+returned output, so the result has the same shape (row count / cell
+count) as the input.
 
 ## Details
 
@@ -62,7 +70,13 @@ in all directions. After transformation, Euclidean distance in the
 transformed space is equivalent to Mahalanobis distance in the original
 space.
 
-The transformation is: X_transformed = (X - μ) %\*% Σ^(-1/2)
+The transformation is: X_transformed = (X - μ) %\*% Σ^(-1/2), computed
+via symmetric (ZCA / Mahalanobis) whitening: \\\Sigma^{-1/2} = V
+D^{-1/2} V'\\. This is the unique whitening that keeps the transformed
+axes as close as possible (in least-squares sense) to the original
+variables, so each output column corresponds one-to-one with its input
+counterpart. PCA whitening would give identical pairwise distances but
+reorient the axes to principal components.
 
 When `pool` is provided, the covariance structure is computed from the
 combined dataset to ensure both are transformed to the same space.

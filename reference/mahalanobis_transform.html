@@ -87,7 +87,14 @@ Generally TRUE is recommended when climate variables have different units
 format (matrix/data.frame/SpatRaster).</p>
 <p>If <code>pool</code> is provided: Returns a list with two components:</p><ul><li><p><code>$x</code>: Transformed version of <code>x</code></p></li>
 <li><p><code>$pool</code>: Transformed version of <code>pool</code></p></li>
-</ul><p>Both use the same format as their respective inputs.</p>
+</ul><p>Both use the same format as their respective inputs. Output variables
+inherit input names with a <code>_transformed</code> suffix (e.g. <code>tmean</code>
+becomes <code>tmean_transformed</code>); each transformed axis is the whitened
+counterpart of its corresponding input variable.</p>
+<p>Rows / cells with NA values in any coordinate or climate column are
+excluded from the covariance estimation but preserved as NA in the
+returned output, so the result has the same shape (row count / cell
+count) as the input.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -95,7 +102,13 @@ format (matrix/data.frame/SpatRaster).</p>
 matrix to decorrelate variables and scale to unit variance in all directions.
 After transformation, Euclidean distance in the transformed space is
 equivalent to Mahalanobis distance in the original space.</p>
-<p>The transformation is: X_transformed = (X - μ) %*% Σ^(-1/2)</p>
+<p>The transformation is: X_transformed = (X - μ) %*% Σ^(-1/2), computed via
+symmetric (ZCA / Mahalanobis) whitening: \(\Sigma^{-1/2} = V D^{-1/2} V'\).
+This is the unique whitening that keeps the transformed axes as close as
+possible (in least-squares sense) to the original variables, so each
+output column corresponds one-to-one with its input counterpart. PCA
+whitening would give identical pairwise distances but reorient the axes
+to principal components.</p>
 <p>When <code>pool</code> is provided, the covariance structure is computed from the
 combined dataset to ensure both are transformed to the same space.</p>
 <p>If the covariance matrix is near-singular, a small regularization term
