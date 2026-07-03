@@ -107,7 +107,8 @@ analog_density <- function(
 
             normalize  = "auto",
 
-            index_res = "auto",
+            clim_res_adj = "auto",
+            geog_res_adj = "auto",
             cell_area_weight = "auto",
             n_threads = NULL,
             downsample = 1.0,
@@ -147,7 +148,8 @@ analog_density <- function(
             weight      = weight,
             normalize   = normalize,
             coord_type  = coord_type,
-            index_res   = index_res,
+            clim_res_adj= clim_res_adj,
+            geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
             n_threads   = n_threads,
             downsample  = downsample,

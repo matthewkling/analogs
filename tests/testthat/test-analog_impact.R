@@ -40,8 +40,7 @@ test_that("analog_impact passes covariates and lambda through, in regression mod
             kernel = "gaussian_clim",
             theta = 0.5,
             lambda = 0.1,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_true(all(c("count", "weighted_mean",

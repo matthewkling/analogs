@@ -212,28 +212,32 @@
 #' @param downsample Optional downsampling rate (0-1) for the reference pool,
 #'   indicating the proportion of points to retain. Values < 1 reduce memory
 #'   and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-#'   Ignored if `pool` is a pre-built index. When `downsample < 1`, `index_res`
-#'   must be set explicitly (auto-tuning is not supported in this case; see
-#'   the `index_res` parameter for details).
+#'   Ignored if `pool` is a pre-built index. When `downsample < 1`, resolution
+#'   must be set explicitly via `geog_res_adj` / `clim_res_adj` (auto-tuning is
+#'   not supported in this case; see those parameters for details).
 #'
 #' @param seed Optional random seed for reproducible downsampling. If `NULL`
 #'   (default), uses current R random state. Ignored if `pool` is a pre-built
 #'   index or `downsample = 1`.
 #'
-#' @param index_res Tuning parameter giving the number of bins per dimension
-#'   of the internally-used lattice search index. Either:
+#' @param clim_res_adj,geog_res_adj Control the lattice search-index resolution
+#'   of the climate and geographic families, each a multiplier on a
+#'   data-dependent default (targeting ~50 pool points per occupied bin, split
+#'   between families by effective dimensionality, so it scales with pool size).
+#'   Each is either:
 #'
-#'   - A positive integer.
-#'   - `"auto"` (the default): Automatically tune the index resolution
+#'   - A non-negative number: `1` uses the default for that family, larger
+#'     values are finer, smaller are coarser, and `0` deactivates it.
+#'   - `"auto"` (the default for both): tune a single overall resolution scale
 #'     by optimizing compute time on a subsample of focal points. If focal has
-#'     relatively few rows, auto-tuning is skipped and a default resolution of
-#'     16 is used. Auto-tuning is **not supported** when `downsample < 1`,
-#'     because the speed-optimal resolution can sometimes result in higher
-#'     uncertainty of stat results under downsampling. In that case set
-#'     `index_res` explicitly; finer values (e.g. 32) generally give better
-#'     accuracy at the possible cost of query speed.
+#'     relatively few rows, tuning is skipped. Not supported when
+#'     `downsample < 1` (set explicit numeric values instead).
 #'
-#'   Ignored if `pool` is an `analog_index` (uses index's resolution).
+#'   A family that the query does not constrain (no corresponding `max_*` and
+#'   not the knn sort key) is **automatically deactivated**, overriding any
+#'   explicit value (with a message), since binning an unconstrained family
+#'   only costs time. Ignored if `pool` is an `analog_index` (uses the index's
+#'   resolution).
 #'
 #' @param mean_cell_area Optional scalar mean cell area to attach to the
 #'   index when one is built from raw `pool` data. Mainly intended for
@@ -299,7 +303,7 @@
 #'   (`stat`, `kernel`, `theta`, `lambda`, `se`, `normalize`)
 #'   control how selected analogs are summarized.
 #' - *Computation parameters*
-#'   (`n_threads`, `index_res`, `downsample`, `seed`, `progress`)
+#'   (`n_threads`, `geog_res_adj`, `clim_res_adj`, `downsample`, `seed`, `progress`)
 #'   specify behavior for controlling compute performance.
 #'
 #' ## Distance metrics
@@ -418,7 +422,8 @@ analog_search <- function(
       coord_type = c("auto", "lonlat", "projected"),
       downsample = 1.0,
       seed = NULL,
-      index_res = "auto",
+      geog_res_adj = "auto",
+      clim_res_adj = "auto",
       cell_area_weight = "auto",
       mean_cell_area = NULL,
 
@@ -497,28 +502,62 @@ analog_search <- function(
             }
 
       } else {
-            # Pool is raw data - need to build index
+            # Pool is raw data - need to build index.
 
-            # Tune resolution if needed
-            if (identical(index_res, "auto")) {
+            # Auto-deactivation: a family that this query neither filters (finite
+            # max_*) nor sorts on (knn mode) prunes nothing, so we deactivate its
+            # lattice (res_adj = 0), directing all resolution to the constraining
+            # family. This is derived from the query and OVERRIDES any user value
+            # (binning an unconstrained family only wastes time); we message when
+            # an explicit non-zero user value is overridden.
+            geo_constrained  <- !is.null(max_geog) || identical(select, "knn_geog")
+            clim_constrained <- !is.null(max_clim) || identical(select, "knn_clim")
+
+            # Resolve requested adjustments. "auto" (the default for both)
+            # requests speed tuning of a single overall resolution scale applied
+            # to both families; a numeric value is used directly.
+            tune_requested <- identical(geog_res_adj, "auto") ||
+                  identical(clim_res_adj, "auto")
+            geo_adj_req  <- if (identical(geog_res_adj,  "auto")) 1 else geog_res_adj
+            clim_adj_req <- if (identical(clim_res_adj, "auto")) 1 else clim_res_adj
+
+            # Apply deactivation override (with a message if it changes an
+            # explicit user value).
+            if (!geo_constrained && !identical(geog_res_adj, "auto") &&
+                is.numeric(geog_res_adj) && geog_res_adj != 0) {
+                  message("Query does not constrain geography; deactivating the ",
+                          "geographic lattice (overriding geog_res_adj = ",
+                          geog_res_adj, ").")
+            }
+            if (!clim_constrained && !identical(clim_res_adj, "auto") &&
+                is.numeric(clim_res_adj) && clim_res_adj != 0) {
+                  message("Query does not constrain climate; deactivating the ",
+                          "climate lattice (overriding clim_res_adj = ",
+                          clim_res_adj, ").")
+            }
+            geo_adj_use  <- if (geo_constrained)  geo_adj_req  else 0
+            clim_adj_use <- if (clim_constrained) clim_adj_req else 0
+
+            # Resolve tuning (minimal: a single overall scale on both families).
+            if (tune_requested) {
                   # Auto-tuning is not safe when downsampling is in effect:
                   # tune_index_res() optimizes for query *speed*, but at
                   # downsample < 1 the speed-optimal resolution can produce
                   # systematically biased and/or high-variance aggregations.
-                  # Force the user to choose explicitly.
                   if (downsample < 1) {
                         stop(
-                              'Auto-tuning of `index_res` is not supported when ',
+                              'Auto-tuning of resolution is not supported when ',
                               '`downsample < 1`. The speed-optimal resolution ',
                               'can produce biased and high-variance results ',
-                              'under downsampling. Set `index_res` explicitly: ',
-                              'finer values (e.g. 32) generally give better ',
-                              'accuracy at the cost of query speed.',
+                              'under downsampling. Set `geog_res_adj` / ',
+                              '`clim_res_adj` explicitly: finer values generally ',
+                              'give better accuracy at the cost of query speed.',
                               call. = FALSE
                         )
                   }
-                  # Use tune_index_res for auto-tuning
-                  index_res_int <- tune_index_res(
+                  # Tune per-family resolution (coordinate descent over the
+                  # active families; deactivated families are passed through).
+                  tuned <- tune_index_res(
                         x = x,
                         pool = pool,
                         x_cov = x_cov,
@@ -534,22 +573,23 @@ analog_search <- function(
                         lambda = lambda,
                         se = se,
                         coord_type = coord_type,
+                        geog_res_adj = geo_adj_use,
+                        clim_res_adj = clim_adj_use,
                         n_threads = n_threads,
                         verbose = FALSE,
                         downsample = downsample,
                         seed = seed
                   )
-            } else if (is.numeric(index_res)) {
-                  index_res_int <- as.integer(index_res)
-            } else {
-                  index_res_int <- 16L  # Default
+                  geo_adj_use  <- tuned$geog_res_adj
+                  clim_adj_use <- tuned$clim_res_adj
             }
 
             # Build index from raw pool data
             index <- build_analog_index(
                   pool = pool,
                   coord_type = coord_type,
-                  index_res = index_res_int,
+                  geog_res_adj = geo_adj_use,
+                  clim_res_adj = clim_adj_use,
                   downsample = downsample,
                   seed = seed,
                   cell_area_weight = cell_area_weight,

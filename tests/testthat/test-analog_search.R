@@ -2,7 +2,7 @@ test_that("analog_search uses build+query architecture correctly", {
 
       d <- sim_test_data()
 
-      # Test with explicit index_res (should build index then query)
+      # Test with explicit per-family resolution (should build index then query)
       res1 <- analog_search(
             x = d$focal,
             pool = d$ref,
@@ -10,7 +10,7 @@ test_that("analog_search uses build+query architecture correctly", {
             max_clim = 1,
             k = 1,
             coord_type = "projected",
-            index_res = 10
+            geog_res_adj = 2, clim_res_adj = 1.25
       )
 
       expect_s3_class(res1, "data.frame")
@@ -26,14 +26,14 @@ test_that("analog_search auto-tuning works with new architecture", {
       large_focal <- matrix(rnorm(2500 * 4), ncol = 4)
       ref_data <- matrix(rnorm(1000 * 4), ncol = 4)
 
-      # Should use tune_index_res internally when index_res = "auto"
+      # Should use tune_index_res internally when geog_res_adj = "auto"
       res <- analog_search(
             x = large_focal,
             pool = ref_data,
             stat = "count",
             max_clim = 1,
             coord_type = "projected",
-            index_res = "auto"
+            geog_res_adj = "auto"
       )
 
       expect_s3_class(res, "data.frame")
@@ -42,19 +42,19 @@ test_that("analog_search auto-tuning works with new architecture", {
 })
 
 
-test_that("analog_search with numeric index_res builds and queries correctly", {
+test_that("analog_search with numeric geog_res_adj builds and queries correctly", {
 
       d <- sim_test_data()
 
       # Different resolutions should all work
-      for (res_val in c(8, 12, 16)) {
+      for (res_val in c(.5, 1, 2)) {
             result <- analog_search(
                   x = d$focal,
                   pool = d$ref,
                   stat = "count",
                   max_clim = 1,
                   coord_type = "projected",
-                  index_res = res_val
+                  geog_res_adj = res_val
             )
 
             expect_s3_class(result, "data.frame")
@@ -68,7 +68,7 @@ test_that("analog_search raw data path matches index path results", {
       d <- sim_test_data()
 
       # Build index explicitly
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Query with index
       res_index <- analog_search(
@@ -86,8 +86,7 @@ test_that("analog_search raw data path matches index path results", {
             select = "knn_geog",
             max_clim = 1,
             k = 1,
-            coord_type = "projected",
-            index_res = 12
+            coord_type = "projected"
       )
 
       # Should get similar results (may differ slightly in edge cases)
@@ -108,8 +107,7 @@ test_that("analog_search preserves diagnostic attributes", {
             pool = d$ref,
             stat = "count",
             max_clim = 1,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Should have diagnostic attributes from C++
@@ -126,27 +124,27 @@ test_that("analog_search works for all modes with new architecture", {
 
       # knn_geog
       v <- analog_search(d$focal, d$ref, select = "knn_geog", max_clim = 1, k = 1,
-                         coord_type = "projected", index_res = 10)
+                         coord_type = "projected")
       expect_equal(nrow(v), nrow(d$focal))
 
       # knn_clim
       i <- analog_search(d$focal, d$ref, select = "knn_clim", max_geog = 2, k = 3,
-                         coord_type = "projected", index_res = 10)
+                         coord_type = "projected")
       expect_true(nrow(i) <= nrow(d$focal) * 3)
 
       # count
       c <- analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         coord_type = "projected", index_res = 10)
+                         coord_type = "projected")
       expect_equal(nrow(c), nrow(d$focal))
 
       # sum
       s <- analog_search(d$focal, d$ref, stat = "sum_weights", max_clim = 1,
-                         kernel = "uniform", coord_type = "projected", index_res = 10)
+                         kernel = "uniform", coord_type = "projected")
       expect_equal(nrow(s), nrow(d$focal))
 
       # all
       a <- analog_search(d$focal, d$ref, select = "all", max_clim = 1,
-                         coord_type = "projected", index_res = 10)
+                         coord_type = "projected")
       expect_true(nrow(a) >= nrow(d$focal))
 })
 
@@ -161,8 +159,7 @@ test_that("analog_search handles lon/lat with new architecture", {
             select = "knn_geog",
             max_clim = 1,
             k = 1,
-            coord_type = "lonlat",
-            index_res = 10
+            coord_type = "lonlat"
       )
 
       expect_equal(nrow(res), nrow(d$focal))
@@ -175,7 +172,7 @@ test_that("analog_search dispatches correctly on analog_index", {
       d <- sim_test_data()
 
       # Build index
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 10)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Query with index should work
       res_index <- analog_search(
@@ -193,8 +190,7 @@ test_that("analog_search dispatches correctly on analog_index", {
             select = "knn_geog",
             max_clim = 1,
             k = 1,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Results should be similar (may differ slightly due to floating point)
@@ -210,7 +206,7 @@ test_that("analog_search dispatches correctly on analog_index", {
 test_that("analog_search with index works for different modes", {
 
       d <- sim_test_data()
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 8)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # knn_geog
       v <- analog_search(d$focal, index, select = "knn_geog", max_clim = 1, k = 1)
@@ -241,7 +237,7 @@ test_that("analog_search with index works for different modes", {
 test_that("analog_search with index validates inputs", {
 
       d <- sim_test_data()
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 8)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Mismatched climate dimensions should error
       bad_focal <- matrix(rnorm(20 * 5), ncol = 5)  # 5 columns instead of 4
@@ -257,7 +253,7 @@ test_that("analog_search with index works for lon/lat data", {
       d <- sim_test_data(lonlat = TRUE)
 
       # Build lon/lat index
-      index <- build_analog_index(d$ref, coord_type = "lonlat", index_res = 8)
+      index <- build_analog_index(d$ref, coord_type = "lonlat")
       expect_true(index$use_ecef)
 
       # Query should work
@@ -277,7 +273,7 @@ test_that("analog_search with index works for lon/lat data", {
 test_that("analog_search index path handles all constraint combinations", {
 
       d <- sim_test_data()
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 8)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Only climate constraint
       r1 <- analog_search(d$focal, index, stat = "count", max_clim = 1)
@@ -448,7 +444,6 @@ test_that("chunking/progress bars work correctly", {
                   select = "knn_geog", k = 5,
                   stat = "count",
                   max_clim = .1,
-                  index_res = 4,
                   progress = TRUE
             ))
             expect_true(grepl("100%", out))
@@ -460,7 +455,6 @@ test_that("chunking/progress bars work correctly", {
                   select = "knn_geog", k = 5,
                   stat = "count",
                   max_clim = .1,
-                  index_res = 4,
                   progress = FALSE
             )
             expect_equal(result, result2)

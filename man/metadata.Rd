@@ -77,6 +77,16 @@ detail.
 \item{\code{total_bins}, \code{n_bins_nonempty}, \code{min_bin_occupancy},
 \code{max_bin_occupancy}, \code{avg_bin_occupancy},
 \code{avg_nonempty_bin_occupancy}}{Lattice occupancy summaries.}
+\item{\code{clim_res_adj}, \code{geog_res_adj}}{Per-family resolution
+adjustments used to build the index: each scales its family's bin
+count relative to a data-dependent default (\code{1} = default, \code{0} =
+deactivated). See \code{\link[=build_analog_index]{build_analog_index()}}.}
+\item{\code{clim_target}, \code{geo_target}}{Realized per-family bin-count
+targets passed to the lattice builder (the absolute values the
+\verb{*_res_adj} resolve to).}
+\item{\code{bins_per_axis}}{Integer vector of realized bins per axis
+(geographic axes first, then climate), showing how the budget was
+distributed.}
 }
 }
 

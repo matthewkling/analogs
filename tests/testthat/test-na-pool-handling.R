@@ -127,7 +127,7 @@ test_that("build_analog_index stores pool_row_map and n_pool_used", {
       pool <- sim_pool_with_nas(n = 200, na_frac = 0.3)
       n_complete <- sum(stats::complete.cases(pool))
 
-      idx <- build_analog_index(pool, coord_type = "projected", index_res = 8)
+      idx <- build_analog_index(pool, coord_type = "projected")
 
       expect_equal(idx$n_pool, 200L)              # original size
       expect_equal(idx$n_pool_used, n_complete)   # post-strip
@@ -140,7 +140,7 @@ test_that("build_analog_index stores pool_row_map and n_pool_used", {
 test_that("build_analog_index without NAs has pool_row_map NULL and equal n_pool", {
       pool <- sim_pool_with_nas(n = 100, na_frac = 0)
 
-      idx <- build_analog_index(pool, coord_type = "projected", index_res = 8)
+      idx <- build_analog_index(pool, coord_type = "projected")
 
       expect_null(idx$pool_row_map)
       expect_equal(idx$n_pool, 100L)
@@ -161,7 +161,7 @@ test_that("build_analog_index strips cell_area_weight to align with ref_data", {
       # Provide a length-100 area weight; expect stripped to length n_pool_used
       area_w <- runif(100, 0.5, 1.5)
 
-      idx <- build_analog_index(r, coord_type = "lonlat", index_res = 6,
+      idx <- build_analog_index(r, coord_type = "lonlat",
                                 cell_area_weight = area_w)
 
       expect_equal(length(idx$cell_area_weight), idx$n_pool_used)
@@ -175,7 +175,7 @@ test_that("build_analog_index errors on cell_area_weight length mismatch", {
 
       # Wrong length: not equal to original (100)
       expect_error(
-            build_analog_index(pool, coord_type = "projected", index_res = 8,
+            build_analog_index(pool, coord_type = "projected",
                                cell_area_weight = runif(50)),
             "does not match pool size"
       )
@@ -195,8 +195,7 @@ test_that("analog_index in pair mode references the ORIGINAL (unstripped) pool",
             select = "knn_clim",
             max_geog = 5,
             k = 3,
-            coord_type = "projected",
-            index_res = 8
+            coord_type = "projected"
       )
 
       ai <- res$analog_index
@@ -223,12 +222,12 @@ test_that("pair-mode results equivalent between NA-containing and pre-stripped p
       res_na <- analog_search(
             x = focal, pool = pool_full,
             select = "knn_clim", max_geog = 10, k = 2,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
       res_clean <- analog_search(
             x = focal, pool = stripped$pool,
             select = "knn_clim", max_geog = 10, k = 2,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       # Same number of pairs returned
@@ -266,7 +265,7 @@ test_that("count / sum_weights / mean_weights NOT polluted by NA pool rows", {
             stat = c("count", "sum_weights", "mean_weights"),
             kernel = "gaussian_clim", theta = 1,
             max_clim = 1.5, max_geog = 5,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       res_na    <- do.call(analog_search, c(args, list(pool = pool_full)))
@@ -294,7 +293,7 @@ test_that("y supplied at original-pool size is correctly aligned to ref_data", {
             kernel = "gaussian_clim", theta = 1,
             max_clim = 1.5, max_geog = 5,
             y = y_full,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       # Equivalent: stripped pool with manually stripped y
@@ -305,7 +304,7 @@ test_that("y supplied at original-pool size is correctly aligned to ref_data", {
             kernel = "gaussian_clim", theta = 1,
             max_clim = 1.5, max_geog = 5,
             y = y_full[stripped$row_map],
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       expect_equal(res_na$weighted_mean, res_clean$weighted_mean,
@@ -324,7 +323,8 @@ test_that("C++ build does not return NaN ranges when given NA rows directly", {
       res <- analogs:::build_analog_index_cpp(
             ref_mm = m,
             coord_type = "projected",
-            index_res = 8L,
+            geo_target = 10,
+            clim_target = 10,
             downsample = 1.0,
             seed = 55L
       )
@@ -347,7 +347,8 @@ test_that("C++ build with all-NA matrix returns empty index, no crash", {
       res <- analogs:::build_analog_index_cpp(
             ref_mm = m,
             coord_type = "projected",
-            index_res = 4L,
+            geo_target = 10,
+            clim_target = 10,
             downsample = 1.0,
             seed = 1L
       )
@@ -369,7 +370,7 @@ test_that("query against fully-NA pool returns NA results without crashing", {
                   x = focal, pool = pool_full,
                   select = "all", stat = "count",
                   max_clim = 1.5, max_geog = 5,
-                  coord_type = "projected", index_res = 4
+                  coord_type = "projected"
             )
       )
       expect_equal(nrow(res_agg), 10)
@@ -383,7 +384,7 @@ test_that("query against fully-NA pool returns NA results without crashing", {
             res_pair <- analog_search(
                   x = focal, pool = pool_full,
                   select = "knn_clim", k = 1, max_geog = 5,
-                  coord_type = "projected", index_res = 4
+                  coord_type = "projected"
             )
       )
       expect_equal(nrow(res_pair), 10)
@@ -409,7 +410,7 @@ test_that("agg-mode results match between NA-containing and pre-stripped focal",
             pool = pool,
             select = "all", stat = "count",
             max_clim = 1.5, max_geog = 5,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       res_na    <- do.call(analog_search, c(args, list(x = focal_full)))
@@ -438,7 +439,7 @@ test_that("pairs-mode k=1 reconstructs to n_focal_original rows", {
       res <- analog_search(
             x = focal_full, pool = pool,
             select = "knn_clim", k = 1, max_geog = 5,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       # Output should have nrow == n_focal_original
@@ -459,7 +460,7 @@ test_that("pairs-mode k>1 remaps `index` column to original focal indexing", {
       res <- analog_search(
             x = focal_full, pool = pool,
             select = "knn_clim", k = 3, max_geog = 5,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       # `index` column should reference original focal positions.
@@ -492,7 +493,7 @@ test_that("focal SpatRaster with NA cells rasterizes correctly post-strip", {
             x = r, pool = pool,
             select = "all", stat = "count",
             max_clim = 1.5, max_geog = 5,
-            coord_type = "projected", index_res = 6
+            coord_type = "projected"
       )
 
       # Should rasterize back to a SpatRaster (single-row-per-focal agg mode)
@@ -537,7 +538,7 @@ test_that("x_cov is correctly stripped to align with NA-stripped focal", {
                   x = r, pool = pool,
                   select = "knn_clim", k = 1, max_geog = 5,
                   x_cov = x_cov,
-                  coord_type = "projected", index_res = 6
+                  coord_type = "projected"
             )
       )
       expect_true(inherits(res, "SpatRaster"))
@@ -555,7 +556,7 @@ test_that("focal NAs and pool NAs both stripped correctly in single query", {
             select = "all", stat = c("count", "sum_weights"),
             kernel = "gaussian_clim", theta = 1,
             max_clim = 1.5, max_geog = 5,
-            coord_type = "projected", index_res = 8
+            coord_type = "projected"
       )
 
       res_na    <- do.call(analog_search, c(args, list(x = focal_full, pool = pool_full)))
@@ -583,7 +584,7 @@ test_that("fully-NA focal produces all-NA output without crashing", {
                   x = focal_all_na, pool = pool,
                   select = "all", stat = "count",
                   max_clim = 1.5, max_geog = 5,
-                  coord_type = "projected", index_res = 4
+                  coord_type = "projected"
             )
       )
       expect_equal(nrow(res), nrow(focal_all_na))

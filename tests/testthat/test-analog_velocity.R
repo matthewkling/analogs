@@ -55,7 +55,7 @@ test_that("analog_velocity works with analog_index", {
       d <- sim_test_data()
 
       # Build index
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Query with index
       v <- analog_velocity(

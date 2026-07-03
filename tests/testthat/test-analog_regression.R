@@ -17,8 +17,7 @@ test_that("regression stat runs without error and returns correct columns", {
             max_clim = 2,
             max_geog = 2,
             kernel = "uniform",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_s3_class(result, "data.frame")
@@ -58,8 +57,7 @@ test_that("regression recovers known coefficients on synthetic data", {
             max_clim = NULL,  # no climate filter: use all pool points
             max_geog = NULL,  # no geog filter
             kernel = "uniform",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # With uniform weights and all points used, should closely recover true coefficients
@@ -91,8 +89,7 @@ test_that("large lambda makes intercept approach weighted mean", {
             kernel = "gaussian_clim",
             theta = 0.5,
             lambda = 1e8,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Intercept should be very close to weighted_mean
@@ -134,8 +131,7 @@ test_that("zero analogs returns NA for regression coefficients", {
             max_geog = 0.0001,
             kernel = "uniform",
             coord_type = "projected",
-            se = "ess",
-            index_res = 10
+            se = "ess"
       )
 
       # Rows with count == 0 should have NA coefficients
@@ -167,8 +163,7 @@ test_that("regression works with multiple values variables", {
             max_clim = 2,
             max_geog = 2,
             kernel = "uniform",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Should have 3 columns per y variable: intercept, slope, aspect
@@ -198,8 +193,7 @@ test_that("regression combines with other stats correctly", {
             max_geog = 2,
             kernel = "gaussian_clim",
             theta = 0.5,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_true(all(c("count", "ess", "weighted_mean",
@@ -312,8 +306,7 @@ test_that("regression with lambda = 0 returns NA for singular systems", {
             max_geog = 0.01,
             kernel = "uniform",
             lambda = 0,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # If count is 0, all coefficients should be NA

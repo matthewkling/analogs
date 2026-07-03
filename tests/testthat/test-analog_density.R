@@ -29,8 +29,7 @@ test_that("analog_density works with x/pool parameter names", {
             max_clim = 1,
             max_geog = 2,
             kernel = "inverse_clim",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_s3_class(i, "data.frame")
@@ -45,7 +44,7 @@ test_that("analog_density works with analog_index", {
       d <- sim_test_data()
 
       # Build index
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Query with index
       i <- analog_density(
@@ -229,7 +228,7 @@ test_that("new kernels work with analog_index", {
       d <- sim_test_data()
 
       # Build index
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 10)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Test each new kernel with index
       r1 <- analog_density(

@@ -17,16 +17,21 @@
 #'       assumes \code{max_geog} is in projection units).
 #'   }
 #'
-#' @param index_res Tuning parameter giving the number of bins per dimension
-#'   of the internally-used lattice search index. Either:
-#'   \itemize{
-#'     \item A positive integer.
-#'     \item \code{"auto"} (the default): Automatically tune the index resolution
-#'       by optimizing compute time on a subsample of focal points. If focal has
-#'       relatively few rows, auto-tuning is skipped and a default resolution of
-#'       16 is used.
-#'   }
-#'   Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).
+#' @param clim_res_adj,geog_res_adj Non-negative scalars adjusting the lattice
+#'   resolution of the climate and geographic variable families, each as a
+#'   multiplier on a data-dependent default. The default allocation targets an
+#'   average of roughly 50 pool points per occupied bin and splits that budget
+#'   between the two families by their effective dimensionality; `clim_res_adj =
+#'   geog_res_adj = 1` (the default) uses that allocation. Larger values give a
+#'   finer lattice for that family (more, smaller bins), smaller values a
+#'   coarser one, and `0` deactivates the family entirely (one bin per axis),
+#'   which is appropriate when a query does not constrain that family. Because
+#'   the default scales with pool size, these adjustments travel across datasets
+#'   of different sizes. Within each family, bins are allocated in proportion to
+#'   each axis' data range so a search radius spans a comparable number of bins
+#'   on every axis. [analog_search()] sets these automatically from the query's
+#'   constraints (deactivating an unconstrained family). Ignored if `pool` is an
+#'   `analog_index`.
 #'
 #' @param downsample Optional downsampling rate (0-1) indicating the proportion of
 #'   points in `pool` to retain. Downsampling reduces memory use and improves
@@ -84,10 +89,14 @@
 #' results. For lon/lat coordinates, the index uses ECEF (Earth-Centered Earth-Fixed)
 #' space internally for optimal performance.
 #'
-#' Index resolution (`index_res`) controls the granularity of spatial
-#' binning. The optimal value depends on your data size and query patterns.
-#' Use [tune_index_res()] to find the best resolution for your use case,
-#' or accept the default of 16 which works well for many applications.
+#' Index resolution is controlled per family by `geog_res_adj` and
+#' `clim_res_adj`, each a multiplier on a pool-size-dependent default (targeting
+#' ~50 points per bin, split between the families by effective dimensionality).
+#' `1` uses the default for that family, larger values are finer, smaller are
+#' coarser, and `0` deactivates a family (one bin per axis). The optimal values
+#' depend on your data and query patterns; [analog_search()] sets them
+#' automatically from the query's constraints, or accept the defaults of `1`,
+#' which work well for many applications.
 #'
 #' ## Downsampling
 #'
@@ -112,13 +121,13 @@
 #' # Build index with default settings
 #' index <- build_analog_index(climate_data)
 #'
-#' # Build with explicit resolution
-#' index <- build_analog_index(climate_data, index_res = 20)
+#' # Build with finer geographic resolution than default
+#' index <- build_analog_index(climate_data, geog_res_adj = 2)
 #'
 #' # Build with downsampling for large datasets
 #' index <- build_analog_index(
 #'   large_climate_data,
-#'   index_res = 16,
+#'   geog_res_adj = 1, clim_res_adj = 1,
 #'   downsample = 0.1,  # Reduce max bin size to 10%
 #'   seed = 123         # Reproducible sampling
 #' )
@@ -132,7 +141,8 @@
 #' @export
 build_analog_index <- function(pool,
                                coord_type = c("auto", "lonlat", "projected"),
-                               index_res = 16,
+                               geog_res_adj = 1,
+                               clim_res_adj = 1,
                                downsample = 1.0,
                                seed = NULL,
                                cell_area_weight = "auto",
@@ -141,10 +151,15 @@ build_analog_index <- function(pool,
       # Validate inputs
       coord_type <- match.arg(coord_type)
 
-      if (!is.numeric(index_res) || length(index_res) != 1L || index_res <= 0) {
-            stop("index_res must be a positive integer")
+      if (!is.numeric(geog_res_adj) || length(geog_res_adj) != 1L ||
+          !is.finite(geog_res_adj) || geog_res_adj < 0) {
+            stop("geog_res_adj must be a single non-negative number (0 = deactivate)")
       }
-      index_res <- as.integer(index_res)
+
+      if (!is.numeric(clim_res_adj) || length(clim_res_adj) != 1L ||
+          !is.finite(clim_res_adj) || clim_res_adj < 0) {
+            stop("clim_res_adj must be a single non-negative number (0 = deactivate)")
+      }
 
       if (!is.numeric(downsample) || length(downsample) != 1L ||
           downsample <= 0 || downsample > 1) {
@@ -293,11 +308,50 @@ build_analog_index <- function(pool,
             }
       }
 
+      # Translate the resolution knob into an absolute total bin-count target.
+      #
+      # The single source of truth for the occupancy-based default lives here.
+      # We target an average of TARGET_OCC usable pool points per occupied bin,
+      # giving a default TOTAL bin count B = n_pool_used / TARGET_OCC that scales
+      # with pool size. B is split between the geographic and climate families
+      # in proportion to their EFFECTIVE dimensionality (so at the defaults the
+      # behavior matches a balanced allocation), then each family's share is
+      # scaled by its per-family resolution adjustment:
+      #
+      #   geo_default  = B ^ (n_geo_eff / (n_geo_eff + n_clim))
+      #   clim_default = B ^ (n_clim    / (n_geo_eff + n_clim))
+      #   geo_target   = geog_res_adj  * geo_default
+      #   clim_target  = clim_res_adj * clim_default
+      #
+      # n_geo_eff is the EFFECTIVE geographic dimensionality: for lon/lat the geo
+      # axes are stored as 3 ECEF coords but lie on a 2D manifold, so we use 2;
+      # projected geo is genuinely 2. Both cases are 2 here. A *_res_adj of 0
+      # (or a target <= 1) deactivates that family (1 bin per axis).
+      TARGET_OCC <- 50
+      n_pool_used <- nrow(ref_mm)
+      n_clim <- ncol(ref_mm) - 2L
+      n_geo_eff <- 2  # ECEF (lonlat) manifold dim OR projected geo dim
+
+      B <- n_pool_used / TARGET_OCC
+      if (!is.finite(B) || B < 1) B <- 1
+
+      geo_frac  <- n_geo_eff / (n_geo_eff + n_clim)
+      clim_frac <- n_clim    / (n_geo_eff + n_clim)
+      geo_default  <- B ^ geo_frac
+      clim_default <- B ^ clim_frac
+
+      # res_adj = 0 deactivates (target 0 -> C++ leaves family at 1 bin/axis).
+      geo_target  <- if (geog_res_adj  == 0) 0 else geog_res_adj  * geo_default
+      clim_target <- if (clim_res_adj == 0) 0 else clim_res_adj * clim_default
+      geo_target  <- as.numeric(geo_target)
+      clim_target <- as.numeric(clim_target)
+
       # Call C++ to build index
       index_cpp <- build_analog_index_cpp(
             ref_mm = ref_mm,
             coord_type = coord_type,
-            index_res = index_res,
+            geo_target = geo_target,
+            clim_target = clim_target,
             downsample = downsample,
             seed = seed
       )
@@ -328,7 +382,17 @@ build_analog_index <- function(pool,
                   n_pool = n_pool_original,
                   n_pool_used = index_cpp$n_pool,
                   n_clim = index_cpp$n_clim,
-                  index_res = index_res,
+
+                  # Resolution parameters. geog_res_adj/clim_res_adj are the
+                  # per-family knobs the user set (1 = default, 0 = deactivated);
+                  # geo_target/clim_target are the realized per-family bin-count
+                  # targets passed to C++; bins_per_axis is the realized per-axis
+                  # split (geo axes first, then climate).
+                  geog_res_adj = geog_res_adj,
+                  clim_res_adj = clim_res_adj,
+                  geo_target = index_cpp$geo_target,
+                  clim_target = index_cpp$clim_target,
+                  bins_per_axis = index_cpp$bins_per_axis,
 
                   # Coordinate ranges
                   coord_mins = index_cpp$coord_mins,
@@ -405,7 +469,18 @@ print.analog_index <- function(x, ...) {
       }
 
       cat("\nIndex structure:\n")
-      cat(sprintf("  Resolution: %d bins per dimension\n", x$index_res))
+      cat(sprintf("  geog_res_adj: %g   clim_res_adj: %g\n",
+                  x$geog_res_adj %||% NA_real_, x$clim_res_adj %||% NA_real_))
+      if (!is.null(x$bins_per_axis)) {
+            n_ax  <- length(x$bins_per_axis)
+            n_clim_ax <- x$n_clim %||% 0L
+            n_geo_ax  <- max(0L, n_ax - n_clim_ax)
+            geo_b  <- if (n_geo_ax > 0) x$bins_per_axis[seq_len(n_geo_ax)] else integer(0)
+            clim_b <- if (n_clim_ax > 0) x$bins_per_axis[(n_geo_ax + 1L):n_ax] else integer(0)
+            cat(sprintf("  Bins per axis: geo {%s}  climate {%s}\n",
+                        paste(geo_b, collapse = ", "),
+                        paste(clim_b, collapse = ", ")))
+      }
       cat(sprintf("  Total bins: %s\n", format(x$total_bins, big.mark = ",")))
       cat(sprintf("  Non-empty bins: %s (%.1f%%)\n",
                   format(x$n_bins_nonempty, big.mark = ","),
@@ -476,7 +551,7 @@ is_analog_index <- function(x) {
 
       # Check required components
       required <- c("lattice_xptr", "ref_data", "coord_type",
-                    "n_pool", "n_clim", "index_res")
+                    "n_pool", "n_clim", "geo_target", "clim_target")
       missing <- setdiff(required, names(index))
       if (length(missing) > 0) {
             stop("Invalid analog_index: missing components: ",

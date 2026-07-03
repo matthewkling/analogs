@@ -1,6 +1,7 @@
 // src/workers.cpp
 #include "workers.h"
 #include "ridge_solve.h"
+#include "profiling.h"
 
 namespace analogs {
 
@@ -145,21 +146,24 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   const double geog_thresh = use_ecef ?
                   max_geog_chord : max_geog;
 
-                  lattice_ptr->knn_query(
-                              fgeo_vec.data(),
-                              fclim_vec.data(),
-                              ref_ptr,
-                              static_cast<size_tu>(stride_r),
-                              static_cast<size_tu>(n_clim),
-                              rank_by_geog,
-                              geog_thresh,
-                              use_scalar_clim,
-                              max_clim_pervar,
-                              max_clim_scalar,
-                              k,
-                              cand,
-                              cand_weights
-                  );
+                  {
+                        ANALOGS_PROFILE_SCOPE(GATHER);
+                        lattice_ptr->knn_query(
+                                    fgeo_vec.data(),
+                                    fclim_vec.data(),
+                                    ref_ptr,
+                                    static_cast<size_tu>(stride_r),
+                                    static_cast<size_tu>(n_clim),
+                                    rank_by_geog,
+                                    geog_thresh,
+                                    use_scalar_clim,
+                                    max_clim_pervar,
+                                    max_clim_scalar,
+                                    k,
+                                    cand,
+                                    cand_weights
+                        );
+                  }
 
                   // Convert 0-based indices to 1-based and emit three weight streams.
                   const int m = static_cast<int>(cand.size());
@@ -219,16 +223,19 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         // The actual Mahalanobis filtering happens below.
                   }
 
-                  lattice_ptr->query(
-                              q_geo.data(),
-                              q_clim.data(),
-                              max_geog,
-                              use_scalar_clim,
-                              max_clim_pervar,
-                              effective_max_clim,
-                              cand,
-                              cand_weights
-                  );
+                  {
+                        ANALOGS_PROFILE_SCOPE(GATHER);
+                        lattice_ptr->query(
+                                    q_geo.data(),
+                                    q_clim.data(),
+                                    max_geog,
+                                    use_scalar_clim,
+                                    max_clim_pervar,
+                                    effective_max_clim,
+                                    cand,
+                                    cand_weights
+                        );
+                  }
             } else {
                   cand.resize(n_ref);
                   cand_weights.resize(n_ref, 1.0);
@@ -239,6 +246,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             // Filter and collect results from candidates
             if (scode == SelectCode::ALL) {
+                  ANALOGS_PROFILE_SCOPE(EXACT);
                   std::vector<int>    keep;
                   std::vector<double> sw, aw, uw;
                   keep.reserve(cand.size());
@@ -322,6 +330,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
             }
 
             // kNN modes (Climate or Geog) without expanding-search lattice path
+            ANALOGS_PROFILE_SCOPE(EXACT);
             auto cmp = [](const Neighbor& a, const Neighbor& b) {
                   return a.first < b.first; // max-heap: top has largest distance
             };
@@ -577,12 +586,15 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         q_clim[d] = f_clim_col[d * stride_f];
                   }
 
-                  lattice_ptr->query(q_geo.data(), q_clim.data(),
-                                     use_geog_filter ? max_geog : -1.0,
-                                     use_scalar_clim,
-                                     max_clim_pervar,
-                                     max_clim_scalar,
-                                     cand, cand_weights);
+                  {
+                        ANALOGS_PROFILE_SCOPE(GATHER);
+                        lattice_ptr->query(q_geo.data(), q_clim.data(),
+                                           use_geog_filter ? max_geog : -1.0,
+                                           use_scalar_clim,
+                                           max_clim_pervar,
+                                           max_clim_scalar,
+                                           cand, cand_weights);
+                  }
             } else {
                   cand.resize(n_ref);
                   cand_weights.resize(n_ref, 1.0);
@@ -645,183 +657,187 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             }
 
             // Iterate over candidates once
-            for (size_t t = 0; t < cand.size(); ++t) {
-                  const index_t j = cand[t];
+            {
+                  ANALOGS_PROFILE_SCOPE(EXACT);
+                  for (size_t t = 0; t < cand.size(); ++t) {
+                        const index_t j = cand[t];
 
-                  // Self-exclusion: skip pool row that corresponds to this focal.
-                  // Only active when exclude_self is set; the R layer enforces
-                  // identical(x, pool) so j == i is the correct identity check.
-                  if (exclude_self && static_cast<std::size_t>(j) == i) {
-                        continue;
-                  }
-
-                  const double sample_weight = cand_weights[t];
-                  const double rx = ref_ptr[j];
-                  const double ry = ref_ptr[j + stride_r];
-
-                  // Geog distance & filter
-                  double gdist = 0.0;
-                  if (use_geog_filter || need_weights) {
-                        if (use_ecef) {
-                              const double rx_ecef = ref_latt_ptr[j];
-                              const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
-                              const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
-                              const double dx = fx_ecef - rx_ecef;
-                              const double dy = fy_ecef - ry_ecef;
-                              const double dz = fz_ecef - rz_ecef;
-                              gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
-                              if (use_geog_filter && gdist > max_geog_chord) continue;
-                        } else {
-                              gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                              if (use_geog_filter && gdist > max_geog) continue;
+                        // Self-exclusion: skip pool row that corresponds to this focal.
+                        // Only active when exclude_self is set; the R layer enforces
+                        // identical(x, pool) so j == i is the correct identity check.
+                        if (exclude_self && static_cast<std::size_t>(j) == i) {
+                              continue;
                         }
-                  }
 
-                  // Climate checks & distance
-                  const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                  double clim_dist = 0.0;
-                  bool ok;
+                        const double sample_weight = cand_weights[t];
+                        const double rx = ref_ptr[j];
+                        const double ry = ref_ptr[j + stride_r];
 
-                  if (use_mahalanobis) {
-                        // Use Mahalanobis distance
-                        const bool need_dist = need_weights;
-                        auto okd = mahalanobis_ok_and_dist(
-                              f_clim_col, r_clim_col,
-                              *inv_cov_ptr,
-                              n_clim, stride_f, stride_r,
-                              max_clim_scalar, need_dist
-                        );
-                        ok = okd.first;
-                        clim_dist = okd.second;
-                  } else {
-                        // Use Euclidean distance
-                        auto okd = clim_ok_and_dist(
-                              f_clim_col, r_clim_col,
-                              n_clim, stride_f, stride_r,
-                              use_pervar_clim, max_clim_pervar,
-                              use_scalar_clim, max_clim_scalar
-                        );
-                        ok = okd.first;
-                        clim_dist = okd.second;
-                  }
-
-                  if (!ok) continue;
-
-                  // Analog passed all filters - compute distance weight if needed
-                  const double dist_weight = need_weights
-                  ? weight_from_codes(wcode, clim_dist, gdist, weight_param1, weight_param2)
-                        : 1.0;
-
-                  // Per-point pool weights (cell-area and user-supplied).
-                  // Each defaults to 1.0 when its mechanism is inactive.
-                  const std::size_t j0 = static_cast<std::size_t>(j);
-                  const double area_w = get_area_weight(has_area_weight, area_weight_ptr, j0);
-                  const double user_w = get_user_weight(has_user_weight, user_weight_ptr, j0);
-
-                  // COUNT preserves existing semantics: it adjusts for downsampling
-                  // (sample_weight) but is intentionally NOT affected by area_w or
-                  // user_w. Users wanting area- or user-weighted counts should
-                  // request stat = "sum_weights" with kernel = "uniform".
-                  count += static_cast<int>(sample_weight);
-
-                  // Combined weight folds in all four streams: kernel,
-                  // downsampling, cell area, and user-provided.
-                  const double combined_weight = dist_weight * sample_weight * area_w * user_w;
-                  sum_weights += combined_weight;
-                  sum_weights_squared += (combined_weight * combined_weight);
-
-                  // Update regular stat accumulators
-                  for (int idx = 0; idx < n_regular; ++idx) {
-                        int s = regular_stat_positions[idx];
-
-                        if (acodes[s] == AggregateCode::COUNT) {
-                              // Count tracked separately
-                        } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
-                              regular_accum[idx] += combined_weight;
-                        } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
-                              regular_accum[idx] += combined_weight;
-                        } else if (acodes[s] == AggregateCode::ESS) {
-                              // ESS accumulates sum_weights and sum_weights_squared
-                              // Will compute final ESS in finalization step
-                        }
-                  }
-
-                  // Update value stat accumulators.
-                  // SUM and MEAN treat area/user weights as case weights (no
-                  // kernel involvement); WEIGHTED_SUM and WEIGHTED_MEAN use
-                  // the full combined_weight.
-                  const double point_weight = sample_weight * area_w * user_w;
-                  if (has_values && n_value > 0) {
-                        for (int v = 0; v < n_vars; ++v) {
-                              const double val = values_ptr[j + v * values_stride];
-
-                              for (int idx = 0; idx < n_value; ++idx) {
-                                    int s = value_stat_positions[idx];
-                                    int accum_idx = v * n_value + idx;
-
-                                    if (acodes[s] == AggregateCode::SUM) {
-                                          value_accum[accum_idx] += (val * point_weight);
-                                    } else if (acodes[s] == AggregateCode::MEAN) {
-                                          value_accum[accum_idx] += (val * point_weight);
-                                    } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
-                                          value_accum[accum_idx] += (val * combined_weight);
-                                    } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
-                                          value_accum[accum_idx] += (val * combined_weight);
-                                    }
+                        // Geog distance & filter
+                        double gdist = 0.0;
+                        if (use_geog_filter || need_weights) {
+                              if (use_ecef) {
+                                    const double rx_ecef = ref_latt_ptr[j];
+                                    const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
+                                    const double rz_ecef = ref_latt_ptr[j + 2 * stride_latt_r];
+                                    const double dx = fx_ecef - rx_ecef;
+                                    const double dy = fy_ecef - ry_ecef;
+                                    const double dz = fz_ecef - rz_ecef;
+                                    gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
+                                    if (use_geog_filter && gdist > max_geog_chord) continue;
+                              } else {
+                                    gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
+                                    if (use_geog_filter && gdist > max_geog) continue;
                               }
+                        }
 
-                              // weighted_mean SE accumulators (extra work only
-                              // when weighted_mean SE is requested)
-                              if (wm_se) {
-                                    // NA y is skipped for SE too; ISNAN test
-                                    if (!ISNAN(val)) {
-                                          const double w = combined_weight;
-                                          wm_sum_wy2[v] += w * val * val;
-                                          if (wm_se_design) {
-                                                const double w2 = w * w;
-                                                wm_sum_w2y[v]  += w2 * val;
-                                                wm_sum_w2y2[v] += w2 * val * val;
+                        // Climate checks & distance
+                        const double* r_clim_col = ref_ptr + j + 2 * stride_r;
+                        double clim_dist = 0.0;
+                        bool ok;
+
+                        if (use_mahalanobis) {
+                              // Use Mahalanobis distance
+                              const bool need_dist = need_weights;
+                              auto okd = mahalanobis_ok_and_dist(
+                                    f_clim_col, r_clim_col,
+                                    *inv_cov_ptr,
+                                    n_clim, stride_f, stride_r,
+                                    max_clim_scalar, need_dist
+                              );
+                              ok = okd.first;
+                              clim_dist = okd.second;
+                        } else {
+                              // Use Euclidean distance
+                              auto okd = clim_ok_and_dist(
+                                    f_clim_col, r_clim_col,
+                                    n_clim, stride_f, stride_r,
+                                    use_pervar_clim, max_clim_pervar,
+                                    use_scalar_clim, max_clim_scalar
+                              );
+                              ok = okd.first;
+                              clim_dist = okd.second;
+                        }
+
+                        if (!ok) continue;
+
+                        // Analog passed all filters - compute distance weight if needed
+                        const double dist_weight = need_weights
+                        ? weight_from_codes(wcode, clim_dist, gdist, weight_param1, weight_param2)
+                              : 1.0;
+
+                        // Per-point pool weights (cell-area and user-supplied).
+                        // Each defaults to 1.0 when its mechanism is inactive.
+                        const std::size_t j0 = static_cast<std::size_t>(j);
+                        const double area_w = get_area_weight(has_area_weight, area_weight_ptr, j0);
+                        const double user_w = get_user_weight(has_user_weight, user_weight_ptr, j0);
+
+                        // COUNT preserves existing semantics: it adjusts for downsampling
+                        // (sample_weight) but is intentionally NOT affected by area_w or
+                        // user_w. Users wanting area- or user-weighted counts should
+                        // request stat = "sum_weights" with kernel = "uniform".
+                        count += static_cast<int>(sample_weight);
+
+                        // Combined weight folds in all four streams: kernel,
+                        // downsampling, cell area, and user-provided.
+                        const double combined_weight = dist_weight * sample_weight * area_w * user_w;
+                        sum_weights += combined_weight;
+                        sum_weights_squared += (combined_weight * combined_weight);
+
+                        // Update regular stat accumulators
+                        for (int idx = 0; idx < n_regular; ++idx) {
+                              int s = regular_stat_positions[idx];
+
+                              if (acodes[s] == AggregateCode::COUNT) {
+                                    // Count tracked separately
+                              } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
+                                    regular_accum[idx] += combined_weight;
+                              } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
+                                    regular_accum[idx] += combined_weight;
+                              } else if (acodes[s] == AggregateCode::ESS) {
+                                    // ESS accumulates sum_weights and sum_weights_squared
+                                    // Will compute final ESS in finalization step
+                              }
+                        }
+
+                        // Update value stat accumulators.
+                        // SUM and MEAN treat area/user weights as case weights (no
+                        // kernel involvement); WEIGHTED_SUM and WEIGHTED_MEAN use
+                        // the full combined_weight.
+                        const double point_weight = sample_weight * area_w * user_w;
+                        if (has_values && n_value > 0) {
+                              for (int v = 0; v < n_vars; ++v) {
+                                    const double val = values_ptr[j + v * values_stride];
+
+                                    for (int idx = 0; idx < n_value; ++idx) {
+                                          int s = value_stat_positions[idx];
+                                          int accum_idx = v * n_value + idx;
+
+                                          if (acodes[s] == AggregateCode::SUM) {
+                                                value_accum[accum_idx] += (val * point_weight);
+                                          } else if (acodes[s] == AggregateCode::MEAN) {
+                                                value_accum[accum_idx] += (val * point_weight);
+                                          } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
+                                                value_accum[accum_idx] += (val * combined_weight);
+                                          } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
+                                                value_accum[accum_idx] += (val * combined_weight);
+                                          }
+                                    }
+
+                                    // weighted_mean SE accumulators (extra work only
+                                    // when weighted_mean SE is requested)
+                                    if (wm_se) {
+                                          // NA y is skipped for SE too; ISNAN test
+                                          if (!ISNAN(val)) {
+                                                const double w = combined_weight;
+                                                wm_sum_wy2[v] += w * val * val;
+                                                if (wm_se_design) {
+                                                      const double w2 = w * w;
+                                                      wm_sum_w2y[v]  += w2 * val;
+                                                      wm_sum_w2y2[v] += w2 * val * val;
+                                                }
                                           }
                                     }
                               }
+                              if (wm_se_design) {
+                                    wm_sum_w2 += combined_weight * combined_weight;
+                              }
                         }
-                        if (wm_se_design) {
-                              wm_sum_w2 += combined_weight * combined_weight;
+
+                        // TABULATE: add this analog's combined weight to the bin
+                        // indexed by its (1-based) class code, for each y variable.
+                        // NA codes (ISNAN) are skipped; out-of-range codes are
+                        // ignored defensively (R-side validation should prevent them).
+                        // Note: y values are passed as doubles holding 1-based integer
+                        // class codes (or NA_REAL for missing); int round-trip is exact.
+                        if (has_tabulate && has_values && tab_total > 0) {
+                              for (int v = 0; v < n_vars; ++v) {
+                                    const int K_v = (v < static_cast<int>(n_classes_per_var.size()))
+                                    ? n_classes_per_var[v] : 0;
+                                    if (K_v <= 0) continue;
+
+                                    const double val = values_ptr[j + v * values_stride];
+                                    if (ISNAN(val)) continue;
+
+                                    const int code = static_cast<int>(val) - 1; // 1-based -> 0-based
+                                    if (code < 0 || code >= K_v) continue;
+
+                                    tabulate_accum[tab_offsets[v] + code] += combined_weight;
+                              }
+                        }
+
+                        // REGRESSION: collect this analog for post-loop regression solve
+                        if (has_regression) {
+                              reg_analog_indices.push_back(static_cast<std::size_t>(j));
+                              reg_combined_weights.push_back(combined_weight);
                         }
                   }
-
-                  // TABULATE: add this analog's combined weight to the bin
-                  // indexed by its (1-based) class code, for each y variable.
-                  // NA codes (ISNAN) are skipped; out-of-range codes are
-                  // ignored defensively (R-side validation should prevent them).
-                  // Note: y values are passed as doubles holding 1-based integer
-                  // class codes (or NA_REAL for missing); int round-trip is exact.
-                  if (has_tabulate && has_values && tab_total > 0) {
-                        for (int v = 0; v < n_vars; ++v) {
-                              const int K_v = (v < static_cast<int>(n_classes_per_var.size()))
-                              ? n_classes_per_var[v] : 0;
-                              if (K_v <= 0) continue;
-
-                              const double val = values_ptr[j + v * values_stride];
-                              if (ISNAN(val)) continue;
-
-                              const int code = static_cast<int>(val) - 1; // 1-based -> 0-based
-                              if (code < 0 || code >= K_v) continue;
-
-                              tabulate_accum[tab_offsets[v] + code] += combined_weight;
-                        }
-                  }
-
-                  // REGRESSION: collect this analog for post-loop regression solve
-                  if (has_regression) {
-                        reg_analog_indices.push_back(static_cast<std::size_t>(j));
-                        reg_combined_weights.push_back(combined_weight);
-                  }
-            }
+            } // end EXACT scope
 
             // -----------------------------------------------------------------
             // Finalize and store results
             // -----------------------------------------------------------------
+            ANALOGS_PROFILE_SCOPE(AGG);
             int col_idx = 0;
 
             // Write regular stats

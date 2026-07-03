@@ -18,7 +18,7 @@ test_that("exclude_self = TRUE validates inputs", {
       )
 
       # Pre-built index disallowed
-      idx <- build_analog_index(d$ref, coord_type = "projected", index_res = 8)
+      idx <- build_analog_index(d$ref, coord_type = "projected")
       expect_error(
             analog_search(
                   x = idx,
@@ -65,13 +65,13 @@ test_that("exclude_self reduces count by exactly 1 within-pool when focal row pa
       cnt_with <- analog_search(
             x = d$ref, pool = d$ref,
             stat = "count", max_clim = Inf,
-            coord_type = "projected", index_res = 8,
+            coord_type = "projected",
             exclude_self = FALSE
       )
       cnt_without <- analog_search(
             x = d$ref, pool = d$ref,
             stat = "count", max_clim = Inf,
-            coord_type = "projected", index_res = 8,
+            coord_type = "projected",
             exclude_self = TRUE
       )
 

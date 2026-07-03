@@ -50,8 +50,7 @@ test_that("analog_availability works with x/pool parameter names", {
             pool = d$ref,
             max_clim = 1,
             max_geog = 2,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_s3_class(a, "data.frame")
@@ -66,7 +65,7 @@ test_that("analog_availability works with analog_index", {
       d <- sim_test_data()
 
       # Build index
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Query with index
       a <- analog_availability(

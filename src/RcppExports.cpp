@@ -11,17 +11,18 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // build_analog_index_cpp
-SEXP build_analog_index_cpp(const NumericMatrix& ref_mm, const std::string& coord_type, int index_res, double downsample, unsigned int seed);
-RcppExport SEXP _analogs_build_analog_index_cpp(SEXP ref_mmSEXP, SEXP coord_typeSEXP, SEXP index_resSEXP, SEXP downsampleSEXP, SEXP seedSEXP) {
+SEXP build_analog_index_cpp(const NumericMatrix& ref_mm, const std::string& coord_type, double geo_target, double clim_target, double downsample, unsigned int seed);
+RcppExport SEXP _analogs_build_analog_index_cpp(SEXP ref_mmSEXP, SEXP coord_typeSEXP, SEXP geo_targetSEXP, SEXP clim_targetSEXP, SEXP downsampleSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
     Rcpp::traits::input_parameter< const std::string& >::type coord_type(coord_typeSEXP);
-    Rcpp::traits::input_parameter< int >::type index_res(index_resSEXP);
+    Rcpp::traits::input_parameter< double >::type geo_target(geo_targetSEXP);
+    Rcpp::traits::input_parameter< double >::type clim_target(clim_targetSEXP);
     Rcpp::traits::input_parameter< double >::type downsample(downsampleSEXP);
     Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
-    rcpp_result_gen = Rcpp::wrap(build_analog_index_cpp(ref_mm, coord_type, index_res, downsample, seed));
+    rcpp_result_gen = Rcpp::wrap(build_analog_index_cpp(ref_mm, coord_type, geo_target, clim_target, downsample, seed));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -101,7 +102,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 5},
+    {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 6},
     {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 19},
     {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 11},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},

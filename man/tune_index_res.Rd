@@ -22,8 +22,9 @@ tune_index_res(
   lambda = 0,
   se = c("none", "ess", "design"),
   coord_type = c("auto", "lonlat", "projected"),
+  geog_res_adj = 1,
+  clim_res_adj = 1,
   n_threads = NULL,
-  default_res = 16L,
   verbose = FALSE
 )
 }
@@ -43,9 +44,9 @@ or SpatRaster with climate variable layers, OR
 \item{downsample}{Optional downsampling rate (0-1) for the reference pool,
 indicating the proportion of points to retain. Values < 1 reduce memory
 and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, \code{index_res}
-must be set explicitly (auto-tuning is not supported in this case; see
-the \code{index_res} parameter for details).}
+Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, resolution
+must be set explicitly via \code{geog_res_adj} / \code{clim_res_adj} (auto-tuning is
+not supported in this case; see those parameters for details).}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
 (default), uses current R random state. Ignored if \code{pool} is a pre-built
@@ -205,55 +206,76 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
+\item{clim_res_adj, geog_res_adj}{Control the lattice search-index resolution
+of the climate and geographic families, each a multiplier on a
+data-dependent default (targeting ~50 pool points per occupied bin, split
+between families by effective dimensionality, so it scales with pool size).
+Each is either:
+\itemize{
+\item A non-negative number: \code{1} uses the default for that family, larger
+values are finer, smaller are coarser, and \code{0} deactivates it.
+\item \code{"auto"} (the default for both): tune a single overall resolution scale
+by optimizing compute time on a subsample of focal points. If focal has
+relatively few rows, tuning is skipped. Not supported when
+\code{downsample < 1} (set explicit numeric values instead).
+}
+
+A family that the query does not constrain (no corresponding \verb{max_*} and
+not the knn sort key) is \strong{automatically deactivated}, overriding any
+explicit value (with a message), since binning an unconstrained family
+only costs time. Ignored if \code{pool} is an \code{analog_index} (uses the index's
+resolution).}
+
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
 
-\item{default_res}{Default resolution to use as starting point for search.
-Default is 16.}
-
-\item{verbose}{Logical; if TRUE, print the selected resolution. Default is FALSE.}
+\item{verbose}{Logical; if TRUE, print search progress. Default FALSE.}
 }
 \value{
-An integer giving the recommended index resolution (bins per dimension).
+A list with elements \code{geog_res_adj} and \code{clim_res_adj} giving the
+recommended per-family resolution adjustments. A family that is inactive
+on entry (adjustment of 0, i.e. deactivated) is returned unchanged.
 }
 \description{
-Automatically finds the optimal lattice index resolution for your data and
-query pattern using adaptive bracketing search. Runs test queries with
-different resolutions and recommends the one with the fastest compute speed.
+Automatically finds fast per-family lattice resolution adjustments
+(\code{geog_res_adj}, \code{clim_res_adj}) for your data and query pattern. Uses
+alternating coordinate descent (Gibbs-style): each active family's
+resolution is optimized in turn (holding the other fixed) via an
+expanding-bracket 1-D search, sweeping back and forth until the selected
+adjustments stop changing.
 }
 \details{
-The function uses an adaptive bracketing algorithm:
-\enumerate{
-\item Starts with three resolutions: default/2, default, default*2
-\item Evaluates elapsed time for each
-\item If minimum is at an edge, expands search in that direction
-\item Returns resolution with lowest elapsed time
-}
+Each family's 1-D search starts from its current adjustment and expands a
+multiplicative bracket (halving or doubling) in the direction of decreasing
+compute time until an interior minimum is bracketed (time decreases then
+increases) or a bound is reached. Adjustments are constrained to the range
+[1/32, 32]. The outer loop alternates between families until a full sweep
+leaves both selections unchanged (convergence) or a sweep cap is reached.
 
-This typically requires only 3-5 query evaluations total, making it much
-faster than exhaustive grid search.
-
-The function only performs tuning for non-trivial problem sizes (>2000 focal
-points). For smaller datasets, it returns the default resolution.
+Only families that are active (non-zero adjustment) on entry are tuned; a
+deactivated family is skipped and passed through. If neither family is
+active, or the problem is small (<= 2000 focal points), the inputs are
+returned unchanged.
 
 A subsample of focal points is used for benchmarking to keep tuning fast
 while still being representative of actual query performance.
 }
 \examples{
 \dontrun{
-# Find optimal resolution for velocity queries
-optimal_res <- tune_index_res(
+# Tune per-family resolution for an availability query (both families active)
+adj <- tune_index_res(
   x = sample_sites,
   pool = climate_data,
-  select = "knn_geog",
-  stat = NULL,
+  select = "all",
+  stat = "count",
   max_clim = 0.5,
-  k = 1
+  max_geog = 100
 )
 
-# Use the optimized resolution
-index <- build_analog_index(climate_data, index_res = optimal_res)
+index <- build_analog_index(climate_data,
+                            geog_res_adj = adj$geog_res_adj,
+                            clim_res_adj = adj$clim_res_adj)
 }
 
 }

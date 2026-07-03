@@ -20,8 +20,7 @@ test_that("x_cov basic functionality works without error", {
             max_clim = NULL,
             k = 1,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_s3_class(result, "data.frame")
@@ -42,7 +41,7 @@ test_that("x_cov validation catches dimension mismatches", {
       x_cov_bad_rows <- matrix(1.0, nrow = n_focal - 1, ncol = n_cov_cols)
       expect_error(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov_bad_rows, coord_type = "projected"),
+                          x_cov = x_cov_bad_rows, coord_type = "projected"),
             "must have same number of rows"
       )
 
@@ -50,7 +49,7 @@ test_that("x_cov validation catches dimension mismatches", {
       x_cov_bad_cols <- matrix(1.0, nrow = n_focal, ncol = n_cov_cols + 1)
       expect_error(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov_bad_cols, coord_type = "projected"),
+                          x_cov = x_cov_bad_cols, coord_type = "projected"),
             "must have.*columns"
       )
 })
@@ -72,7 +71,7 @@ test_that("x_cov validation catches non-finite values", {
       x_cov[5, 2] <- NA
       expect_error(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov, coord_type = "projected"),
+                          x_cov = x_cov, coord_type = "projected"),
             "non-finite values"
       )
 
@@ -80,7 +79,7 @@ test_that("x_cov validation catches non-finite values", {
       x_cov[5, 2] <- Inf
       expect_error(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov, coord_type = "projected"),
+                          x_cov = x_cov, coord_type = "projected"),
             "non-finite values"
       )
 })
@@ -101,7 +100,7 @@ test_that("x_cov validation catches non-positive-definite matrices", {
 
       suppressWarnings(expect_warning(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov, coord_type = "projected"),
+                          x_cov = x_cov, coord_type = "projected"),
             "not positive definite"
       ))
 })
@@ -125,8 +124,7 @@ test_that("x_cov with identity covariance matches Euclidean results", {
             max_clim = 1,
             k = 3,
             x_cov = x_cov_identity,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Result with standard Euclidean
@@ -136,8 +134,7 @@ test_that("x_cov with identity covariance matches Euclidean results", {
             max_clim = 1,
             k = 3,
             x_cov = NULL,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Should be nearly identical
@@ -182,8 +179,7 @@ test_that("x_cov correctly implements Mahalanobis distance for filtering and cli
             select = "all",
             max_clim = max_clim,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 2
+            coord_type = "projected"
       )
       expect_equal(which(md <= max_clim),
                    sort(result$analog_index))
@@ -195,8 +191,7 @@ test_that("x_cov correctly implements Mahalanobis distance for filtering and cli
             select = "all",
             max_clim = NULL,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 2
+            coord_type = "projected"
       )
       expect_equal(result$clim_dist, md[result$analog_index])
 })
@@ -220,8 +215,7 @@ test_that("x_cov works correctly with knn_clim mode", {
             max_geog = 2,
             k = 5,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Should return up to k matches per focal
@@ -251,8 +245,7 @@ test_that("x_cov works correctly with count mode", {
             max_clim = 1,
             max_geog = 2,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_s3_class(result, "data.frame")
@@ -287,8 +280,7 @@ test_that("x_cov works with focal-specific covariance matrices", {
             stat = "count",
             max_clim = 1,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_equal(nrow(result), n_focal)
@@ -322,8 +314,7 @@ test_that("x_cov works with analog_velocity wrapper", {
             max_clim = 1,
             k = 1,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_s3_class(result, "data.frame")
@@ -340,7 +331,7 @@ test_that("x_cov works with pre-built analog_index", {
       n_focal <- nrow(d$focal)
 
       # Build index
-      index <- build_analog_index(d$ref, coord_type = "projected", index_res = 12)
+      index <- build_analog_index(d$ref, coord_type = "projected")
 
       # Create covariance
       x_cov <- matrix(c(1, 1, 0), nrow = n_focal, ncol = 3, byrow = TRUE)
@@ -372,8 +363,7 @@ test_that("x_cov NULL behavior is unchanged from before", {
             max_clim = 1,
             k = 1,
             x_cov = NULL,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Without x_cov argument (default NULL)
@@ -382,8 +372,7 @@ test_that("x_cov NULL behavior is unchanged from before", {
             select = "knn_geog",
             max_clim = 1,
             k = 1,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Should be identical
@@ -410,8 +399,7 @@ test_that("x_cov works with single climate variable", {
             stat = "count",
             max_clim = 1,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_equal(nrow(result), n_focal)
@@ -432,7 +420,7 @@ test_that("x_cov validation happens before expensive operations", {
       # Should fail quickly with clear error, not crash during C++ execution
       expect_error(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov_bad, coord_type = "projected"),
+                          x_cov = x_cov_bad, coord_type = "projected"),
             "must have.*columns"
       )
 })
@@ -468,8 +456,7 @@ test_that("x_cov works with correlated climate variables", {
             select = "all",
             max_clim = 3,
             x_cov = x_cov,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Should find some matches
@@ -490,7 +477,7 @@ test_that("x_cov error messages are informative", {
       x_cov_wrong_rows <- matrix(1.0, nrow = 5, ncol = 3)
       err_msg <- tryCatch(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov_wrong_rows, coord_type = "projected"),
+                          x_cov = x_cov_wrong_rows, coord_type = "projected"),
             error = function(e) e$message
       )
       expect_true(grepl("same number of rows", err_msg, ignore.case = TRUE))
@@ -500,7 +487,7 @@ test_that("x_cov error messages are informative", {
       x_cov_wrong_cols <- matrix(1.0, nrow = n_focal, ncol = 5)
       err_msg2 <- tryCatch(
             analog_search(d$focal, d$ref, stat = "count", max_clim = 1,
-                         x_cov = x_cov_wrong_cols, coord_type = "projected"),
+                          x_cov = x_cov_wrong_cols, coord_type = "projected"),
             error = function(e) e$message
       )
       expect_true(grepl("columns", err_msg2, ignore.case = TRUE))
@@ -523,15 +510,15 @@ test_that("x_cov works with sum mode and weights", {
 
       # Test with inverse_clim weight
       s1 <- analog_density(d$focal, d$ref,
-                             max_clim = 1, max_geog = 2,
-                             kernel = "inverse_clim",
-                             coord_type = "projected", index_res = 10)
+                           max_clim = 1, max_geog = 2,
+                           kernel = "inverse_clim",
+                           coord_type = "projected")
 
       s2 <- analog_density(d$focal, d$ref,
-                             max_clim = 1, max_geog = 2,
-                             kernel = "inverse_clim",
-                             coord_type = "projected", index_res = 10,
-                             x_cov = x_cov)
+                           max_clim = 1, max_geog = 2,
+                           kernel = "inverse_clim",
+                           coord_type = "projected",
+                           x_cov = x_cov)
 
       # Should return same structure
       expect_equal(nrow(s1), nrow(s2))
@@ -563,12 +550,12 @@ test_that("x_cov with different variance scales affects analog selection", {
       x_cov_high[, 3] <- 0.0
 
       v_low <- analog_search(d$focal, d$ref, select = "all",
-                            max_clim = .25, coord_type = "projected", index_res = 10,
-                            x_cov = x_cov_low)
+                             max_clim = .25, coord_type = "projected",
+                             x_cov = x_cov_low)
 
       v_high <- analog_search(d$focal, d$ref, select = "all",
-                             max_clim = .25, coord_type = "projected", index_res = 10,
-                             x_cov = x_cov_high)
+                              max_clim = .25, coord_type = "projected",
+                              x_cov = x_cov_high)
 
       expect_false(all(suppressWarnings(v_low$analog_index == v_high$analog_index)))
 })
@@ -596,12 +583,12 @@ test_that("x_cov affects which points pass max_clim threshold", {
 
       a_std <- analog_availability(d$focal, d$ref,
                                    max_clim = max_clim, max_geog = 10,
-                                   coord_type = "projected", index_res = 10,
+                                   coord_type = "projected",
                                    x_cov = x_cov_std)
 
       a_high <- analog_availability(d$focal, d$ref,
                                     max_clim = max_clim, max_geog = 10,
-                                    coord_type = "projected", index_res = 10,
+                                    coord_type = "projected",
                                     x_cov = x_cov_high)
 
       # High variance should result in more points passing the threshold
@@ -634,7 +621,7 @@ test_that("x_cov works with auto-tuning for large datasets", {
       v <- analog_velocity(focal_large, ref_large,
                            max_clim = NULL, k = 1,
                            coord_type = "projected",
-                           index_res = "auto",
+                           geog_res_adj = "auto",
                            x_cov = x_cov)
 
       expect_equal(nrow(v), n_focal)
@@ -662,7 +649,7 @@ test_that("x_cov works correctly with 3 climate variables", {
 
       v <- analog_velocity(focal_3clim, ref_3clim,
                            max_clim = NULL, k = 1,
-                           coord_type = "projected", index_res = 8,
+                           coord_type = "projected",
                            x_cov = x_cov)
 
       expect_equal(nrow(v), n_focal)
@@ -690,13 +677,12 @@ test_that("x_cov works with strongly correlated climate variables", {
       x_cov_corr[, 3] <- 0.85  # cor = 0.85
 
       v_uncorr <- analog_search(d$focal, d$ref, select = "all", max_clim = 1,
-                                coord_type = "projected", index_res = 2,
+                                coord_type = "projected",
                                 x_cov = x_cov_uncorr)
 
       v_corr <- analog_search(d$focal, d$ref, select = "all", max_clim = 1,
-                              coord_type = "projected", index_res = 2,
+                              coord_type = "projected",
                               x_cov = x_cov_corr)
 
       expect_false(length(v_uncorr$analog_index) == length(v_corr$analog_index))
 })
-

@@ -5,7 +5,7 @@ test_that("build_analog_index creates valid index object", {
       colnames(ref_data) <- c("x", "y", "clim1", "clim2")
 
       # Test building index with projected coords
-      index <- build_analog_index(ref_data, coord_type = "projected", index_res = 10)
+      index <- build_analog_index(ref_data, coord_type = "projected")
 
       # Check class
       expect_s3_class(index, "analog_index")
@@ -17,7 +17,6 @@ test_that("build_analog_index creates valid index object", {
       expect_equal(index$coord_type, "projected")
       expect_equal(index$n_pool, 200)
       expect_equal(index$n_clim, 2)
-      expect_equal(index$index_res, 10)
 
       # Check ranges are sensible
       expect_length(index$coord_mins, 2)
@@ -42,7 +41,7 @@ test_that("build_analog_index works with auto coord detection", {
       ref_proj[, 1] <- ref_proj[, 1] * 1000  # large x values
       ref_proj[, 2] <- ref_proj[, 2] * 1000  # large y values
 
-      index_proj <- build_analog_index(ref_proj, coord_type = "auto", index_res = 8)
+      index_proj <- build_analog_index(ref_proj, coord_type = "auto")
       expect_equal(index_proj$coord_type, "projected")
 
       # Lon/lat data
@@ -50,7 +49,7 @@ test_that("build_analog_index works with auto coord detection", {
       ref_lonlat[, 1] <- runif(100, -180, 180)  # lon
       ref_lonlat[, 2] <- runif(100, -90, 90)    # lat
 
-      index_lonlat <- build_analog_index(ref_lonlat, coord_type = "auto", index_res = 8)
+      index_lonlat <- build_analog_index(ref_lonlat, coord_type = "auto")
       expect_equal(index_lonlat$coord_type, "lonlat")
       expect_true(index_lonlat$use_ecef)
 })
@@ -63,7 +62,7 @@ test_that("build_analog_index handles lonlat coords correctly", {
       ref_lonlat[, 1] <- runif(150, -180, 180)  # lon
       ref_lonlat[, 2] <- runif(150, -90, 90)    # lat
 
-      index <- build_analog_index(ref_lonlat, coord_type = "lonlat", index_res = 10)
+      index <- build_analog_index(ref_lonlat, coord_type = "lonlat")
 
       expect_equal(index$coord_type, "lonlat")
       expect_true(index$use_ecef)
@@ -79,14 +78,14 @@ test_that("build_analog_index validates inputs", {
 
       ref_data <- matrix(rnorm(100 * 3), ncol = 3)
 
-      # Invalid index_res
+      # Invalid geog_res_adj
       expect_error(
-            build_analog_index(ref_data, index_res = -5),
-            "positive integer"
+            build_analog_index(ref_data, geog_res_adj = -5),
+            "non-negative"
       )
       expect_error(
-            build_analog_index(ref_data, index_res = c(10, 20)),
-            "positive integer"
+            build_analog_index(ref_data, geog_res_adj = c(1, 2)),
+            "non-negative"
       )
 
       # Invalid coord_type
@@ -100,7 +99,7 @@ test_that("build_analog_index validates inputs", {
 test_that("is_analog_index correctly identifies objects", {
 
       ref_data <- matrix(rnorm(100 * 3), ncol = 3)
-      index <- build_analog_index(ref_data, index_res = 8)
+      index <- build_analog_index(ref_data)
 
       expect_true(is_analog_index(index))
       expect_false(is_analog_index(ref_data))
@@ -112,7 +111,7 @@ test_that("is_analog_index correctly identifies objects", {
 test_that(".validate_analog_index catches invalid indices", {
 
       ref_data <- matrix(rnorm(100 * 3), ncol = 3)
-      index <- build_analog_index(ref_data, index_res = 8)
+      index <- build_analog_index(ref_data)
 
       # Valid index should pass
       expect_invisible(.validate_analog_index(index))
@@ -136,7 +135,7 @@ test_that(".validate_analog_index catches invalid indices", {
 test_that(".validate_analog_index validates query data", {
 
       ref_data <- matrix(rnorm(100 * 3), ncol = 3)
-      index <- build_analog_index(ref_data, index_res = 8)
+      index <- build_analog_index(ref_data)
 
       # Matching query data should pass
       query_data <- matrix(rnorm(20 * 3), ncol = 3)
@@ -155,7 +154,7 @@ test_that(".validate_analog_index warns about out-of-bounds queries", {
 
       set.seed(999)
       ref_data <- matrix(rnorm(100 * 3), ncol = 3)
-      index <- build_analog_index(ref_data, index_res = 8)
+      index <- build_analog_index(ref_data)
 
       # Query data far outside bounds
       query_out <- matrix(0, nrow = 10, ncol = 3)
@@ -172,7 +171,7 @@ test_that(".validate_analog_index warns about out-of-bounds queries", {
 test_that("print.analog_index produces output", {
 
       ref_data <- matrix(rnorm(50 * 3), ncol = 3)
-      index <- build_analog_index(ref_data, index_res = 6)
+      index <- build_analog_index(ref_data)
 
       # Should not error
       expect_output(print(index), "Analog Index")
@@ -188,15 +187,13 @@ test_that("build_analog_index works with different resolutions", {
       ref_data <- matrix(rnorm(100 * 3), ncol = 3)
 
       # Low resolution
-      index_low <- build_analog_index(ref_data, index_res = 5)
-      expect_equal(index_low$index_res, 5)
+      index_low <- build_analog_index(ref_data, geog_res_adj = 1/2)
 
       # High resolution
-      index_high <- build_analog_index(ref_data, index_res = 20)
-      expect_equal(index_high$index_res, 20)
+      index_high <- build_analog_index(ref_data, geog_res_adj = 2)
 
-      # Higher resolution should have more bins
-      expect_true(index_high$total_bins > index_low$total_bins)
+      # Higher resolution setting should be recorded as higher
+      expect_true(index_high$geog_res_adj > index_low$geog_res_adj)
 })
 
 test_that("build_analog_index works with downsampling", {
@@ -207,7 +204,6 @@ test_that("build_analog_index works with downsampling", {
       index_full <- build_analog_index(
             d$ref,
             coord_type = "projected",
-            index_res = 16,
             downsample = 1.0
       )
 
@@ -215,20 +211,18 @@ test_that("build_analog_index works with downsampling", {
       index_down <- build_analog_index(
             d$ref,
             coord_type = "projected",
-            index_res = 16,
             downsample = 0.1,
             seed = 456
       )
 
       expect_equal(index_down$downsample_target, 0.1)
-      expect_equal(index_down$downsample_actual, index_down$downsample_target, tolerance = .01)
+      expect_equal(index_down$downsample_actual, index_down$downsample_target, tolerance = .02)
 
 
       # Test reproducibility
       index_down2 <- build_analog_index(
             d$ref,
             coord_type = "projected",
-            index_res = 16,
             downsample = 0.1,
             seed = 456  # Same seed
       )

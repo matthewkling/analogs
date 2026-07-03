@@ -21,8 +21,7 @@ test_that("se = 'none' (default) omits SE columns", {
             max_geog = 2,
             kernel = "gaussian_clim",
             theta = 0.5,
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Coefs and weighted_mean present
@@ -55,8 +54,7 @@ test_that("se = 'ess' returns SE columns for weighted_mean and regression", {
             kernel = "gaussian_clim",
             theta = 0.5,
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_true("se_weighted_mean" %in% names(result))
@@ -92,8 +90,7 @@ test_that("se = 'design' returns SE columns for weighted_mean and regression", {
             kernel = "gaussian_clim",
             theta = 0.5,
             se = "design",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expect_true("se_weighted_mean" %in% names(result))
@@ -130,8 +127,7 @@ test_that("weighted_mean SE is scale-invariant in the weights", {
             max_geog = 2,
             kernel = "uniform",
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       res_design <- analog_search(
@@ -144,8 +140,7 @@ test_that("weighted_mean SE is scale-invariant in the weights", {
             max_geog = 2,
             kernel = "uniform",
             se = "design",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # With uniform weights, weighted_mean equals plain mean.
@@ -187,8 +182,7 @@ test_that("weighted_mean SE matches manual computation (ESS)", {
             kernel = "gaussian_clim",
             theta = 1,
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Reproduce the weight computation manually
@@ -225,8 +219,7 @@ test_that("weighted_mean SE matches manual computation (design)", {
             kernel = "gaussian_clim",
             theta = 1,
             se = "design",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       clim_dist <- sqrt(rowSums((pool[, 3:4])^2))
@@ -267,8 +260,7 @@ test_that("regression SE (ESS) matches standard WLS SE with ESS df correction", 
             kernel = "uniform",
             lambda = 0,
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       # Compare to lm() — with uniform weights and no ridge, the ESS df correction
@@ -301,8 +293,7 @@ test_that("se warns when no requested stat supports SE", {
                   max_geog = 2,
                   kernel = "uniform",
                   se = "ess",
-                  coord_type = "projected",
-                  index_res = 10
+                  coord_type = "projected"
             ),
             "no requested stat supports SE"
       )
@@ -328,8 +319,7 @@ test_that("se does not warn when at least one requested stat supports SE", {
                   kernel = "gaussian_clim",
                   theta = 0.5,
                   se = "ess",
-                  coord_type = "projected",
-                  index_res = 10
+                  coord_type = "projected"
             )
       )
 })
@@ -354,8 +344,7 @@ test_that("se works with multiple y variables for weighted_mean", {
             kernel = "gaussian_clim",
             theta = 0.5,
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expected_cols <- c("weighted_mean_biomass", "weighted_mean_richness",
@@ -385,8 +374,7 @@ test_that("se works with multiple y variables for regression", {
             max_geog = 2,
             kernel = "uniform",
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       expected_cols <- c(
@@ -417,8 +405,7 @@ test_that("analog_regression passes se through", {
             max_clim = 2,
             max_geog = 2,
             kernel = "uniform",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
       se_cols_none <- grep("^se_", names(r_none), value = TRUE)
       expect_length(se_cols_none, 0)
@@ -433,8 +420,7 @@ test_that("analog_regression passes se through", {
             max_geog = 2,
             kernel = "uniform",
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
       expect_true("se_intercept" %in% names(r_ess))
       expect_true("se_cov1" %in% names(r_ess))
@@ -456,8 +442,7 @@ test_that("analog_impact passes se through", {
             kernel = "gaussian_clim",
             theta = 0.5,
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
       expect_true("se_weighted_mean" %in% names(r_ess))
 })
@@ -484,8 +469,7 @@ test_that("regression SE is NA when system is singular", {
             max_geog = 0.0001,
             kernel = "uniform",
             se = "ess",
-            coord_type = "projected",
-            index_res = 10
+            coord_type = "projected"
       )
 
       zero_rows <- result$count == 0
@@ -514,8 +498,7 @@ test_that("invalid se value is rejected", {
                   max_geog = 2,
                   kernel = "uniform",
                   se = "bogus",
-                  coord_type = "projected",
-                  index_res = 10
+                  coord_type = "projected"
             )
       )
 })

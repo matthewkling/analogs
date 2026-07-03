@@ -5,7 +5,7 @@
 #include "lattice.h"
 #include "metrics.h"
 #include "types.h"
-// #include "profiling.h"
+#include "profiling.h"
 #include "geometry.h"
 #include "climate.h"
 #include "weights.h"
@@ -20,7 +20,8 @@ using namespace Rcpp;
 using namespace analogs;
 using namespace RcppParallel;
 
-// namespace analogs { thread_local ProfileTimer g_profiler; }
+// The profiler's thread-local storage is provided via an inline accessor in
+// profiling.h (analogs::profiler()); no definition is needed here.
 
 
 // =========================================================================
@@ -30,7 +31,8 @@ using namespace RcppParallel;
 // [[Rcpp::export]]
 SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                             const std::string& coord_type,
-                            int index_res,
+                            double geo_target,
+                            double clim_target,
                             double downsample,
                             unsigned int seed)
 {
@@ -139,7 +141,9 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             lattice_stride = n_ref;
       }
 
-      // Build lattice (always index both geo and climate dimensions)
+      // Build lattice; each family's bin target is supplied by R (computed
+      // from the per-family resolution adjustments and occupancy default; a
+      // target <= 1 deactivates that family).
       MetricType metric = use_ecef ? MetricType::Chord3D : MetricType::Planar;
 
       lattice->build(
@@ -153,9 +157,8 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                   false,
                   std::vector<double>(),
                   std::numeric_limits<double>::infinity(),
-                  index_res,
-                  true,       // use_geo_lattice
-                  true,       // use_clim_lattice
+                  geo_target,    // from R (per-family target; <=1 = off)
+                  clim_target,   // from R (per-family target; <=1 = off)
                   downsample, // NEW
                   seed        // NEW
       );
@@ -170,6 +173,13 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             ecef_xptr = XPtr< std::vector<double> >(ecef_copy, true);
       }
 
+      // Realized per-axis bin counts (geo axes first, then climate), so the
+      // R layer can report the geo/climate resolution split.
+      IntegerVector bins_per_axis(lattice->n_dims);
+      for (size_tu d = 0; d < lattice->n_dims; ++d) {
+            bins_per_axis[d] = static_cast<int>(lattice->n_bins[d]);
+      }
+
       // Return list with lattice Xptr and metadata
       List result = List::create(
             Named("lattice_xptr") = lattice_xptr,
@@ -177,7 +187,9 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             Named("coord_type") = coord_type,
             Named("n_pool") = n_ref,
             Named("n_clim") = n_clim,
-            Named("index_res") = index_res,
+            Named("geo_target") = geo_target,
+            Named("clim_target") = clim_target,
+            Named("bins_per_axis") = bins_per_axis,
             Named("coord_mins") = coord_mins,
             Named("coord_maxs") = coord_maxs,
             Named("clim_mins") = clim_mins,
@@ -476,7 +488,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               out_area_weights,
                               out_user_weights);
 
+            ANALOGS_PROFILE_RESET();
             parallelFor(0, static_cast<std::size_t>(n_focal), worker);
+            ANALOGS_PROFILE_REPORT("PairWorker (pairs/knn)");
 
             // Handle k=1 NA cases - need to add weight too
             if (k == 1 && (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG)) {
@@ -675,7 +689,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               agg_vals,
                               n_total_cols);
 
+            ANALOGS_PROFILE_RESET();
             parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
+            ANALOGS_PROFILE_REPORT("AggWorker (count/mean/regression)");
 
             // Convert flat vector to matrix: n_focal rows x n_total_cols columns
             NumericMatrix agg(n_focal, n_total_cols);

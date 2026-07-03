@@ -77,6 +77,16 @@
 #'     \item{`total_bins`, `n_bins_nonempty`, `min_bin_occupancy`,
 #'       `max_bin_occupancy`, `avg_bin_occupancy`,
 #'       `avg_nonempty_bin_occupancy`}{Lattice occupancy summaries.}
+#'     \item{`clim_res_adj`, `geog_res_adj`}{Per-family resolution
+#'       adjustments used to build the index: each scales its family's bin
+#'       count relative to a data-dependent default (`1` = default, `0` =
+#'       deactivated). See [build_analog_index()].}
+#'     \item{`clim_target`, `geo_target`}{Realized per-family bin-count
+#'       targets passed to the lattice builder (the absolute values the
+#'       `*_res_adj` resolve to).}
+#'     \item{`bins_per_axis`}{Integer vector of realized bins per axis
+#'       (geographic axes first, then climate), showing how the budget was
+#'       distributed.}
 #'   }
 #'
 #'   ## Cross-validation metadata
@@ -139,6 +149,7 @@ metadata <- function(x) {
             "binning_method", "total_bins", "n_bins_nonempty",
             "min_bin_occupancy", "max_bin_occupancy",
             "avg_bin_occupancy", "avg_nonempty_bin_occupancy",
+            "geog_res_adj", "clim_res_adj", "geo_target", "clim_target", "bins_per_axis",
             # Cross-validation
             "cv_method", "cv_fun", "cv_n_folds", "cv_pred_target"
       )

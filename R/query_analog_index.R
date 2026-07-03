@@ -386,6 +386,7 @@ query_analog_index <- function(x,
             for (nm in names(cpp_attrs)) {
                   attr(out, nm) <- cpp_attrs[[nm]]
             }
+            out <- .attach_index_res_attrs(out, index)
 
             # Pair-mode normalization is not currently defined; attach
             # normalize attribute for transparency but no D_max.
@@ -570,6 +571,7 @@ query_analog_index <- function(x,
       for (nm in names(cpp_attrs)) {
             attr(out, nm) <- cpp_attrs[[nm]]
       }
+      out <- .attach_index_res_attrs(out, index)
 
       # Apply D_max normalization to sum_weights and tabulate columns,
       # if requested AND if a normalizable stat is present. The
@@ -592,6 +594,24 @@ query_analog_index <- function(x,
                             lambda, se, exclude_self, index$downsample_actual,
                             cell_area_weight_applied = emit_area_weight,
                             weight_provided = emit_user_weight))
+}
+
+
+#' Internal helper: attach index resolution parameters as result attributes
+#'
+#' Copies the lattice resolution knobs and realized bin layout from the
+#' `analog_index` object onto a query result, so they surface via
+#' [metadata()]. These are properties of the index (set at build time),
+#' reused here rather than recomputed. Missing fields (e.g. on legacy index
+#' objects) are simply skipped.
+#'
+#' @keywords internal
+.attach_index_res_attrs <- function(out, index) {
+      for (nm in c("geog_res_adj", "clim_res_adj", "geo_target", "clim_target", "bins_per_axis")) {
+            val <- index[[nm]]
+            if (!is.null(val)) attr(out, nm) <- val
+      }
+      out
 }
 
 

@@ -1,50 +1,52 @@
 #' Tune Index Resolution
 #'
-#' Automatically finds the optimal lattice index resolution for your data and
-#' query pattern using adaptive bracketing search. Runs test queries with
-#' different resolutions and recommends the one with the fastest compute speed.
+#' Automatically finds fast per-family lattice resolution adjustments
+#' (`geog_res_adj`, `clim_res_adj`) for your data and query pattern. Uses
+#' alternating coordinate descent (Gibbs-style): each active family's
+#' resolution is optimized in turn (holding the other fixed) via an
+#' expanding-bracket 1-D search, sweeping back and forth until the selected
+#' adjustments stop changing.
 #'
 #' @inheritParams analog_search
 #' @inheritParams build_analog_index
 #'
-#' @param default_res Default resolution to use as starting point for search.
-#'   Default is 16.
-#' @param verbose Logical; if TRUE, print the selected resolution. Default is FALSE.
+#' @param verbose Logical; if TRUE, print search progress. Default FALSE.
 #'
-#' @return An integer giving the recommended index resolution (bins per dimension).
+#' @return A list with elements `geog_res_adj` and `clim_res_adj` giving the
+#'   recommended per-family resolution adjustments. A family that is inactive
+#'   on entry (adjustment of 0, i.e. deactivated) is returned unchanged.
 #'
 #' @details
-#' The function uses an adaptive bracketing algorithm:
-#' \enumerate{
-#'   \item Starts with three resolutions: default/2, default, default*2
-#'   \item Evaluates elapsed time for each
-#'   \item If minimum is at an edge, expands search in that direction
-#'   \item Returns resolution with lowest elapsed time
-#' }
+#' Each family's 1-D search starts from its current adjustment and expands a
+#' multiplicative bracket (halving or doubling) in the direction of decreasing
+#' compute time until an interior minimum is bracketed (time decreases then
+#' increases) or a bound is reached. Adjustments are constrained to the range
+#' \[1/32, 32\]. The outer loop alternates between families until a full sweep
+#' leaves both selections unchanged (convergence) or a sweep cap is reached.
 #'
-#' This typically requires only 3-5 query evaluations total, making it much
-#' faster than exhaustive grid search.
-#'
-#' The function only performs tuning for non-trivial problem sizes (>2000 focal
-#' points). For smaller datasets, it returns the default resolution.
+#' Only families that are active (non-zero adjustment) on entry are tuned; a
+#' deactivated family is skipped and passed through. If neither family is
+#' active, or the problem is small (<= 2000 focal points), the inputs are
+#' returned unchanged.
 #'
 #' A subsample of focal points is used for benchmarking to keep tuning fast
 #' while still being representative of actual query performance.
 #'
 #' @examples
 #' \dontrun{
-#' # Find optimal resolution for velocity queries
-#' optimal_res <- tune_index_res(
+#' # Tune per-family resolution for an availability query (both families active)
+#' adj <- tune_index_res(
 #'   x = sample_sites,
 #'   pool = climate_data,
-#'   select = "knn_geog",
-#'   stat = NULL,
+#'   select = "all",
+#'   stat = "count",
 #'   max_clim = 0.5,
-#'   k = 1
+#'   max_geog = 100
 #' )
 #'
-#' # Use the optimized resolution
-#' index <- build_analog_index(climate_data, index_res = optimal_res)
+#' index <- build_analog_index(climate_data,
+#'                             geog_res_adj = adj$geog_res_adj,
+#'                             clim_res_adj = adj$clim_res_adj)
 #' }
 #'
 #' @export
@@ -65,66 +67,70 @@ tune_index_res <- function(x,
                            lambda = 0,
                            se = c("none", "ess", "design"),
                            coord_type = c("auto", "lonlat", "projected"),
+                           geog_res_adj = 1,
+                           clim_res_adj = 1,
                            n_threads = NULL,
-                           default_res = 16L,
                            verbose = FALSE) {
 
       se <- match.arg(se)
 
-      if(is.null(seed)) seed <- .Random.seed[1]
+      if (is.null(seed)) seed <- .Random.seed[1]
       set.seed(seed)
 
-      # Helper: detect monotonic timings with a tolerance
-      is_strict_monotonic <- function(x, tol = 0.15) {
-            if (length(x) < 3L) return(FALSE)
-            dx <- diff(x)
-            # strictly decreasing or increasing, with relative tolerance
-            all(dx <= -tol * abs(x[-length(x)])) ||
-                  all(dx >=  tol * abs(x[-length(x)]))
+      # Bounds on the per-family resolution adjustment during search.
+      ADJ_MIN <- 1 / 32
+      ADJ_MAX <- 32
+      MAX_SWEEPS <- 5L
+
+      # Which families are active (non-zero adj = tunable); deactivated families
+      # (adj == 0) are passed through untouched.
+      geo_active  <- is.numeric(geog_res_adj) && geog_res_adj > 0
+      clim_active <- is.numeric(clim_res_adj) && clim_res_adj > 0
+
+      result <- list(geog_res_adj = geog_res_adj, clim_res_adj = clim_res_adj)
+
+      # Nothing to tune if neither family is active.
+      if (!geo_active && !clim_active) {
+            if (verbose) message("No active families to tune; returning inputs.")
+            return(result)
       }
 
       focal <- .format_data(x)
       n_focal <- nrow(focal)
 
-      # Only tune for non-trivial problem sizes
+      # Only tune for non-trivial problem sizes.
       if (n_focal <= 2000L) {
             if (verbose) {
                   message("Dataset too small for tuning (n=", n_focal,
-                          "); using default resolution of ", default_res, ".")
+                          "); returning input adjustments.")
             }
-            return(as.integer(default_res))
+            return(result)
       }
 
-      # Subsample focal sites for faster benchmarking
+      # Subsample focal sites for faster benchmarking.
       n_samp <- min(1000L, max(100L, as.integer(n_focal * 0.01)))
       idx    <- sample.int(n_focal, n_samp)
       focal_samp <- focal[idx, , drop = FALSE]
       attr(focal_samp, "template") <- attr(focal, "template")
 
-      # Subsample x_cov if provided
-      x_cov_mat <- x_cov
       x_cov_samp <- NULL
-      if (!is.null(x_cov_mat)) {
-            x_cov_samp <- x_cov_mat[idx, , drop = FALSE]
+      if (!is.null(x_cov)) {
+            x_cov_samp <- x_cov[idx, , drop = FALSE]
       }
 
-      # Helper to evaluate timing for a given index_res
-      eval_time <- function(r) {
-            r <- as.integer(max(1L, r))  # ensure valid
-
-            # Build index with this resolution
+      # Evaluate elapsed query time for a given (geo_adj, clim_adj) pair.
+      eval_time <- function(geo_adj, clim_adj) {
             index <- build_analog_index(
                   pool = pool,
                   coord_type = coord_type,
                   cell_area_weight = FALSE,
-                  index_res = r,
+                  geog_res_adj = geo_adj,
+                  clim_res_adj = clim_adj,
                   downsample = downsample,
                   seed = seed
             )
-
-            # Time the query
             st <- system.time({
-                  result <- query_analog_index(
+                  query_analog_index(
                         x = focal_samp,
                         index = index,
                         select = select,
@@ -142,90 +148,115 @@ tune_index_res <- function(x,
                         n_threads = n_threads
                   )
             })
-
             st[["elapsed"]]
       }
 
-      # Start from heuristic center
-      r0 <- as.integer(default_res)
-      r_vals <- c(r0 %/% 2L, r0, r0 * 2L)
-      r_vals <- unique(r_vals[r_vals > 0L])
+      # Memoized timing cache keyed on the rounded (geo, clim) adjustment pair,
+      # so re-evaluating a point across sweeps costs nothing.
+      cache <- new.env(parent = emptyenv())
+      key_of <- function(g, c) sprintf("%.6g|%.6g", g, c)
+      timed <- function(g, c) {
+            key <- key_of(g, c)
+            if (!is.null(cache[[key]])) return(cache[[key]])
+            val <- eval_time(g, c)
+            cache[[key]] <- val
+            val
+      }
 
-      # Evaluate initial bracket
+      # 1-D search over ONE family's adjustment, holding the other fixed.
+      # `family` is "geo" or "clim"; `cur` is that family's current adjustment;
+      # `other` is the fixed adjustment of the other family. Expands a
+      # multiplicative bracket from `cur` toward decreasing time until an
+      # interior minimum is bracketed or a bound is hit; returns the best adj.
+      optimize_family <- function(family, cur, other) {
+            eval_at <- function(a) {
+                  if (family == "geo") timed(a, other) else timed(other, a)
+            }
+
+            cur <- min(ADJ_MAX, max(ADJ_MIN, cur))
+            t_cur  <- eval_at(cur)
+
+            # Probe both neighbors (one doubling each way) to pick a direction.
+            lo <- max(ADJ_MIN, cur / 2)
+            hi <- min(ADJ_MAX, cur * 2)
+            t_lo <- if (lo < cur) eval_at(lo) else Inf
+            t_hi <- if (hi > cur) eval_at(hi) else Inf
+
+            if (verbose) {
+                  message(sprintf("  [%s] center adj=%.3g (%.3fs); down=%.3g (%.3fs) up=%.3g (%.3fs)",
+                                  family, cur, t_cur, lo, t_lo, hi, t_hi))
+            }
+
+            # If center is already a local min, done.
+            if (t_cur <= t_lo && t_cur <= t_hi) {
+                  return(cur)
+            }
+
+            # Expand in the better direction until time turns back up or bound hit.
+            if (t_lo < t_hi) {
+                  # Descend by halving.
+                  best_a <- lo; best_t <- t_lo; a <- lo
+                  while (a > ADJ_MIN) {
+                        a_next <- max(ADJ_MIN, a / 2)
+                        if (a_next == a) break
+                        t_next <- eval_at(a_next)
+                        if (verbose) message(sprintf("    down adj=%.3g (%.3fs)", a_next, t_next))
+                        if (t_next >= best_t) break     # passed the minimum
+                        best_a <- a_next; best_t <- t_next; a <- a_next
+                  }
+                  best_a
+            } else {
+                  # Descend by doubling.
+                  best_a <- hi; best_t <- t_hi; a <- hi
+                  while (a < ADJ_MAX) {
+                        a_next <- min(ADJ_MAX, a * 2)
+                        if (a_next == a) break
+                        t_next <- eval_at(a_next)
+                        if (verbose) message(sprintf("    up adj=%.3g (%.3fs)", a_next, t_next))
+                        if (t_next >= best_t) break     # passed the minimum
+                        best_a <- a_next; best_t <- t_next; a <- a_next
+                  }
+                  best_a
+            }
+      }
+
+      # Alternating coordinate descent (Gibbs-style): optimize each active
+      # family in turn (geo first, as the higher-leverage lever), holding the
+      # other fixed, sweeping until neither selection changes or the cap is hit.
+      geo_adj  <- if (geo_active)  min(ADJ_MAX, max(ADJ_MIN, geog_res_adj)) else geog_res_adj
+      clim_adj <- if (clim_active) min(ADJ_MAX, max(ADJ_MIN, clim_res_adj)) else clim_res_adj
+
+      converged <- FALSE
+      for (sweep in seq_len(MAX_SWEEPS)) {
+            if (verbose) message(sprintf("Sweep %d:", sweep))
+            changed <- FALSE
+
+            if (geo_active) {
+                  new_geo <- optimize_family("geo", geo_adj, clim_adj)
+                  if (!isTRUE(all.equal(new_geo, geo_adj))) changed <- TRUE
+                  geo_adj <- new_geo
+            }
+            if (clim_active) {
+                  new_clim <- optimize_family("clim", clim_adj, geo_adj)
+                  if (!isTRUE(all.equal(new_clim, clim_adj))) changed <- TRUE
+                  clim_adj <- new_clim
+            }
+
+            if (!changed) { converged <- TRUE; break }
+      }
+
       if (verbose) {
-            message("Evaluating initial bracket: {", paste(r_vals, collapse = ", "), "}")
-      }
-      times <- vapply(r_vals, eval_time, numeric(1))
-      if (verbose) {
-            message("  Times: {", paste(sprintf("%.3f", times), collapse = ", "), "} sec")
-      }
-
-      # One-step adaptive refinement
-      best_idx <- which.min(times)
-      best_r   <- r_vals[best_idx]
-
-      if (best_idx == 1L && length(r_vals) > 1L) {
-            # best is smallest → try halving again
-            r_try <- max(1L, best_r %/% 2L)
-            if (verbose) {
-                  message("Minimum at lower edge; trying r=", r_try)
+            if (converged) {
+                  message(sprintf("Converged: geog_res_adj=%.3g clim_res_adj=%.3g",
+                                  geo_adj, clim_adj))
+            } else {
+                  message(sprintf("Reached sweep cap (%d) without full convergence; ",
+                                  MAX_SWEEPS),
+                          sprintf("using geog_res_adj=%.3g clim_res_adj=%.3g",
+                                  geo_adj, clim_adj))
             }
-            t_try <- eval_time(r_try)
-            if (verbose) {
-                  message("  Time: ", sprintf("%.3f", t_try), " sec")
-            }
-            r_vals <- c(r_try, r_vals)
-            times  <- c(t_try, times)
-
-      } else if (best_idx == length(r_vals) && length(r_vals) > 1L) {
-            # best is largest → try doubling again
-            r_try <- best_r * 2L
-            if (verbose) {
-                  message("Minimum at upper edge; trying r=", r_try)
-            }
-            t_try <- eval_time(r_try)
-            if (verbose) {
-                  message("  Time: ", sprintf("%.3f", t_try), " sec")
-            }
-            r_vals <- c(r_vals, r_try)
-            times  <- c(times, t_try)
       }
 
-      # Recompute best after any refinement
-      best_idx <- which.min(times)
-      best_r   <- r_vals[best_idx]
-
-      # Sort evaluated points by r for monotonicity check
-      o      <- order(r_vals)
-      r_eval <- r_vals[o]
-      t_eval <- times[o]
-
-      # Check if we're in a k=1 velocity scenario (where tuning matters less)
-      is_k1_velocity <- (select == "knn_geog" &&
-                               !is.null(k) &&
-                               is.numeric(k) &&
-                               k == 1L)
-
-      # Optional: warn if timings are monotonic in a meaningful regime
-      if (length(t_eval) >= 4L &&
-          r_eval[1] != 1 &&
-          n_samp >= 300L &&
-          !is_k1_velocity &&
-          is_strict_monotonic(t_eval)) {
-            warning(
-                  "Auto-tuning of index_res did not detect an interior minimum; ",
-                  "elapsed times were monotonic across tested values {",
-                  paste(r_eval, collapse = ", "),
-                  "} (fastest listed first). The optimal index_res may lie outside this range. ",
-                  "Consider manually specifying `index_res`, or re-running `tune_index_res()` ",
-                  "with `default_res = ", r_eval[1], "`."
-            )
-      }
-
-      r <- as.integer(best_r)
-      if (verbose) {
-            message("\nSelected resolution: ", r, " (", sprintf("%.3f", times[best_idx]), " sec)")
-      }
-
-      return(r)
+      list(geog_res_adj = as.numeric(geo_adj),
+           clim_res_adj = as.numeric(clim_adj))
 }

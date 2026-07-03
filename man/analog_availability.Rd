@@ -12,7 +12,8 @@ analog_availability(
   coord_type = "auto",
   max_clim = NULL,
   max_geog = NULL,
-  index_res = "auto",
+  clim_res_adj = "auto",
+  geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
   downsample = 1,
@@ -86,21 +87,25 @@ within this distance are considered. Radius units should be specified in
 kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
 if \code{coord_type = "projected"}.}
 
-\item{index_res}{Tuning parameter giving the number of bins per dimension
-of the internally-used lattice search index. Either:
+\item{clim_res_adj, geog_res_adj}{Control the lattice search-index resolution
+of the climate and geographic families, each a multiplier on a
+data-dependent default (targeting ~50 pool points per occupied bin, split
+between families by effective dimensionality, so it scales with pool size).
+Each is either:
 \itemize{
-\item A positive integer.
-\item \code{"auto"} (the default): Automatically tune the index resolution
+\item A non-negative number: \code{1} uses the default for that family, larger
+values are finer, smaller are coarser, and \code{0} deactivates it.
+\item \code{"auto"} (the default for both): tune a single overall resolution scale
 by optimizing compute time on a subsample of focal points. If focal has
-relatively few rows, auto-tuning is skipped and a default resolution of
-16 is used. Auto-tuning is \strong{not supported} when \code{downsample < 1},
-because the speed-optimal resolution can sometimes result in higher
-uncertainty of stat results under downsampling. In that case set
-\code{index_res} explicitly; finer values (e.g. 32) generally give better
-accuracy at the possible cost of query speed.
+relatively few rows, tuning is skipped. Not supported when
+\code{downsample < 1} (set explicit numeric values instead).
 }
 
-Ignored if \code{pool} is an \code{analog_index} (uses index's resolution).}
+A family that the query does not constrain (no corresponding \verb{max_*} and
+not the knn sort key) is \strong{automatically deactivated}, overriding any
+explicit value (with a message), since binning an unconstrained family
+only costs time. Ignored if \code{pool} is an \code{analog_index} (uses the index's
+resolution).}
 
 \item{cell_area_weight}{Controls cell-area weighting when \code{pool} is a raster.
 One of \code{"auto"} (default; on for raster pools, off otherwise), \code{TRUE}
@@ -120,9 +125,9 @@ is used (see \code{RcppParallel::setThreadOptions}).}
 \item{downsample}{Optional downsampling rate (0-1) for the reference pool,
 indicating the proportion of points to retain. Values < 1 reduce memory
 and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, \code{index_res}
-must be set explicitly (auto-tuning is not supported in this case; see
-the \code{index_res} parameter for details).}
+Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, resolution
+must be set explicitly via \code{geog_res_adj} / \code{clim_res_adj} (auto-tuning is
+not supported in this case; see those parameters for details).}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
 (default), uses current R random state. Ignored if \code{pool} is a pre-built

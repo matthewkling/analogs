@@ -34,6 +34,152 @@ inline bool row_has_nan(const double* ref_ptr,
       return false;
 }
 
+// ---------------------------------------------------------------------------
+// Allocate per-axis bin counts from a TOTAL bin-count target.
+//
+// Inputs:
+//   range         per-axis range (max-min); length n_dims. 0 = degenerate axis.
+//   n_geo_dims    number of leading geographic axes (stored count)
+//   geo_target    target total bin count for the GEOGRAPHIC family (product of
+//                 its per-axis counts ~= this). <= 1 deactivates the family
+//                 (every geo axis gets 1 bin).
+//   clim_target   target total bin count for the CLIMATE family, same meaning.
+//
+// Output:
+//   n_bins_out    per-axis integer bin counts (>=1). Geo axes' product ~=
+//                 geo_target, climate axes' product ~= clim_target.
+//
+// Method (independent per-family allocation):
+//   Geographic axes share a distance metric; climate axes share a distance
+//   metric; the two families do NOT share a metric, and each family's total
+//   bin target is now supplied directly by the caller (R computes it from the
+//   per-family resolution adjustment and the occupancy-based default, including
+//   the ECEF effective-dimensionality correction). So there is no cross-family
+//   budget split here — each family is allocated INDEPENDENTLY:
+//     1. Distribute the family target across its axes so bin width is
+//        proportional to range (relative, via family-mean-centered log range);
+//        a search radius then spans a comparable bin-count on every axis.
+//     2. Round to integers (floor 1), then reconcile the family's realized
+//        product toward its target by walking in log space and keeping the
+//        closest-achievable configuration (integer products are sparse at low
+//        counts, so exact hits aren't always possible).
+//   A target <= 1 leaves that family at 1 bin/axis (deactivation).
+inline void allocate_bins(const std::vector<double>& range,
+                          size_tu n_geo_dims,
+                          double geo_target,
+                          double clim_target,
+                          std::vector<size_tu>& n_bins_out) {
+      const size_tu n_dims = range.size();
+      n_bins_out.assign(n_dims, 1);
+
+      // Partition axes into families.
+      std::vector<size_tu> geo_ax, clim_ax;
+      for (size_tu d = 0; d < n_dims; ++d) {
+            if (d < n_geo_dims) geo_ax.push_back(d);
+            else                clim_ax.push_back(d);
+      }
+
+      // Allocate one family independently: distribute `target` across `fam`
+      // axes with bin width proportional to range, then reconcile the realized
+      // product toward `target` (closest achievable in log space). target <= 1
+      // leaves the family at 1 bin/axis.
+      auto allocate_family = [&](const std::vector<size_tu>& fam, double target) {
+            const size_tu nf = fam.size();
+            if (nf == 0) return;
+            if (!(target > 1.0)) return;  // deactivated / trivial: 1 bin/axis
+
+            // Reference range for degenerate axes: median positive range.
+            std::vector<double> pos;
+            pos.reserve(nf);
+            for (size_tu d : fam)
+                  if (std::isfinite(range[d]) && range[d] > 0.0)
+                        pos.push_back(range[d]);
+            double range_ref = 1.0;
+            if (!pos.empty()) {
+                  std::sort(pos.begin(), pos.end());
+                  range_ref = pos[pos.size() / 2];
+            }
+
+            // Family-mean-centered log range; log-count = logT/nf + (lr - mean).
+            const double logT = std::log(target);
+            std::vector<double> lr(nf);
+            double mean_lr = 0.0;
+            for (size_tu i = 0; i < nf; ++i) {
+                  double r = (std::isfinite(range[fam[i]]) && range[fam[i]] > 0.0)
+                  ? range[fam[i]] : range_ref;
+                  lr[i] = std::log(r);
+                  mean_lr += lr[i];
+            }
+            mean_lr /= static_cast<double>(nf);
+
+            const double base = logT / static_cast<double>(nf);
+            std::vector<double> real(nf, 1.0);
+            for (size_tu i = 0; i < nf; ++i) {
+                  double c = std::exp(base + (lr[i] - mean_lr));
+                  if (!(c >= 1.0)) c = 1.0;
+                  real[i] = c;
+            }
+
+            // Round to integers, floor 1.
+            for (size_tu i = 0; i < nf; ++i) {
+                  long r = std::lround(real[i]);
+                  if (r < 1) r = 1;
+                  n_bins_out[fam[i]] = static_cast<size_tu>(r);
+            }
+
+            // Reconcile realized product toward target in log space, keeping the
+            // closest-achievable configuration seen.
+            auto log_product = [&]() {
+                  double lp = 0.0;
+                  for (size_tu i = 0; i < nf; ++i)
+                        lp += std::log(static_cast<double>(n_bins_out[fam[i]]));
+                  return lp;
+            };
+
+            std::vector<size_tu> best_cfg(nf);
+            for (size_tu i = 0; i < nf; ++i) best_cfg[i] = n_bins_out[fam[i]];
+            double best_dist = std::fabs(log_product() - logT);
+
+            const int max_fixup = 1024;
+            for (int iter = 0; iter < max_fixup; ++iter) {
+                  const double lp = log_product();
+                  const double dist = std::fabs(lp - logT);
+                  if (dist < best_dist) {
+                        best_dist = dist;
+                        for (size_tu i = 0; i < nf; ++i) best_cfg[i] = n_bins_out[fam[i]];
+                  }
+
+                  if (lp < logT) {
+                        // Grow axis furthest below its real target.
+                        size_tu best = 0; double best_gain = -std::numeric_limits<double>::infinity();
+                        for (size_tu i = 0; i < nf; ++i) {
+                              double gain = real[i] / static_cast<double>(n_bins_out[fam[i]]);
+                              if (gain > best_gain) { best_gain = gain; best = i; }
+                        }
+                        n_bins_out[fam[best]] += 1;
+                  } else {
+                        // Shrink axis furthest above its real target, never below 1.
+                        size_tu best = 0; bool found = false;
+                        double best_excess = -std::numeric_limits<double>::infinity();
+                        for (size_tu i = 0; i < nf; ++i) {
+                              if (n_bins_out[fam[i]] <= 1) continue;
+                              double excess = static_cast<double>(n_bins_out[fam[i]]) / real[i];
+                              if (excess > best_excess) { best_excess = excess; best = i; found = true; }
+                        }
+                        if (!found) break;
+                        n_bins_out[fam[best]] -= 1;
+                  }
+
+                  if (dist < 1e-9) break;
+            }
+
+            for (size_tu i = 0; i < nf; ++i) n_bins_out[fam[i]] = best_cfg[i];
+      };
+
+      allocate_family(geo_ax,  geo_target);
+      allocate_family(clim_ax, clim_target);
+}
+
 // Bin structure: stores point IDs and sampling weight
 struct Bin {
       std::vector<index_t> point_ids;
@@ -88,7 +234,13 @@ public:
               n_cells_nonempty(0),
               downsample_actual(1.0) {}
 
-      // Build lattice over all dims with optional downsampling
+      // Build lattice over all dims with optional downsampling.
+      //
+      // Bin allocation is driven by two per-family bin-count targets
+      // (geo_target, clim_target), computed R-side from the per-family
+      // resolution adjustments and the occupancy default. Each family is
+      // allocated independently across its axes (bin width proportional to
+      // range). A target <= 1 deactivates that family (1 bin/axis).
       void build(const double* ref_ptr,
                  size_tu n_ref,
                  size_tu n_geo,
@@ -99,9 +251,8 @@ public:
                  bool use_scalar_clim,
                  const std::vector<double>& max_clim_pervar,
                  double max_clim_scalar,
-                 int bins_per_dim,
-                 bool use_geo_lattice,
-                 bool use_clim_lattice,
+                 double geo_target,
+                 double clim_target,
                  double downsample_rate = 1.0,
                  unsigned int seed = 0);
 
@@ -169,9 +320,8 @@ inline void Lattice::build(const double* ref_ptr,
                            bool use_scalar_clim,
                            const std::vector<double>& max_clim_pervar,
                            double max_clim_scalar,
-                           int    bins_per_dim,
-                           bool   use_geo_lattice,
-                           bool   use_clim_lattice,
+                           double geo_target,
+                           double clim_target,
                            double downsample_rate,
                            unsigned int seed) {
       metric_type    = metric;
@@ -200,7 +350,7 @@ inline void Lattice::build(const double* ref_ptr,
       // Skip rows containing any NaN (defensive guard; R-side should have
       // already stripped NA pool rows). Track whether we've seen any valid
       // row so we initialize mins/maxs from the first valid (not the first
-      // overall) row.
+      // overall) row. Per-axis RANGE (max-min) feeds the bin allocation.
       bool initialized = false;
       for (size_tu j = 0; j < n_ref; ++j) {
             if (row_has_nan(ref_ptr, j, stride_r, n_dims)) continue;
@@ -237,35 +387,28 @@ inline void Lattice::build(const double* ref_ptr,
       // resulting in an empty lattice. Downstream queries should return
       // empty results / NA outputs for all focals.
 
-      // Choose per-dimension bin widths and bin counts.
+      // Choose per-dimension bin counts from the two per-family targets.
       //
-      // - bins_per_dim > 0: requested resolution for *active* dims
-      // - inactive dims get a single bin (no partitioning)
-      size_tu B = (bins_per_dim > 0)
-            ? static_cast<size_tu>(bins_per_dim)
-                  : static_cast<size_tu>(10);
-
+      // R supplies geo_target and clim_target directly (computed from the
+      // per-family resolution adjustments, the occupancy default, and the ECEF
+      // effective-dimensionality correction). allocate_bins distributes each
+      // family's target across its axes with bin width proportional to axis
+      // range. A target <= 1 leaves that family at 1 bin/axis (deactivation).
+      std::vector<double> range_v(n_dims, 0.0);
       for (size_tu d = 0; d < n_dims; ++d) {
             double span = maxs[d] - mins[d];
+            range_v[d] = (span > 0.0) ? span : 0.0;
+      }
 
-            bool active = false;
-            if (d < n_geo_dims) {
-                  active = use_geo_lattice;
-            } else {
-                  active = use_clim_lattice;
-            }
+      allocate_bins(range_v, n_geo_dims, geo_target, clim_target, n_bins);
 
-            if (!active) {
-                  // Dimension not used in lattice: single bin.
-                  n_bins[d] = 1;
-                  res[d]    = (span > 0.0) ? span : 1.0;
-            } else {
-                  // Active dimension: equal-width bins_per_dim.
-                  n_bins[d] = (B > 0) ? B : 1;
-                  res[d]    = (span > 0.0 && n_bins[d] > 0)
-                        ? (span / static_cast<double>(n_bins[d]))
-                        : 1.0;
-            }
+      // Derive per-axis bin width (res) from the allocated counts and span.
+      for (size_tu d = 0; d < n_dims; ++d) {
+            double span = maxs[d] - mins[d];
+            if (n_bins[d] < 1) n_bins[d] = 1;   // floor of 1 bin per dimension
+            res[d] = (span > 0.0 && n_bins[d] > 0)
+                  ? (span / static_cast<double>(n_bins[d]))
+                  : 1.0;
       }
 
       // Compute strides and total number of bins.
