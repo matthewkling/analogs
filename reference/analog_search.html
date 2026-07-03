@@ -69,7 +69,8 @@ then optionally aggregating the results.</p>
 <span>  coord_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"lonlat"</span>, <span class="st">"projected"</span><span class="op">)</span>,</span>
 <span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  index_res <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  geog_res_adj <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  clim_res_adj <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  mean_cell_area <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -300,9 +301,9 @@ assumes <code>max_geog</code> is in projection units).</p></li>
 <dd><p>Optional downsampling rate (0-1) for the reference pool,
 indicating the proportion of points to retain. Values &lt; 1 reduce memory
 and improve speed at some cost to precision. Default is 1.0 (no downsampling).
-Ignored if <code>pool</code> is a pre-built index. When <code>downsample &lt; 1</code>, <code>index_res</code>
-must be set explicitly (auto-tuning is not supported in this case; see
-the <code>index_res</code> parameter for details).</p></dd>
+Ignored if <code>pool</code> is a pre-built index. When <code>downsample &lt; 1</code>, resolution
+must be set explicitly via <code>geog_res_adj</code> / <code>clim_res_adj</code> (auto-tuning is
+not supported in this case; see those parameters for details).</p></dd>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
@@ -311,18 +312,22 @@ the <code>index_res</code> parameter for details).</p></dd>
 index or <code>downsample = 1</code>.</p></dd>
 
 
-<dt id="arg-index-res">index_res<a class="anchor" aria-label="anchor" href="#arg-index-res"></a></dt>
-<dd><p>Tuning parameter giving the number of bins per dimension
-of the internally-used lattice search index. Either:</p><ul><li><p>A positive integer.</p></li>
-<li><p><code>"auto"</code> (the default): Automatically tune the index resolution
+<dt id="arg-clim-res-adj-geog-res-adj">clim_res_adj, geog_res_adj<a class="anchor" aria-label="anchor" href="#arg-clim-res-adj-geog-res-adj"></a></dt>
+<dd><p>Control the lattice search-index resolution
+of the climate and geographic families, each a multiplier on a
+data-dependent default (targeting ~50 pool points per occupied bin, split
+between families by effective dimensionality, so it scales with pool size).
+Each is either:</p><ul><li><p>A non-negative number: <code>1</code> uses the default for that family, larger
+values are finer, smaller are coarser, and <code>0</code> deactivates it.</p></li>
+<li><p><code>"auto"</code> (the default for both): tune a single overall resolution scale
 by optimizing compute time on a subsample of focal points. If focal has
-relatively few rows, auto-tuning is skipped and a default resolution of
-16 is used. Auto-tuning is <strong>not supported</strong> when <code>downsample &lt; 1</code>,
-because the speed-optimal resolution can sometimes result in higher
-uncertainty of stat results under downsampling. In that case set
-<code>index_res</code> explicitly; finer values (e.g. 32) generally give better
-accuracy at the possible cost of query speed.</p></li>
-</ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
+relatively few rows, tuning is skipped. Not supported when
+<code>downsample &lt; 1</code> (set explicit numeric values instead).</p></li>
+</ul><p>A family that the query does not constrain (no corresponding <code>max_*</code> and
+not the knn sort key) is <strong>automatically deactivated</strong>, overriding any
+explicit value (with a message), since binning an unconstrained family
+only costs time. Ignored if <code>pool</code> is an <code>analog_index</code> (uses the index's
+resolution).</p></dd>
 
 
 <dt id="arg-cell-area-weight">cell_area_weight<a class="anchor" aria-label="anchor" href="#arg-cell-area-weight"></a></dt>
@@ -405,7 +410,7 @@ define which analogs to <code>select</code> from the <code>pool</code> for each 
 (<code>stat</code>, <code>kernel</code>, <code>theta</code>, <code>lambda</code>, <code>se</code>, <code>normalize</code>)
 control how selected analogs are summarized.</p></li>
 <li><p><em>Computation parameters</em>
-(<code>n_threads</code>, <code>index_res</code>, <code>downsample</code>, <code>seed</code>, <code>progress</code>)
+(<code>n_threads</code>, <code>geog_res_adj</code>, <code>clim_res_adj</code>, <code>downsample</code>, <code>seed</code>, <code>progress</code>)
 specify behavior for controlling compute performance.</p></li>
 </ul></div>
 

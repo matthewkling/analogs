@@ -39,7 +39,8 @@ analog_regression(
   normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
-  index_res = "auto",
+  clim_res_adj = "auto",
+  geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
   progress = FALSE,
@@ -271,23 +272,27 @@ analog_regression(
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
 
-- index_res:
+- clim_res_adj, geog_res_adj:
 
-  Tuning parameter giving the number of bins per dimension of the
-  internally-used lattice search index. Either:
+  Control the lattice search-index resolution of the climate and
+  geographic families, each a multiplier on a data-dependent default
+  (targeting ~50 pool points per occupied bin, split between families by
+  effective dimensionality, so it scales with pool size). Each is
+  either:
 
-  - A positive integer.
+  - A non-negative number: `1` uses the default for that family, larger
+    values are finer, smaller are coarser, and `0` deactivates it.
 
-  - `"auto"` (the default): Automatically tune the index resolution by
-    optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution
-    of 16 is used. Auto-tuning is **not supported** when
-    `downsample < 1`, because the speed-optimal resolution can sometimes
-    result in higher uncertainty of stat results under downsampling. In
-    that case set `index_res` explicitly; finer values (e.g. 32)
-    generally give better accuracy at the possible cost of query speed.
+  - `"auto"` (the default for both): tune a single overall resolution
+    scale by optimizing compute time on a subsample of focal points. If
+    focal has relatively few rows, tuning is skipped. Not supported when
+    `downsample < 1` (set explicit numeric values instead).
 
-  Ignored if `pool` is an `analog_index` (uses index's resolution).
+  A family that the query does not constrain (no corresponding `max_*`
+  and not the knn sort key) is **automatically deactivated**, overriding
+  any explicit value (with a message), since binning an unconstrained
+  family only costs time. Ignored if `pool` is an `analog_index` (uses
+  the index's resolution).
 
 - cell_area_weight:
 

@@ -177,6 +177,22 @@ detail.</p>
 <code>avg_nonempty_bin_occupancy</code></dt>
 <dd><p>Lattice occupancy summaries.</p></dd>
 
+<dt><code>clim_res_adj</code>, <code>geog_res_adj</code></dt>
+<dd><p>Per-family resolution
+adjustments used to build the index: each scales its family's bin
+count relative to a data-dependent default (<code>1</code> = default, <code>0</code> =
+deactivated). See <code><a href="build_analog_index.html">build_analog_index()</a></code>.</p></dd>
+
+<dt><code>clim_target</code>, <code>geo_target</code></dt>
+<dd><p>Realized per-family bin-count
+targets passed to the lattice builder (the absolute values the
+<code>*_res_adj</code> resolve to).</p></dd>
+
+<dt><code>bins_per_axis</code></dt>
+<dd><p>Integer vector of realized bins per axis
+(geographic axes first, then climate), showing how the budget was
+distributed.</p></dd>
+
 
 </dl></div>
 

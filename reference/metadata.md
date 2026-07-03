@@ -131,6 +131,23 @@ for detail.
 
   Lattice occupancy summaries.
 
+- `clim_res_adj`, `geog_res_adj`:
+
+  Per-family resolution adjustments used to build the index: each scales
+  its family's bin count relative to a data-dependent default (`1` =
+  default, `0` = deactivated). See
+  [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md).
+
+- `clim_target`, `geo_target`:
+
+  Realized per-family bin-count targets passed to the lattice builder
+  (the absolute values the `*_res_adj` resolve to).
+
+- `bins_per_axis`:
+
+  Integer vector of realized bins per axis (geographic axes first, then
+  climate), showing how the budget was distributed.
+
 ### Cross-validation metadata
 
 Present only when `x` is a result from

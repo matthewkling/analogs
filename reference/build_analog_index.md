@@ -10,7 +10,8 @@ parameters, avoiding the need to rebuild the lattice for each query.
 build_analog_index(
   pool,
   coord_type = c("auto", "lonlat", "projected"),
-  index_res = 16,
+  geog_res_adj = 1,
+  clim_res_adj = 1,
   downsample = 1,
   seed = NULL,
   cell_area_weight = "auto",
@@ -38,19 +39,24 @@ build_analog_index(
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
 
-- index_res:
+- clim_res_adj, geog_res_adj:
 
-  Tuning parameter giving the number of bins per dimension of the
-  internally-used lattice search index. Either:
-
-  - A positive integer.
-
-  - `"auto"` (the default): Automatically tune the index resolution by
-    optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution
-    of 16 is used.
-
-  Ignored if `pool` is an `analog_index` (uses index's resolution).
+  Non-negative scalars adjusting the lattice resolution of the climate
+  and geographic variable families, each as a multiplier on a
+  data-dependent default. The default allocation targets an average of
+  roughly 50 pool points per occupied bin and splits that budget between
+  the two families by their effective dimensionality;
+  `clim_res_adj = geog_res_adj = 1` (the default) uses that allocation.
+  Larger values give a finer lattice for that family (more, smaller
+  bins), smaller values a coarser one, and `0` deactivates the family
+  entirely (one bin per axis), which is appropriate when a query does
+  not constrain that family. Because the default scales with pool size,
+  these adjustments travel across datasets of different sizes. Within
+  each family, bins are allocated in proportion to each axis' data range
+  so a search radius spans a comparable number of bins on every axis.
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+  sets these automatically from the query's constraints (deactivating an
+  unconstrained family). Ignored if `pool` is an `analog_index`.
 
 - downsample:
 
@@ -127,12 +133,15 @@ before computing exact results. For lon/lat coordinates, the index uses
 ECEF (Earth-Centered Earth-Fixed) space internally for optimal
 performance.
 
-Index resolution (`index_res`) controls the granularity of spatial
-binning. The optimal value depends on your data size and query patterns.
-Use
-[`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md)
-to find the best resolution for your use case, or accept the default of
-16 which works well for many applications.
+Index resolution is controlled per family by `geog_res_adj` and
+`clim_res_adj`, each a multiplier on a pool-size-dependent default
+(targeting ~50 points per bin, split between the families by effective
+dimensionality). `1` uses the default for that family, larger values are
+finer, smaller are coarser, and `0` deactivates a family (one bin per
+axis). The optimal values depend on your data and query patterns;
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
+sets them automatically from the query's constraints, or accept the
+defaults of `1`, which work well for many applications.
 
 ### Downsampling
 
@@ -162,13 +171,13 @@ if (FALSE) { # \dontrun{
 # Build index with default settings
 index <- build_analog_index(climate_data)
 
-# Build with explicit resolution
-index <- build_analog_index(climate_data, index_res = 20)
+# Build with finer geographic resolution than default
+index <- build_analog_index(climate_data, geog_res_adj = 2)
 
 # Build with downsampling for large datasets
 index <- build_analog_index(
   large_climate_data,
-  index_res = 16,
+  geog_res_adj = 1, clim_res_adj = 1,
   downsample = 0.1,  # Reduce max bin size to 10%
   seed = 123         # Reproducible sampling
 )

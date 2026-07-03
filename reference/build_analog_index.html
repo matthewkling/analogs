@@ -48,7 +48,8 @@ avoiding the need to rebuild the lattice for each query.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_analog_index</span><span class="op">(</span></span>
 <span>  <span class="va">pool</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"lonlat"</span>, <span class="st">"projected"</span><span class="op">)</span>,</span>
-<span>  index_res <span class="op">=</span> <span class="fl">16</span>,</span>
+<span>  geog_res_adj <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  clim_res_adj <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  downsample <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
@@ -75,14 +76,21 @@ assumes <code>max_geog</code> is in projection units).</p></li>
 </ul></dd>
 
 
-<dt id="arg-index-res">index_res<a class="anchor" aria-label="anchor" href="#arg-index-res"></a></dt>
-<dd><p>Tuning parameter giving the number of bins per dimension
-of the internally-used lattice search index. Either:</p><ul><li><p>A positive integer.</p></li>
-<li><p><code>"auto"</code> (the default): Automatically tune the index resolution
-by optimizing compute time on a subsample of focal points. If focal has
-relatively few rows, auto-tuning is skipped and a default resolution of
-16 is used.</p></li>
-</ul><p>Ignored if <code>pool</code> is an <code>analog_index</code> (uses index's resolution).</p></dd>
+<dt id="arg-clim-res-adj-geog-res-adj">clim_res_adj, geog_res_adj<a class="anchor" aria-label="anchor" href="#arg-clim-res-adj-geog-res-adj"></a></dt>
+<dd><p>Non-negative scalars adjusting the lattice
+resolution of the climate and geographic variable families, each as a
+multiplier on a data-dependent default. The default allocation targets an
+average of roughly 50 pool points per occupied bin and splits that budget
+between the two families by their effective dimensionality; <code>clim_res_adj = geog_res_adj = 1</code> (the default) uses that allocation. Larger values give a
+finer lattice for that family (more, smaller bins), smaller values a
+coarser one, and <code>0</code> deactivates the family entirely (one bin per axis),
+which is appropriate when a query does not constrain that family. Because
+the default scales with pool size, these adjustments travel across datasets
+of different sizes. Within each family, bins are allocated in proportion to
+each axis' data range so a search radius spans a comparable number of bins
+on every axis. <code><a href="analog_search.html">analog_search()</a></code> sets these automatically from the query's
+constraints (deactivating an unconstrained family). Ignored if <code>pool</code> is an
+<code>analog_index</code>.</p></dd>
 
 
 <dt id="arg-downsample">downsample<a class="anchor" aria-label="anchor" href="#arg-downsample"></a></dt>
@@ -145,10 +153,14 @@ and climate dimensions. This structure enables efficient analog searches by
 first filtering and sorting bins of similar points before computing exact
 results. For lon/lat coordinates, the index uses ECEF (Earth-Centered Earth-Fixed)
 space internally for optimal performance.</p>
-<p>Index resolution (<code>index_res</code>) controls the granularity of spatial
-binning. The optimal value depends on your data size and query patterns.
-Use <code><a href="tune_index_res.html">tune_index_res()</a></code> to find the best resolution for your use case,
-or accept the default of 16 which works well for many applications.</p><div class="section">
+<p>Index resolution is controlled per family by <code>geog_res_adj</code> and
+<code>clim_res_adj</code>, each a multiplier on a pool-size-dependent default (targeting
+~50 points per bin, split between the families by effective dimensionality).
+<code>1</code> uses the default for that family, larger values are finer, smaller are
+coarser, and <code>0</code> deactivates a family (one bin per axis). The optimal values
+depend on your data and query patterns; <code><a href="analog_search.html">analog_search()</a></code> sets them
+automatically from the query's constraints, or accept the defaults of <code>1</code>,
+which work well for many applications.</p><div class="section">
 <h3 id="downsampling">Downsampling<a class="anchor" aria-label="anchor" href="#downsampling"></a></h3>
 
 
@@ -176,13 +188,13 @@ the downsampling bias.</p>
 <span class="r-in"><span><span class="co"># Build index with default settings</span></span></span>
 <span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu">build_analog_index</span><span class="op">(</span><span class="va">climate_data</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Build with explicit resolution</span></span></span>
-<span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu">build_analog_index</span><span class="op">(</span><span class="va">climate_data</span>, index_res <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># Build with finer geographic resolution than default</span></span></span>
+<span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu">build_analog_index</span><span class="op">(</span><span class="va">climate_data</span>, geog_res_adj <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Build with downsampling for large datasets</span></span></span>
 <span class="r-in"><span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu">build_analog_index</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">large_climate_data</span>,</span></span>
-<span class="r-in"><span>  index_res <span class="op">=</span> <span class="fl">16</span>,</span></span>
+<span class="r-in"><span>  geog_res_adj <span class="op">=</span> <span class="fl">1</span>, clim_res_adj <span class="op">=</span> <span class="fl">1</span>,</span></span>
 <span class="r-in"><span>  downsample <span class="op">=</span> <span class="fl">0.1</span>,  <span class="co"># Reduce max bin size to 10%</span></span></span>
 <span class="r-in"><span>  seed <span class="op">=</span> <span class="fl">123</span>         <span class="co"># Reproducible sampling</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>

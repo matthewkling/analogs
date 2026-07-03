@@ -29,7 +29,8 @@ analog_search(
   coord_type = c("auto", "lonlat", "projected"),
   downsample = 1,
   seed = NULL,
-  index_res = "auto",
+  geog_res_adj = "auto",
+  clim_res_adj = "auto",
   cell_area_weight = "auto",
   mean_cell_area = NULL,
   n_threads = NULL,
@@ -308,9 +309,9 @@ analog_search(
   the proportion of points to retain. Values \< 1 reduce memory and
   improve speed at some cost to precision. Default is 1.0 (no
   downsampling). Ignored if `pool` is a pre-built index. When
-  `downsample < 1`, `index_res` must be set explicitly (auto-tuning is
-  not supported in this case; see the `index_res` parameter for
-  details).
+  `downsample < 1`, resolution must be set explicitly via `geog_res_adj`
+  / `clim_res_adj` (auto-tuning is not supported in this case; see those
+  parameters for details).
 
 - seed:
 
@@ -318,23 +319,27 @@ analog_search(
   (default), uses current R random state. Ignored if `pool` is a
   pre-built index or `downsample = 1`.
 
-- index_res:
+- clim_res_adj, geog_res_adj:
 
-  Tuning parameter giving the number of bins per dimension of the
-  internally-used lattice search index. Either:
+  Control the lattice search-index resolution of the climate and
+  geographic families, each a multiplier on a data-dependent default
+  (targeting ~50 pool points per occupied bin, split between families by
+  effective dimensionality, so it scales with pool size). Each is
+  either:
 
-  - A positive integer.
+  - A non-negative number: `1` uses the default for that family, larger
+    values are finer, smaller are coarser, and `0` deactivates it.
 
-  - `"auto"` (the default): Automatically tune the index resolution by
-    optimizing compute time on a subsample of focal points. If focal has
-    relatively few rows, auto-tuning is skipped and a default resolution
-    of 16 is used. Auto-tuning is **not supported** when
-    `downsample < 1`, because the speed-optimal resolution can sometimes
-    result in higher uncertainty of stat results under downsampling. In
-    that case set `index_res` explicitly; finer values (e.g. 32)
-    generally give better accuracy at the possible cost of query speed.
+  - `"auto"` (the default for both): tune a single overall resolution
+    scale by optimizing compute time on a subsample of focal points. If
+    focal has relatively few rows, tuning is skipped. Not supported when
+    `downsample < 1` (set explicit numeric values instead).
 
-  Ignored if `pool` is an `analog_index` (uses index's resolution).
+  A family that the query does not constrain (no corresponding `max_*`
+  and not the knn sort key) is **automatically deactivated**, overriding
+  any explicit value (with a message), since binning an unconstrained
+  family only costs time. Ignored if `pool` is an `analog_index` (uses
+  the index's resolution).
 
 - cell_area_weight:
 
@@ -440,9 +445,9 @@ for a full reference.
 - *Aggregation parameters* (`stat`, `kernel`, `theta`, `lambda`, `se`,
   `normalize`) control how selected analogs are summarized.
 
-- *Computation parameters* (`n_threads`, `index_res`, `downsample`,
-  `seed`, `progress`) specify behavior for controlling compute
-  performance.
+- *Computation parameters* (`n_threads`, `geog_res_adj`, `clim_res_adj`,
+  `downsample`, `seed`, `progress`) specify behavior for controlling
+  compute performance.
 
 ### Distance metrics
 
