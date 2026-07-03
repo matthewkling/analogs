@@ -849,9 +849,11 @@ inline void Lattice::knn_query(const double* focal_geo,
                   for (index_t j : bin.point_ids) {
                         // j is already 0-based, use directly
 
-                        // Geo distance
+                        // Geo distance (SQUARED). knn ranks and prunes in
+                        // squared space, so the per-candidate sqrt is avoided;
+                        // this is the dominant cost in geo-ranked (velocity)
+                        // queries. The geo constraint below is also squared.
                         double gdist2 = 0.0;
-                        double gdist = 0.0;
                         if (rank_by_geog || use_geo_constraint) {
                               double sumsq = 0.0;
                               for (size_tu g = 0; g < n_geo; ++g) {
@@ -860,7 +862,6 @@ inline void Lattice::knn_query(const double* focal_geo,
                                     sumsq += dg * dg;
                               }
                               gdist2 = sumsq;
-                              gdist = std::sqrt(gdist2);
                         }
 
                         if (use_geo_constraint && gdist2 > max_geog2) continue;
@@ -876,8 +877,12 @@ inline void Lattice::knn_query(const double* focal_geo,
                               continue;
                         }
 
-                        // Ranking distance
-                        double key_dist = rank_by_geog ? gdist : clim_dist;
+                        // Ranking distance (SQUARED for both modes: gdist2 for
+                        // geo, and clim_ok_and_dist_knn now returns squared
+                        // climate distance). d_k and all cell lower bounds are
+                        // therefore squared, keeping every comparison
+                        // consistent and monotonic in true distance.
+                        double key_dist = rank_by_geog ? gdist2 : clim_dist;
 
                         if (static_cast<int>(knn.size()) < k) {
                               knn.emplace(key_dist, j, bin_weight);
@@ -955,7 +960,10 @@ inline double lb_geo_projected(const Lattice& lat,
       if (fy < y_min) dy = y_min - fy;
       else if (fy > y_max) dy = fy - y_max;
 
-      return std::sqrt(dx * dx + dy * dy);
+      // Return the SQUARED lower-bound distance. knn_query ranks and prunes in
+      // squared space (all comparisons are squared-vs-squared and monotonic),
+      // so no sqrt is needed here.
+      return dx * dx + dy * dy;
 }
 
 inline double lb_geo_chord3d(const Lattice& lat,
@@ -973,7 +981,7 @@ inline double lb_geo_chord3d(const Lattice& lat,
 
             sumsq += d * d;
       }
-      return std::sqrt(sumsq);
+      return sumsq;  // squared lower bound (see lb_geo_projected)
 }
 
 inline double lb_clim(const Lattice& lat,
@@ -992,7 +1000,7 @@ inline double lb_clim(const Lattice& lat,
 
             sumsq += diff * diff;
       }
-      return std::sqrt(sumsq);
+      return sumsq;  // squared lower bound (see lb_geo_projected)
 }
 
 inline bool clim_ok_and_dist_knn(const double* focal_clim,
@@ -1024,14 +1032,18 @@ inline bool clim_ok_and_dist_knn(const double* focal_clim,
             }
       }
 
-      // Check scalar threshold
+      // Check scalar threshold (compared in SQUARED space to avoid a sqrt:
+      // dist > thr  iff  sumsq > thr^2, both being non-negative).
       if (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0) {
-            double dist = std::sqrt(sumsq);
-            if (dist > max_clim_scalar) return false;
+            if (sumsq > max_clim_scalar * max_clim_scalar) return false;
       }
 
+      // Output the SQUARED climate distance. knn_query ranks on this directly
+      // (monotonic in the true distance), avoiding a per-candidate sqrt; the
+      // value is used only for internal ranking and is never emitted as a
+      // reported distance (emit_pairs recomputes distances from coordinates).
       if (compute_dist) {
-            clim_dist_out = std::sqrt(sumsq);
+            clim_dist_out = sumsq;
       }
 
       return true;
