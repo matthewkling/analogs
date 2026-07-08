@@ -16,6 +16,7 @@ reference:
 - title: Core architecture
 - contents:
   - analog_search
+  - kernel
   - build_analog_index
   - print.analog_index
   - metadata
