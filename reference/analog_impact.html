@@ -66,17 +66,15 @@ for continuous outcomes or a weighted class count for categorical outcomes.</p>
 <span>  <span class="va">y</span>,</span>
 <span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  max_geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  max_clim <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  kernel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gaussian_clim"</span>, <span class="st">"inverse_clim"</span>, <span class="st">"gaussian_joint"</span>, <span class="st">"inverse_joint"</span><span class="op">)</span>,</span>
-<span>  theta <span class="op">=</span> <span class="fl">0.25</span>,</span>
+<span>  geog <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  env <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.25</span>, max <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
 <span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"weighted_mean"</span>, <span class="st">"count"</span>, <span class="st">"sum_weights"</span><span class="op">)</span>,</span>
 <span>  lambda <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"ess"</span>, <span class="st">"design"</span><span class="op">)</span>,</span>
 <span>  normalize <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coord_type <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span>  clim_res_adj <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>  env_res_adj <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  geog_res_adj <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -91,13 +89,13 @@ for continuous outcomes or a weighted class count for categorical outcomes.</p>
 
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>Focal locations for which analogs will be found. Should be a
-matrix/data.frame with columns x, y, and climate variables, or a
-SpatRaster with climate variable layers.</p></dd>
+matrix/data.frame with columns x, y, and environmental variables, or a
+SpatRaster with environmental variable layers.</p></dd>
 
 
 <dt id="arg-pool">pool<a class="anchor" aria-label="anchor" href="#arg-pool"></a></dt>
-<dd><p>The reference dataset to search for analogs. Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and climate variables,
-or SpatRaster with climate variable layers, OR</p></li>
+<dd><p>The reference dataset to search for analogs. Either:</p><ul><li><p>Matrix/data.frame with columns x, y, and environmental variables,
+or SpatRaster with environmental variable layers, OR</p></li>
 <li><p>An <code>analog_index</code> object created by
 <code><a href="build_analog_index.html">build_analog_index()</a></code> (for repeated queries).</p></li>
 </ul></dd>
@@ -138,43 +136,15 @@ covariate values for each reference location (must have same number of
 rows/cells as <code>pool</code>). Required when <code>stat</code> includes <code>"regression"</code>.</p></dd>
 
 
-<dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
-<dd><p>Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if <code>coord_type = "lonlat"</code>, or in projected coordinate units
-if <code>coord_type = "projected"</code>.</p></dd>
-
-
-<dt id="arg-max-clim">max_clim<a class="anchor" aria-label="anchor" href="#arg-max-clim"></a></dt>
-<dd><p>Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:</p><ul><li><p>A scalar: Euclidean radius in climate space (e.g., 0.5)</p></li>
-<li><p>A vector: Per-variable absolute differences (length must equal
-number of climate variables)</p></li>
-</ul><p>Only reference locations within this climate distance are considered.
-When <code>x_cov</code> is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.</p></dd>
-
-
-<dt id="arg-kernel">kernel<a class="anchor" aria-label="anchor" href="#arg-kernel"></a></dt>
-<dd><p>Kernel decay function for weighting analogs during aggregation. Only
-weighting options that are based on <em>climate</em> are allowed:
-<code>"inverse_clim"</code> (default), <code>"gaussian_clim"</code>, <code>"inverse_joint"</code>,
-<code>"gaussian_joint"</code>. See <code><a href="analog_search.html">analog_search()</a></code> for details.</p></dd>
-
-
-<dt id="arg-theta">theta<a class="anchor" aria-label="anchor" href="#arg-theta"></a></dt>
-<dd><p>Optional numeric parameter controlling the shape of the
-weighting <code>kernel</code>, used whenever <code>kernel</code> is active (i.e. whenever
-<code>stat</code> includes a weighted aggregation) and <code>kernel</code> is not <code>"uniform"</code>.
-Interpretation depends on <code>kernel</code>:</p><ul><li><p>For <code>"inverse_clim"</code> or <code>"inverse_geog"</code>: epsilon value
-added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).</p></li>
-<li><p>For <code>"gaussian_clim"</code> or <code>"gaussian_geog"</code>: sigma bandwidth
-parameter (scalar; larger values = slower decay with distance).</p></li>
-<li><p>For <code>"gaussian_joint"</code> or <code>"inverse_joint"</code>: 2-element vector
-<code>c(theta_clim, theta_geog)</code> (defaults: 1 for climate, 1 for geography).</p></li>
-</ul><p>See <code><a href="kernel_params.html">kernel_params()</a></code> for help choosing <code>theta</code> and <code>max_clim</code> /
-<code>max_geog</code> values that work well together.</p></dd>
+<dt id="arg-env-geog">env, geog<a class="anchor" aria-label="anchor" href="#arg-env-geog"></a></dt>
+<dd><p>Per-family <code><a href="kernel.html">kernel()</a></code> objects giving the distance treatment
+for environment and geography. For climate impact models, <code>env</code> carries the
+climate analog threshold (<code>max</code>) and the weighting kernel applied to
+climate distance (<code>weight</code>, <code>theta</code>); it defaults to
+<code>kernel("gaussian", theta = 0.25, max = 1.0)</code>. <code>geog</code> carries the hard
+distance constraint (<code>geog = kernel(max = ...)</code>) and defaults to
+<code>NULL</code> (no geographic constraint). A geographic kernel may also be supplied
+via <code>geog</code> if desired. See <code><a href="kernel.html">kernel()</a></code>.</p></dd>
 
 
 <dt id="arg-stat">stat<a class="anchor" aria-label="anchor" href="#arg-stat"></a></dt>
@@ -223,7 +193,7 @@ if <code>stat</code> includes <code>"sum_weights"</code> or <code>"tabulate"</co
 When active, results for these stats are divided by a global scalar so that
 they represent a fraction of a theoretically "perfect" scenario where
 the full search area within <code>max_geog</code> is occupied wall-to-wall by cells
-whose climate exactly matches <code>x</code>. See details under <code><a href="analog_search.html">analog_search()</a></code> for
+whose environment exactly matches <code>x</code>. See details under <code><a href="analog_search.html">analog_search()</a></code> for
 more info.</p></dd>
 
 
@@ -231,7 +201,7 @@ more info.</p></dd>
 <dd><p>Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
-SpatRaster with a layer for each component. For n climate variables,
+SpatRaster with a layer for each component. For n environmental variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).</p></dd>
 
@@ -245,9 +215,9 @@ assumes <code>max_geog</code> is in projection units).</p></li>
 </ul></dd>
 
 
-<dt id="arg-clim-res-adj-geog-res-adj">clim_res_adj, geog_res_adj<a class="anchor" aria-label="anchor" href="#arg-clim-res-adj-geog-res-adj"></a></dt>
+<dt id="arg-env-res-adj-geog-res-adj">env_res_adj, geog_res_adj<a class="anchor" aria-label="anchor" href="#arg-env-res-adj-geog-res-adj"></a></dt>
 <dd><p>Control the lattice search-index resolution
-of the climate and geographic families, each a multiplier on a
+of the environmental and geographic families, each a multiplier on a
 data-dependent default (targeting ~50 pool points per occupied bin, split
 between families by effective dimensionality, so it scales with pool size).
 Each is either:</p><ul><li><p>A non-negative number: <code>1</code> uses the default for that family, larger
@@ -313,7 +283,7 @@ change ecology literature. It addresses the question, "For a location's
 future climate, what ecological conditions exist in current locations with
 similar climates that are within dispersal range?"</p>
 <p>The methodology:</p><ol><li><p>For each focal location's future climate conditions</p></li>
-<li><p>Find all current locations with similar climates (within <code>max_clim</code>)</p></li>
+<li><p>Find all current locations with similar climates (within <code>max_env</code>)</p></li>
 <li><p>Constrain to dispersal-reachable distance (within <code>max_geog</code>)</p></li>
 <li><p>Weight each analog by climate similarity (via <code>kernel</code> function)</p></li>
 <li><p>Aggregate ecosystem characteristics across these weighted analogs</p></li>
@@ -322,20 +292,21 @@ this function uses all analogs within thresholds combined with climate-distance-
 kernel weighting. This approach eliminates arbitrary choice of k, provides smoother,
 more continuous results, and lets the kernel function (via <code>theta</code>) naturally
 control influence. (Note that the traditional version can be implemented via
-<code>analog_search(select = "knn_clim", stat = "mean", ...))</code>.)</p>
+<code>analog_search(select = "knn_env", stat = "mean", ...))</code>.)</p>
 </div>
 
 <div class="section">
 <h3 id="choosing-parameters">Choosing Parameters<a class="anchor" aria-label="anchor" href="#choosing-parameters"></a></h3>
 
 
-<ul><li><p><code>max_geog</code>: Set based on species dispersal ability (e.g., 5-500 km)</p></li>
-<li><p><code>max_clim</code>: Defines what counts as an "analog"</p></li>
-<li><p><code>theta</code>: Controls kernel decay. The weight should decay to a small value
-at the <code>max_clim</code>/<code>max_geog</code> boundary. If <code>theta</code> is too large relative to
-thresholds, the hard cutoffs do most of the filtering and weighting becomes
-nearly uniform. For Gaussian kernels with three or fewer climate variables,
-a reasonable rule of thumb is to set <code>theta</code> to <code>max_* / 3</code>.</p></li>
+<ul><li><p><code>geog</code>'s <code>max</code>: Set based on species dispersal ability (e.g., 5-500 km)</p></li>
+<li><p><code>env</code>'s <code>max</code>: Defines what counts as an "analog"</p></li>
+<li><p><code>env</code>'s <code>theta</code>: Controls kernel decay. The weight should decay to a
+small value at the climate/geographic thresholds. If <code>theta</code> is too large
+relative to the thresholds, the hard cutoffs do most of the filtering and
+weighting becomes nearly uniform. For Gaussian kernels with three or fewer
+climate variables, a reasonable rule of thumb is to set <code>theta</code> to
+<code>max / 3</code>.</p></li>
 </ul></div>
 
 <div class="section">
@@ -347,7 +318,7 @@ from analog locations.</p></li>
 <li><p><code>tabulate</code>: For each class in <code>y</code>, the sum of analog weights that
 fall in that class. Each class's column gives the total
 climatic-similarity-weighted support among analogs (or, with
-<code>analog_search(stat = "tabulate", kernel = "uniform")</code>, a plain
+<code>analog_search(stat = "tabulate")</code> with a uniform kernel, a plain
 vote count). The "primary" projection at a focal location is
 <code><a href="https://rdrr.io/r/base/which.min.html" class="external-link">which.max()</a></code> of these columns; "agreement" is the largest column
 value divided by the row sum (or, equivalently, divided by
@@ -355,7 +326,7 @@ value divided by the row sum (or, equivalently, divided by
 between two such weighted-vote matrices (e.g., contemporary vs.
 future analogs) gives a measure of compositional vulnerability to
 ecological transformation (cf. Hoecker et al. 2026).</p></li>
-<li><p><code>count</code>: How many analogs exist within max_clim and max_geog? Low counts
+<li><p><code>count</code>: How many analogs exist within max_env and max_geog? Low counts
 indicate limited analog availability, while zero counts indicate climates
 that are novel within the geographic search radius.</p></li>
 <li><p><code>sum_weights</code>: Total analog density. Low values indicate sparse
@@ -381,8 +352,8 @@ on roughly <code>[0, 1]</code>. See <code><a href="analog_search.html">analog_se
 <span class="r-in"><span>  x <span class="op">=</span> <span class="va">future_climate</span>,</span></span>
 <span class="r-in"><span>  pool <span class="op">=</span> <span class="va">current_climate</span>,</span></span>
 <span class="r-in"><span>  y <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">habitat</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">100</span>,    <span class="co"># 100 km dispersal range</span></span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>     <span class="co"># Climate analog threshold</span></span></span>
+<span class="r-in"><span>  geog <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span>,  <span class="co"># 100 km dispersal range</span></span></span>
+<span class="r-in"><span>  env <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.25</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># With uncertainty quantification on weighted_mean</span></span></span>
@@ -390,8 +361,8 @@ on roughly <code>[0, 1]</code>. See <code><a href="analog_search.html">analog_se
 <span class="r-in"><span>  x <span class="op">=</span> <span class="va">future_climate</span>,</span></span>
 <span class="r-in"><span>  pool <span class="op">=</span> <span class="va">current_climate</span>,</span></span>
 <span class="r-in"><span>  y <span class="op">=</span> <span class="va">current</span><span class="op">$</span><span class="va">habitat</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">100</span>,</span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>,</span></span>
+<span class="r-in"><span>  geog <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  env <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.25</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  se <span class="op">=</span> <span class="st">"ess"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -402,9 +373,9 @@ on roughly <code>[0, 1]</code>. See <code><a href="analog_search.html">analog_se
 <span class="r-in"><span>  pool <span class="op">=</span> <span class="va">current_climate</span>,</span></span>
 <span class="r-in"><span>  y    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">current</span><span class="op">$</span><span class="va">vegetation_type</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"sum_weights"</span>, <span class="st">"tabulate"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  kernel <span class="op">=</span> <span class="st">"gaussian_clim"</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">500</span>,</span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">1</span></span></span>
+<span class="r-in"><span>  env <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.25</span>, max <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  geog <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">500</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  <span class="co"># (env set above)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="co"># Output has one `n_&lt;level&gt;` column per vegetation type.</span></span></span>
 <span class="r-in"><span><span class="co"># Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],</span></span></span>
@@ -423,7 +394,7 @@ on roughly <code>[0, 1]</code>. See <code><a href="analog_search.html">analog_se
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

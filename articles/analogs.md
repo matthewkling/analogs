@@ -13,8 +13,8 @@ distance-based neighborhood models. Every analysis follows a two-stage
 pattern:
 
 1.  First, **select** a neighborhood of analog locations from a
-    reference pool, based on climate similarity, geographic proximity,
-    or both.
+    reference pool, based on environmental similarity, geographic
+    proximity, or both.
 2.  Optionally, **summarize** the neighborhood using counts, weighted
     means, regression coefficients, or other statistics.
 
@@ -31,8 +31,8 @@ The table below shows how each wrapper maps to the framework:
 
 | Function | Neighborhood | Summary | Use case |
 |----|----|----|----|
-| [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md) | k nearest geographic, climate-constrained | Pairs | Where is this climate moving? |
-| [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md) | k nearest climatic, geographically-constrained | Pairs | What climates are reachable? |
+| [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md) | k nearest geographic, environment-constrained | Pairs | Where is this climate moving? |
+| [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md) | k nearest environmental, geographically-constrained | Pairs | What climates are reachable? |
 | [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md) | All within thresholds | Count | Where do analogs exist? |
 | [`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md) | All within thresholds | Weighted sum | How strong are analog matches? |
 | [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md) | All within thresholds | Weighted mean | What ecological conditions to expect? |
@@ -53,7 +53,7 @@ directly.
 All functions in the package require two data inputs: `x` (the set of
 focal locations for which analogs are to be found) and `pool` (the set
 of reference locations to search for analogs). Both these components
-need to have spatial coordinates and environmental data (traditionally
+need to have spatial coordinates and environmental data (most commonly
 climate, though other variables can also be used) for each location.
 Prediction functions also require `y` (outcome variable(s)). Data can be
 provided as matrices, data.frames, or SpatRasters. `x` and `pool` must
@@ -91,36 +91,109 @@ plot(hist, main = c("Historical CWD", "Historical AET"))
 
 plot of chunk data
 
-### Distance metrics
+## Defining analogs
 
-Analog computations are centered around pairwise distance calculations
-between every location in `x` and every location in `pool`. Internally,
-the package calculates geographic distances and environmental distances,
-each with their own distinct handling.
+Most of this document focuses on different types of analog queries. But
+regardless of query type, you also have to define what qualifies as an
+“analog.” Broadly speaking, an analog is any location in `pool` that is
+environmentally similar and/or geographically close to a given focal
+location in `x`.
 
-For a given focal location in `x`, geographic and environmental
-distances to locations in `pool` are used in two ways. They’re used as
-hard cutoffs (via `max_geog` and `max_clim`) to select the set of
-analogs, and they’re often also used as weights (via `kernel`) to place
-higher value on nearby/similar analogs that may be more relevant for
-climate adaptation or for statistical prediction.
+### Analog kernels
 
-#### Geographic distance
+Your specify an analog definition using the
+[`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+helper function, which returns an `<analog_kernel>` object that can be
+passed to the `env` and `geog` arguments of various analog functions.
+Analog kernels operate on pairwise environmental and geographic
+distances between `x` and `pool`, which get used in two ways. Distances
+are used as hard thresholds to select a set of analogs, and they’re
+often also used as weights to place higher value on nearby/similar
+analogs that may be more ecologically or statistically relevant.
+Distance units and measures for geographic and environmental distances
+are thus centrally important, and are discussed below.
+
+If you define both environmental and geographic kernels, they get
+intersected to define analogs.
+
+Distance thresholds are set with the `max` parameter to
+[`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md).
+For example,
+`analog_search(..., env = kernel(max = 0.25), geog = kernel(max = 100))`
+finds analogs within 0.25 environmental units and 100 geographic units
+of a given `x`. Note that large `max` values can substantially increase
+computation time.
+
+Kernel weights are specified via the `weight` (kernel shape) and `theta`
+(kernel bandwidth) parameters. These control how analog weights decay
+with distance, which is relevant for some `stat` options. Available
+kernel shapes include:
+
+- `"uniform"` — all analogs weighted equally (also the default when
+  `weight` is unspecified)
+- `"gaussian"` — Gaussian kernel with theta as standard deviation:
+  $`exp(-d^2 / (2 \times theta^2))`$
+- `"inverse"` — inverse distance weighting, with theta as bandwidth:
+  $`1 / (1 + d / theta)`$
+
+When using a kernel that weights environmental and/or geographic
+distances, the combination of parameters should be set so that kernel
+weight decays to near zero at the `max` boundary. This allows the kernel
+function to drive the results while the max cutoffs function mainly to
+reduce run time by minimizing unneeded computation.
+
+The helper function
+[`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+is useful for determining what values to choose for `theta` and `max`.
+It gives theoretical answers to the questions, “How big should `theta`
+be in order for my kernel to capture a given fraction of pool sites for
+the typical focal site?” and “How big should `max` be so that it
+truncates only a given percentage of kernel weight for the typical focal
+site?” These questions are subject to the curse of dimensionality and
+depend on the number of environmental variables, so intuition does not
+always hold.
+[`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+gives theoretical answers, assuming that `pool` follows a multivariate
+normal distribution (as approximately achieved by
+[`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md))
+or a uniform distribution, and that the focal site is randomly sampled
+from `pool`.
+
+For example, if you had `d = 4` environmental variables and wanted to
+size your Gaussian environmental kernel so that it captures 10% of the
+`pool` for the average site during the baseline era (and assuming you
+had run `mahanobis_transform()` so that your data were approximately
+multivariate normal), here’s how you get kernel parameter
+recommendations:
+
+``` r
+
+kernel_params(fraction = 0.10, d = 4, loss = 0.01, 
+              kernel = "gaussian", data_dist = "mvn")
+#> $theta
+#> [1] 0.6800554
+#> 
+#> $max
+#> [1] 2.049015
+```
+
+### Geographic distance
 
 The package automatically detects whether coordinates are
 longitude/latitude or projected, and uses great-circle or planar
 distance accordingly. You can override this with `coord_type = "lonlat"`
-or `coord_type = "projected"`. Geographic thresholds (`max_geog`) are in
-kilometers for lon/lat data and in projection units for projected data.
+or `coord_type = "projected"`. Geographic thresholds are in kilometers
+for lon/lat data and in projection units for projected data.
 
-#### Climate distance
+### Environmental distance
 
-By default, climate distance is Euclidean. When using multiple climate
-variables, it is recommended to scale them first to avoid artifacts from
-differing units. The example data used here is already scaled.
+By default, environmental distance is Euclidean. When using multiple
+environmental variables, it is recommended to scale them first to avoid
+artifacts from differing units. The example data used here is already
+scaled.
 
 For dataset-wide Mahalanobis distance (accounting for covariance among
-climate variables), use
+environmental variables), use
 [`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md)
 to pre-whiten the data:
 
@@ -130,7 +203,7 @@ transformed <- mahalanobis_transform(x = hist, pool = fut)
 vel_mahal <- analog_velocity(
       x = transformed$x,
       pool = transformed$pool,
-      max_clim = .25,
+      env = kernel(max = 0.25),
       k = 1
 )
 ```
@@ -138,64 +211,6 @@ vel_mahal <- analog_velocity(
 For site-specific covariance (e.g., based on local year-to-year climate
 variability), supply pre-computed covariance matrices via the `x_cov`
 parameter.
-
-### Kernel functions
-
-The `kernel` parameter controls how analog weights decay with distance,
-which is relevant for some `stat` options. Available kernel shapes:
-
-- `"uniform"` — all analogs weighted equally
-- `"gaussian_clim"` / `"gaussian_geog"` — Gaussian kernel on climate or
-  geographic distance
-- `"inverse_clim"` / `"inverse_geog"` — inverse distance weighting
-- `"gaussian_joint"` / `"inverse_joint"` — kernels on combined climate
-  and geographic distance
-
-The `theta` parameter controls the kernel bandwidth. For Gaussian
-kernels, `theta` is the standard deviation of the kernel (but note that
-the appropriate value depends on the number of climate variables; see
-below). For joint kernels, `theta` is a 2-element vector
-`c(theta_clim, theta_geog)`.
-
-When using a kernel that weights climatic and/or geographic distances,
-the combination of parameters should be set so that kernel weight decays
-to near zero at the `max_clim` or `max_geog` boundary. This allows the
-kernel function to drive the results while the max cutoffs function
-mainly to reduce run time by minimizing unneeded computation.
-
-The helper function
-[`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
-is useful for determining what values to choose for `theta`, `max_clim`,
-and `max_geog`. It gives theoretical answers to the questions, “How big
-should `theta` be in order for my kernel to capture a given fraction of
-pool sites for the typical focal site?” and “How big should `max_clim`
-or `max_geog` be so that it truncates only a given percentage of kernel
-weight for the typical focal site?” The answers are theoretical,
-assuming that `pool` follows a multivariate normal distribution (as
-approximately achieved by
-[`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md))
-or a uniform distribution, and that the focal site is randomly sampled
-from `pool`. Importantly, the answers are also subject to the curse of
-dimensionality and depend on the number of climate variables, so
-intuition does not always hold.
-
-For example, if you had `d = 2` climate variables and wanted to size
-your Gaussian climate kernel so that it captures 10% of the `pool` for
-the average site during the baseline era (and assuming you had run
-`mahanobis_transform()` so that your data were approximately
-multivariate normal), here’s how you get kernel parameter
-recommendations:
-
-``` r
-
-kernel_params(fraction = 0.10, d = 2, loss = 0.01, 
-              kernel = "gaussian", data_dist = "mvn")
-#> $theta
-#> [1] 0.3333333
-#> 
-#> $max
-#> [1] 0.9597052
-```
 
 ### Analog weights
 
@@ -233,9 +248,10 @@ are selected.
 ## Analog enumeration functions
 
 This category of analyses includes functions that simply identify and
-return analogs (e.g. `climate_velocity()`) and functions that instead
-return a summary of the count or weights of analogs. Let’s look at them
-each in turn.
+return analogs
+(e.g. [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md))
+and functions that instead return a summary of the count or weights of
+analogs. Let’s look at them each in turn.
 
 ### Climate velocity
 
@@ -253,8 +269,8 @@ These metrics are implemented as a geographic nearest-neighbor search
 under a hard climate constraint, with reverse velocity implemented by
 swapping the climate data for the two eras. For each focal site, the
 result returns data on its single nearest geographic analog (subject to
-the climate similarity threshold `max_clim`). The geographic distance to
-that analog, divided by the time elapsed, is the velocity. Sites with no
+the climate similarity threshold `max`). The geographic distance to that
+analog, divided by the time elapsed, is the velocity. Sites with no
 analog in the reference pool—an important category— have `NA` results.
 
 ``` r
@@ -262,14 +278,14 @@ analog in the reference pool—an important category— have `NA` results.
 fwd_vel <- analog_velocity(
       x = hist,
       pool = fut,
-      max_clim = 0.25,
+      env = kernel(max = 0.25),
       k = 1
 )
 
 rev_vel <- analog_velocity(
       x = fut,
       pool = hist,
-      max_clim = 0.25,
+      env = kernel(max = 0.25),
       k = 1
 )
 
@@ -283,7 +299,7 @@ plot(vel, range = range(minmax(vel)),
 
 plot of chunk velocity
 
-In addition to geographic and climatic distances, the result also
+In addition to geographic and environmental distances, the result also
 includes the spatial coordinates of each site’s nearest analog (as well
 as the analog’s index in the `pool`). This can be used for a variety of
 downstream analyses, including visualizing the direction from a site to
@@ -302,25 +318,25 @@ plot(fwd_vel$bearing, main = c("Bearing to forward analog (deg)"),
 
 plot of chunk bearing
 
-### Climate similarity
+### Environmental similarity
 
-Climate similarity answers the inverse question from climate velocity:
-for each location’s climate, what is the most similar climate within a
-given geographic radius? This finds the most climatically similar
-locations that are geographically reachable, which can provide insight
-into how much climate change organisms must tolerate given limited
-dispersal capacity.
+Environmental similarity answers the inverse question from climate
+velocity: for each location’s environment, what is the most similar
+environment within a given geographic radius? This finds the most
+climatically similar locations that are geographically reachable, which
+can provide insight into how much climate change organisms must tolerate
+given limited dispersal capacity.
 
 ``` r
 
 sim <- analog_similarity(
       x = fut,
       pool = hist,
-      max_geog = 100,
+      geog = kernel(max = 100),
       k = 1
 )
 
-plot(sim$clim_dist, main = "Similarity of best nearby climate analog")
+plot(sim$env_dist, main = "Similarity of best nearby climate analog")
 ```
 
 ![plot of chunk similarity](figures/similarity-1.png)
@@ -329,7 +345,7 @@ plot of chunk similarity
 
 ### Analog availability
 
-How many analogs exist within specified climate and geographic
+How many analogs exist within specified environmental and geographic
 thresholds? This maps the density of suitable analogs across the
 landscape. Locations with large numbers of nearby analogs have greater
 potential for adaptive dispersal under climate change, while locations
@@ -340,8 +356,8 @@ with zero analogs represent novel or disappearing climates.
 avail <- analog_availability(
       x = fut,
       pool = hist,
-      max_clim = 0.5,
-      max_geog = 200
+      env = kernel(max = 0.5),
+      geog = kernel(max = 200),
 )
 
 plot(avail, main = "Analog availability (count)")
@@ -353,22 +369,20 @@ plot of chunk availability
 
 ### Analog density
 
-Similar to availability, but weighted by climate kernel-based similarity
-and/or geographic proximity rather than simply counted. This captures
-both the quantity and quality (proximity/suitability) of analog matches.
-By default, raw density is normalized by dividing it by its theoretical
-maximum value (calculated from `kernel`, `max_geog`, and `theta`) to
-make it interpretable.
+Similar to availability, but weighted by environmental kernel-based
+similarity and/or geographic proximity rather than simply counted. This
+captures both the quantity and quality (proximity/suitability) of analog
+matches. By default, raw density is normalized by dividing it by its
+theoretical maximum value (calculated from `kernel`, `max_geog`, and
+`theta`) to make it interpretable.
 
 ``` r
 
 intens <- analog_density(
       x = fut,
       pool = hist,
-      max_clim = 0.6,
-      max_geog = 150,
-      kernel = "gaussian_joint",
-      theta = c(0.2, 50)
+      env = kernel(max = 0.6, weight =  "gaussian", theta = 0.2),
+      geog = kernel(max = 0.25, weight =  "gaussian", theta = 50)
 )
 
 plot(intens, main = "Analog density")
@@ -416,10 +430,8 @@ impact <- analog_impact(
       x = fut,
       pool = hist,
       y = eco_var,
-      max_clim = 0.5,
-      max_geog = 200,
-      kernel = "gaussian_clim",
-      theta = 0.15,
+      env = kernel(max = 0.5, weight =  "gaussian", theta = 0.15),
+      geog = kernel(max = 200),
       se = "ess"
 )
 
@@ -432,25 +444,25 @@ plot(impact[[c("weighted_mean", "se_weighted_mean")]],
 plot of chunk impact
 
 The `kernel` and `theta` parameters control how analog influence decays
-with climate distance. A Gaussian kernel with `theta = 0.15` means
-analogs at a climate distance of 0.15 receive about 60% weight, while
-those at 0.45 (= 3 × theta) receive almost none. The hard threshold
-`max_clim` provides an absolute cutoff.
+with environmental distance. A Gaussian kernel with `theta = 0.15` means
+analogs at an environmental dissimilarity distance of 0.15 receive about
+60% weight, while those at 0.45 (= 3 × theta) receive almost none. The
+hard threshold `max` provides an absolute cutoff.
 
 ### Spatial interpolation
 
 The analog framework is also useful for analyses outside climate change
 scenarios. When `x` and `pool` share the same climate era,
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md)
-performs climate- and/or geographically-informed interpolation: for each
-grid cell, it finds sample locations with similar climates or nearby
-locations, then computes a weighted average of their measured values.
-This is useful for mapping ecological variables from sparse field
-observations onto a continuous grid. Unlike purely geographic
+performs environmentally- and/or geographically-informed interpolation:
+for each grid cell, it finds sample locations with similar environment
+or nearby locations, then computes a weighted average of their measured
+values. This is useful for mapping ecological variables from sparse
+field observations onto a continuous grid. Unlike purely geographic
 interpolation methods (inverse distance weighting, kriging), this
-approach can also weight observations by climate similarity, so a
-distant site with matching climate can contribute more than a nearby
-site with different climate.
+approach can also weight observations by environmental similarity, so a
+distant site with matching environment can contribute more than a nearby
+site with different environment.
 
 The example below shows an interpolation informed by both climatic
 similarity and geographic proximity, with their relative importance
@@ -471,10 +483,8 @@ interp <- analog_impact(
       x = hist,
       pool = as.matrix(sites[, c("x", "y", "CWD", "AET")]),
       y = sites$observed,
-      max_clim = 1,
-      max_geog = 200,
-      kernel = "gaussian_joint",
-      theta = c(0.15, 100)
+      env = kernel(max = 1, weight = "gaussian", theta = 0.15),
+      geog = kernel(max = 200, weight = "gaussian", theta = 100)
 )
 
 plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
@@ -489,9 +499,9 @@ plot of chunk interpolation
 [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)
 fits a weighted linear regression model within each analog neighborhood.
 This is useful if your outcome variable `y` has important relationships
-with additional predictors beyond the variables (climate and geography)
-used to define the analog search kernel. In the example below we’ll use
-AET and its square as covariates. The function returns and returns the
+with additional predictors beyond the variables (env and geog) used to
+define the analog search kernel. In the example below we’ll use AET and
+its square as covariates. The function returns and returns the
 coefficients (and optionally, their standard errors) for each location
 in `x`, and also returns predicted values if `x_covariates` is provided.
 
@@ -531,10 +541,8 @@ fit <- analog_regression(
       y = eco_var,
       covariates = pool_covariates,
       x_covariates = x_covariates,
-      max_clim = 0.25,
-      max_geog = 200,
-      kernel = "gaussian_clim",
-      theta = 0.15,
+      env = kernel(max = 0.25, weight = "gaussian", theta = 0.15),
+      geog = kernel(max = 200),
       lambda = 1,
       se = "ess" # request standard errors
 )
@@ -554,8 +562,8 @@ plot of chunk regression
 The same regression machinery supports geographically weighted
 regression (GWR) by using geographic neighborhoods and geographic
 distance kernel weighting. This is a different configuration of the same
-underlying framework — no climate constraint, geographic kernel, local
-regression on covariates.
+underlying framework — no environmental constraint, geographic kernel,
+local regression on covariates.
 
 ``` r
 
@@ -566,10 +574,7 @@ gwr <- analog_regression(
       y = eco_var,
       covariates = pool_covariates,
       select = "all",
-      max_geog = 100,
-      max_clim = NULL,
-      kernel = "inverse_geog",
-      theta = 30,
+      geog = kernel(max = 100, weight = "inverse", theta = 30),
       lambda = 0
 )
 
@@ -625,16 +630,20 @@ values to identify the best-performing settings.
 # Run cross-validation and plot residuals
 cv <- analog_cv(
       fun = analog_impact, pool = hist, y = eco_var,
-      max_geog = 200, max_clim = 0.5, theta = 0.15,
+      env = kernel(max = .5, weight = "gaussian", theta = 0.15),
+      geog = kernel(max = 200, weight = "gaussian", theta = 60),
       se = "ess", cv_method = "loo"
 )
-#> Error: `y` must have exactly 228823 rows/cells to match pool.
+#> Error:
+#> ! `y` must have exactly 228823 rows/cells to match pool.
 plot(cv$residual, main = "Cross-validation residual")
-#> Error in h(simpleError(msg, call)): error in evaluating the argument 'x' in selecting a method for function 'plot': object 'cv' not found
+#> Error in `h()`:
+#> ! error in evaluating the argument 'x' in selecting a method for function 'plot': object 'cv' not found
 
 # Calculate prediction error metrics
 cv_performance(cv)
-#> Error: object 'cv' not found
+#> Error:
+#> ! object 'cv' not found
 ```
 
 ## Computational performance
@@ -652,8 +661,12 @@ lattice index once and reuse it:
 idx <- build_analog_index(hist)
 
 # Multiple queries reuse the same index
-avail_tight <- analog_availability(fut, idx, max_clim = 0.3, max_geog = 100)
-avail_loose <- analog_availability(fut, idx, max_clim = 0.8, max_geog = 300)
+avail_tight <- analog_availability(fut, idx, env = kernel(0.3), geog = kernel(100))
+#> Error:
+#> ! `weight` must be one of "uniform", "gaussian", "inverse", or NULL.
+avail_loose <- analog_availability(fut, idx, env = kernel(0.8), geog = kernel(300))
+#> Error:
+#> ! `weight` must be one of "uniform", "gaussian", "inverse", or NULL.
 ```
 
 #### Index tuning
@@ -667,7 +680,7 @@ reuse:
 res <- tune_index_res(
       x = fut, pool = hist,
       stat = "count",
-      max_clim = 0.5, max_geog = 200,
+      env = kernel(0.5), geog = kernel(200),
       verbose = TRUE
 )
 idx <- build_analog_index(hist, index_res = res)
@@ -679,7 +692,7 @@ Use the `n_threads` parameter to parallelize across focal locations:
 
 ``` r
 
-result <- analog_velocity(fut, hist, max_clim = 0.5, k = 1, n_threads = 4)
+result <- analog_velocity(fut, hist, env = kernel(0.5), k = 1, n_threads = 4)
 ```
 
 #### Large raster datasets
@@ -694,8 +707,8 @@ result <- tiled_analog_search(
       x = very_large_raster,
       pool = idx,
       stat = "count",
-      max_clim = 0.5,
-      max_geog = 200,
+      env = kernel(0.5),  
+      geog = kernel(200),
       n_tiles = 16
 )
 ```
@@ -705,7 +718,7 @@ result <- tiled_analog_search(
 For very large reference pools, downsampling reduces computation. The
 package uses an adaptive sampling routine that reduces the effects on
 precision by downsampling more heavily in dense regions of
-climatic-geographic space in order to preserve coverage in sparse
+environmental-geographic space in order to preserve coverage in sparse
 regions. As noted above, each `pool` site in the downsampled data gets a
 sample weight that’s used to correct summary statistics so that
 downsampling doesn’t bias the results:
@@ -713,8 +726,10 @@ downsampling doesn’t bias the results:
 ``` r
 
 result <- analog_availability(
-      x = fut, pool = hist,
-      max_clim = 0.5, max_geog = 200,
+      x = fut, 
+      pool = hist,
+      env = kernel(0.5), 
+      geog = kernel(200),
       downsample = 0.1
 )
 ```

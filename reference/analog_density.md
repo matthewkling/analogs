@@ -1,8 +1,8 @@
-# Analog density: kernel-weighted analog count within climate/geographic limits
+# Analog density: kernel-weighted analog count within environmental/geographic limits
 
 Computes, for each focal location, the kernel-weighted sum of all
-reference locations that satisfy the supplied climate and geographic
-constraints.
+reference locations that satisfy the supplied environmental and
+geographic constraints.
 
 ## Usage
 
@@ -14,13 +14,10 @@ analog_density(
   weight = NULL,
   coord_type = "auto",
   stat = c("sum_weights"),
-  max_clim = NULL,
-  max_geog = NULL,
-  kernel = c("uniform", "inverse_clim", "inverse_geog", "gaussian_clim", "gaussian_geog",
-    "gaussian_joint", "inverse_joint"),
-  theta = NULL,
+  env = NULL,
+  geog = NULL,
   normalize = "auto",
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -36,15 +33,15 @@ analog_density(
 - x:
 
   Focal locations for which analogs will be found. Should be a
-  matrix/data.frame with columns x, y, and climate variables, or a
-  SpatRaster with climate variable layers.
+  matrix/data.frame with columns x, y, and environmental variables, or a
+  SpatRaster with environmental variable layers.
 
 - pool:
 
   The reference dataset to search for analogs. Either:
 
-  - Matrix/data.frame with columns x, y, and climate variables, or
-    SpatRaster with climate variable layers, OR
+  - Matrix/data.frame with columns x, y, and environmental variables, or
+    SpatRaster with environmental variable layers, OR
 
   - An `analog_index` object created by
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
@@ -55,9 +52,9 @@ analog_density(
   Optional focal-specific covariance matrices for Mahalanobis distance
   calculations. Should be a matrix or data.frame with one row per focal
   location and one column per unique covariance component, or a
-  SpatRaster with a layer for each component. For n climate variables,
-  there are n\*(n+1)/2 unique components, ordered as: variances first
-  (diagonals), then covariances (upper triangle by row).
+  SpatRaster with a layer for each component. For n environmental
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
 
 - weight:
 
@@ -100,80 +97,40 @@ analog_density(
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   for detailed stat descriptions.
 
-- max_clim:
+- env, geog:
 
-  Maximum climate distance constraint (default: NULL = no climate
-  constraint). Can be either:
+  Per-family distance treatment, each a
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  object (or `NULL`). A kernel bundles the hard distance threshold, the
+  weighting kernel shape, and the kernel's scale for one family:
+  environmental (`env`) or geography (`geog`).
+  `kernel(weight, theta, max)` where:
 
-  - A scalar: Euclidean radius in climate space (e.g., 0.5)
+  - `max`: hard distance threshold — candidates beyond it (in that
+    family's distance) are excluded. For `env`, `max` may be a single
+    Euclidean radius or a per-variable vector of absolute-difference
+    thresholds (length equal to the number of environmental variables);
+    scalar environmental thresholds are in Mahalanobis units when
+    `x_cov` is supplied. For `geog`, `max` is a single radius
+    (kilometers when `coord_type = "lonlat"`, projected units
+    otherwise).
 
-  - A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
+  - `weight`: kernel shape for weighted aggregations — `"uniform"` (no
+    distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
+    `"inverse"` (`1 / (1 + d / theta)`). The overall kernel weight is
+    the product of the two families' weights, so shapes may be mixed
+    (e.g. an inverse environmental kernel with a Gaussian geographic
+    kernel).
 
-  Only reference locations within this climate distance are considered.
-  When `x_cov` is provided, scalar thresholds are interpreted in
-  Mahalanobis distance units.
+  - `theta`: the kernel's scale (Gaussian bandwidth, or inverse
+    half-weight distance). See
+    [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+    for calibrated values.
 
-- max_geog:
-
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
-
-- kernel:
-
-  Kernel decay function for weighting matches, used only when `stat`
-  includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
-  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
-  `"tabulate"`). One of:
-
-  - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
-
-  - `"inverse_clim"`: Inverse climate distance, kernel weight = 1 /
-    (climate_distance + eps), with epsilon given by `theta`.
-
-  - `"inverse_geog"`: Inverse geographic distance, kernel weight = 1 /
-    (geographic_distance + eps), with epsilon given by `theta`.
-
-  - `"gaussian_clim"`: Gaussian kernel on climate distance, kernel
-    weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by
-    `theta`.
-
-  - `"gaussian_geog"`: Gaussian kernel on geographic distance, kernel
-    weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given
-    by `theta`.
-
-  - `"gaussian_joint"`: Gaussian kernel on combined distance, kernel
-    weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2
-    sigma_geog^2))), with sigmas given by `theta`.
-
-  - `"inverse_joint"`: Inverse joint distance, kernel weight = 1 /
-    (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
-    `theta`.
-
-- theta:
-
-  Optional numeric parameter controlling the shape of the weighting
-  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
-  includes a weighted aggregation) and `kernel` is not `"uniform"`.
-  Interpretation depends on `kernel`:
-
-  - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
-    distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-
-  - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
-    parameter (scalar; larger values = slower decay with distance).
-
-  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
-    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
-    geography).
-
-  See
-  [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
-  for help choosing `theta` and `max_clim` / `max_geog` values that work
-  well together.
+  A `NULL` kernel (the default for both) applies no threshold and no
+  weighting for that family. See
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  for details.
 
 - normalize:
 
@@ -182,13 +139,13 @@ analog_density(
   active, results for these stats are divided by a global scalar so that
   they represent a fraction of a theoretically "perfect" scenario where
   the full search area within `max_geog` is occupied wall-to-wall by
-  cells whose climate exactly matches `x`. See details under
+  cells whose environment exactly matches `x`. See details under
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   for more info.
 
-- clim_res_adj, geog_res_adj:
+- env_res_adj, geog_res_adj:
 
-  Control the lattice search-index resolution of the climate and
+  Control the lattice search-index resolution of the environmental and
   geographic families, each a multiplier on a data-dependent default
   (targeting ~50 pool points per occupied bin, split between families by
   effective dimensionality, so it scales with pool size). Each is
@@ -235,7 +192,7 @@ analog_density(
   improve speed at some cost to precision. Default is 1.0 (no
   downsampling). Ignored if `pool` is a pre-built index. When
   `downsample < 1`, resolution must be set explicitly via `geog_res_adj`
-  / `clim_res_adj` (auto-tuning is not supported in this case; see those
+  / `env_res_adj` (auto-tuning is not supported in this case; see those
   parameters for details).
 
 - seed:
@@ -312,10 +269,8 @@ if (FALSE) { # \dontrun{
 dens <- analog_density(
   x = sites,
   pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel = "gaussian_clim",
-  theta = 0.2
+  env = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog = kernel(max = 100)
 )
 attr(dens, "D_max")  # the global denominator used
 
@@ -323,10 +278,8 @@ attr(dens, "D_max")  # the global denominator used
 dens_raw <- analog_density(
   x = sites,
   pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel = "gaussian_clim",
-  theta = 0.2,
+  env = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog = kernel(max = 100),
   normalize = FALSE
 )
 
@@ -334,17 +287,17 @@ dens_raw <- analog_density(
 intens_joint <- analog_density(
   x = sites,
   pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel = "gaussian_joint",
-  theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
+  env = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog = kernel("gaussian", theta = 50, max = 100)
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(climate_data)
-i1 <- analog_density(x = sites1, pool = index, max_clim = 0.5,
-                     max_geog = 100, kernel = "inverse_clim")
-i2 <- analog_density(x = sites2, pool = index, max_geog = 100,
-                     kernel = "gaussian_clim", theta = 0.3)
+i1 <- analog_density(x = sites1, pool = index,
+                     env = kernel("inverse", max = 0.5),
+                     geog = kernel(max = 100))
+i2 <- analog_density(x = sites2, pool = index,
+                     env = kernel("gaussian", theta = 0.3),
+                     geog = kernel(max = 100))
 } # }
 ```

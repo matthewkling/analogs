@@ -1,10 +1,10 @@
 # Climate velocity: geographically nearest climate analogs
 
 Finds, for each focal location, the geographic nearest neighbor(s) in a
-reference dataset that satisfy a specified maximum climate distance
-threshold. Distances to these analogs, divided by time elapsed, give
-analog-based climate velocity (Hamann et al. 2015; Dobrowski and Parks
-2016).
+reference dataset that satisfy a specified maximum environmental
+distance threshold. Distances to these analogs, divided by time elapsed,
+give analog-based climate velocity (Hamann et al. 2015; Dobrowski and
+Parks 2016).
 
 ## Usage
 
@@ -16,10 +16,10 @@ analog_velocity(
   y = NULL,
   weight = NULL,
   coord_type = "auto",
-  max_clim,
-  max_geog = NULL,
+  env,
+  geog = NULL,
   k = 1,
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -34,15 +34,15 @@ analog_velocity(
 - x:
 
   Focal locations for which analogs will be found. Should be a
-  matrix/data.frame with columns x, y, and climate variables, or a
-  SpatRaster with climate variable layers.
+  matrix/data.frame with columns x, y, and environmental variables, or a
+  SpatRaster with environmental variable layers.
 
 - pool:
 
   The reference dataset to search for analogs. Either:
 
-  - Matrix/data.frame with columns x, y, and climate variables, or
-    SpatRaster with climate variable layers, OR
+  - Matrix/data.frame with columns x, y, and environmental variables, or
+    SpatRaster with environmental variable layers, OR
 
   - An `analog_index` object created by
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
@@ -53,9 +53,9 @@ analog_velocity(
   Optional focal-specific covariance matrices for Mahalanobis distance
   calculations. Should be a matrix or data.frame with one row per focal
   location and one column per unique covariance component, or a
-  SpatRaster with a layer for each component. For n climate variables,
-  there are n\*(n+1)/2 unique components, ordered as: variances first
-  (diagonals), then covariances (upper triangle by row).
+  SpatRaster with a layer for each component. For n environmental
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
 
 - y:
 
@@ -99,37 +99,50 @@ analog_velocity(
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
 
-- max_clim:
+- env, geog:
 
-  Maximum climate distance constraint (default: NULL = no climate
-  constraint). Can be either:
+  Per-family distance treatment, each a
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  object (or `NULL`). A kernel bundles the hard distance threshold, the
+  weighting kernel shape, and the kernel's scale for one family:
+  environmental (`env`) or geography (`geog`).
+  `kernel(weight, theta, max)` where:
 
-  - A scalar: Euclidean radius in climate space (e.g., 0.5)
+  - `max`: hard distance threshold — candidates beyond it (in that
+    family's distance) are excluded. For `env`, `max` may be a single
+    Euclidean radius or a per-variable vector of absolute-difference
+    thresholds (length equal to the number of environmental variables);
+    scalar environmental thresholds are in Mahalanobis units when
+    `x_cov` is supplied. For `geog`, `max` is a single radius
+    (kilometers when `coord_type = "lonlat"`, projected units
+    otherwise).
 
-  - A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
+  - `weight`: kernel shape for weighted aggregations — `"uniform"` (no
+    distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
+    `"inverse"` (`1 / (1 + d / theta)`). The overall kernel weight is
+    the product of the two families' weights, so shapes may be mixed
+    (e.g. an inverse environmental kernel with a Gaussian geographic
+    kernel).
 
-  Only reference locations within this climate distance are considered.
-  When `x_cov` is provided, scalar thresholds are interpreted in
-  Mahalanobis distance units.
+  - `theta`: the kernel's scale (Gaussian bandwidth, or inverse
+    half-weight distance). See
+    [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+    for calibrated values.
 
-- max_geog:
-
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
+  A `NULL` kernel (the default for both) applies no threshold and no
+  weighting for that family. See
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  for details.
 
 - k:
 
   Number of nearest analogs to return per focal location for kNN
   selection modes. Required when `select` is `"knn_geog"` or
-  `"knn_clim"`; must be `NULL` for `select = "all"`.
+  `"knn_env"`; must be `NULL` for `select = "all"`.
 
-- clim_res_adj, geog_res_adj:
+- env_res_adj, geog_res_adj:
 
-  Control the lattice search-index resolution of the climate and
+  Control the lattice search-index resolution of the environmental and
   geographic families, each a multiplier on a data-dependent default
   (targeting ~50 pool points per occupied bin, split between families by
   effective dimensionality, so it scales with pool size). Each is
@@ -176,7 +189,7 @@ analog_velocity(
   improve speed at some cost to precision. Default is 1.0 (no
   downsampling). Ignored if `pool` is a pre-built index. When
   `downsample < 1`, resolution must be set explicitly via `geog_res_adj`
-  / `clim_res_adj` (auto-tuning is not supported in this case; see those
+  / `env_res_adj` (auto-tuning is not supported in this case; see those
   parameters for details).
 
 - seed:
@@ -196,7 +209,7 @@ analog_velocity(
 
 A data.frame, or a SpatRaster when `x` is one and `k = 1`. Contains one
 row per focal-analog pair with `index`, `x`, `y`, `analog_index`,
-`analog_x`, `analog_y`, `clim_dist`, and `geog_dist`. See
+`analog_x`, `analog_y`, `env_dist`, and `geog_dist`. See
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
 for full column conventions and
 [`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
@@ -207,10 +220,10 @@ for attached metadata attributes.
 This function is a wrapper that calls
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
 using `select = "knn_geog"` and `stat = "none"`. Note that it **does not
-return velocity per se**—it returns geographic and climatic distances to
-each focal site's nearest analog(s); to compute velocity, you can divide
-these geographic distances by the length of time elapsed between your
-`x` and `pool` datasets.
+return velocity per se**—it returns geographic and environmental
+distances to each focal site's nearest analog(s); to compute velocity,
+you can divide these geographic distances by the length of time elapsed
+between your `x` and `pool` datasets.
 
 ## References
 
@@ -239,21 +252,21 @@ if (FALSE) { # \dontrun{
 v <- analog_velocity(
   x = clim$clim1,
   pool = clim$clim2,
-  max_clim = 0.5,
+  env = kernel(max = 0.5),
   k = 1
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(clim$clim2)
-v1 <- analog_velocity(x = sites1, pool = index, max_clim = 0.5, k = 1)
-v2 <- analog_velocity(x = sites2, pool = index, max_clim = 0.3, k = 1)
+v1 <- analog_velocity(x = sites1, pool = index, env = kernel(max = 0.5), k = 1)
+v2 <- analog_velocity(x = sites2, pool = index, env = kernel(max = 0.3), k = 1)
 
 # With focal-specific covariance matrices
 v_mahal <- analog_velocity(
   x = clim$clim1,
   pool = clim$clim2,
   x_cov = baseline_covariances,
-  max_clim = 2,  # In Mahalanobis distance units
+  env = kernel(max = 2),  # In Mahalanobis distance units
   k = 1
 )
 } # }

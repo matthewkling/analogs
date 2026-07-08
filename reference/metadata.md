@@ -32,7 +32,7 @@ placeholders). Possible elements include:
 
 - `select`:
 
-  Selection strategy: `"all"`, `"knn_clim"`, or `"knn_geog"`.
+  Selection strategy: `"all"`, `"knn_env"`, or `"knn_geog"`.
 
 - `k`:
 
@@ -44,15 +44,26 @@ placeholders). Possible elements include:
   Aggregation statistic(s) requested. Character vector; `"none"` for
   pair-mode results.
 
-- `kernel`:
+- `kernel_env`:
 
-  Kernel function used for analog weighting (e.g. `"gaussian_clim"`), or
-  `NULL` if no weighted aggregation was requested.
+  Environmental weighting kernel shape: `"uniform"`, `"gaussian"`, or
+  `"inverse"`. `"uniform"` when environment is not distance-weighted.
 
-- `theta`:
+- `kernel_geog`:
 
-  Kernel bandwidth or epsilon parameter; scalar for most kernels,
-  length-2 numeric for `*_joint` kernels.
+  Geographic weighting kernel shape: `"uniform"`, `"gaussian"`, or
+  `"inverse"`. `"uniform"` when geography is not distance-weighted.
+
+- `theta_env`:
+
+  Scale parameter for the environmental kernel (Gaussian bandwidth or
+  inverse half-weight distance); `NULL` if the environmental kernel is
+  uniform.
+
+- `theta_geog`:
+
+  Scale parameter for the geographic kernel; `NULL` if the geographic
+  kernel is uniform.
 
 - `lambda`:
 
@@ -64,10 +75,10 @@ placeholders). Possible elements include:
   Standard-error framing applied to SE-supporting stats: `"none"`,
   `"ess"`, or `"design"`.
 
-- `max_clim`:
+- `max_env`:
 
-  Climate-distance threshold used for analog selection. Scalar for
-  Euclidean / Mahalanobis radius, or length-`n_clim` for per-variable
+  Environmental-distance threshold used for analog selection. Scalar for
+  Euclidean / Mahalanobis radius, or length-`n_env` for per-variable
   thresholds.
 
 - `max_geog`:
@@ -92,9 +103,9 @@ placeholders). Possible elements include:
 
   Number of reference locations in the input `pool`.
 
-- `n_clim`:
+- `n_env`:
 
-  Number of climate variables.
+  Number of environmental variables.
 
 - `coord_type`:
 
@@ -104,8 +115,8 @@ placeholders). Possible elements include:
 - `x_cov_provided`:
 
   Logical: was a per-focal covariance matrix (`x_cov`) supplied? If
-  `TRUE`, climate distances were computed in Mahalanobis units using
-  location-specific covariance; otherwise Euclidean.
+  `TRUE`, environmental distances were computed in Mahalanobis units
+  using location-specific covariance; otherwise Euclidean.
 
 - `downsample_actual`:
 
@@ -131,14 +142,14 @@ for detail.
 
   Lattice occupancy summaries.
 
-- `clim_res_adj`, `geog_res_adj`:
+- `env_res_adj`, `geog_res_adj`:
 
   Per-family resolution adjustments used to build the index: each scales
   its family's bin count relative to a data-dependent default (`1` =
   default, `0` = deactivated). See
   [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md).
 
-- `clim_target`, `geo_target`:
+- `env_target`, `geo_target`:
 
   Realized per-family bin-count targets passed to the lattice builder
   (the absolute values the `*_res_adj` resolve to).
@@ -146,7 +157,7 @@ for detail.
 - `bins_per_axis`:
 
   Integer vector of realized bins per axis (geographic axes first, then
-  climate), showing how the budget was distributed.
+  environment), showing how the budget was distributed.
 
 ### Cross-validation metadata
 
@@ -189,13 +200,13 @@ if (FALSE) { # \dontrun{
 result <- analog_velocity(
   x = future_climate,
   pool = current_climate,
-  max_clim = 0.5
+  env = kernel(max = 0.5)
 )
 
 # Get the full parameterization as a list
 meta <- metadata(result)
 meta$select
-meta$max_clim
+meta$max_env
 meta$n_pool
 
 # Or read individual attributes directly

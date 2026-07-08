@@ -1,8 +1,8 @@
-# Analog availability: count of all analogs within climate/geographic limits
+# Analog availability: count of all analogs within environmental/geographic limits
 
 Computes, for each focal location, how many reference locations satisfy
-the supplied climate and geographic constraints. This is useful for
-mapping analog "availability" or environmental similarity density.
+the supplied environmental and geographic constraints. This is useful
+for mapping analog "availability" or environmental similarity density.
 
 ## Usage
 
@@ -13,9 +13,9 @@ analog_availability(
   x_cov = NULL,
   weight = NULL,
   coord_type = "auto",
-  max_clim = NULL,
-  max_geog = NULL,
-  clim_res_adj = "auto",
+  env = NULL,
+  geog = NULL,
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -30,15 +30,15 @@ analog_availability(
 - x:
 
   Focal locations for which analogs will be found. Should be a
-  matrix/data.frame with columns x, y, and climate variables, or a
-  SpatRaster with climate variable layers.
+  matrix/data.frame with columns x, y, and environmental variables, or a
+  SpatRaster with environmental variable layers.
 
 - pool:
 
   The reference dataset to search for analogs. Either:
 
-  - Matrix/data.frame with columns x, y, and climate variables, or
-    SpatRaster with climate variable layers, OR
+  - Matrix/data.frame with columns x, y, and environmental variables, or
+    SpatRaster with environmental variable layers, OR
 
   - An `analog_index` object created by
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
@@ -49,9 +49,9 @@ analog_availability(
   Optional focal-specific covariance matrices for Mahalanobis distance
   calculations. Should be a matrix or data.frame with one row per focal
   location and one column per unique covariance component, or a
-  SpatRaster with a layer for each component. For n climate variables,
-  there are n\*(n+1)/2 unique components, ordered as: variances first
-  (diagonals), then covariances (upper triangle by row).
+  SpatRaster with a layer for each component. For n environmental
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
 
 - weight:
 
@@ -86,31 +86,44 @@ analog_availability(
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
 
-- max_clim:
+- env, geog:
 
-  Maximum climate distance constraint (default: NULL = no climate
-  constraint). Can be either:
+  Per-family distance treatment, each a
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  object (or `NULL`). A kernel bundles the hard distance threshold, the
+  weighting kernel shape, and the kernel's scale for one family:
+  environmental (`env`) or geography (`geog`).
+  `kernel(weight, theta, max)` where:
 
-  - A scalar: Euclidean radius in climate space (e.g., 0.5)
+  - `max`: hard distance threshold — candidates beyond it (in that
+    family's distance) are excluded. For `env`, `max` may be a single
+    Euclidean radius or a per-variable vector of absolute-difference
+    thresholds (length equal to the number of environmental variables);
+    scalar environmental thresholds are in Mahalanobis units when
+    `x_cov` is supplied. For `geog`, `max` is a single radius
+    (kilometers when `coord_type = "lonlat"`, projected units
+    otherwise).
 
-  - A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
+  - `weight`: kernel shape for weighted aggregations — `"uniform"` (no
+    distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
+    `"inverse"` (`1 / (1 + d / theta)`). The overall kernel weight is
+    the product of the two families' weights, so shapes may be mixed
+    (e.g. an inverse environmental kernel with a Gaussian geographic
+    kernel).
 
-  Only reference locations within this climate distance are considered.
-  When `x_cov` is provided, scalar thresholds are interpreted in
-  Mahalanobis distance units.
+  - `theta`: the kernel's scale (Gaussian bandwidth, or inverse
+    half-weight distance). See
+    [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+    for calibrated values.
 
-- max_geog:
+  A `NULL` kernel (the default for both) applies no threshold and no
+  weighting for that family. See
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  for details.
 
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
+- env_res_adj, geog_res_adj:
 
-- clim_res_adj, geog_res_adj:
-
-  Control the lattice search-index resolution of the climate and
+  Control the lattice search-index resolution of the environmental and
   geographic families, each a multiplier on a data-dependent default
   (targeting ~50 pool points per occupied bin, split between families by
   effective dimensionality, so it scales with pool size). Each is
@@ -157,7 +170,7 @@ analog_availability(
   improve speed at some cost to precision. Default is 1.0 (no
   downsampling). Ignored if `pool` is a pre-built index. When
   `downsample < 1`, resolution must be set explicitly via `geog_res_adj`
-  / `clim_res_adj` (auto-tuning is not supported in this case; see those
+  / `env_res_adj` (auto-tuning is not supported in this case; see those
   parameters for details).
 
 - seed:
@@ -222,13 +235,13 @@ if (FALSE) { # \dontrun{
 avail <- analog_availability(
   x = sites,
   pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100
+  env = kernel(max = 0.5),
+  geog = kernel(max = 100)
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(climate_data)
-a1 <- analog_availability(x = sites1, pool = index, max_clim = 0.5, max_geog = 100)
-a2 <- analog_availability(x = sites2, pool = index, max_clim = 0.3, max_geog = 50)
+a1 <- analog_availability(x = sites1, pool = index, env = kernel(max = 0.5), geog = kernel(max = 100))
+a2 <- analog_availability(x = sites2, pool = index, env = kernel(max = 0.3), geog = kernel(max = 50))
 } # }
 ```

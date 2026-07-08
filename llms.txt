@@ -96,18 +96,21 @@ for a complete index of functions.
 - [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md)
   : Climate velocity: geographically nearest climate analogs
 - [`analog_availability()`](https://matthewkling.github.io/analogs/reference/analog_availability.md)
-  : Analog availability: count of all analogs within climate/geographic
-  limits
+  : Analog availability: count of all analogs within
+  environmental/geographic limits
 - [`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md)
   : Analog density: kernel-weighted analog count within
-  climate/geographic limits
+  environmental/geographic limits
 - [`analog_similarity()`](https://matthewkling.github.io/analogs/reference/analog_similarity.md)
-  : Analog similarity: best climate analogs within a geographic envelope
+  : Analog similarity: best environmental analogs within a geographic
+  envelope
 
 ## Core architecture
 
 - [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   : Generalized analog search
+- [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  : Define the distance treatment for one analog dimension
 - [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
   : Build Analog Index
 - [`print(`*`<analog_index>`*`)`](https://matthewkling.github.io/analogs/reference/print.analog_index.md)
@@ -132,7 +135,7 @@ for a complete index of functions.
 ## Other
 
 - [`mahalanobis_transform()`](https://matthewkling.github.io/analogs/reference/mahalanobis_transform.md)
-  : Transform Climate Data for Global Mahalanobis Distance
+  : Transform Environmental Data for Global Mahalanobis Distance
 - [`example_rasters()`](https://matthewkling.github.io/analogs/reference/example_rasters.md)
   : Example spatiotemporal climate rasters
 - [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)

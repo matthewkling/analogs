@@ -5,11 +5,11 @@ truncation distance (`max`) of a kernel operating on Euclidean distances
 in `d`-dimensional space. Gives theoretical answers to the questions,
 "How big should `theta` be in order for my kernel to capture a given
 fraction of pool sites for the typical focal site?" and "How big should
-`max_clim` or `max_geog` be to truncate only a given percentage of
-kernel weight for the typical focal site?" Accounts for the effects of
-analog space multidimensionality on pairwise distance distributions,
-which can result in one-dimensional intuitions being incorrect. Supports
-the kernel types and data distributions used by the `analogs` package.
+`max_env` or `max_geog` be to truncate only a given percentage of kernel
+weight for the typical focal site?" Accounts for the effects of analog
+space multidimensionality on pairwise distance distributions, which can
+result in one-dimensional intuitions being incorrect. Supports the
+kernel types and data distributions used by the `analogs` package.
 
 ## Usage
 
@@ -37,13 +37,13 @@ kernel_params(
   Bandwidth value. Use this OR `fraction`. For Gaussian kernels, this is
   the standard bandwidth parameter; for uniform kernels, this is the
   cutoff radius (also returned as `max`); for inverse-distance kernels,
-  this is the epsilon regularization that determines the half-weight
-  scale.
+  this is the half-weight scale of the reparameterized kernel
+  `1 / (1 + d / theta)` (weight is 1/2 at `d = theta`).
 
 - d:
 
-  Dimensionality of the space (e.g., number of climate variables after
-  Mahalanobis transformation, or 2 for geographic).
+  Dimensionality of the space (e.g., number of environmental variables
+  after Mahalanobis transformation, or 2 for geographic).
 
 - loss:
 
@@ -57,15 +57,15 @@ kernel_params(
 - data_dist:
 
   Distribution of cells in space. Either `"mvn"` (multivariate standard
-  normal; default; appropriate for Mahalanobis-transformed climate data)
-  or `"uniform"` (appropriate for geographic space).
+  normal; default; appropriate for Mahalanobis-transformed environmental
+  data) or `"uniform"` (appropriate for geographic space).
 
 ## Value
 
 A named list. For Gaussian and inverse-distance kernels: element
 `theta`, and `max` if `loss` is specified. For uniform kernels: element
 `max` (the single cutoff radius, which serves as both bandwidth and
-truncation distance; supplied in the `analogs` package as `max_clim` or
+truncation distance; supplied in the `analogs` package as `max_env` or
 `max_geog`).
 
 ## Details
@@ -88,13 +88,13 @@ weight is discarded. Useful for computational efficiency.
 
 Recommendations are averages over the distribution of focal cells;
 specific focal cells experience effective neighborhoods that vary around
-these averages, with cells in dense climate regions seeing more
+these averages, with cells in dense environmental regions seeing more
 neighbors than cells in sparse regions.
 
 ## Examples
 
 ``` r
-# Climate kernel: niche fraction of 5% in 4 climate variables
+# Environmental kernel: niche fraction of 5% in 4 environmental variables
 kernel_params(fraction = 0.05, d = 4, loss = 0.01)
 #> $theta
 #> [1] 0.536663
@@ -123,6 +123,6 @@ kernel_params(fraction = 0.05, d = 4, kernel = "uniform")
 #> 
 kernel_params(fraction = 0.05, d = 4, kernel = "inverse_distance")
 #> $theta
-#> [1] 18.14302
+#> [1] 0.08504164
 #> 
 ```

@@ -1,7 +1,7 @@
 # Build Analog Index
 
-Pre-builds a reusable lattice index from reference climate data. The
-index can be queried multiple times with different focal points and
+Pre-builds a reusable lattice index from reference environmental data.
+The index can be queried multiple times with different focal points and
 parameters, avoiding the need to rebuild the lattice for each query.
 
 ## Usage
@@ -11,7 +11,7 @@ build_analog_index(
   pool,
   coord_type = c("auto", "lonlat", "projected"),
   geog_res_adj = 1,
-  clim_res_adj = 1,
+  env_res_adj = 1,
   downsample = 1,
   seed = NULL,
   cell_area_weight = "auto",
@@ -24,8 +24,8 @@ build_analog_index(
 - pool:
 
   The reference dataset to search for analogs. Should be a
-  matrix/data.frame with columns x, y, and climate variables, or a
-  SpatRaster with climate variable layers.
+  matrix/data.frame with columns x, y, and environmental variables, or a
+  SpatRaster with environmental variable layers.
 
 - coord_type:
 
@@ -39,14 +39,14 @@ build_analog_index(
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
 
-- clim_res_adj, geog_res_adj:
+- env_res_adj, geog_res_adj:
 
-  Non-negative scalars adjusting the lattice resolution of the climate
-  and geographic variable families, each as a multiplier on a
-  data-dependent default. The default allocation targets an average of
-  roughly 50 pool points per occupied bin and splits that budget between
-  the two families by their effective dimensionality;
-  `clim_res_adj = geog_res_adj = 1` (the default) uses that allocation.
+  Non-negative scalars adjusting the lattice resolution of the
+  environmental and geographic variable families, each as a multiplier
+  on a data-dependent default. The default allocation targets an average
+  of roughly 50 pool points per occupied bin and splits that budget
+  between the two families by their effective dimensionality;
+  `env_res_adj = geog_res_adj = 1` (the default) uses that allocation.
   Larger values give a finer lattice for that family (more, smaller
   bins), smaller values a coarser one, and `0` deactivates the family
   entirely (one bin per axis), which is appropriate when a query does
@@ -127,14 +127,14 @@ An S3 object of class `"analog_index"` containing:
 ## Details
 
 The lattice index is a multidimensional grid of bins, built over both
-geographic and climate dimensions. This structure enables efficient
-analog searches by first filtering and sorting bins of similar points
-before computing exact results. For lon/lat coordinates, the index uses
-ECEF (Earth-Centered Earth-Fixed) space internally for optimal
-performance.
+geographic and environmental dimensions. This structure enables
+efficient analog searches by first filtering and sorting bins of similar
+points before computing exact results. For lon/lat coordinates, the
+index uses ECEF (Earth-Centered Earth-Fixed) space internally for
+optimal performance.
 
 Index resolution is controlled per family by `geog_res_adj` and
-`clim_res_adj`, each a multiplier on a pool-size-dependent default
+`env_res_adj`, each a multiplier on a pool-size-dependent default
 (targeting ~50 points per bin, split between the families by effective
 dimensionality). `1` uses the default for that family, larger values are
 finer, smaller are coarser, and `0` deactivates a family (one bin per
@@ -177,14 +177,14 @@ index <- build_analog_index(climate_data, geog_res_adj = 2)
 # Build with downsampling for large datasets
 index <- build_analog_index(
   large_climate_data,
-  geog_res_adj = 1, clim_res_adj = 1,
+  geog_res_adj = 1, env_res_adj = 1,
   downsample = 0.1,  # Reduce max bin size to 10%
   seed = 123         # Reproducible sampling
 )
 
 # Query the index multiple times
-v1 <- analog_velocity(sites1, pool = index, max_clim = 0.5)
-v2 <- analog_velocity(sites2, pool = index, max_clim = 0.3)
-a1 <- analog_availability(sites3, pool = index, max_clim = 0.5, max_geog = 100)
+v1 <- analog_velocity(sites1, pool = index, env = kernel(max = 0.5))
+v2 <- analog_velocity(sites2, pool = index, env = kernel(max = 0.3))
+a1 <- analog_availability(sites3, pool = index, env = kernel(max = 0.5), geog = kernel(max = 100))
 } # }
 ```

@@ -168,10 +168,8 @@ apply to categorical CV output and passing anything other than
 <span class="r-in"><span>  fun      <span class="op">=</span> <span class="va">analog_impact</span>,</span></span>
 <span class="r-in"><span>  pool     <span class="op">=</span> <span class="va">sites</span>,</span></span>
 <span class="r-in"><span>  y        <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">biomass</span>,</span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">100</span>,</span></span>
-<span class="r-in"><span>  kernel   <span class="op">=</span> <span class="st">"gaussian_clim"</span>,</span></span>
-<span class="r-in"><span>  theta    <span class="op">=</span> <span class="fl">0.2</span></span></span>
+<span class="r-in"><span>  env     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.2</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  geog     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">cv_performance</span><span class="op">(</span><span class="va">cv</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -180,10 +178,8 @@ apply to categorical CV output and passing anything other than
 <span class="r-in"><span>  fun      <span class="op">=</span> <span class="va">analog_impact</span>,</span></span>
 <span class="r-in"><span>  pool     <span class="op">=</span> <span class="va">sites</span>,</span></span>
 <span class="r-in"><span>  y        <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">presence</span>,   <span class="co"># 0/1 values</span></span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">100</span>,</span></span>
-<span class="r-in"><span>  kernel   <span class="op">=</span> <span class="st">"gaussian_clim"</span>,</span></span>
-<span class="r-in"><span>  theta    <span class="op">=</span> <span class="fl">0.2</span></span></span>
+<span class="r-in"><span>  env     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.2</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  geog     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">cv_performance</span><span class="op">(</span><span class="va">cv_bin</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -193,10 +189,8 @@ apply to categorical CV output and passing anything other than
 <span class="r-in"><span>  pool     <span class="op">=</span> <span class="va">sites</span>,</span></span>
 <span class="r-in"><span>  y        <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">sites</span><span class="op">$</span><span class="va">vegetation</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  stat     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"count"</span>, <span class="st">"sum_weights"</span>, <span class="st">"tabulate"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span>,</span></span>
-<span class="r-in"><span>  max_geog <span class="op">=</span> <span class="fl">100</span>,</span></span>
-<span class="r-in"><span>  kernel   <span class="op">=</span> <span class="st">"gaussian_clim"</span>,</span></span>
-<span class="r-in"><span>  theta    <span class="op">=</span> <span class="fl">0.2</span></span></span>
+<span class="r-in"><span>  env     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.2</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  geog     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">perf</span> <span class="op">&lt;-</span> <span class="fu">cv_performance</span><span class="op">(</span><span class="va">cv_cat</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -211,8 +205,7 @@ apply to categorical CV output and passing anything other than
 <span class="r-in"><span><span class="va">auc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="va">thetas</span>, <span class="kw">function</span><span class="op">(</span><span class="va">th</span><span class="op">)</span> <span class="op">{</span></span></span>
 <span class="r-in"><span>  <span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="analog_cv.html">analog_cv</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>    fun <span class="op">=</span> <span class="va">analog_impact</span>, pool <span class="op">=</span> <span class="va">sites</span>, y <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">presence</span>,</span></span>
-<span class="r-in"><span>    max_clim <span class="op">=</span> <span class="fl">0.5</span>, max_geog <span class="op">=</span> <span class="fl">100</span>,</span></span>
-<span class="r-in"><span>    kernel <span class="op">=</span> <span class="st">"gaussian_clim"</span>, theta <span class="op">=</span> <span class="va">th</span></span></span>
+<span class="r-in"><span>    env <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="va">th</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">perf</span> <span class="op">&lt;-</span> <span class="fu">cv_performance</span><span class="op">(</span><span class="va">cv</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">perf</span><span class="op">$</span><span class="va">value</span><span class="op">[</span><span class="va">perf</span><span class="op">$</span><span class="va">metric</span> <span class="op">==</span> <span class="st">"auc"</span><span class="op">]</span></span></span>
@@ -231,7 +224,7 @@ apply to categorical CV output and passing anything other than
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

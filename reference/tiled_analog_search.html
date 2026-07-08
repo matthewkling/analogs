@@ -53,7 +53,8 @@ function.</p>
 <span>  <span class="va">pool</span>,</span>
 <span>  <span class="va">n_tiles</span>,</span>
 <span>  <span class="va">fun</span>,</span>
-<span>  <span class="va">max_geog</span>,</span>
+<span>  <span class="va">geog</span>,</span>
+<span>  env <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  x_cov <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -89,12 +90,17 @@ memory constraints.</p></dd>
 analog_impact).</p></dd>
 
 
-<dt id="arg-max-geog">max_geog<a class="anchor" aria-label="anchor" href="#arg-max-geog"></a></dt>
-<dd><p>Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if <code>coord_type = "lonlat"</code>, or in projected coordinate units
-if <code>coord_type = "projected"</code>.</p></dd>
+<dt id="arg-geog">geog<a class="anchor" aria-label="anchor" href="#arg-geog"></a></dt>
+<dd><p>A <code><a href="kernel.html">kernel()</a></code> object giving the geographic search treatment. Its
+<code>max</code> (the geographic search radius) is required and finite: it both sizes
+the tile halos (so edge focals still see all in-range analogs) and is
+forwarded to <code>fun</code>. Tiling is only beneficial when the geographic search
+is bounded, hence <code>geog</code> with a finite <code>max</code> is required.</p></dd>
+
+
+<dt id="arg-env">env<a class="anchor" aria-label="anchor" href="#arg-env"></a></dt>
+<dd><p>Optional <code><a href="kernel.html">kernel()</a></code> object giving the environmental search treatment,
+forwarded to <code>fun</code>. <code>NULL</code> (default) means no environmental kernel is passed.</p></dd>
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
@@ -124,7 +130,7 @@ weighted stats (e.g. <code>sum_weights</code>) consistent across tiles.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Additional arguments passed to fun. Must include max_geog.
+<dd><p>Additional arguments passed to fun (e.g. <code>select</code>, <code>stat</code>, <code>k</code>).
 May include <code>covariates</code> as a SpatRaster matching <code>pool</code>'s CRS and
 extent (cropped per tile alongside <code>y</code>). May also include <code>normalize</code>
 for helpers that support it (e.g. <code><a href="analog_density.html">analog_density()</a></code>); when normalization
@@ -153,18 +159,19 @@ is specified, returns a disk-backed SpatRaster.</p>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Tiled analog searches work by splitting x into a number of smaller tiles and
 calling the requested analog function on each tile, using an analog pool
-that is the size of the tile buffered by max_geog. This buffer is necessary
-for correctness but increases compute time, particularly if max_geog is
+that is the size of the tile buffered by the geographic radius (<code>geog</code>'s
+<code>max</code>). This buffer is necessary
+for correctness but increases compute time, particularly if the radius is
 large. The results for each tile are temporarily written to disk, and are
 merged into a single results raster once all tiles have processed.</p>
-<p>The function requires max_geog to be specified, as tiling is only beneficial when
+<p>The function requires <code>geog</code> to have a finite <code>max</code>, as tiling is only beneficial when
 geographic distance constraints limit the reference pool size for each
-focal point. The function will warn if max_geog is so large that tiling
+focal point. The function will warn if the radius is so large that tiling
 provides minimal memory benefit.</p>
 <p>If index_res is specified in ..., all tiles will use the same lattice
 resolution. If index_res is not specified, each tile will independently
 auto-tune its lattice resolution based on local data characteristics. This
-adaptive behavior is generally fine and can even be beneficial when climate
+adaptive behavior is generally fine and can even be beneficial when environmental
 distributions vary substantially across the landscape (e.g., mountains vs
 plains).</p>
     </div>
@@ -178,7 +185,7 @@ plains).</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

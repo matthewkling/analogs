@@ -2,14 +2,14 @@
 
 Fits a weighted local regression of `y` on `covariates` within each
 focal location's analog neighborhood. Analog neighborhoods are defined
-by climatic similarity, geographic proximity, or both, while covariates
-capture additional predictors that influence outcomes within each
-neighborhood but are not captured by to the search dimensions. This
+by environmental similarity, geographic proximity, or both, while
+covariates capture additional predictors that influence outcomes within
+each neighborhood but are not captured by to the search dimensions. This
 generalizes the weighted mean — which averages over all
 within-neighborhood variation — by resolving variation driven by these
 auxiliary predictors. Supports ordinary and ridge-penalized weighted
 least squares. With purely geographic neighborhoods, this is equivalent
-to geographically weighted regression (GWR); with climate-based
+to geographically weighted regression (GWR); with environment-based
 neighborhoods, it extends the analog impact model (AIM) framework to
 incorporate local covariate effects. This function is a wrapper that
 calls
@@ -26,20 +26,17 @@ analog_regression(
   weight = NULL,
   covariates,
   x_covariates = NULL,
-  max_geog = NULL,
-  max_clim = NULL,
+  geog = NULL,
+  env = kernel("gaussian"),
   select = "all",
   k = NULL,
-  kernel = c("gaussian_clim", "inverse_clim", "gaussian_geog", "inverse_geog",
-    "gaussian_joint", "inverse_joint", "uniform"),
-  theta = NULL,
   lambda = 0,
   stat = c("count", "ess", "regression"),
   se = c("none", "ess", "design"),
   normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -53,15 +50,15 @@ analog_regression(
 - x:
 
   Focal locations for which regressions will be fit. Should be a
-  matrix/data.frame with columns x, y, and climate variables, or a
-  SpatRaster with climate variable layers.
+  matrix/data.frame with columns x, y, and environmental variables, or a
+  SpatRaster with environmental variable layers.
 
 - pool:
 
   The reference dataset to search for analogs. Either:
 
-  - Matrix/data.frame with columns x, y, and climate variables, or
-    SpatRaster with climate variable layers, OR
+  - Matrix/data.frame with columns x, y, and environmental variables, or
+    SpatRaster with environmental variable layers, OR
 
   - An `analog_index` object created by
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
@@ -114,37 +111,50 @@ analog_regression(
   column/layer names as `covariates`. Default `NULL` returns only
   coefficients.
 
-- max_geog:
+- env, geog:
 
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
+  Per-family distance treatment, each a
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  object (or `NULL`). A kernel bundles the hard distance threshold, the
+  weighting kernel shape, and the kernel's scale for one family:
+  environmental (`env`) or geography (`geog`).
+  `kernel(weight, theta, max)` where:
 
-- max_clim:
+  - `max`: hard distance threshold — candidates beyond it (in that
+    family's distance) are excluded. For `env`, `max` may be a single
+    Euclidean radius or a per-variable vector of absolute-difference
+    thresholds (length equal to the number of environmental variables);
+    scalar environmental thresholds are in Mahalanobis units when
+    `x_cov` is supplied. For `geog`, `max` is a single radius
+    (kilometers when `coord_type = "lonlat"`, projected units
+    otherwise).
 
-  Maximum climate distance constraint (default: NULL = no climate
-  constraint). Can be either:
+  - `weight`: kernel shape for weighted aggregations — `"uniform"` (no
+    distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
+    `"inverse"` (`1 / (1 + d / theta)`). The overall kernel weight is
+    the product of the two families' weights, so shapes may be mixed
+    (e.g. an inverse environmental kernel with a Gaussian geographic
+    kernel).
 
-  - A scalar: Euclidean radius in climate space (e.g., 0.5)
+  - `theta`: the kernel's scale (Gaussian bandwidth, or inverse
+    half-weight distance). See
+    [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
+    for calibrated values.
 
-  - A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
-
-  Only reference locations within this climate distance are considered.
-  When `x_cov` is provided, scalar thresholds are interpreted in
-  Mahalanobis distance units.
+  A `NULL` kernel (the default for both) applies no threshold and no
+  weighting for that family. See
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  for details.
 
 - select:
 
   Character string specifying the analog selection strategy. One of:
 
-  - `"all"` (default): Select all analogs that satisfy the `max_clim`
-    and `max_geog` constraints.
+  - `"all"` (default): Select all analogs that satisfy the `max_env` and
+    `max_geog` constraints.
 
-  - `"knn_clim"`: For each focal, select up to `k` analogs with smallest
-    climate distance, subject to filters.
+  - `"knn_env"`: For each focal, select up to `k` analogs with smallest
+    environmental distance, subject to filters.
 
   - `"knn_geog"`: For each focal, select up to `k` analogs with smallest
     geographic distance, subject to filters.
@@ -153,60 +163,7 @@ analog_regression(
 
   Number of nearest analogs to return per focal location for kNN
   selection modes. Required when `select` is `"knn_geog"` or
-  `"knn_clim"`; must be `NULL` for `select = "all"`.
-
-- kernel:
-
-  Kernel decay function for weighting matches, used only when `stat`
-  includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
-  `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
-  `"tabulate"`). One of:
-
-  - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
-
-  - `"inverse_clim"`: Inverse climate distance, kernel weight = 1 /
-    (climate_distance + eps), with epsilon given by `theta`.
-
-  - `"inverse_geog"`: Inverse geographic distance, kernel weight = 1 /
-    (geographic_distance + eps), with epsilon given by `theta`.
-
-  - `"gaussian_clim"`: Gaussian kernel on climate distance, kernel
-    weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by
-    `theta`.
-
-  - `"gaussian_geog"`: Gaussian kernel on geographic distance, kernel
-    weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given
-    by `theta`.
-
-  - `"gaussian_joint"`: Gaussian kernel on combined distance, kernel
-    weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2
-    sigma_geog^2))), with sigmas given by `theta`.
-
-  - `"inverse_joint"`: Inverse joint distance, kernel weight = 1 /
-    (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by
-    `theta`.
-
-- theta:
-
-  Optional numeric parameter controlling the shape of the weighting
-  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
-  includes a weighted aggregation) and `kernel` is not `"uniform"`.
-  Interpretation depends on `kernel`:
-
-  - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
-    distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-
-  - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
-    parameter (scalar; larger values = slower decay with distance).
-
-  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
-    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
-    geography).
-
-  See
-  [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
-  for help choosing `theta` and `max_clim` / `max_geog` values that work
-  well together.
+  `"knn_env"`; must be `NULL` for `select = "all"`.
 
 - lambda:
 
@@ -247,7 +204,7 @@ analog_regression(
   active, results for these stats are divided by a global scalar so that
   they represent a fraction of a theoretically "perfect" scenario where
   the full search area within `max_geog` is occupied wall-to-wall by
-  cells whose climate exactly matches `x`. See details under
+  cells whose environment exactly matches `x`. See details under
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   for more info.
 
@@ -256,9 +213,9 @@ analog_regression(
   Optional focal-specific covariance matrices for Mahalanobis distance
   calculations. Should be a matrix or data.frame with one row per focal
   location and one column per unique covariance component, or a
-  SpatRaster with a layer for each component. For n climate variables,
-  there are n\*(n+1)/2 unique components, ordered as: variances first
-  (diagonals), then covariances (upper triangle by row).
+  SpatRaster with a layer for each component. For n environmental
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
 
 - coord_type:
 
@@ -272,9 +229,9 @@ analog_regression(
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
 
-- clim_res_adj, geog_res_adj:
+- env_res_adj, geog_res_adj:
 
-  Control the lattice search-index resolution of the climate and
+  Control the lattice search-index resolution of the environmental and
   geographic families, each a multiplier on a data-dependent default
   (targeting ~50 pool points per occupied bin, split between families by
   effective dimensionality, so it scales with pool size). Each is
@@ -362,11 +319,11 @@ for attached metadata attributes.
 
 For each focal location, the function:
 
-1.  Selects analog pool locations based on `select`, `max_clim`,
-    `max_geog`, and `k`
+1.  Selects analog pool locations based on `select`, `env`, `geog`, and
+    `k`
 
-2.  Computes distance-based kernel weights for each analog (via `kernel`
-    and `theta`)
+2.  Computes distance-based kernel weights for each analog (via the
+    `env` / `geog` kernels)
 
 3.  Fits a weighted least squares regression of `y` on `covariates`
     using these weights, with optional ridge penalty `lambda`
@@ -396,9 +353,9 @@ regression.
   regression using geographic proximity to define and weight
   neighborhoods, equivalent to GWR.
 
-- **Climate-nearest regression** (`select = "knn_clim"`, with `max_geog`
-  and `k`): Fixed-size neighborhoods of the k most similar climates
-  within geographic range.
+- **Environmental-nearest regression** (`select = "knn_env"`, with
+  `max_geog` and `k`): Fixed-size neighborhoods of the k most similar
+  environments within geographic range.
 
 ### Prediction
 
@@ -430,9 +387,8 @@ gwr_result <- analog_regression(
   covariates = data.frame(education = sites$edu, access = sites$access),
   select = "knn_geog",
   k = 50,
-  max_clim = NULL,
-  kernel = "gaussian_geog",
-  theta = 20,
+  env = NULL,
+  geog = kernel("gaussian", theta = 20),
   se = "ess"
 )
 

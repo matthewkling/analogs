@@ -1,8 +1,8 @@
-# Transform Climate Data for Global Mahalanobis Distance
+# Transform Environmental Data for Global Mahalanobis Distance
 
-Transforms climate data to decorrelated, unit-variance space, enabling
-the use of Euclidean distance as a global Mahalanobis distance. Useful
-for climate analog analysis when you want to account for spatial
+Transforms environmental data to decorrelated, unit-variance space,
+enabling the use of Euclidean distance as a global Mahalanobis distance.
+Useful for climate analog analysis when you want to account for spatial
 correlation structure and/or standardize variables with different units.
 
 ## Usage
@@ -17,16 +17,17 @@ mahalanobis_transform(x, pool = NULL, center = TRUE, scale = TRUE)
 
   Climate data for focal/query points. Can be:
 
-  - Matrix/data.frame with columns x, y, and climate variables
+  - Matrix/data.frame with columns x, y, and environmental variables
 
-  - SpatRaster with climate variable layers
+  - SpatRaster with environmental variable layers
 
 - pool:
 
-  Optional reference climate data to transform jointly with `x`. When
-  provided, both datasets are transformed using the same transformation
-  (computed from their combined covariance structure). Must have the
-  same number of climate variables as `x`. Same format options as `x`.
+  Optional reference environmental data to transform jointly with `x`.
+  When provided, both datasets are transformed using the same
+  transformation (computed from their combined covariance structure).
+  Must have the same number of environmental variables as `x`. Same
+  format options as `x`.
 
 - center:
 
@@ -38,8 +39,8 @@ mahalanobis_transform(x, pool = NULL, center = TRUE, scale = TRUE)
   Logical; if TRUE (default), standardize each variable to unit variance
   before transformation (correlation-based). If FALSE, use
   covariance-based transformation which preserves relative variance
-  magnitudes. Generally TRUE is recommended when climate variables have
-  different units (e.g., temperature in °C vs precipitation in mm).
+  magnitudes. Generally TRUE is recommended when environmental variables
+  have different units (e.g., temperature in °C vs precipitation in mm).
 
 ## Value
 
@@ -57,8 +58,8 @@ inherit input names with a `_transformed` suffix (e.g. `tmean` becomes
 `tmean_transformed`); each transformed axis is the whitened counterpart
 of its corresponding input variable.
 
-Rows / cells with NA values in any coordinate or climate column are
-excluded from the covariance estimation but preserved as NA in the
+Rows / cells with NA values in any coordinate or environmental column
+are excluded from the covariance estimation but preserved as NA in the
 returned output, so the result has the same shape (row count / cell
 count) as the input.
 
@@ -89,7 +90,7 @@ If the covariance matrix is near-singular, a small regularization term
 ``` r
 if (FALSE) { # \dontrun{
 # Single dataset transformation
-clim_transformed <- mahalanobis_transform(climate_data)
+env_transformed <- mahalanobis_transform(climate_data)
 
 # Joint transformation for analog analysis
 transformed <- mahalanobis_transform(
@@ -101,8 +102,8 @@ transformed <- mahalanobis_transform(
 analogs <- analog_search(
   x = transformed$x,
   pool = transformed$pool,
-  mode = "knn_geog",
-  max_clim = 2,  # Now in standardized units
+  select = "knn_geog",
+  env = kernel(max = 2),  # Now in standardized units
   k = 1
 )
 

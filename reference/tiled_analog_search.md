@@ -13,7 +13,8 @@ tiled_analog_search(
   pool,
   n_tiles,
   fun,
-  max_geog,
+  geog,
+  env = NULL,
   y = NULL,
   x_cov = NULL,
   weight = NULL,
@@ -47,13 +48,22 @@ tiled_analog_search(
   An analog\_\* function to apply to each tile (e.g., analog_velocity,
   analog_impact).
 
-- max_geog:
+- geog:
 
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
+  A
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  object giving the geographic search treatment. Its `max` (the
+  geographic search radius) is required and finite: it both sizes the
+  tile halos (so edge focals still see all in-range analogs) and is
+  forwarded to `fun`. Tiling is only beneficial when the geographic
+  search is bounded, hence `geog` with a finite `max` is required.
+
+- env:
+
+  Optional
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  object giving the environmental search treatment, forwarded to `fun`.
+  `NULL` (default) means no environmental kernel is passed.
 
 - y:
 
@@ -84,10 +94,10 @@ tiled_analog_search(
 
 - ...:
 
-  Additional arguments passed to fun. Must include max_geog. May include
-  `covariates` as a SpatRaster matching `pool`'s CRS and extent (cropped
-  per tile alongside `y`). May also include `normalize` for helpers that
-  support it (e.g.
+  Additional arguments passed to fun (e.g. `select`, `stat`, `k`). May
+  include `covariates` as a SpatRaster matching `pool`'s CRS and extent
+  (cropped per tile alongside `y`). May also include `normalize` for
+  helpers that support it (e.g.
   [`analog_density()`](https://matthewkling.github.io/analogs/reference/analog_density.md));
   when normalization is requested, the global mean cell area is computed
   once over the full pool and propagated to each tile so per-tile
@@ -113,20 +123,20 @@ specified, returns a disk-backed SpatRaster.
 
 Tiled analog searches work by splitting x into a number of smaller tiles
 and calling the requested analog function on each tile, using an analog
-pool that is the size of the tile buffered by max_geog. This buffer is
-necessary for correctness but increases compute time, particularly if
-max_geog is large. The results for each tile are temporarily written to
-disk, and are merged into a single results raster once all tiles have
-processed.
+pool that is the size of the tile buffered by the geographic radius
+(`geog`'s `max`). This buffer is necessary for correctness but increases
+compute time, particularly if the radius is large. The results for each
+tile are temporarily written to disk, and are merged into a single
+results raster once all tiles have processed.
 
-The function requires max_geog to be specified, as tiling is only
+The function requires `geog` to have a finite `max`, as tiling is only
 beneficial when geographic distance constraints limit the reference pool
-size for each focal point. The function will warn if max_geog is so
+size for each focal point. The function will warn if the radius is so
 large that tiling provides minimal memory benefit.
 
 If index_res is specified in ..., all tiles will use the same lattice
 resolution. If index_res is not specified, each tile will independently
 auto-tune its lattice resolution based on local data characteristics.
 This adaptive behavior is generally fine and can even be beneficial when
-climate distributions vary substantially across the landscape (e.g.,
-mountains vs plains).
+environmental distributions vary substantially across the landscape
+(e.g., mountains vs plains).

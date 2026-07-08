@@ -37,9 +37,10 @@ analog_cv(
 - pool:
 
   The reference dataset. Matrix/data.frame with columns x, y, and
-  climate variables, or a SpatRaster with climate variable layers.
-  Pre-built `analog_index` objects are not supported; `analog_cv()`
-  builds indices internally per fold (for k-fold) or once (for LOO).
+  environmental variables, or a SpatRaster with environmental variable
+  layers. Pre-built `analog_index` objects are not supported;
+  `analog_cv()` builds indices internally per fold (for k-fold) or once
+  (for LOO).
 
 - y:
 
@@ -79,9 +80,9 @@ analog_cv(
 
 - ...:
 
-  Additional arguments passed to `fun` (e.g., `max_clim`, `max_geog`,
-  `kernel`, `theta`, `k`, `lambda`, `select`, `se`, `weight`). Note:
-  `fun` must accept `exclude_self` (directly or via `...`);
+  Additional arguments passed to `fun` (e.g., `env`, `geog`, `k`,
+  `lambda`, `select`, `se`, `weight`). Note: `fun` must accept
+  `exclude_self` (directly or via `...`);
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   accepts it as a named parameter, and the wrapper helpers forward it
   via their own `...`.
@@ -180,10 +181,8 @@ cv <- analog_cv(
   fun      = analog_impact,
   pool     = sites,
   y        = sites$biomass,
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel   = "gaussian_clim",
-  theta    = 0.2
+  env      = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog     = kernel(max = 100)
 )
 rmse <- sqrt(mean(cv$residual^2, na.rm = TRUE))
 
@@ -195,8 +194,7 @@ cv_reg <- analog_cv(
   covariates  = data.frame(education = sites$edu),
   select      = "knn_geog",
   k           = 50,
-  kernel      = "gaussian_geog",
-  theta       = 20,
+  geog        = kernel("gaussian", theta = 20),
   cv_method   = "kfold",
   n_folds     = 10
 )
@@ -207,10 +205,8 @@ cv_veg <- analog_cv(
   pool     = sites,
   y        = factor(sites$vegetation_type),
   stat     = "tabulate",
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel   = "gaussian_clim",
-  theta    = 0.2
+  env      = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog     = kernel(max = 100)
 )
 # Per-focal Brier score and primary class are in cv_veg$brier and
 # cv_veg$primary; the n_<level> vote columns are also retained.

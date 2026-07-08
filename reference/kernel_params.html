@@ -4,7 +4,7 @@ truncation distance (max) of a kernel operating on Euclidean
 distances in d-dimensional space. Gives theoretical answers to the
 questions, "How big should theta be in order for my kernel to capture
 a given fraction of pool sites for the typical focal site?" and "How
-big should max_clim or max_geog be to truncate only a given
+big should max_env or max_geog be to truncate only a given
 percentage of kernel weight for the typical focal site?" Accounts for
 the effects of analog space multidimensionality on pairwise distance
 distributions, which can result in one-dimensional intuitions being
@@ -14,7 +14,7 @@ truncation distance (max) of a kernel operating on Euclidean
 distances in d-dimensional space. Gives theoretical answers to the
 questions, "How big should theta be in order for my kernel to capture
 a given fraction of pool sites for the typical focal site?" and "How
-big should max_clim or max_geog be to truncate only a given
+big should max_env or max_geog be to truncate only a given
 percentage of kernel weight for the typical focal site?" Accounts for
 the effects of analog space multidimensionality on pairwise distance
 distributions, which can result in one-dimensional intuitions being
@@ -59,7 +59,7 @@ truncation distance (<code>max</code>) of a kernel operating on Euclidean
 distances in <code>d</code>-dimensional space. Gives theoretical answers to the
 questions, "How big should <code>theta</code> be in order for my kernel to capture
 a given fraction of pool sites for the typical focal site?" and "How
-big should <code>max_clim</code> or <code>max_geog</code> be to truncate only a given
+big should <code>max_env</code> or <code>max_geog</code> be to truncate only a given
 percentage of kernel weight for the typical focal site?" Accounts for
 the effects of analog space multidimensionality on pairwise distance
 distributions, which can result in one-dimensional intuitions being
@@ -93,12 +93,13 @@ Use this OR <code>theta</code>. Requires <code>data_dist = "mvn"</code>.</p></dd
 <dd><p>Bandwidth value. Use this OR <code>fraction</code>. For Gaussian
 kernels, this is the standard bandwidth parameter; for uniform
 kernels, this is the cutoff radius (also returned as <code>max</code>); for
-inverse-distance kernels, this is the epsilon regularization that
-determines the half-weight scale.</p></dd>
+inverse-distance kernels, this is the half-weight scale of the
+reparameterized kernel <code>1 / (1 + d / theta)</code> (weight is 1/2 at
+<code>d = theta</code>).</p></dd>
 
 
 <dt id="arg-d">d<a class="anchor" aria-label="anchor" href="#arg-d"></a></dt>
-<dd><p>Dimensionality of the space (e.g., number of climate
+<dd><p>Dimensionality of the space (e.g., number of environmental
 variables after Mahalanobis transformation, or 2 for geographic).</p></dd>
 
 
@@ -116,7 +117,7 @@ computed.</p></dd>
 <dt id="arg-data-dist">data_dist<a class="anchor" aria-label="anchor" href="#arg-data-dist"></a></dt>
 <dd><p>Distribution of cells in space. Either <code>"mvn"</code>
 (multivariate standard normal; default; appropriate for
-Mahalanobis-transformed climate data) or <code>"uniform"</code> (appropriate
+Mahalanobis-transformed environmental data) or <code>"uniform"</code> (appropriate
 for geographic space).</p></dd>
 
 </dl></div>
@@ -126,7 +127,7 @@ for geographic space).</p></dd>
 element <code>theta</code>, and <code>max</code> if <code>loss</code> is specified. For uniform
 kernels: element <code>max</code> (the single cutoff radius, which serves as
 both bandwidth and truncation distance; supplied in the <code>analogs</code>
-package as <code>max_clim</code> or <code>max_geog</code>).</p>
+package as <code>max_env</code> or <code>max_geog</code>).</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -145,13 +146,13 @@ the truncation distance beyond which less than <code>loss</code> of aggregate
 kernel weight is discarded. Useful for computational efficiency.</p>
 <p>Recommendations are averages over the distribution of focal cells;
 specific focal cells experience effective neighborhoods that vary
-around these averages, with cells in dense climate regions seeing
+around these averages, with cells in dense environmental regions seeing
 more neighbors than cells in sparse regions.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Climate kernel: niche fraction of 5% in 4 climate variables</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Environmental kernel: niche fraction of 5% in 4 environmental variables</span></span></span>
 <span class="r-in"><span><span class="fu">kernel_params</span><span class="op">(</span>fraction <span class="op">=</span> <span class="fl">0.05</span>, d <span class="op">=</span> <span class="fl">4</span>, loss <span class="op">=</span> <span class="fl">0.01</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $theta</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.536663</span>
@@ -180,7 +181,7 @@ more neighbors than cells in sparse regions.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span><span class="fu">kernel_params</span><span class="op">(</span>fraction <span class="op">=</span> <span class="fl">0.05</span>, d <span class="op">=</span> <span class="fl">4</span>, kernel <span class="op">=</span> <span class="st">"inverse_distance"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $theta</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 18.14302</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.08504164</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 </code></pre></div>
     </div>
@@ -193,7 +194,7 @@ more neighbors than cells in sparse regions.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

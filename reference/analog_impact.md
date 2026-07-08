@@ -20,17 +20,15 @@ analog_impact(
   y,
   weight = NULL,
   covariates = NULL,
-  max_geog = NULL,
-  max_clim = 1,
-  kernel = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
-  theta = 0.25,
+  geog = NULL,
+  env = kernel("gaussian", theta = 0.25, max = 1),
   stat = c("weighted_mean", "count", "sum_weights"),
   lambda = 0,
   se = c("none", "ess", "design"),
   normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -44,15 +42,15 @@ analog_impact(
 - x:
 
   Focal locations for which analogs will be found. Should be a
-  matrix/data.frame with columns x, y, and climate variables, or a
-  SpatRaster with climate variable layers.
+  matrix/data.frame with columns x, y, and environmental variables, or a
+  SpatRaster with environmental variable layers.
 
 - pool:
 
   The reference dataset to search for analogs. Either:
 
-  - Matrix/data.frame with columns x, y, and climate variables, or
-    SpatRaster with climate variable layers, OR
+  - Matrix/data.frame with columns x, y, and environmental variables, or
+    SpatRaster with environmental variable layers, OR
 
   - An `analog_index` object created by
     [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
@@ -94,58 +92,19 @@ analog_impact(
   each reference location (must have same number of rows/cells as
   `pool`). Required when `stat` includes `"regression"`.
 
-- max_geog:
+- env, geog:
 
-  Maximum geographic distance constraint (default: NULL = no geographic
-  constraint). When specified, only reference locations within this
-  distance are considered. Radius units should be specified in
-  kilometers if `coord_type = "lonlat"`, or in projected coordinate
-  units if `coord_type = "projected"`.
-
-- max_clim:
-
-  Maximum climate distance constraint (default: NULL = no climate
-  constraint). Can be either:
-
-  - A scalar: Euclidean radius in climate space (e.g., 0.5)
-
-  - A vector: Per-variable absolute differences (length must equal
-    number of climate variables)
-
-  Only reference locations within this climate distance are considered.
-  When `x_cov` is provided, scalar thresholds are interpreted in
-  Mahalanobis distance units.
-
-- kernel:
-
-  Kernel decay function for weighting analogs during aggregation. Only
-  weighting options that are based on *climate* are allowed:
-  `"inverse_clim"` (default), `"gaussian_clim"`, `"inverse_joint"`,
-  `"gaussian_joint"`. See
-  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
-  for details.
-
-- theta:
-
-  Optional numeric parameter controlling the shape of the weighting
-  `kernel`, used whenever `kernel` is active (i.e. whenever `stat`
-  includes a weighted aggregation) and `kernel` is not `"uniform"`.
-  Interpretation depends on `kernel`:
-
-  - For `"inverse_clim"` or `"inverse_geog"`: epsilon value added to
-    distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-
-  - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
-    parameter (scalar; larger values = slower decay with distance).
-
-  - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
-    `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for
-    geography).
-
-  See
-  [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
-  for help choosing `theta` and `max_clim` / `max_geog` values that work
-  well together.
+  Per-family
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+  objects giving the distance treatment for environment and geography.
+  For climate impact models, `env` carries the climate analog threshold
+  (`max`) and the weighting kernel applied to climate distance
+  (`weight`, `theta`); it defaults to
+  `kernel("gaussian", theta = 0.25, max = 1.0)`. `geog` carries the hard
+  distance constraint (`geog = kernel(max = ...)`) and defaults to
+  `NULL` (no geographic constraint). A geographic kernel may also be
+  supplied via `geog` if desired. See
+  [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md).
 
 - stat:
 
@@ -202,7 +161,7 @@ analog_impact(
   active, results for these stats are divided by a global scalar so that
   they represent a fraction of a theoretically "perfect" scenario where
   the full search area within `max_geog` is occupied wall-to-wall by
-  cells whose climate exactly matches `x`. See details under
+  cells whose environment exactly matches `x`. See details under
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   for more info.
 
@@ -211,9 +170,9 @@ analog_impact(
   Optional focal-specific covariance matrices for Mahalanobis distance
   calculations. Should be a matrix or data.frame with one row per focal
   location and one column per unique covariance component, or a
-  SpatRaster with a layer for each component. For n climate variables,
-  there are n\*(n+1)/2 unique components, ordered as: variances first
-  (diagonals), then covariances (upper triangle by row).
+  SpatRaster with a layer for each component. For n environmental
+  variables, there are n\*(n+1)/2 unique components, ordered as:
+  variances first (diagonals), then covariances (upper triangle by row).
 
 - coord_type:
 
@@ -227,9 +186,9 @@ analog_impact(
   - `"projected"`: Projected XY coordinates (uses planar distance;
     assumes `max_geog` is in projection units).
 
-- clim_res_adj, geog_res_adj:
+- env_res_adj, geog_res_adj:
 
-  Control the lattice search-index resolution of the climate and
+  Control the lattice search-index resolution of the environmental and
   geographic families, each a multiplier on a data-dependent default
   (targeting ~50 pool points per occupied bin, split between families by
   effective dimensionality, so it scales with pool size). Each is
@@ -304,7 +263,7 @@ The methodology:
 
 1.  For each focal location's future climate conditions
 
-2.  Find all current locations with similar climates (within `max_clim`)
+2.  Find all current locations with similar climates (within `max_env`)
 
 3.  Constrain to dispersal-reachable distance (within `max_geog`)
 
@@ -318,20 +277,21 @@ with climate-distance-based kernel weighting. This approach eliminates
 arbitrary choice of k, provides smoother, more continuous results, and
 lets the kernel function (via `theta`) naturally control influence.
 (Note that the traditional version can be implemented via
-`analog_search(select = "knn_clim", stat = "mean", ...))`.)
+`analog_search(select = "knn_env", stat = "mean", ...))`.)
 
 ### Choosing Parameters
 
-- `max_geog`: Set based on species dispersal ability (e.g., 5-500 km)
+- `geog`'s `max`: Set based on species dispersal ability (e.g., 5-500
+  km)
 
-- `max_clim`: Defines what counts as an "analog"
+- `env`'s `max`: Defines what counts as an "analog"
 
-- `theta`: Controls kernel decay. The weight should decay to a small
-  value at the `max_clim`/`max_geog` boundary. If `theta` is too large
-  relative to thresholds, the hard cutoffs do most of the filtering and
-  weighting becomes nearly uniform. For Gaussian kernels with three or
-  fewer climate variables, a reasonable rule of thumb is to set `theta`
-  to `max_* / 3`.
+- `env`'s `theta`: Controls kernel decay. The weight should decay to a
+  small value at the climate/geographic thresholds. If `theta` is too
+  large relative to the thresholds, the hard cutoffs do most of the
+  filtering and weighting becomes nearly uniform. For Gaussian kernels
+  with three or fewer climate variables, a reasonable rule of thumb is
+  to set `theta` to `max / 3`.
 
 ### Interpreting Results
 
@@ -341,7 +301,7 @@ lets the kernel function (via `theta`) naturally control influence.
 - `tabulate`: For each class in `y`, the sum of analog weights that fall
   in that class. Each class's column gives the total
   climatic-similarity-weighted support among analogs (or, with
-  `analog_search(stat = "tabulate", kernel = "uniform")`, a plain vote
+  `analog_search(stat = "tabulate")` with a uniform kernel, a plain vote
   count). The "primary" projection at a focal location is
   [`which.max()`](https://rdrr.io/r/base/which.min.html) of these
   columns; "agreement" is the largest column value divided by the row
@@ -351,7 +311,7 @@ lets the kernel function (via `theta`) naturally control influence.
   compositional vulnerability to ecological transformation (cf. Hoecker
   et al. 2026).
 
-- `count`: How many analogs exist within max_clim and max_geog? Low
+- `count`: How many analogs exist within max_env and max_geog? Low
   counts indicate limited analog availability, while zero counts
   indicate climates that are novel within the geographic search radius.
 
@@ -380,8 +340,8 @@ impact <- analog_impact(
   x = future_climate,
   pool = current_climate,
   y = current$habitat,
-  max_geog = 100,    # 100 km dispersal range
-  max_clim = 0.5     # Climate analog threshold
+  geog = kernel(max = 100),  # 100 km dispersal range
+  env = kernel("gaussian", theta = 0.25, max = 0.5)
 )
 
 # With uncertainty quantification on weighted_mean
@@ -389,8 +349,8 @@ impact_se <- analog_impact(
   x = future_climate,
   pool = current_climate,
   y = current$habitat,
-  max_geog = 100,
-  max_clim = 0.5,
+  geog = kernel(max = 100),
+  env = kernel("gaussian", theta = 0.25, max = 0.5),
   se = "ess"
 )
 
@@ -401,9 +361,9 @@ veg_votes <- analog_impact(
   pool = current_climate,
   y    = factor(current$vegetation_type),
   stat = c("count", "sum_weights", "tabulate"),
-  kernel = "gaussian_clim",
-  max_geog = 500,
-  max_clim = 1
+  env = kernel("gaussian", theta = 0.25, max = 1),
+  geog = kernel(max = 500),
+  # (env set above)
 )
 # Output has one `n_<level>` column per vegetation type.
 # Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],

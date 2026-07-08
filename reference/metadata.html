@@ -81,7 +81,7 @@ SpatRaster).</p></dd>
 
 
 <dl><dt><code>select</code></dt>
-<dd><p>Selection strategy: <code>"all"</code>, <code>"knn_clim"</code>, or
+<dd><p>Selection strategy: <code>"all"</code>, <code>"knn_env"</code>, or
 <code>"knn_geog"</code>.</p></dd>
 
 <dt><code>k</code></dt>
@@ -92,14 +92,24 @@ SpatRaster).</p></dd>
 <dd><p>Aggregation statistic(s) requested. Character vector;
 <code>"none"</code> for pair-mode results.</p></dd>
 
-<dt><code>kernel</code></dt>
-<dd><p>Kernel function used for analog weighting (e.g.
-<code>"gaussian_clim"</code>), or <code>NULL</code> if no weighted aggregation was
-requested.</p></dd>
+<dt><code>kernel_env</code></dt>
+<dd><p>Environmental weighting kernel shape: <code>"uniform"</code>,
+<code>"gaussian"</code>, or <code>"inverse"</code>. <code>"uniform"</code> when environment is not
+distance-weighted.</p></dd>
 
-<dt><code>theta</code></dt>
-<dd><p>Kernel bandwidth or epsilon parameter; scalar for
-most kernels, length-2 numeric for <code>*_joint</code> kernels.</p></dd>
+<dt><code>kernel_geog</code></dt>
+<dd><p>Geographic weighting kernel shape: <code>"uniform"</code>,
+<code>"gaussian"</code>, or <code>"inverse"</code>. <code>"uniform"</code> when geography is not
+distance-weighted.</p></dd>
+
+<dt><code>theta_env</code></dt>
+<dd><p>Scale parameter for the environmental kernel (Gaussian
+bandwidth or inverse half-weight distance); <code>NULL</code> if the environmental
+kernel is uniform.</p></dd>
+
+<dt><code>theta_geog</code></dt>
+<dd><p>Scale parameter for the geographic kernel; <code>NULL</code>
+if the geographic kernel is uniform.</p></dd>
 
 <dt><code>lambda</code></dt>
 <dd><p>Ridge penalty for <code>stat = "regression"</code>; <code>0</code> for
@@ -109,10 +119,10 @@ ordinary weighted least squares.</p></dd>
 <dd><p>Standard-error framing applied to SE-supporting stats:
 <code>"none"</code>, <code>"ess"</code>, or <code>"design"</code>.</p></dd>
 
-<dt><code>max_clim</code></dt>
-<dd><p>Climate-distance threshold used for analog
+<dt><code>max_env</code></dt>
+<dd><p>Environmental-distance threshold used for analog
 selection. Scalar for Euclidean / Mahalanobis radius, or
-length-<code>n_clim</code> for per-variable thresholds.</p></dd>
+length-<code>n_env</code> for per-variable thresholds.</p></dd>
 
 <dt><code>max_geog</code></dt>
 <dd><p>Geographic-distance threshold used for analog
@@ -137,8 +147,8 @@ excluded from its analog neighborhood? <code>TRUE</code> for results from
 <dt><code>n_pool</code></dt>
 <dd><p>Number of reference locations in the input <code>pool</code>.</p></dd>
 
-<dt><code>n_clim</code></dt>
-<dd><p>Number of climate variables.</p></dd>
+<dt><code>n_env</code></dt>
+<dd><p>Number of environmental variables.</p></dd>
 
 <dt><code>coord_type</code></dt>
 <dd><p>Coordinate system: <code>"lonlat"</code> (great-circle
@@ -147,7 +157,7 @@ units).</p></dd>
 
 <dt><code>x_cov_provided</code></dt>
 <dd><p>Logical: was a per-focal covariance matrix
-(<code>x_cov</code>) supplied? If <code>TRUE</code>, climate distances were computed in
+(<code>x_cov</code>) supplied? If <code>TRUE</code>, environmental distances were computed in
 Mahalanobis units using location-specific covariance; otherwise
 Euclidean.</p></dd>
 
@@ -177,20 +187,20 @@ detail.</p>
 <code>avg_nonempty_bin_occupancy</code></dt>
 <dd><p>Lattice occupancy summaries.</p></dd>
 
-<dt><code>clim_res_adj</code>, <code>geog_res_adj</code></dt>
+<dt><code>env_res_adj</code>, <code>geog_res_adj</code></dt>
 <dd><p>Per-family resolution
 adjustments used to build the index: each scales its family's bin
 count relative to a data-dependent default (<code>1</code> = default, <code>0</code> =
 deactivated). See <code><a href="build_analog_index.html">build_analog_index()</a></code>.</p></dd>
 
-<dt><code>clim_target</code>, <code>geo_target</code></dt>
+<dt><code>env_target</code>, <code>geo_target</code></dt>
 <dd><p>Realized per-family bin-count
 targets passed to the lattice builder (the absolute values the
 <code>*_res_adj</code> resolve to).</p></dd>
 
 <dt><code>bins_per_axis</code></dt>
 <dd><p>Integer vector of realized bins per axis
-(geographic axes first, then climate), showing how the budget was
+(geographic axes first, then environment), showing how the budget was
 distributed.</p></dd>
 
 
@@ -236,13 +246,13 @@ every attribute the package attaches.</p>
 <span class="r-in"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="analog_velocity.html">analog_velocity</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  x <span class="op">=</span> <span class="va">future_climate</span>,</span></span>
 <span class="r-in"><span>  pool <span class="op">=</span> <span class="va">current_climate</span>,</span></span>
-<span class="r-in"><span>  max_clim <span class="op">=</span> <span class="fl">0.5</span></span></span>
+<span class="r-in"><span>  env <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Get the full parameterization as a list</span></span></span>
 <span class="r-in"><span><span class="va">meta</span> <span class="op">&lt;-</span> <span class="fu">metadata</span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">meta</span><span class="op">$</span><span class="va">select</span></span></span>
-<span class="r-in"><span><span class="va">meta</span><span class="op">$</span><span class="va">max_clim</span></span></span>
+<span class="r-in"><span><span class="va">meta</span><span class="op">$</span><span class="va">max_env</span></span></span>
 <span class="r-in"><span><span class="va">meta</span><span class="op">$</span><span class="va">n_pool</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Or read individual attributes directly</span></span></span>
@@ -260,7 +270,7 @@ every attribute the package attaches.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>
