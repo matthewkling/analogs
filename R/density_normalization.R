@@ -46,7 +46,9 @@
 # raster-derived mean_cell_area available, etc.) is the caller's
 # responsibility -- typically done via .validate_normalize_compat() before
 # this is reached.
-.compute_global_dmax <- function(kernel, theta, max_geog, mean_cell_area) {
+.compute_global_dmax <- function(kernel_clim, kernel_geog,
+                                 theta_clim, theta_geog,
+                                 max_geog, mean_cell_area) {
 
       if (!is.finite(max_geog) || max_geog <= 0) {
             stop("Internal error: .compute_global_dmax called with invalid max_geog.",
@@ -57,111 +59,27 @@
                  call. = FALSE)
       }
 
-      # Defaults for theta (mirroring C++-side defaults documented in
-      # ?analog_search). For kernels that don't use theta in the integrand
-      # below (the climate-only and uniform cases), this is a no-op.
-      eps_clim_default <- 1e-12
-      eps_geog_default <- 1e-6
-      sigma_default    <- 1.0   # for single-dim Gaussians; not used at clim=0
-      theta_clim_default <- 1.0
-      theta_geog_default <- 1.0
-
-      # Resolve theta into named scalars per kernel for clarity below.
-      th <- if (is.null(theta) || (length(theta) == 1L && is.na(theta))) {
+      # D_max is the theoretical maximum aggregate kernel weight for a focal
+      # whose entire geographic disk (radius max_geog) consists of perfect
+      # climate matches. Per cell the weight is
+      #     w_clim(clim_dist = 0) * w_geog(geo_dist),
+      # and w_clim(0) = 1 for every kernel shape (uniform, Gaussian exp(0)=1,
+      # and the reparameterized inverse 1/(1 + 0/theta) = 1). So the climate
+      # kernel contributes a constant factor of 1 and D_max depends only on the
+      # GEOGRAPHIC kernel, integrated over the disk:
+      #     D_max = [ \int_0^G w_geog(r) 2*pi*r dr ] / mean_cell_area.
+      # This holds for any composition of per-family kernels (the climate shape
+      # is irrelevant at clim_dist = 0), so no fused-kernel reconstruction is
+      # needed. The disk integral (with closed forms per shape) lives in the
+      # shared helper .kernel_disk_integral().
+      geo_theta <- if (is.null(theta_geog) ||
+                       (length(theta_geog) == 1L && is.na(theta_geog))) {
             NULL
       } else {
-            as.numeric(theta)
+            theta_geog
       }
 
-      # Integrand-specific calculations.
-      # All integrals are over r in [0, max_geog] in the planar disk, so the
-      # 2-D-area element is 2 π r dr.
-      G <- max_geog                # alias for readability
-      twopi <- 2 * pi
-
-      kernel_integral <- switch(
-            kernel,
-
-            "uniform" = {
-                  # K(0, r) = 1 for all r (no kernel weighting at all).
-                  # ∫₀^G 1 · 2π r dr = π G². With max_clim filtering active,
-                  # D / D_max gives the fraction of the disk satisfying
-                  # max_clim; without max_clim, D == D_max trivially.
-                  pi * G * G
-            },
-
-            "gaussian_clim" = {
-                  # K(0, r) = exp(-0 / 2σ²) = 1 for all r.
-                  # ∫₀^G 1 · 2π r dr = π G².
-                  pi * G * G
-            },
-
-            "inverse_clim" = {
-                  # K(0, r) = 1 / (0 + eps) = 1 / eps (theta = epsilon).
-                  eps <- if (!is.null(th)) th[1] else eps_clim_default
-                  if (!is.finite(eps) || eps <= 0) {
-                        stop("Internal error: invalid epsilon for inverse_clim.",
-                             call. = FALSE)
-                  }
-                  (1 / eps) * pi * G * G
-            },
-
-            "gaussian_geog" = {
-                  # K(0, r) = exp(-r² / 2σ²). With max_clim filtering active,
-                  # D / D_max gives the geo-weighted fraction of the disk
-                  # satisfying max_clim; without max_clim, D == D_max
-                  # trivially since this kernel doesn't depend on climate
-                  # distance.
-                  sigma <- if (!is.null(th)) th[1] else sigma_default
-                  if (!is.finite(sigma) || sigma <= 0) {
-                        stop("Internal error: invalid sigma for gaussian_geog.",
-                             call. = FALSE)
-                  }
-                  # ∫₀^G exp(-r²/(2σ²)) · 2π r dr
-                  #   = 2πσ² · (1 - exp(-G²/(2σ²)))
-                  twopi * sigma^2 * (1 - exp(-G^2 / (2 * sigma^2)))
-            },
-
-            "inverse_geog" = {
-                  # K(0, r) = 1 / (r + eps). Closed form for the disk
-                  # integral:
-                  #   ∫₀^G (r / (r + eps)) · 2π dr
-                  #     = 2π · (G - eps · ln((G + eps) / eps))
-                  eps <- if (!is.null(th)) th[1] else eps_geog_default
-                  if (!is.finite(eps) || eps <= 0) {
-                        stop("Internal error: invalid epsilon for inverse_geog.",
-                             call. = FALSE)
-                  }
-                  twopi * (G - eps * log((G + eps) / eps))
-            },
-
-            "gaussian_joint" = {
-                  # K(0, r) = exp(-(0 + r²/(2 σ_g²))) -> same as gaussian_geog.
-                  # theta = c(theta_clim, theta_geog).
-                  sigma_g <- if (!is.null(th)) th[2] else theta_geog_default
-                  if (!is.finite(sigma_g) || sigma_g <= 0) {
-                        stop("Internal error: invalid theta_geog for gaussian_joint.",
-                             call. = FALSE)
-                  }
-                  twopi * sigma_g^2 * (1 - exp(-G^2 / (2 * sigma_g^2)))
-            },
-
-            "inverse_joint" = {
-                  # K(clim_dist, r) = 1 / (sqrt(clim_dist² + r²) + eps).
-                  # At clim_dist = 0: 1 / (r + eps). theta = c(theta_clim,
-                  # theta_geog); the geographic eps lives in theta[2] per
-                  # the C++ convention (matches inverse_geog scale).
-                  eps <- if (!is.null(th)) th[2] else theta_geog_default
-                  if (!is.finite(eps) || eps <= 0) {
-                        stop("Internal error: invalid theta_geog for inverse_joint.",
-                             call. = FALSE)
-                  }
-                  twopi * (G - eps * log((G + eps) / eps))
-            },
-
-            stop("Internal error: unrecognized kernel '", kernel,
-                 "' in .compute_global_dmax.", call. = FALSE)
-      )
+      kernel_integral <- .kernel_disk_integral(kernel_geog, geo_theta, max_geog)
 
       # Convert "kernel weight integrated over physical area" into "kernel
       # weight per cell" by dividing by mean cell area. After this division
@@ -171,8 +89,8 @@
 
       if (!is.finite(D_max) || D_max <= 0) {
             stop("Internal error: computed D_max is non-positive or non-finite ",
-                 "(got ", D_max, "). Check kernel/theta/max_geog/mean_cell_area.",
-                 call. = FALSE)
+                 "(got ", D_max, "). Check kernel_geog/theta_geog/max_geog/",
+                 "mean_cell_area.", call. = FALSE)
       }
 
       D_max
@@ -188,7 +106,7 @@
 # Returns FALSE when there are no normalizable stats so that `auto`
 # resolves to FALSE for those queries -- this keeps the result attribute
 # (`normalize = FALSE`) honest and skips downstream D_max computation.
-.normalize_is_feasible <- function(stat, kernel, max_geog, index) {
+.normalize_is_feasible <- function(stat, max_geog, index) {
       # Stat-relevance: if no column would be normalized, normalize would
       # be a no-op. Treat as not-feasible so `auto` resolves to FALSE.
       if (!any(stat %in% c("sum_weights", "tabulate"))) return(FALSE)
@@ -198,12 +116,12 @@
       if (is.null(index$mean_cell_area)) return(FALSE)
       if (is.null(index$cell_area_weight)) return(FALSE)
 
-      # Query-side prereqs: a kernel is set + finite max_geog. All kernel
-      # types are supported -- including uniform and geo-only kernels --
-      # though for those, D / D_max measures fraction of the disk
-      # satisfying max_clim rather than climate-quality-weighted analog
-      # availability.
-      if (is.null(kernel)) return(FALSE)
+      # Query-side prereq: finite max_geog (bounds the disk over which D_max is
+      # integrated). Any kernel configuration is supported -- including a
+      # uniform kernel, where D_max is the disk area and D / D_max is the
+      # fraction of the disk satisfying the constraints. D_max depends only on
+      # the geographic kernel (the climate factor is 1 at clim_dist = 0), so a
+      # non-uniform kernel is NOT required.
       if (is.null(max_geog) || !is.finite(max_geog) || max_geog <= 0) return(FALSE)
 
       TRUE
@@ -230,7 +148,7 @@
 #
 # Returns invisible(TRUE) when the configuration is valid; otherwise
 # stop()s with a user-facing message.
-.validate_normalize_compat <- function(normalize, stat, kernel, max_geog,
+.validate_normalize_compat <- function(normalize, stat, max_geog,
                                        index) {
       if (!isTRUE(normalize)) return(invisible(TRUE))
 
@@ -246,19 +164,10 @@
             return(invisible(TRUE))
       }
 
-      # 1. A kernel must be set. All kernel types are supported -- even
-      # uniform and geo-only kernels yield a well-defined D_max via the
-      # closed-form integral, though for those D/D_max reduces to a
-      # fraction-of-disk-satisfying-max_clim measurement when max_clim is
-      # active.
-      if (is.null(kernel)) {
-            stop("`normalize = TRUE` requires a kernel. ",
-                 "Set `kernel` to one of: 'uniform', 'gaussian_clim', ",
-                 "'inverse_clim', 'gaussian_geog', 'inverse_geog', ",
-                 "'gaussian_joint', or 'inverse_joint'.", call. = FALSE)
-      }
-
-      # 2. max_geog must be finite and positive.
+      # 1. max_geog must be finite and positive. (Any kernel configuration is
+      # supported, including uniform: D_max depends only on the geographic
+      # kernel and is well-defined for all shapes, so no non-uniform kernel is
+      # required.)
       if (is.null(max_geog) || !is.finite(max_geog) || max_geog <= 0) {
             stop("`normalize = TRUE` requires a finite positive `max_geog`. ",
                  "Without a geographic constraint, the D_max integral is ",
@@ -266,7 +175,7 @@
                  call. = FALSE)
       }
 
-      # 3. Index must have mean_cell_area available (from a raster pool).
+      # 2. Index must have mean_cell_area available (from a raster pool).
       if (is.null(index$mean_cell_area)) {
             stop("`normalize = TRUE` requires that the index was built from a ",
                  "SpatRaster pool, so that a mean cell area is available for ",
@@ -275,7 +184,7 @@
                  call. = FALSE)
       }
 
-      # 4. Index must have cell-area weighting active. Otherwise the numerator
+      # 3. Index must have cell-area weighting active. Otherwise the numerator
       # and denominator are on inconsistent scales (sum_weights computed
       # without per-cell area normalization, but D_max derived assuming
       # mean-1 area weights). We require the user to opt in explicitly.
@@ -286,7 +195,7 @@
                  "use `normalize = FALSE`.", call. = FALSE)
       }
 
-      # 5. Stat compatibility. Only sum_weights and tabulate get normalized;
+      # 4. Stat compatibility. Only sum_weights and tabulate get normalized;
       # for other stats `normalize = TRUE` is a silent no-op (per
       # documentation). We don't warn here, since `normalize = TRUE` is the
       # default for some helpers and users may legitimately request stats

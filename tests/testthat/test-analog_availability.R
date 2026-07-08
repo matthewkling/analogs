@@ -5,7 +5,7 @@ test_that("`analog_availability` result matches manual calculation for planar co
       max_geog <- 2
 
       # availability
-      nn <- analog_availability(d$focal, d$ref, max_clim = max_clim, max_geog = max_geog, coord_type = "projected")
+      nn <- analog_availability(d$focal, d$ref, clim = kernel(max = max_clim), geog = kernel(max = max_geog), coord_type = "projected")
 
       # manual availability calculation
       dclim <- xdist(d$focal, d$ref, "clim")
@@ -26,8 +26,8 @@ test_that("`analog_availability` result matches manual calculation for LON/LAT c
       # availability using lon/lat mode (AggWorker path)
       nn <- analog_availability(
             d$focal, d$ref,
-            max_clim = max_clim,
-            max_geog = max_geog,
+            clim = kernel(max = max_clim),
+            geog = kernel(max = max_geog),
             coord_type = "lonlat"
       )
 
@@ -48,8 +48,8 @@ test_that("analog_availability works with x/pool parameter names", {
       a <- analog_availability(
             x = d$focal,
             pool = d$ref,
-            max_clim = 1,
-            max_geog = 2,
+            clim = kernel(max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected"
       )
 
@@ -71,8 +71,8 @@ test_that("analog_availability works with analog_index", {
       a <- analog_availability(
             x = d$focal,
             pool = index,
-            max_clim = 1,
-            max_geog = 2
+            clim = kernel(max = 1),
+            geog = kernel(max = 2)
       )
 
       expect_s3_class(a, "data.frame")

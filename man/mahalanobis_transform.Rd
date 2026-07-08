@@ -87,8 +87,8 @@ transformed <- mahalanobis_transform(
 analogs <- analog_search(
   x = transformed$x,
   pool = transformed$pool,
-  mode = "knn_geog",
-  max_clim = 2,  # Now in standardized units
+  select = "knn_geog",
+  clim = kernel(max = 2),  # Now in standardized units
   k = 1
 )
 

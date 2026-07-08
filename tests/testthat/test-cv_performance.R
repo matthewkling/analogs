@@ -6,10 +6,8 @@ test_that("cv_performance returns long-format data.frame for continuous single-y
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -42,10 +40,8 @@ test_that("cv_performance handles multi-y layout", {
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -69,10 +65,8 @@ test_that("cv_performance auto-detects binary outcomes and returns binary metric
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -144,8 +138,8 @@ test_that("cv_performance outcome_type override works", {
 
       cv <- analog_cv(
             fun = analog_impact, pool = d$ref, y = y,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", cv_method = "loo"
       )
 
@@ -176,10 +170,8 @@ test_that("cv_performance handles mixed continuous and binary variables", {
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -200,8 +192,8 @@ test_that("cv_performance rejects invalid outcome_type args", {
       y <- rnorm(nrow(d$ref))
       cv <- analog_cv(
             fun = analog_impact, pool = d$ref, y = y,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", cv_method = "loo"
       )
 
@@ -221,8 +213,8 @@ test_that("cv_performance accepts weights and computes weighted versions", {
 
       cv <- analog_cv(
             fun = analog_impact, pool = d$ref, y = y,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", cv_method = "loo"
       )
 
@@ -251,8 +243,8 @@ test_that("cv_performance rejects invalid weights", {
 
       cv <- analog_cv(
             fun = analog_impact, pool = d$ref, y = y,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", cv_method = "loo"
       )
 
@@ -280,10 +272,8 @@ test_that("cv_performance works on SpatRaster CV output", {
             fun = analog_impact,
             pool = r,
             y = yr,
-            max_clim = 1,
-            max_geog = 5,           # permissive to ensure non-NA predictions
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 5),           # permissive to ensure non-NA predictions
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -323,10 +313,8 @@ test_that("cv_performance works on SpatRaster CV output", {
             pool = pool,
             y = veg,
             stat = c("count", "sum_weights", "tabulate"),
-            kernel = "gaussian_clim",
-            theta = 0.5,
-            max_clim = 5,
-            max_geog = 100,
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100),
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -508,10 +496,8 @@ test_that("multi-y categorical CV produces per-variable metrics", {
             pool = pool,
             y = Y,
             stat = "tabulate",
-            kernel = "gaussian_clim",
-            theta = 0.5,
-            max_clim = 5,
-            max_geog = 100,
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100),
             coord_type = "projected",
             cv_method = "loo"
       )

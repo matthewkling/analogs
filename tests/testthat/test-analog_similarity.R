@@ -4,7 +4,7 @@ test_that("`analog_similarity` result matches manual calculation", {
       max_geog <- 1
 
       # impact
-      nn <- analog_similarity(d$focal, d$ref, max_geog = max_geog, k = 1, coord_type = "projected")
+      nn <- analog_similarity(d$focal, d$ref, geog = kernel(max = max_geog), k = 1, coord_type = "projected")
 
       # manual impact calculation
       dclim <- xdist(d$focal, d$ref, "clim")
@@ -25,7 +25,7 @@ test_that("`analog_similarity` result matches manual calculation for LON/LAT coo
       # impact (lon/lat)
       nn <- analog_similarity(
             d$focal, d$ref,
-            max_geog = max_geog,
+            geog = kernel(max = max_geog),
             k = 1,
             coord_type = "lonlat"
       )
@@ -57,7 +57,7 @@ test_that("analog_similarity works with x/pool parameter names", {
       i <- analog_similarity(
             x = d$focal,
             pool = d$ref,
-            max_geog = 2,
+            geog = kernel(max = 2),
             k = 3,
             coord_type = "projected"
       )
@@ -79,7 +79,7 @@ test_that("analog_similarity works with analog_index", {
       i <- analog_similarity(
             x = d$focal,
             pool = index,
-            max_geog = 2,
+            geog = kernel(max = 2),
             k = 3
       )
 
@@ -87,4 +87,3 @@ test_that("analog_similarity works with analog_index", {
       expect_true(nrow(i) <= nrow(d$focal) * 3)
       expect_true(all(c("index", "analog_index", "clim_dist") %in% names(i)))
 })
-

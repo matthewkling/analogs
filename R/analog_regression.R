@@ -73,8 +73,9 @@
 #' For each focal location, the function:
 #'
 #' \enumerate{
-#'   \item Selects analog pool locations based on `select`, `max_clim`, `max_geog`, and `k`
-#'   \item Computes distance-based kernel weights for each analog (via `kernel` and `theta`)
+#'   \item Selects analog pool locations based on `select`, `clim`, `geog`, and `k`
+#'   \item Computes distance-based kernel weights for each analog (via the
+#'     `clim` / `geog` kernels)
 #'   \item Fits a weighted least squares regression of `y` on `covariates`
 #'     using these weights, with optional ridge penalty `lambda`
 #'   \item Returns the regression coefficients (intercept + slopes), and
@@ -125,9 +126,8 @@
 #'   covariates = data.frame(education = sites$edu, access = sites$access),
 #'   select = "knn_geog",
 #'   k = 50,
-#'   max_clim = NULL,
-#'   kernel = "gaussian_geog",
-#'   theta = 20,
+#'   clim = NULL,
+#'   geog = kernel("gaussian", theta = 20),
 #'   se = "ess"
 #' )
 #'
@@ -154,15 +154,10 @@ analog_regression <- function(
             weight = NULL,
             covariates,
             x_covariates = NULL,
-            max_geog = NULL,
-            max_clim = NULL,
+            geog = NULL,
+            clim = kernel("gaussian"),
             select = "all",
             k = NULL,
-            kernel = c("gaussian_clim", "inverse_clim",
-                       "gaussian_geog", "inverse_geog",
-                       "gaussian_joint", "inverse_joint",
-                       "uniform"),
-            theta = NULL,
             lambda = 0,
             stat = c("count", "ess", "regression"),
             se = c("none", "ess", "design"),
@@ -176,7 +171,6 @@ analog_regression <- function(
             progress = FALSE,
             ...
 ) {
-      kernel <- match.arg(kernel)
       se <- match.arg(se)
 
       # Ensure "regression" is always in stat
@@ -192,11 +186,9 @@ analog_regression <- function(
             y           = y,
             weight      = weight,
             covariates  = covariates,
-            max_clim    = max_clim,
-            max_geog    = max_geog,
+            clim        = clim,
+            geog        = geog,
             k           = k,
-            kernel      = kernel,
-            theta       = theta,
             lambda      = lambda,
             se          = se,
             normalize   = normalize,

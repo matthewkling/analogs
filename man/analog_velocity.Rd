@@ -11,8 +11,8 @@ analog_velocity(
   y = NULL,
   weight = NULL,
   coord_type = "auto",
-  max_clim,
-  max_geog = NULL,
+  clim,
+  geog = NULL,
   k = 1,
   clim_res_adj = "auto",
   geog_res_adj = "auto",
@@ -78,23 +78,29 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
-\item{max_clim}{Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:
+\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
+shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+(\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
-\item A scalar: Euclidean radius in climate space (e.g., 0.5)
-\item A vector: Per-variable absolute differences (length must equal
-number of climate variables)
+\item \code{max}: hard distance threshold — candidates beyond it (in that family's
+distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+radius or a per-variable vector of absolute-difference thresholds (length
+equal to the number of climate variables); scalar climate thresholds are
+in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
+single radius (kilometers when \code{coord_type = "lonlat"}, projected units
+otherwise).
+\item \code{weight}: kernel shape for weighted aggregations — \code{"uniform"} (no
+distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
+\code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
+product of the two families' weights, so shapes may be mixed (e.g. an
+inverse climate kernel with a Gaussian geographic kernel).
+\item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
+distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
 
-Only reference locations within this climate distance are considered.
-When \code{x_cov} is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.}
-
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
+A \code{NULL} kernel (the default for both) applies no threshold and no
+weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 
 \item{k}{Number of nearest analogs to return per focal location for kNN
 selection modes. Required when \code{select} is \code{"knn_geog"} or
@@ -177,21 +183,21 @@ time elapsed between your \code{x} and \code{pool} datasets.
 v <- analog_velocity(
   x = clim$clim1,
   pool = clim$clim2,
-  max_clim = 0.5,
+  clim = kernel(max = 0.5),
   k = 1
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(clim$clim2)
-v1 <- analog_velocity(x = sites1, pool = index, max_clim = 0.5, k = 1)
-v2 <- analog_velocity(x = sites2, pool = index, max_clim = 0.3, k = 1)
+v1 <- analog_velocity(x = sites1, pool = index, clim = kernel(max = 0.5), k = 1)
+v2 <- analog_velocity(x = sites2, pool = index, clim = kernel(max = 0.3), k = 1)
 
 # With focal-specific covariance matrices
 v_mahal <- analog_velocity(
   x = clim$clim1,
   pool = clim$clim2,
   x_cov = baseline_covariances,
-  max_clim = 2,  # In Mahalanobis distance units
+  clim = kernel(max = 2),  # In Mahalanobis distance units
   k = 1
 )
 }

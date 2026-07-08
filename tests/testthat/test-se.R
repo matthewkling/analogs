@@ -17,10 +17,8 @@ test_that("se = 'none' (default) omits SE columns", {
             stat = c("weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 2),
+            geog = kernel(max = 2),
             coord_type = "projected"
       )
 
@@ -49,10 +47,8 @@ test_that("se = 'ess' returns SE columns for weighted_mean and regression", {
             stat = c("weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 2),
+            geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
       )
@@ -85,10 +81,8 @@ test_that("se = 'design' returns SE columns for weighted_mean and regression", {
             stat = c("weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 2),
+            geog = kernel(max = 2),
             se = "design",
             coord_type = "projected"
       )
@@ -123,9 +117,8 @@ test_that("weighted_mean SE is scale-invariant in the weights", {
             select = "all",
             stat = "weighted_mean",
             y = y,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "uniform",
+            clim = kernel(max = 2),
+            geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
       )
@@ -136,9 +129,8 @@ test_that("weighted_mean SE is scale-invariant in the weights", {
             select = "all",
             stat = "weighted_mean",
             y = y,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "uniform",
+            clim = kernel(max = 2),
+            geog = kernel(max = 2),
             se = "design",
             coord_type = "projected"
       )
@@ -177,10 +169,8 @@ test_that("weighted_mean SE matches manual computation (ESS)", {
             select = "all",
             stat = "weighted_mean",
             y = yv,
-            max_clim = NULL,
-            max_geog = NULL,  # use all points
-            kernel = "gaussian_clim",
-            theta = 1,
+            geog = NULL,  # use all points
+            clim = kernel("gaussian", theta = 1),
             se = "ess",
             coord_type = "projected"
       )
@@ -214,10 +204,8 @@ test_that("weighted_mean SE matches manual computation (design)", {
             select = "all",
             stat = "weighted_mean",
             y = yv,
-            max_clim = NULL,
-            max_geog = NULL,
-            kernel = "gaussian_clim",
-            theta = 1,
+            clim = kernel("gaussian", theta = 1, max = NULL),
+            geog = kernel(max = NULL),
             se = "design",
             coord_type = "projected"
       )
@@ -255,9 +243,8 @@ test_that("regression SE (ESS) matches standard WLS SE with ESS df correction", 
             stat = "regression",
             y = yv,
             covariates = covariates,
-            max_clim = NULL,
-            max_geog = NULL,
-            kernel = "uniform",
+            clim = NULL,
+            geog = NULL,
             lambda = 0,
             se = "ess",
             coord_type = "projected"
@@ -289,9 +276,8 @@ test_that("se warns when no requested stat supports SE", {
                   pool = d$ref,
                   select = "all",
                   stat = c("count", "ess"),
-                  max_clim = 2,
-                  max_geog = 2,
-                  kernel = "uniform",
+                  clim = kernel(max = 2),
+                  geog = kernel(max = 2),
                   se = "ess",
                   coord_type = "projected"
             ),
@@ -314,10 +300,8 @@ test_that("se does not warn when at least one requested stat supports SE", {
                   select = "all",
                   stat = c("count", "weighted_mean"),
                   y = y,
-                  max_clim = 2,
-                  max_geog = 2,
-                  kernel = "gaussian_clim",
-                  theta = 0.5,
+                  clim = kernel("gaussian", theta = 0.5, max = 2),
+                  geog = kernel(max = 2),
                   se = "ess",
                   coord_type = "projected"
             )
@@ -339,10 +323,8 @@ test_that("se works with multiple y variables for weighted_mean", {
             select = "all",
             stat = "weighted_mean",
             y = y,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 2),
+            geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
       )
@@ -370,9 +352,8 @@ test_that("se works with multiple y variables for regression", {
             stat = "regression",
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "uniform",
+            clim = kernel(max = 2),
+            geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
       )
@@ -402,9 +383,8 @@ test_that("analog_regression passes se through", {
             pool = d$ref,
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "uniform",
+            clim = kernel(max = 2),
+            geog = kernel(max = 2),
             coord_type = "projected"
       )
       se_cols_none <- grep("^se_", names(r_none), value = TRUE)
@@ -416,9 +396,8 @@ test_that("analog_regression passes se through", {
             pool = d$ref,
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "uniform",
+            clim = kernel(max = 2),
+            geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
       )
@@ -437,10 +416,8 @@ test_that("analog_impact passes se through", {
             x = d$focal,
             pool = d$ref,
             y = y,
-            max_geog = 2,
-            max_clim = 2,
-            kernel = "gaussian_clim",
-            theta = 0.5,
+            geog = kernel(max = 2),
+            clim = kernel("gaussian", theta = 0.5, max = 2),
             se = "ess",
             coord_type = "projected"
       )
@@ -465,9 +442,8 @@ test_that("regression SE is NA when system is singular", {
             stat = c("count", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 0.0001,
-            max_geog = 0.0001,
-            kernel = "uniform",
+            clim = kernel(max = 0.0001),
+            geog = kernel(max = 0.0001),
             se = "ess",
             coord_type = "projected"
       )
@@ -494,9 +470,8 @@ test_that("invalid se value is rejected", {
                   select = "all",
                   stat = "weighted_mean",
                   y = y,
-                  max_clim = 2,
-                  max_geog = 2,
-                  kernel = "uniform",
+                  clim = kernel(max = 2),
+                  geog = kernel(max = 2),
                   se = "bogus",
                   coord_type = "projected"
             )

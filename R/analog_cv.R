@@ -67,8 +67,8 @@
 #'   manually specify nonrandom folds, such as for spatial block cross-validation.
 #' @param include_residuals Logical; if `TRUE` (default), the output includes
 #'   per-focal residual-equivalent columns (see `@return`).
-#' @param ... Additional arguments passed to `fun` (e.g., `max_clim`,
-#'   `max_geog`, `kernel`, `theta`, `k`, `lambda`, `select`, `se`, `weight`). Note:
+#' @param ... Additional arguments passed to `fun` (e.g., `clim`, `geog`, `k`,
+#' `lambda`, `select`, `se`, `weight`). Note:
 #'   `fun` must accept `exclude_self` (directly or via `...`); [analog_search()]
 #'   accepts it as a named parameter, and the wrapper helpers forward it via
 #'   their own `...`.
@@ -110,10 +110,8 @@
 #'   fun      = analog_impact,
 #'   pool     = sites,
 #'   y        = sites$biomass,
-#'   max_clim = 0.5,
-#'   max_geog = 100,
-#'   kernel   = "gaussian_clim",
-#'   theta    = 0.2
+#'   clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   geog     = kernel(max = 100)
 #' )
 #' rmse <- sqrt(mean(cv$residual^2, na.rm = TRUE))
 #'
@@ -125,8 +123,7 @@
 #'   covariates  = data.frame(education = sites$edu),
 #'   select      = "knn_geog",
 #'   k           = 50,
-#'   kernel      = "gaussian_geog",
-#'   theta       = 20,
+#'   geog        = kernel("gaussian", theta = 20),
 #'   cv_method   = "kfold",
 #'   n_folds     = 10
 #' )
@@ -137,10 +134,8 @@
 #'   pool     = sites,
 #'   y        = factor(sites$vegetation_type),
 #'   stat     = "tabulate",
-#'   max_clim = 0.5,
-#'   max_geog = 100,
-#'   kernel   = "gaussian_clim",
-#'   theta    = 0.2
+#'   clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   geog     = kernel(max = 100)
 #' )
 #' # Per-focal Brier score and primary class are in cv_veg$brier and
 #' # cv_veg$primary; the n_<level> vote columns are also retained.

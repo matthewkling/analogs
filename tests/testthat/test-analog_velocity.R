@@ -4,7 +4,7 @@ test_that("`analog_velocity` result matches manual calculation for planar coords
       max_clim <- 1
 
       # velocity
-      nn <- analog_velocity(d$focal, d$ref, max_clim = max_clim, k = 1, coord_type = "projected")
+      nn <- analog_velocity(d$focal, d$ref, clim = kernel(max = max_clim), k = 1, coord_type = "projected")
 
       # manual velocity calculation
       dclim <- xdist(d$focal, d$ref, "clim")
@@ -25,7 +25,7 @@ test_that("`analog_velocity` result matches manual calculation for LON/LAT coord
 
       # velocity (ECEF chord-space internal; output arc-length km)
       nn <- analog_velocity(d$focal, d$ref,
-                            max_clim = max_clim,
+                            clim = kernel(max = max_clim),
                             k = 1,
                             coord_type = "lonlat")
 
@@ -61,7 +61,7 @@ test_that("analog_velocity works with analog_index", {
       v <- analog_velocity(
             x = d$focal,
             pool = index,
-            max_clim = 1,
+            clim = kernel(max = 1),
             k = 1
       )
 

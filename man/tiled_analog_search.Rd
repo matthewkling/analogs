@@ -9,7 +9,8 @@ tiled_analog_search(
   pool,
   n_tiles,
   fun,
-  max_geog,
+  geog,
+  clim = NULL,
   y = NULL,
   x_cov = NULL,
   weight = NULL,
@@ -33,11 +34,14 @@ memory constraints.}
 \item{fun}{An analog_* function to apply to each tile (e.g., analog_velocity,
 analog_impact).}
 
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
+\item{geog}{A \code{\link[=kernel]{kernel()}} object giving the geographic search treatment. Its
+\code{max} (the geographic search radius) is required and finite: it both sizes
+the tile halos (so edge focals still see all in-range analogs) and is
+forwarded to \code{fun}. Tiling is only beneficial when the geographic search
+is bounded, hence \code{geog} with a finite \code{max} is required.}
+
+\item{clim}{Optional \code{\link[=kernel]{kernel()}} object giving the climate search treatment,
+forwarded to \code{fun}. \code{NULL} (default) means no climate kernel is passed.}
 
 \item{y}{Optional SpatRaster with values to aggregate across analogs.
 Must have spatial properties matching pool.}
@@ -57,7 +61,7 @@ mean 1 over the \emph{full pool raster} once at the outer level, and the
 resulting raster is sliced per tile. This keeps absolute magnitudes of
 weighted stats (e.g. \code{sum_weights}) consistent across tiles.}
 
-\item{...}{Additional arguments passed to fun. Must include max_geog.
+\item{...}{Additional arguments passed to fun (e.g. \code{select}, \code{stat}, \code{k}).
 May include \code{covariates} as a SpatRaster matching \code{pool}'s CRS and
 extent (cropped per tile alongside \code{y}). May also include \code{normalize}
 for helpers that support it (e.g. \code{analog_density()}); when normalization
@@ -85,14 +89,15 @@ function.
 \details{
 Tiled analog searches work by splitting x into a number of smaller tiles and
 calling the requested analog function on each tile, using an analog pool
-that is the size of the tile buffered by max_geog. This buffer is necessary
-for correctness but increases compute time, particularly if max_geog is
+that is the size of the tile buffered by the geographic radius (\code{geog}'s
+\code{max}). This buffer is necessary
+for correctness but increases compute time, particularly if the radius is
 large. The results for each tile are temporarily written to disk, and are
 merged into a single results raster once all tiles have processed.
 
-The function requires max_geog to be specified, as tiling is only beneficial when
+The function requires \code{geog} to have a finite \code{max}, as tiling is only beneficial when
 geographic distance constraints limit the reference pool size for each
-focal point. The function will warn if max_geog is so large that tiling
+focal point. The function will warn if the radius is so large that tiling
 provides minimal memory benefit.
 
 If index_res is specified in ..., all tiles will use the same lattice

@@ -15,7 +15,7 @@
 #' @details
 #' For each focal location, \code{analog_similarity()}:
 #' \enumerate{
-#'   \item Identifies all reference points within \code{max_geog} km (and
+#'   \item Identifies all reference points within \code{geog}'s max (km) (and
 #'         optional climate filter).
 #'   \item Selects the \code{k} closest in \emph{climate} distance.
 #' }
@@ -34,14 +34,14 @@
 #' im <- analog_similarity(
 #'   x = clim$clim1,
 #'   pool = clim$clim2,
-#'   max_geog = 100,
+#'   geog = kernel(max = 100),
 #'   k = 20
 #' )
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(clim$clim2)
-#' i1 <- analog_similarity(x = sites1, pool = index, max_geog = 100, k = 20)
-#' i2 <- analog_similarity(x = sites2, pool = index, max_geog = 50, k = 10)
+#' i1 <- analog_similarity(x = sites1, pool = index, geog = kernel(max = 100), k = 20)
+#' i2 <- analog_similarity(x = sites2, pool = index, geog = kernel(max = 50), k = 10)
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
@@ -56,8 +56,8 @@ analog_similarity <- function(
             weight = NULL,
             coord_type = "auto",
 
-            max_geog,
-            max_clim = NULL,
+            geog,
+            clim = NULL,
             k = 20,
 
             clim_res_adj = "auto",
@@ -73,14 +73,12 @@ analog_similarity <- function(
             pool        = pool,
             select      = "knn_clim",
             stat        = "none",  # Returns pairs
-            max_clim    = max_clim,
-            max_geog    = max_geog,
+            clim        = clim,
+            geog        = geog,
             x_cov       = x_cov,
             y           = y,
             weight      = weight,
             k           = k,
-            kernel      = NULL,
-            theta       = NULL,
             coord_type  = coord_type,
             clim_res_adj= clim_res_adj,
             geog_res_adj = geog_res_adj,

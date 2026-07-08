@@ -11,13 +11,10 @@ analog_regression(
   weight = NULL,
   covariates,
   x_covariates = NULL,
-  max_geog = NULL,
-  max_clim = NULL,
+  geog = NULL,
+  clim = kernel("gaussian"),
   select = "all",
   k = NULL,
-  kernel = c("gaussian_clim", "inverse_clim", "gaussian_geog", "inverse_geog",
-    "gaussian_joint", "inverse_joint", "uniform"),
-  theta = NULL,
   lambda = 0,
   stat = c("count", "ess", "regression"),
   se = c("none", "ess", "design"),
@@ -84,23 +81,29 @@ focal. Must have exactly the same number of rows/cells as \code{x}, and the
 same column/layer names as \code{covariates}. Default \code{NULL} returns only
 coefficients.}
 
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
-
-\item{max_clim}{Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:
+\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
+shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+(\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
-\item A scalar: Euclidean radius in climate space (e.g., 0.5)
-\item A vector: Per-variable absolute differences (length must equal
-number of climate variables)
+\item \code{max}: hard distance threshold — candidates beyond it (in that family's
+distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+radius or a per-variable vector of absolute-difference thresholds (length
+equal to the number of climate variables); scalar climate thresholds are
+in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
+single radius (kilometers when \code{coord_type = "lonlat"}, projected units
+otherwise).
+\item \code{weight}: kernel shape for weighted aggregations — \code{"uniform"} (no
+distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
+\code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
+product of the two families' weights, so shapes may be mixed (e.g. an
+inverse climate kernel with a Gaussian geographic kernel).
+\item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
+distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
 
-Only reference locations within this climate distance are considered.
-When \code{x_cov} is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.}
+A \code{NULL} kernel (the default for both) applies no threshold and no
+weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 
 \item{select}{Character string specifying the analog selection strategy.
 One of:
@@ -116,43 +119,6 @@ with smallest geographic distance, subject to filters.
 \item{k}{Number of nearest analogs to return per focal location for kNN
 selection modes. Required when \code{select} is \code{"knn_geog"} or
 \code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.}
-
-\item{kernel}{Kernel decay function for weighting matches, used only when
-\code{stat} includes a weighted aggregation (\code{"sum_weights"}, \code{"mean_weights"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, \code{"regression"}, or
-\code{"tabulate"}). One of:
-\itemize{
-\item \code{"uniform"}: All matches weighted equally (kernel weight = 1.0).
-\item \code{"inverse_clim"}: Inverse climate distance,
-kernel weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
-\item \code{"inverse_geog"}: Inverse geographic distance,
-kernel weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
-\item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-kernel weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
-\item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-kernel weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
-\item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
-kernel weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
-with sigmas given by \code{theta}.
-\item \code{"inverse_joint"}: Inverse joint distance,
-kernel weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
-}}
-
-\item{theta}{Optional numeric parameter controlling the shape of the
-weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
-\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
-Interpretation depends on \code{kernel}:
-\itemize{
-\item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
-added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-\item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
-parameter (scalar; larger values = slower decay with distance).
-\item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
-\code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
-}
-
-See \code{\link[=kernel_params]{kernel_params()}} for help choosing \code{theta} and \code{max_clim} /
-\code{max_geog} values that work well together.}
 
 \item{lambda}{Ridge penalty parameter (default: 0, giving ordinary
 weighted least squares). Higher values shrink high-variance coefficients
@@ -286,8 +252,9 @@ a wrapper that calls \code{\link[=analog_search]{analog_search()}} with \code{"r
 For each focal location, the function:
 
 \enumerate{
-\item Selects analog pool locations based on \code{select}, \code{max_clim}, \code{max_geog}, and \code{k}
-\item Computes distance-based kernel weights for each analog (via \code{kernel} and \code{theta})
+\item Selects analog pool locations based on \code{select}, \code{clim}, \code{geog}, and \code{k}
+\item Computes distance-based kernel weights for each analog (via the
+\code{clim} / \code{geog} kernels)
 \item Fits a weighted least squares regression of \code{y} on \code{covariates}
 using these weights, with optional ridge penalty \code{lambda}
 \item Returns the regression coefficients (intercept + slopes), and
@@ -342,9 +309,8 @@ gwr_result <- analog_regression(
   covariates = data.frame(education = sites$edu, access = sites$access),
   select = "knn_geog",
   k = 50,
-  max_clim = NULL,
-  kernel = "gaussian_geog",
-  theta = 20,
+  clim = NULL,
+  geog = kernel("gaussian", theta = 20),
   se = "ess"
 )
 

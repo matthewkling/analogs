@@ -721,9 +721,12 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                         if (!ok) continue;
 
-                        // Analog passed all filters - compute distance weight if needed
+                        // Analog passed all filters - compute distance weight if needed.
+                        // Combined weight is the product of the two per-family
+                        // kernels (each UNIFORM short-circuits to 1.0).
                         const double dist_weight = need_weights
-                        ? weight_from_codes(wcode, clim_dist, gdist, weight_param1, weight_param2)
+                        ? weight_from_families(clim_kernel, clim_dist, clim_wparam,
+                                               geog_kernel, gdist, geog_wparam)
                               : 1.0;
 
                         // Per-point pool weights (cell-area and user-supplied).

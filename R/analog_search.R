@@ -65,22 +65,28 @@
 #'   stored configuration: `cell_area_weight = FALSE` errors if the index
 #'   was built with cell-area weighting on (rebuild the index instead).
 #'
-#' @param max_clim Maximum climate distance constraint (default: NULL = no
-#'   climate constraint). Can be either:
+#' @param clim,geog Per-family distance treatment, each a [kernel()] object (or
+#'   `NULL`). A kernel bundles the hard distance threshold, the weighting kernel
+#'   shape, and the kernel's scale for one family: climate (`clim`) or geography
+#'   (`geog`). `kernel(weight, theta, max)` where:
 #'
-#'   - A scalar: Euclidean radius in climate space (e.g., 0.5)
-#'   - A vector: Per-variable absolute differences (length must equal
-#'     number of climate variables)
+#'   - `max`: hard distance threshold — candidates beyond it (in that family's
+#'     distance) are excluded. For `clim`, `max` may be a single Euclidean
+#'     radius or a per-variable vector of absolute-difference thresholds (length
+#'     equal to the number of climate variables); scalar climate thresholds are
+#'     in Mahalanobis units when `x_cov` is supplied. For `geog`, `max` is a
+#'     single radius (kilometers when `coord_type = "lonlat"`, projected units
+#'     otherwise).
+#'   - `weight`: kernel shape for weighted aggregations — `"uniform"` (no
+#'     distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
+#'     `"inverse"` (`1 / (1 + d / theta)`). The overall kernel weight is the
+#'     product of the two families' weights, so shapes may be mixed (e.g. an
+#'     inverse climate kernel with a Gaussian geographic kernel).
+#'   - `theta`: the kernel's scale (Gaussian bandwidth, or inverse half-weight
+#'     distance). See [kernel_params()] for calibrated values.
 #'
-#'   Only reference locations within this climate distance are considered.
-#'   When `x_cov` is provided, scalar thresholds are interpreted in
-#'   Mahalanobis distance units.
-#'
-#' @param max_geog Maximum geographic distance constraint (default:
-#'   NULL = no geographic constraint). When specified, only reference locations
-#'   within this distance are considered. Radius units should be specified in
-#'   kilometers if `coord_type = "lonlat"`, or in projected coordinate units
-#'   if `coord_type = "projected"`.
+#'   A `NULL` kernel (the default for both) applies no threshold and no
+#'   weighting for that family. See [kernel()] for details.
 #'
 #' @param select Character string specifying the analog selection strategy.
 #'   One of:
@@ -121,9 +127,10 @@
 #'     `covariates`, and `kernel`. See `lambda` for regularization.
 #'   - `"tabulate"`: if `y` is categorical, separately sum the kernel weights
 #'     of analogs matching each level of `y`.
-#'     With `kernel = "uniform"` this reduces to a per-class vote count;
-#'     with a distance-decay kernel it gives similarity-weighted support
-#'     per class. Requires `y` (factor or coercible-to-factor) and `kernel`.
+#'     With a uniform kernel (no `clim`/`geog` distance weighting) this
+#'     reduces to a per-class vote count; with a distance-decay kernel it
+#'     gives similarity-weighted support per class. Requires `y` (factor or
+#'     coercible-to-factor).
 #'     Output has one column per class. `"tabulate"` is mutually exclusive with
 #'     `"sum"`, `"mean"`, `"weighted_sum"`, `"weighted_mean"`, and `"regression"`
 #'     (different `y` semantics); it can be combined with `"count"`,
@@ -131,41 +138,6 @@
 #'   - A character vector combining multiple stats (e.g.,
 #'     `c("count", "weighted_mean", "regression")`).
 #'     Note: `"none"` cannot be combined with other stats.
-#'
-#' @param kernel Kernel decay function for weighting matches, used only when
-#'   `stat` includes a weighted aggregation (`"sum_weights"`, `"mean_weights"`,
-#'   `"weighted_sum"`, `"weighted_mean"`, `"ess"`, `"regression"`, or
-#'   `"tabulate"`). One of:
-#'
-#'   - `"uniform"`: All matches weighted equally (kernel weight = 1.0).
-#'   - `"inverse_clim"`: Inverse climate distance,
-#'     kernel weight = 1 / (climate_distance + eps), with epsilon given by `theta`.
-#'   - `"inverse_geog"`: Inverse geographic distance,
-#'     kernel weight = 1 / (geographic_distance + eps), with epsilon given by `theta`.
-#'   - `"gaussian_clim"`: Gaussian kernel on climate distance,
-#'     kernel weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by `theta`.
-#'   - `"gaussian_geog"`: Gaussian kernel on geographic distance,
-#'     kernel weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by `theta`.
-#'   - `"gaussian_joint"`: Gaussian kernel on combined distance,
-#'     kernel weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
-#'     with sigmas given by `theta`.
-#'   - `"inverse_joint"`: Inverse joint distance,
-#'     kernel weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by `theta`.
-#'
-#' @param theta Optional numeric parameter controlling the shape of the
-#'   weighting `kernel`, used whenever `kernel` is active (i.e. whenever
-#'   `stat` includes a weighted aggregation) and `kernel` is not `"uniform"`.
-#'   Interpretation depends on `kernel`:
-#'
-#'   - For `"inverse_clim"` or `"inverse_geog"`: epsilon value
-#'     added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-#'   - For `"gaussian_clim"` or `"gaussian_geog"`: sigma bandwidth
-#'     parameter (scalar; larger values = slower decay with distance).
-#'   - For `"gaussian_joint"` or `"inverse_joint"`: 2-element vector
-#'     `c(theta_clim, theta_geog)` (defaults: 1 for climate, 1 for geography).
-#'
-#'   See [kernel_params()] for help choosing `theta` and `max_clim` /
-#'   `max_geog` values that work well together.
 #'
 #' @param lambda Ridge penalty parameter for `stat = "regression"`
 #'   (default: 0, giving ordinary weighted least squares). Higher values
@@ -297,11 +269,12 @@
 #'   (`x`, `pool`, `x_cov`, `y`, `covariates`, `weight`, `coord_type`)
 #'   give attributes of the data on which to operate.
 #' - *Selection parameters*
-#'   (`select`, `max_clim`, `max_geog`, `k`)
+#'   (`select`, `clim`, `geog`, `k`)
 #'   define which analogs to `select` from the `pool` for each `x`.
 #' - *Aggregation parameters*
-#'   (`stat`, `kernel`, `theta`, `lambda`, `se`, `normalize`)
-#'   control how selected analogs are summarized.
+#'   (`stat`, `clim`, `geog`, `lambda`, `se`, `normalize`)
+#'   control how selected analogs are summarized. The `clim` / `geog` kernels
+#'   carry both the selection thresholds and the weighting kernels.
 #' - *Computation parameters*
 #'   (`n_threads`, `geog_res_adj`, `clim_res_adj`, `downsample`, `seed`, `progress`)
 #'   specify behavior for controlling compute performance.
@@ -359,7 +332,7 @@
 #' `max_geog`. The resulting columns are unitless availability fractions
 #' on roughly `[0, 1]`.
 #'
-#' Because `D_max` is a continuous-domain idealization while `D` is a discrete sum over a finite grid, normalized
+#' Because `D_max` is a continuous-kernel idealization while `D` is a discrete sum over a finite grid, normalized
 #' values can occasionally exceed 1 by small amounts (typically a few percent). This
 #' is a grid discretization artifact, not an error, and at certain `(cell_size, max_geog)`
 #' ratios this is more pronounced. Using a higher-resolution pool grid or choosing
@@ -401,16 +374,14 @@ analog_search <- function(
       covariates = NULL,
       weight = NULL,
 
-      # candidate filtering
-      max_clim = NULL,
-      max_geog = NULL,
+      # candidate filtering + distance weighting (per-family kernels)
+      clim = NULL,
+      geog = NULL,
       select = "all",
       k = NULL,
 
       # analog aggregation
       stat = NULL,
-      kernel = NULL,
-      theta = NULL,
       lambda = 0,
       se = c("none", "ess", "design"),
       normalize = "auto",
@@ -432,6 +403,31 @@ analog_search <- function(
 ) {
 
       se <- match.arg(se)
+
+      # Unpack the per-family kernels (clim, geog) into the individual
+      # components used throughout: hard thresholds (max_clim/max_geog), and
+      # per-family kernel shapes + scales. A NULL kernel means no threshold and
+      # no weighting for that family. This is the single point where the
+      # kernel() sugar is dissolved; everything downstream consumes the plain
+      # per-family values. Validation of the components happened in kernel().
+      .unpack_kernel <- function(w, arg) {
+            if (is.null(w)) return(list(max = NULL, weight = "uniform", theta = NULL))
+            if (!inherits(w, "analog_kernel")) {
+                  stop("`", arg, "` must be a kernel() object or NULL.", call. = FALSE)
+            }
+            list(max    = w$max,
+                 weight = w$weight %||% "uniform",
+                 theta  = w$theta)
+      }
+      .clim_w <- .unpack_kernel(clim, "clim")
+      .geog_w <- .unpack_kernel(geog, "geog")
+
+      max_clim    <- .clim_w$max
+      max_geog    <- .geog_w$max
+      kernel_clim <- .clim_w$weight   # "uniform" | "gaussian" | "inverse"
+      kernel_geog <- .geog_w$weight
+      theta_clim  <- .clim_w$theta
+      theta_geog  <- .geog_w$theta
 
       # Validate normalize argument format up front. Accepts TRUE, FALSE,
       # or the string "auto". Compatibility with kernel/max_geog/index/etc.
@@ -565,11 +561,9 @@ analog_search <- function(
                         covariates = covariates,
                         select = select,
                         stat = stat,
-                        max_clim = max_clim,
-                        max_geog = max_geog,
+                        clim = clim,
+                        geog = geog,
                         k = k,
-                        kernel = kernel,
-                        theta = theta,
                         lambda = lambda,
                         se = se,
                         coord_type = coord_type,
@@ -610,8 +604,10 @@ analog_search <- function(
             covariates = covariates,
             weight = weight,
             k = k,
-            kernel = kernel,
-            theta = theta,
+            kernel_clim = kernel_clim,
+            kernel_geog = kernel_geog,
+            theta_clim = theta_clim,
+            theta_geog = theta_geog,
             lambda = lambda,
             se = se,
             normalize = normalize,

@@ -20,7 +20,7 @@
 #' Each family's 1-D search starts from its current adjustment and expands a
 #' multiplicative bracket (halving or doubling) in the direction of decreasing
 #' compute time until an interior minimum is bracketed (time decreases then
-#' increases) or a bound is reached. Adjustments are constrained to the range
+#' increases) or a bound is reached. Adjustments are constrained to
 #' \[1/32, 32\]. The outer loop alternates between families until a full sweep
 #' leaves both selections unchanged (convergence) or a sweep cap is reached.
 #'
@@ -30,18 +30,19 @@
 #' returned unchanged.
 #'
 #' A subsample of focal points is used for benchmarking to keep tuning fast
-#' while still being representative of actual query performance.
+#' while still being representative of actual query performance. Only the query
+#' is timed, not the index build (indexes are built once and queried many
+#' times).
 #'
 #' @examples
 #' \dontrun{
-#' # Tune per-family resolution for an availability query (both families active)
 #' adj <- tune_index_res(
 #'   x = sample_sites,
 #'   pool = climate_data,
 #'   select = "all",
 #'   stat = "count",
-#'   max_clim = 0.5,
-#'   max_geog = 100
+#'   clim = kernel(max = 0.5),
+#'   geog = kernel(max = 100)
 #' )
 #'
 #' index <- build_analog_index(climate_data,
@@ -56,11 +57,9 @@ tune_index_res <- function(x,
                            seed = NULL,
                            select = "all",
                            stat = NULL,
-                           max_clim = NULL,
-                           max_geog = NULL,
+                           clim = NULL,
+                           geog = NULL,
                            k = NULL,
-                           kernel = NULL,
-                           theta = NULL,
                            x_cov = NULL,
                            y = NULL,
                            covariates = NULL,
@@ -73,6 +72,29 @@ tune_index_res <- function(x,
                            verbose = FALSE) {
 
       se <- match.arg(se)
+
+      # Unpack the per-family kernels (clim, geog) into the individual
+      # components used by the internal query calls: hard thresholds and
+      # per-family kernel shapes + scales. Mirrors analog_search()'s unpacking
+      # so this exported helper takes the same friendly kernel() interface.
+      .unpack_kernel <- function(w, arg) {
+            if (is.null(w)) return(list(max = NULL, weight = "uniform", theta = NULL))
+            if (!inherits(w, "analog_kernel")) {
+                  stop("`", arg, "` must be a kernel() object or NULL.", call. = FALSE)
+            }
+            list(max    = w$max,
+                 weight = w$weight %||% "uniform",
+                 theta  = w$theta)
+      }
+      .clim_w <- .unpack_kernel(clim, "clim")
+      .geog_w <- .unpack_kernel(geog, "geog")
+
+      max_clim    <- .clim_w$max
+      max_geog    <- .geog_w$max
+      kernel_clim <- .clim_w$weight
+      kernel_geog <- .geog_w$weight
+      theta_clim  <- .clim_w$theta
+      theta_geog  <- .geog_w$theta
 
       if (is.null(seed)) seed <- .Random.seed[1]
       set.seed(seed)
@@ -118,7 +140,8 @@ tune_index_res <- function(x,
             x_cov_samp <- x_cov[idx, , drop = FALSE]
       }
 
-      # Evaluate elapsed query time for a given (geo_adj, clim_adj) pair.
+      # Evaluate elapsed query time for a given (geo_adj, clim_adj) pair. Only
+      # the query is timed; the index build is excluded (build-once/query-many).
       eval_time <- function(geo_adj, clim_adj) {
             index <- build_analog_index(
                   pool = pool,
@@ -143,8 +166,10 @@ tune_index_res <- function(x,
                         lambda = lambda,
                         se = se,
                         k = k,
-                        kernel = kernel,
-                        theta = theta,
+                        kernel_clim = kernel_clim,
+                        kernel_geog = kernel_geog,
+                        theta_clim = theta_clim,
+                        theta_geog = theta_geog,
                         n_threads = n_threads
                   )
             })
@@ -174,17 +199,17 @@ tune_index_res <- function(x,
             }
 
             cur <- min(ADJ_MAX, max(ADJ_MIN, cur))
-            t_cur  <- eval_at(cur)
+            t_cur <- eval_at(cur)
 
-            # Probe both neighbors (one doubling each way) to pick a direction.
             lo <- max(ADJ_MIN, cur / 2)
             hi <- min(ADJ_MAX, cur * 2)
             t_lo <- if (lo < cur) eval_at(lo) else Inf
             t_hi <- if (hi > cur) eval_at(hi) else Inf
 
             if (verbose) {
-                  message(sprintf("  [%s] center adj=%.3g (%.3fs); down=%.3g (%.3fs) up=%.3g (%.3fs)",
-                                  family, cur, t_cur, lo, t_lo, hi, t_hi))
+                  message(sprintf(
+                        "  [%s] center adj=%.3g (%.3fs); down=%.3g (%.3fs) up=%.3g (%.3fs)",
+                        family, cur, t_cur, lo, t_lo, hi, t_hi))
             }
 
             # If center is already a local min, done.
@@ -192,9 +217,10 @@ tune_index_res <- function(x,
                   return(cur)
             }
 
-            # Expand in the better direction until time turns back up or bound hit.
+            # Expand in the better direction until time turns back up or a bound
+            # is hit. (If the center isn't a local min, the smaller-neighbor
+            # direction is guaranteed to descend from the center.)
             if (t_lo < t_hi) {
-                  # Descend by halving.
                   best_a <- lo; best_t <- t_lo; a <- lo
                   while (a > ADJ_MIN) {
                         a_next <- max(ADJ_MIN, a / 2)
@@ -206,7 +232,6 @@ tune_index_res <- function(x,
                   }
                   best_a
             } else {
-                  # Descend by doubling.
                   best_a <- hi; best_t <- t_hi; a <- hi
                   while (a < ADJ_MAX) {
                         a_next <- min(ADJ_MAX, a * 2)
@@ -250,10 +275,9 @@ tune_index_res <- function(x,
                   message(sprintf("Converged: geog_res_adj=%.3g clim_res_adj=%.3g",
                                   geo_adj, clim_adj))
             } else {
-                  message(sprintf("Reached sweep cap (%d) without full convergence; ",
-                                  MAX_SWEEPS),
-                          sprintf("using geog_res_adj=%.3g clim_res_adj=%.3g",
-                                  geo_adj, clim_adj))
+                  message(sprintf(
+                        "Reached sweep cap (%d) without full convergence; using geog_res_adj=%.3g clim_res_adj=%.3g",
+                        MAX_SWEEPS, geo_adj, clim_adj))
             }
       }
 

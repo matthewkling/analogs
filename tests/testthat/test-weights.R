@@ -53,14 +53,12 @@ test_that("cell_area_weight changes aggregation results on a lonlat raster", {
 
       out_on <- analog_search(focal, idx_on,
                               stat = "sum_weights",
-                              kernel = "uniform",
-                              max_clim = 100,           # permissive: don't bind on climate
-                              max_geog = 300)            # ~3° at the equator; smaller at lat 75
+                              clim = kernel(max = 100),  # permissive: don't bind on climate
+                              geog = kernel(max = 300))  # ~3° at the equator; smaller at lat 75
       out_off <- analog_search(focal, idx_off,
                                stat = "sum_weights",
-                               kernel = "uniform",
-                               max_clim = 100,
-                               max_geog = 300)
+                               clim = kernel(max = 100),
+                               geog = kernel(max = 300))
 
       # Sanity: each focal actually has analogs in its small patch
       expect_true(all(out_on$sum_weights > 0))
@@ -115,25 +113,25 @@ test_that("cell_area_weight reconciliation between query and pre-built index", {
       expect_error(
             analog_search(focal, idx_on,
                           cell_area_weight = FALSE,
-                          stat = "count", max_clim = 5, max_geog = 5000),
+                          stat = "count", clim = kernel(max = 5), geog = kernel(max = 5000)),
             "cell_area_weight = FALSE"
       )
       # Forcing TRUE on a FALSE-built index → error
       expect_error(
             analog_search(focal, idx_off,
                           cell_area_weight = TRUE,
-                          stat = "count", max_clim = 5, max_geog = 5000),
+                          stat = "count", clim = kernel(max = 5), geog = kernel(max = 5000)),
             "cell_area_weight = TRUE"
       )
 
       # "auto" silently accepts either configuration
       expect_no_error(
             analog_search(focal, idx_on,
-                          stat = "count", max_clim = 5, max_geog = 5000)
+                          stat = "count", clim = kernel(max = 5), geog = kernel(max = 5000))
       )
       expect_no_error(
             analog_search(focal, idx_off,
-                          stat = "count", max_clim = 5, max_geog = 5000)
+                          stat = "count", clim = kernel(max = 5), geog = kernel(max = 5000))
       )
 })
 
@@ -151,14 +149,12 @@ test_that("user weight changes weighted_mean as expected", {
 
       out_unw <- analog_search(d$focal, d$ref,
                                y = y, stat = "weighted_mean",
-                               kernel = "uniform",
-                               max_clim = 2, max_geog = 5,
+                               clim = kernel(max = 2), geog = kernel(max = 5),
                                coord_type = "projected")
       out_w   <- analog_search(d$focal, d$ref,
                                y = y, weight = w,
                                stat = "weighted_mean",
-                               kernel = "uniform",
-                               max_clim = 2, max_geog = 5,
+                               clim = kernel(max = 2), geog = kernel(max = 5),
                                coord_type = "projected")
 
       # Should differ at the bulk of focals
@@ -175,14 +171,12 @@ test_that("user weight scales sum_weights linearly", {
       # weight = 2 everywhere should double sum_weights vs no weight
       out_w1 <- analog_search(d$focal, d$ref,
                               stat = "sum_weights",
-                              kernel = "uniform",
-                              max_clim = 2, max_geog = 5,
+                              clim = kernel(max = 2), geog = kernel(max = 5),
                               coord_type = "projected")
       out_w2 <- analog_search(d$focal, d$ref,
                               weight = rep(2, n_ref),
                               stat = "sum_weights",
-                              kernel = "uniform",
-                              max_clim = 2, max_geog = 5,
+                              clim = kernel(max = 2), geog = kernel(max = 5),
                               coord_type = "projected")
 
       expect_equal(out_w2$sum_weights, 2 * out_w1$sum_weights, tolerance = 1e-10)
@@ -203,14 +197,12 @@ test_that("NA weights are treated as 0 (point excluded)", {
       out_na <- analog_search(d$focal, d$ref,
                               weight = w_na,
                               stat = "sum_weights",
-                              kernel = "uniform",
-                              max_clim = 2, max_geog = 5,
+                              clim = kernel(max = 2), geog = kernel(max = 5),
                               coord_type = "projected")
       out_zero <- analog_search(d$focal, d$ref,
                                 weight = w_zero,
                                 stat = "sum_weights",
-                                kernel = "uniform",
-                                max_clim = 2, max_geog = 5,
+                                clim = kernel(max = 2), geog = kernel(max = 5),
                                 coord_type = "projected")
 
       expect_equal(out_na$sum_weights, out_zero$sum_weights, tolerance = 1e-10)
@@ -233,13 +225,11 @@ test_that("user weight composes multiplicatively with cell-area weight", {
 
       out_no_user <- analog_search(focal, idx,
                                    stat = "sum_weights",
-                                   kernel = "uniform",
-                                   max_clim = 5, max_geog = 5000)
+                                   clim = kernel(max = 5), geog = kernel(max = 5000))
       out_w3      <- analog_search(focal, idx,
                                    weight = rep(3, n_pool),
                                    stat = "sum_weights",
-                                   kernel = "uniform",
-                                   max_clim = 5, max_geog = 5000)
+                                   clim = kernel(max = 5), geog = kernel(max = 5000))
 
       expect_equal(out_w3$sum_weights, 3 * out_no_user$sum_weights,
                    tolerance = 1e-10)
@@ -253,14 +243,14 @@ test_that("weight = NULL and cell_area_weight = FALSE reproduce baseline", {
       # Old call (no new args)
       base <- analog_search(d$focal, d$ref,
                             stat = "count",
-                            max_clim = 2, max_geog = 5,
+                            clim = kernel(max = 2), geog = kernel(max = 5),
                             coord_type = "projected")
       # Explicit defaults
       explicit <- analog_search(d$focal, d$ref,
                                 weight = NULL,
                                 cell_area_weight = FALSE,
                                 stat = "count",
-                                max_clim = 2, max_geog = 5,
+                                clim = kernel(max = 2), geog = kernel(max = 5),
                                 coord_type = "projected")
 
       # count is unaffected by weights by design (sample/area/user all
@@ -277,7 +267,7 @@ test_that("weight length must match pool", {
             analog_search(d$focal, d$ref,
                           weight = rep(1, nrow(d$ref) - 1),
                           stat = "count",
-                          max_clim = 2, max_geog = 5,
+                          clim = kernel(max = 2), geog = kernel(max = 5),
                           coord_type = "projected"),
             "rows"
       )
@@ -292,7 +282,7 @@ test_that("negative weights error", {
             analog_search(d$focal, d$ref,
                           weight = bad,
                           stat = "count",
-                          max_clim = 2, max_geog = 5,
+                          clim = kernel(max = 2), geog = kernel(max = 5),
                           coord_type = "projected"),
             "non-negative"
       )
@@ -309,20 +299,17 @@ test_that("weight accepts vector, single-column matrix/df, single-layer raster",
       out_vec <- analog_search(d$focal, d$ref,
                                weight = w_vec,
                                stat = "sum_weights",
-                               kernel = "uniform",
-                               max_clim = 2, max_geog = 5,
+                               clim = kernel(max = 2), geog = kernel(max = 5),
                                coord_type = "projected")
       out_mat <- analog_search(d$focal, d$ref,
                                weight = matrix(w_vec, ncol = 1),
                                stat = "sum_weights",
-                               kernel = "uniform",
-                               max_clim = 2, max_geog = 5,
+                               clim = kernel(max = 2), geog = kernel(max = 5),
                                coord_type = "projected")
       out_df  <- analog_search(d$focal, d$ref,
                                weight = data.frame(w = w_vec),
                                stat = "sum_weights",
-                               kernel = "uniform",
-                               max_clim = 2, max_geog = 5,
+                               clim = kernel(max = 2), geog = kernel(max = 5),
                                coord_type = "projected")
 
       expect_equal(out_vec$sum_weights, out_mat$sum_weights)
@@ -337,7 +324,7 @@ test_that("multi-column weight matrix errors", {
             analog_search(d$focal, d$ref,
                           weight = bad,
                           stat = "count",
-                          max_clim = 2, max_geog = 5,
+                          clim = kernel(max = 2), geog = kernel(max = 5),
                           coord_type = "projected"),
             "one column"
       )
@@ -354,7 +341,7 @@ test_that("pair mode emits weight columns conditionally", {
       # Plain query: no downsample, no area, no user weight → no weight cols
       plain <- analog_search(d$focal, d$ref,
                              select = "knn_geog", k = 1, stat = "none",
-                             max_clim = 2,
+                             clim = kernel(max = 2),
                              coord_type = "projected")
       expect_false("sample_weight" %in% names(plain))
       expect_false("area_weight"   %in% names(plain))
@@ -364,7 +351,7 @@ test_that("pair mode emits weight columns conditionally", {
       with_user <- analog_search(d$focal, d$ref,
                                  weight = rep(1, n_ref),
                                  select = "knn_geog", k = 1, stat = "none",
-                                 max_clim = 2,
+                                 clim = kernel(max = 2),
                                  coord_type = "projected")
       expect_false("sample_weight" %in% names(with_user))
       expect_false("area_weight"   %in% names(with_user))
@@ -380,7 +367,7 @@ test_that("pair mode emits area_weight column when cell-area weights are active"
 
       out <- analog_search(focal, pool,
                            select = "knn_geog", k = 1, stat = "none",
-                           max_clim = 5,
+                           clim = kernel(max = 5),
                            coord_type = "lonlat")
       expect_true("area_weight" %in% names(out))
       # Mean-1 normalized → area weights present and finite
@@ -397,7 +384,7 @@ test_that("output carries cell_area_weight and weight_provided attributes", {
 
       out_off <- analog_search(d$focal, d$ref,
                                stat = "count",
-                               max_clim = 2, max_geog = 5,
+                               clim = kernel(max = 2), geog = kernel(max = 5),
                                coord_type = "projected")
       expect_false(attr(out_off, "cell_area_weight"))
       expect_false(attr(out_off, "weight_provided"))
@@ -405,7 +392,7 @@ test_that("output carries cell_area_weight and weight_provided attributes", {
       out_user <- analog_search(d$focal, d$ref,
                                 weight = rep(1, nrow(d$ref)),
                                 stat = "count",
-                                max_clim = 2, max_geog = 5,
+                                clim = kernel(max = 2), geog = kernel(max = 5),
                                 coord_type = "projected")
       expect_true(attr(out_user, "weight_provided"))
 })
@@ -423,7 +410,7 @@ test_that("weight + downsampled index emits a permissive warning", {
             analog_search(d$focal, idx,
                           weight = rep(1, nrow(d$ref)),
                           stat = "count",
-                          max_clim = 2, max_geog = 5),
+                          clim = kernel(max = 2), geog = kernel(max = 5)),
             "downsample"
       )
 })
@@ -443,11 +430,9 @@ test_that("build_analog_index accepts a numeric vector for cell_area_weight", {
                                     cell_area_weight = rep(1, n_ref))
 
       out_off <- analog_search(d$focal, idx_off,
-                               stat = "sum_weights", kernel = "uniform",
-                               max_clim = 2, max_geog = 5)
+                               stat = "sum_weights",                                clim = kernel(max = 2), geog = kernel(max = 5))
       out_vec <- analog_search(d$focal, idx_vec,
-                               stat = "sum_weights", kernel = "uniform",
-                               max_clim = 2, max_geog = 5)
+                               stat = "sum_weights",                                clim = kernel(max = 2), geog = kernel(max = 5))
 
       expect_equal(out_off$sum_weights, out_vec$sum_weights, tolerance = 1e-12)
 })
@@ -494,7 +479,7 @@ test_that("numeric cell_area_weight cannot be applied to pre-built index in anal
             analog_search(d$focal, idx,
                           cell_area_weight = rep(1, n_ref),
                           stat = "count",
-                          max_clim = 2, max_geog = 5),
+                          clim = kernel(max = 2), geog = kernel(max = 5)),
             "pre-built"
       )
 })
@@ -528,8 +513,7 @@ test_that("tiled_analog_search forwards weight raster and matches non-tiled resu
       ref <- analog_impact(
             x = focal, pool = pool,
             y = pool[[1]], weight = w,
-            max_clim = 1, max_geog = 5000,
-            kernel = "gaussian_clim", theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 1), geog = kernel(max = 5000),
             cell_area_weight = FALSE,
             coord_type = "projected"
       )
@@ -538,11 +522,10 @@ test_that("tiled_analog_search forwards weight raster and matches non-tiled resu
             tiled_analog_search(
                   x = focal, pool = pool, n_tiles = 4,
                   fun = analog_impact,
-                  max_geog = 5000,
+                  geog = kernel(max = 5000),
                   y = pool[[1]],
                   weight = w,
-                  max_clim = 1,
-                  kernel = "gaussian_clim", theta = 0.5,
+                  clim = kernel("gaussian", theta = 0.5, max = 1),
                   cell_area_weight = FALSE,
                   progress = FALSE
             )
@@ -570,8 +553,7 @@ test_that("tiled_analog_search applies cell_area_weight with global normalizatio
       ref <- analog_impact(
             x = focal, pool = pool,
             y = pool[[1]],
-            max_clim = 1, max_geog = 300,
-            kernel = "gaussian_clim", theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 1), geog = kernel(max = 300),
             cell_area_weight = TRUE,
             coord_type = "lonlat"
       )
@@ -580,10 +562,9 @@ test_that("tiled_analog_search applies cell_area_weight with global normalizatio
             tiled_analog_search(
                   x = focal, pool = pool, n_tiles = 4,
                   fun = analog_impact,
-                  max_geog = 300,
+                  geog = kernel(max = 300),
                   y = pool[[1]],
-                  max_clim = 1,
-                  kernel = "gaussian_clim", theta = 0.5,
+                  clim = kernel("gaussian", theta = 0.5, max = 1),
                   cell_area_weight = TRUE,
                   progress = FALSE
             )
@@ -616,8 +597,7 @@ test_that("tiled_analog_search crops covariates per tile (regression bugfix)", {
             x = focal, pool = pool, y = pool[[1]],
             covariates = cov_r,
             stat = c("count", "weighted_mean", "regression"),
-            max_clim = 1, max_geog = 25,
-            kernel = "gaussian_clim", theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 1), geog = kernel(max = 25),
             cell_area_weight = FALSE,
             coord_type = "projected"
       )
@@ -626,12 +606,11 @@ test_that("tiled_analog_search crops covariates per tile (regression bugfix)", {
             tiled_analog_search(
                   x = focal, pool = pool, n_tiles = 4,
                   fun = analog_search,
-                  max_geog = 25,
+                  geog = kernel(max = 25),
                   y = pool[[1]],
                   covariates = cov_r,
                   stat = c("count", "weighted_mean", "regression"),
-                  max_clim = 1,
-                  kernel = "gaussian_clim", theta = 0.5,
+                  clim = kernel("gaussian", theta = 0.5, max = 1),
                   cell_area_weight = FALSE,
                   progress = FALSE
             )
@@ -660,14 +639,12 @@ test_that("analog_cv accepts and forwards `weight` (LOO)", {
       cv_w <- analog_cv(
             fun = analog_impact, pool = pool, y = y,
             weight = w,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 1), geog = kernel(max = 2),
             coord_type = "projected", cv_method = "loo"
       )
       cv_no <- analog_cv(
             fun = analog_impact, pool = pool, y = y,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 1), geog = kernel(max = 2),
             coord_type = "projected", cv_method = "loo"
       )
 
@@ -697,8 +674,7 @@ test_that("analog_cv k-fold preserves global cell-area normalization", {
       cv <- suppressWarnings(analog_cv(
             fun = analog_impact, pool = pool, y = yr,
             cv_method = "kfold", n_folds = 3L,
-            max_clim = 1, max_geog = 500,
-            kernel = "gaussian_clim", theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 1), geog = kernel(max = 500),
             cell_area_weight = TRUE
       ))
 
@@ -715,8 +691,7 @@ test_that("analog_cv with weight rejects bad lengths", {
             analog_cv(
                   fun = analog_impact, pool = d$ref, y = d$ref[, 3],
                   weight = rep(1, nrow(d$ref) - 1),
-                  max_clim = 1, max_geog = 2,
-                  kernel = "gaussian_clim", theta = 0.5,
+                  clim = kernel("gaussian", theta = 0.5, max = 1), geog = kernel(max = 2),
                   coord_type = "projected", cv_method = "loo"
             ),
             "rows"

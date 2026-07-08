@@ -18,7 +18,9 @@
                                    covariates = NULL,
                                    max_clim, max_geog,
                                    select, k,
-                                   stat, kernel, theta,
+                                   stat,
+                                   kernel_clim, kernel_geog,
+                                   theta_clim, theta_geog,
                                    lambda = 0,
                                    se = "none",
                                    pool_row_map = NULL,
@@ -93,12 +95,16 @@
             stop("stat must be NULL or a character vector")
       }
 
-      # Validate and normalize kernel
-      if (!is.null(kernel)) {
-            kernel <- match.arg(kernel, c("uniform", "gaussian_clim", "gaussian_geog",
-                                          "gaussian_joint", "inverse_clim", "inverse_geog",
-                                          "inverse_joint"))
-      }
+      # Validate and normalize per-family kernels. Each family's shape is one
+      # of uniform/gaussian/inverse; NULL is treated as uniform (no weighting).
+      valid_family_kernels <- c("uniform", "gaussian", "inverse")
+      if (is.null(kernel_clim)) kernel_clim <- "uniform"
+      if (is.null(kernel_geog)) kernel_geog <- "uniform"
+      kernel_clim <- match.arg(kernel_clim, valid_family_kernels)
+      kernel_geog <- match.arg(kernel_geog, valid_family_kernels)
+      # A kernel is "active" (weighting applied) if either family is non-uniform.
+      kernel_active <- !(identical(kernel_clim, "uniform") &&
+                               identical(kernel_geog, "uniform"))
 
       # Validate select/k combination
       if (select %in% c("knn_clim", "knn_geog")) {
@@ -144,12 +150,9 @@
                   stop("stat includes 'regression' but 'covariates' parameter is NULL. ",
                        "Regression requires 'covariates' to be provided.")
             }
-            if (is.null(kernel)) {
-                  stop("stat includes 'regression' but 'kernel' is NULL. ",
-                       "Regression requires a kernel weighting function. ",
-                       "Valid options: uniform, gaussian_clim, gaussian_geog, ",
-                       "gaussian_joint, inverse_clim, inverse_geog, inverse_joint")
-            }
+            # No kernel requirement: uniform weights yield ordinary (unweighted)
+            # regression, which is valid. A non-uniform clim/geog kernel simply
+            # makes it kernel-weighted regression.
       }
 
       # Validate lambda
@@ -179,53 +182,43 @@
                                            "weighted_sum", "weighted_mean",
                                            "ess", "regression", "tabulate"))
 
-      if (has_weighted_stat) {
-            # Weighted aggregation modes require kernel
-            valid_kernels <- c("uniform", "gaussian_clim", "gaussian_geog",
-                               "gaussian_joint", "inverse_clim", "inverse_geog",
-                               "inverse_joint")
-            if (is.null(kernel)) {
-                  stop("For stat including weighted aggregations, kernel must be specified. ",
-                       "Valid options: ", paste(valid_kernels, collapse = ", "))
+      # Per-family theta validation helper: NULL ok (C++ default), else a
+      # single positive number. uniform families must not carry a theta.
+      .check_family_theta <- function(kern, th, fam) {
+            if (identical(kern, "uniform")) {
+                  if (!is.null(th)) {
+                        stop("For ", fam, " weight = \"uniform\", theta must be NULL.",
+                             call. = FALSE)
+                  }
+            } else if (!is.null(th)) {
+                  if (!is.numeric(th) || length(th) != 1L || !is.finite(th) || th <= 0) {
+                        stop("For ", fam, " weight = \"", kern, "\", theta must be a ",
+                             "single positive number, or NULL.", call. = FALSE)
+                  }
             }
-            if (!kernel %in% valid_kernels) {
-                  stop("For stat including weighted aggregations, kernel must be one of: ",
-                       paste(valid_kernels, collapse = ", "))
-            }
+      }
 
-            # Validate theta based on kernel type
-            if (identical(kernel, "uniform")) {
-                  if (!is.null(theta)) {
-                        stop("For kernel = 'uniform', theta must be NULL.")
-                  }
-            } else if (kernel %in% c("gaussian_joint", "inverse_joint")) {
-                  # Joint kernels require 2-element theta
-                  if (is.null(theta)) {
-                        stop("For kernel = '", kernel, "', theta must be a numeric vector of length 2.")
-                  }
-                  if (!is.numeric(theta) || length(theta) != 2L) {
-                        stop("For kernel = '", kernel, "', theta must be a numeric vector of length 2: ",
-                             "c(theta_clim, theta_geog)")
-                  }
-                  if (any(theta <= 0)) {
-                        stop("For kernel = '", kernel, "', both theta values must be positive.")
-                  }
-            } else {
-                  # Single-dimension kernels (gaussian_clim, gaussian_geog, inverse_clim, inverse_geog)
-                  if (!is.null(theta)) {
-                        if (!is.numeric(theta) || length(theta) != 1L || theta <= 0) {
-                              stop("For kernel = '", kernel, "', theta must be a single positive numeric value, or NULL.")
-                        }
-                  }
-            }
+      if (has_weighted_stat) {
+            # Weighted aggregation modes accept ANY kernel configuration,
+            # including both families uniform. With uniform weights each stat
+            # simply reduces to its unweighted form: sum_weights/mean_weights
+            # sum/average the (area or sample) weights, weighted_mean becomes a
+            # plain mean, ess becomes n, regression becomes ordinary regression,
+            # and tabulate counts per class. So no non-uniform kernel is
+            # required; we only validate per-family theta coherence.
+            .check_family_theta(kernel_clim, theta_clim, "clim")
+            .check_family_theta(kernel_geog, theta_geog, "geog")
 
       } else {
-            # Non-weighted aggregations (none, count, sum, mean)
-            if (!is.null(kernel)) {
-                  stop("For stat = ", paste(stat, collapse = ", "), ", kernel must be NULL.")
+            # Non-weighted aggregations (none, count, sum, mean) take no kernel.
+            if (kernel_active) {
+                  stop("For stat = ", paste(stat, collapse = ", "),
+                       ", no kernel weighting may be set (both families must be ",
+                       "uniform / NULL).", call. = FALSE)
             }
-            if (!is.null(theta)) {
-                  stop("For stat = ", paste(stat, collapse = ", "), ", theta must be NULL.")
+            if (!is.null(theta_clim) || !is.null(theta_geog)) {
+                  stop("For stat = ", paste(stat, collapse = ", "),
+                       ", theta must be NULL.", call. = FALSE)
             }
       }
 
@@ -300,8 +293,11 @@
             select = select,
             stat = stat,
             k = k,
-            kernel = kernel,
-            theta = theta,
+            kernel_clim = kernel_clim,
+            kernel_geog = kernel_geog,
+            theta_clim = theta_clim,
+            theta_geog = theta_geog,
+            kernel_active = kernel_active,
             lambda = lambda,
             se = se,
             x_cov = x_cov_mat,
@@ -1102,8 +1098,11 @@
       w
 }
 
-.format_output <- function(out, x, stat, select, k, kernel, theta, x_cov_mat,
+.format_output <- function(out, x, stat, select, k,
+                           kernel_clim, kernel_geog, theta_clim, theta_geog,
+                           x_cov_mat,
                            lambda, se, exclude_self, downsample_actual,
+                           max_clim = NULL, max_geog = NULL,
                            cell_area_weight_applied = FALSE,
                            weight_provided = FALSE){
 
@@ -1132,8 +1131,12 @@
       attr(out, "select")            <- select
       attr(out, "stat")               <- stat
       attr(out, "k")                  <- k
-      attr(out, "kernel")             <- kernel
-      attr(out, "theta")              <- theta
+      attr(out, "kernel_clim")        <- kernel_clim
+      attr(out, "kernel_geog")        <- kernel_geog
+      attr(out, "theta_clim")         <- theta_clim
+      attr(out, "theta_geog")         <- theta_geog
+      attr(out, "max_clim")           <- max_clim
+      attr(out, "max_geog")           <- max_geog
       attr(out, "lambda")             <- lambda
       attr(out, "se")                 <- se
       attr(out, "exclude_self")       <- exclude_self
@@ -1218,4 +1221,79 @@
       }
 
       out
+}
+
+
+# ---- Shared per-family kernel weight functions ---------------------------
+# Single source of truth for the kernel weight as a function of distance,
+# used by both .compute_global_dmax() (density_normalization.R) and
+# kernel_params(). The reparameterized inverse kernel 1/(1 + d/theta) is
+# defined here in exactly one place. These must match the C++ implementation
+# in weights.h (per_family_weight): UNIFORM -> 1, GAUSSIAN ->
+# exp(-d^2/(2 theta^2)), INVERSE -> 1/(1 + d/theta).
+#
+# `kernel` is one of "uniform", "gaussian", "inverse". `theta` is the kernel
+# scale (Gaussian bandwidth, or inverse half-weight distance); it is ignored
+# for "uniform" and defaults to 1 when NULL/NA for the shape kernels.
+# Returns a vectorized function of distance r.
+.kernel_weight_fn <- function(kernel, theta = NULL) {
+      th <- if (is.null(theta) || (length(theta) == 1L && is.na(theta))) {
+            1.0
+      } else {
+            as.numeric(theta)
+      }
+      if (kernel != "uniform" && (!is.finite(th) || th <= 0)) {
+            stop("Internal error: invalid theta (", th, ") for kernel '",
+                 kernel, "'.", call. = FALSE)
+      }
+
+      switch(
+            kernel,
+            "uniform"  = function(r) rep(1.0, length(r)),
+            "gaussian" = function(r) exp(-(r * r) / (2 * th * th)),
+            "inverse"  = function(r) 1 / (1 + r / th),
+            stop("Internal error: unknown kernel '", kernel, "'.", call. = FALSE)
+      )
+}
+
+# Integral of a geographic kernel's weight over a planar disk of radius G:
+#   \int_0^G w(r) * 2*pi*r dr
+# Used for the geographic factor of the normalization constant D_max. Closed
+# forms are used where available, with numerical integration as a fallback.
+.kernel_disk_integral <- function(kernel, theta, G) {
+      if (!is.finite(G) || G <= 0) {
+            stop("Internal error: .kernel_disk_integral needs G > 0.", call. = FALSE)
+      }
+      twopi <- 2 * pi
+
+      if (identical(kernel, "uniform")) {
+            # \int_0^G 1 * 2*pi*r dr = pi G^2
+            return(pi * G * G)
+      }
+
+      th <- if (is.null(theta) || (length(theta) == 1L && is.na(theta))) {
+            1.0
+      } else {
+            as.numeric(theta)
+      }
+      if (!is.finite(th) || th <= 0) {
+            stop("Internal error: invalid theta for '", kernel,
+                 "' disk integral.", call. = FALSE)
+      }
+
+      if (identical(kernel, "gaussian")) {
+            # \int_0^G exp(-r^2/(2 th^2)) * 2*pi*r dr = 2*pi*th^2 (1 - exp(-G^2/(2 th^2)))
+            return(twopi * th * th * (1 - exp(-G * G / (2 * th * th))))
+      }
+
+      if (identical(kernel, "inverse")) {
+            # w(r) = 1/(1 + r/th) = th/(th + r)
+            # \int_0^G th/(th + r) * 2*pi*r dr
+            #   = 2*pi*th \int_0^G r/(th + r) dr
+            #   = 2*pi*th [ G - th * ln((th + G)/th) ]
+            return(twopi * th * (G - th * log((th + G) / th)))
+      }
+
+      stop("Internal error: unknown kernel '", kernel,
+           "' in .kernel_disk_integral.", call. = FALSE)
 }

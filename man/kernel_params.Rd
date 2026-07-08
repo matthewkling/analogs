@@ -21,8 +21,9 @@ Use this OR \code{theta}. Requires \code{data_dist = "mvn"}.}
 \item{theta}{Bandwidth value. Use this OR \code{fraction}. For Gaussian
 kernels, this is the standard bandwidth parameter; for uniform
 kernels, this is the cutoff radius (also returned as \code{max}); for
-inverse-distance kernels, this is the epsilon regularization that
-determines the half-weight scale.}
+inverse-distance kernels, this is the half-weight scale of the
+reparameterized kernel \code{1 / (1 + d / theta)} (weight is 1/2 at
+\code{d = theta}).}
 
 \item{d}{Dimensionality of the space (e.g., number of climate
 variables after Mahalanobis transformation, or 2 for geographic).}

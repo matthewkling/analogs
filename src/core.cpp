@@ -219,8 +219,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             double max_geog,
                             int select_code,
                             const IntegerVector& aggregate_codes,
-                            int weight_code,
-                            const NumericVector& theta,
+                            int clim_kernel_code,
+                            int geog_kernel_code,
+                            double theta_clim,
+                            double theta_geog,
                             SEXP x_cov_sexp,
                             SEXP values_sexp,
                             SEXP covariates_sexp,
@@ -316,7 +318,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
       // Check for "none" (pairs mode)
       const bool return_pairs = (n_stats == 1 && acodes[0] == AggregateCode::NONE);
 
-      const WeightCode wcode = static_cast<WeightCode>(weight_code);
+      const FamilyKernel clim_kernel = static_cast<FamilyKernel>(clim_kernel_code);
+      const FamilyKernel geog_kernel = static_cast<FamilyKernel>(geog_kernel_code);
 
       // Validate and parse SE code
       if (se_code < 0 || se_code > 2) {
@@ -324,10 +327,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
       }
       const SeCode scode_se = static_cast<SeCode>(se_code);
 
-      // Pre-compute weight parameters for efficiency
-      auto weight_params = precompute_weight_params(wcode, theta);
-      double weight_param1 = weight_params.first;
-      double weight_param2 = weight_params.second;
+      // Pre-compute per-family weight parameters for efficiency (one per family).
+      const double clim_wparam = precompute_family_param(clim_kernel, theta_clim);
+      const double geog_wparam = precompute_family_param(geog_kernel, theta_geog);
 
       // Parse x_cov parameter
       bool use_mahalanobis = false;
@@ -660,9 +662,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               max_clim_pervar_std,
                               scode,
                               acodes,
-                              wcode,
-                              weight_param1,
-                              weight_param2,
+                              clim_kernel,
+                              geog_kernel,
+                              clim_wparam,
+                              geog_wparam,
                               lattice_ptr,
                               use_ecef,
                               R_earth,

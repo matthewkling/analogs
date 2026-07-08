@@ -6,147 +6,67 @@
 
 namespace analogs {
 
-// Weight code enums (consistent with R wrapper mapping)
-enum class WeightCode : int {
-      NONE            = 0,
-            UNIFORM         = 1,
-            INVERSE_CLIM    = 2,
-            INVERSE_GEOG    = 3,
-            GAUSSIAN_CLIM   = 4,
-            GAUSSIAN_GEOG   = 5,
-            GAUSSIAN_JOINT  = 6,
-            INVERSE_JOINT   = 7
+// Per-family kernel shape. The overall weight for a candidate is the PRODUCT
+// of the climate-family weight and the geographic-family weight, each computed
+// independently from its own distance and shape. This product model replaces
+// the old fused WeightCode enum: it reproduces every separable kernel (a
+// single-family kernel is just the other family = UNIFORM) and additionally
+// supports mixed shapes (e.g. INVERSE climate x GAUSSIAN geography). The old
+// non-separable INVERSE_JOINT (a coupled 1/||(c,g)|| norm) is intentionally
+// dropped; INVERSE x INVERSE now gives 1/((1+c/tc)(1+g/tg)), a clean product.
+enum class FamilyKernel : int {
+      UNIFORM  = 0,   // constant weight 1 (also the "no weighting" case)
+            GAUSSIAN = 1,   // exp(-d^2 / (2 theta^2))
+            INVERSE  = 2    // 1 / (1 + d / theta)   [reparameterized: theta = half-weight scale]
 };
 
-// Pre-compute weight parameters for efficiency
-// Returns (param1, param2) for use in weight_from_codes
-inline std::pair<double, double> precompute_weight_params(
-            WeightCode wc,
-            const Rcpp::NumericVector& theta_vec)
-{
-      double param1 = 0.0;
-      double param2 = 0.0;
-
-      switch (wc) {
-      case WeightCode::UNIFORM:
-      case WeightCode::NONE:
-            break;
-
-      case WeightCode::INVERSE_CLIM:
-      case WeightCode::INVERSE_GEOG: {
-            // param1 = epsilon
-            if (theta_vec.size() > 0 && std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
-            param1 = theta_vec[0];
-      } else {
-            // Default epsilon
-            param1 = (wc == WeightCode::INVERSE_CLIM) ? 1e-12 : 1e-6;
+// Pre-compute the single per-family weight parameter from theta, so the hot
+// loop avoids repeated divides. Returns:
+//   GAUSSIAN -> -1/(2 theta^2)   (multiply by d^2 inside exp)
+//   INVERSE  ->  1/theta         (multiply by d, add 1, reciprocate)
+//   UNIFORM  ->  0.0             (unused)
+// theta defaults: 1.0 if not finite/positive. For INVERSE, theta is the
+// half-weight distance (weight = 1/2 at d = theta), bounded at d=0 (weight 1)
+// with no epsilon needed.
+inline double precompute_family_param(FamilyKernel k, double theta) {
+      switch (k) {
+      case FamilyKernel::GAUSSIAN: {
+            double sigma = (std::isfinite(theta) && theta > 0.0) ? theta : 1.0;
+            return -1.0 / (2.0 * sigma * sigma);
       }
-      break;
+      case FamilyKernel::INVERSE: {
+            double scale = (std::isfinite(theta) && theta > 0.0) ? theta : 1.0;
+            return 1.0 / scale;
       }
-
-      case WeightCode::GAUSSIAN_CLIM:
-      case WeightCode::GAUSSIAN_GEOG: {
-            // param1 = -1/(2*sigma^2)
-            double sigma = 1.0;
-            if (theta_vec.size() > 0 && std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
-                  sigma = theta_vec[0];
-            }
-            param1 = -1.0 / (2.0 * sigma * sigma);
-            break;
+      case FamilyKernel::UNIFORM:
+      default:
+            return 0.0;
       }
-
-      case WeightCode::GAUSSIAN_JOINT: {
-            // param1 = -1/(2*sigma_clim^2), param2 = -1/(2*sigma_geog^2)
-            double sigma_clim = 1.0;
-            double sigma_geog = 1.0;
-            if (theta_vec.size() >= 2) {
-                  if (std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
-                        sigma_clim = theta_vec[0];
-                  }
-                  if (std::isfinite(theta_vec[1]) && theta_vec[1] > 0.0) {
-                        sigma_geog = theta_vec[1];
-                  }
-            }
-            param1 = -1.0 / (2.0 * sigma_clim * sigma_clim);
-            param2 = -1.0 / (2.0 * sigma_geog * sigma_geog);
-            break;
-      }
-
-      case WeightCode::INVERSE_JOINT: {
-            // param1 = eps_clim, param2 = eps_geog
-            double eps_clim = 1e-12;
-            double eps_geog = 1e-6;
-            if (theta_vec.size() >= 2) {
-                  if (std::isfinite(theta_vec[0]) && theta_vec[0] > 0.0) {
-                        eps_clim = theta_vec[0];
-                  }
-                  if (std::isfinite(theta_vec[1]) && theta_vec[1] > 0.0) {
-                        eps_geog = theta_vec[1];
-                  }
-            }
-            param1 = eps_clim;
-            param2 = eps_geog;
-            break;
-      }
-      }
-
-      return std::make_pair(param1, param2);
 }
 
-// Weight calculation from codes with optimized parameters
-// For efficiency, pre-computed parameters are passed in
-inline double weight_from_codes(
-            WeightCode wc,
-            double clim_dist,
-            double geog_dist,
-            double param1,
-            double param2)
-{
-      switch (wc) {
-      case WeightCode::UNIFORM:
-            return 1.0;
-
-      case WeightCode::INVERSE_CLIM: {
-            // param1 = epsilon
-            return 1.0 / (clim_dist + param1);
-      }
-
-      case WeightCode::INVERSE_GEOG: {
-            // param1 = epsilon
-            return 1.0 / (geog_dist + param1);
-      }
-
-      case WeightCode::GAUSSIAN_CLIM: {
-            // param1 = -1/(2*sigma^2)
-            const double d2 = clim_dist * clim_dist;
-            return std::exp(param1 * d2);
-      }
-
-      case WeightCode::GAUSSIAN_GEOG: {
-            // param1 = -1/(2*sigma^2)
-            const double d2 = geog_dist * geog_dist;
-            return std::exp(param1 * d2);
-      }
-
-      case WeightCode::GAUSSIAN_JOINT: {
-            // param1 = -1/(2*sigma_clim^2), param2 = -1/(2*sigma_geog^2)
-            const double d2_clim = clim_dist * clim_dist;
-            const double d2_geog = geog_dist * geog_dist;
-            return std::exp(param1 * d2_clim + param2 * d2_geog);
-      }
-
-      case WeightCode::INVERSE_JOINT: {
-            // param1 = eps_clim, param2 = eps_geog
-            const double d_clim_adj = clim_dist + param1;
-            const double d_geog_adj = geog_dist + param2;
-            const double joint_dist = std::sqrt(d_clim_adj * d_clim_adj +
-                                                d_geog_adj * d_geog_adj);
-            return 1.0 / joint_dist;
-      }
-
-      default: // NONE or unknown
+// Compute one family's weight from its shape, distance, and precomputed param.
+// UNIFORM short-circuits to 1.0 (skipping exp/divide), so a query that only
+// weights one family pays nothing for the other.
+inline double per_family_weight(FamilyKernel k, double dist, double wparam) {
+      switch (k) {
+      case FamilyKernel::GAUSSIAN:
+            // wparam = -1/(2 sigma^2)
+            return std::exp(wparam * dist * dist);
+      case FamilyKernel::INVERSE:
+            // wparam = 1/theta;  weight = 1 / (1 + d/theta)
+            return 1.0 / (1.0 + dist * wparam);
+      case FamilyKernel::UNIFORM:
+      default:
             return 1.0;
       }
+}
+
+// Combined weight = product of the two per-family weights. This is the single
+// entry point used by the workers.
+inline double weight_from_families(FamilyKernel clim_k, double clim_dist, double clim_wparam,
+                                   FamilyKernel geog_k, double geog_dist, double geog_wparam) {
+      return per_family_weight(clim_k, clim_dist, clim_wparam) *
+            per_family_weight(geog_k, geog_dist, geog_wparam);
 }
 
 } // namespace analogs

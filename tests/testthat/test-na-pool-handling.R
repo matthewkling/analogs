@@ -193,7 +193,7 @@ test_that("analog_index in pair mode references the ORIGINAL (unstripped) pool",
             x = focal,
             pool = pool,
             select = "knn_clim",
-            max_geog = 5,
+            geog = kernel(max = 5),
             k = 3,
             coord_type = "projected"
       )
@@ -221,12 +221,12 @@ test_that("pair-mode results equivalent between NA-containing and pre-stripped p
 
       res_na <- analog_search(
             x = focal, pool = pool_full,
-            select = "knn_clim", max_geog = 10, k = 2,
+            select = "knn_clim", geog = kernel(max = 10), k = 2,
             coord_type = "projected"
       )
       res_clean <- analog_search(
             x = focal, pool = stripped$pool,
-            select = "knn_clim", max_geog = 10, k = 2,
+            select = "knn_clim", geog = kernel(max = 10), k = 2,
             coord_type = "projected"
       )
 
@@ -263,8 +263,8 @@ test_that("count / sum_weights / mean_weights NOT polluted by NA pool rows", {
             x = focal,
             select = "all",
             stat = c("count", "sum_weights", "mean_weights"),
-            kernel = "gaussian_clim", theta = 1,
-            max_clim = 1.5, max_geog = 5,
+            clim = kernel("gaussian", theta = 1, max = 1.5),
+            geog = kernel(max = 5),
             coord_type = "projected"
       )
 
@@ -290,8 +290,8 @@ test_that("y supplied at original-pool size is correctly aligned to ref_data", {
       res_na <- analog_search(
             x = focal, pool = pool_full,
             select = "all", stat = "weighted_mean",
-            kernel = "gaussian_clim", theta = 1,
-            max_clim = 1.5, max_geog = 5,
+            clim = kernel("gaussian", theta = 1, max = 1.5),
+            geog = kernel(max = 5),
             y = y_full,
             coord_type = "projected"
       )
@@ -301,8 +301,8 @@ test_that("y supplied at original-pool size is correctly aligned to ref_data", {
       res_clean <- analog_search(
             x = focal, pool = stripped$pool,
             select = "all", stat = "weighted_mean",
-            kernel = "gaussian_clim", theta = 1,
-            max_clim = 1.5, max_geog = 5,
+            clim = kernel("gaussian", theta = 1, max = 1.5),
+            geog = kernel(max = 5),
             y = y_full[stripped$row_map],
             coord_type = "projected"
       )
@@ -369,7 +369,7 @@ test_that("query against fully-NA pool returns NA results without crashing", {
             res_agg <- analog_search(
                   x = focal, pool = pool_full,
                   select = "all", stat = "count",
-                  max_clim = 1.5, max_geog = 5,
+                  clim = kernel(max = 1.5), geog = kernel(max = 5),
                   coord_type = "projected"
             )
       )
@@ -383,7 +383,7 @@ test_that("query against fully-NA pool returns NA results without crashing", {
       expect_silent(
             res_pair <- analog_search(
                   x = focal, pool = pool_full,
-                  select = "knn_clim", k = 1, max_geog = 5,
+                  select = "knn_clim", k = 1, geog = kernel(max = 5),
                   coord_type = "projected"
             )
       )
@@ -409,7 +409,7 @@ test_that("agg-mode results match between NA-containing and pre-stripped focal",
       args <- list(
             pool = pool,
             select = "all", stat = "count",
-            max_clim = 1.5, max_geog = 5,
+            clim = kernel(max = 1.5), geog = kernel(max = 5),
             coord_type = "projected"
       )
 
@@ -438,7 +438,7 @@ test_that("pairs-mode k=1 reconstructs to n_focal_original rows", {
 
       res <- analog_search(
             x = focal_full, pool = pool,
-            select = "knn_clim", k = 1, max_geog = 5,
+            select = "knn_clim", k = 1, geog = kernel(max = 5),
             coord_type = "projected"
       )
 
@@ -459,7 +459,7 @@ test_that("pairs-mode k>1 remaps `index` column to original focal indexing", {
 
       res <- analog_search(
             x = focal_full, pool = pool,
-            select = "knn_clim", k = 3, max_geog = 5,
+            select = "knn_clim", k = 3, geog = kernel(max = 5),
             coord_type = "projected"
       )
 
@@ -492,7 +492,7 @@ test_that("focal SpatRaster with NA cells rasterizes correctly post-strip", {
       res <- analog_search(
             x = r, pool = pool,
             select = "all", stat = "count",
-            max_clim = 1.5, max_geog = 5,
+            clim = kernel(max = 1.5), geog = kernel(max = 5),
             coord_type = "projected"
       )
 
@@ -536,7 +536,7 @@ test_that("x_cov is correctly stripped to align with NA-stripped focal", {
       expect_no_error(
             res <- analog_search(
                   x = r, pool = pool,
-                  select = "knn_clim", k = 1, max_geog = 5,
+                  select = "knn_clim", k = 1, geog = kernel(max = 5),
                   x_cov = x_cov,
                   coord_type = "projected"
             )
@@ -554,8 +554,8 @@ test_that("focal NAs and pool NAs both stripped correctly in single query", {
 
       args <- list(
             select = "all", stat = c("count", "sum_weights"),
-            kernel = "gaussian_clim", theta = 1,
-            max_clim = 1.5, max_geog = 5,
+            clim = kernel("gaussian", theta = 1, max = 1.5),
+            geog = kernel(max = 5),
             coord_type = "projected"
       )
 
@@ -583,7 +583,7 @@ test_that("fully-NA focal produces all-NA output without crashing", {
             res <- analog_search(
                   x = focal_all_na, pool = pool,
                   select = "all", stat = "count",
-                  max_clim = 1.5, max_geog = 5,
+                  clim = kernel(max = 1.5), geog = kernel(max = 5),
                   coord_type = "projected"
             )
       )

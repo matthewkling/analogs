@@ -209,9 +209,10 @@ struct AggWorker : public Worker {
 
       SelectCode scode;
       std::vector<AggregateCode> acodes;
-      WeightCode wcode;
-      double weight_param1;
-      double weight_param2;
+      FamilyKernel clim_kernel;
+      FamilyKernel geog_kernel;
+      double clim_wparam;
+      double geog_wparam;
 
       Lattice* lattice_ptr;
       double R_earth;
@@ -291,9 +292,10 @@ struct AggWorker : public Worker {
                 const std::vector<double>& max_clim_pervar_,
                 SelectCode scode_,
                 const std::vector<AggregateCode>& acodes_,
-                WeightCode wcode_,
-                double weight_param1_,
-                double weight_param2_,
+                FamilyKernel clim_kernel_,
+                FamilyKernel geog_kernel_,
+                double clim_wparam_,
+                double geog_wparam_,
                 Lattice* lattice_ptr_,
                 bool use_ecef_,
                 double R_earth_,
@@ -340,9 +342,10 @@ struct AggWorker : public Worker {
               max_clim_pervar(max_clim_pervar_),
               scode(scode_),
               acodes(acodes_),
-              wcode(wcode_),
-              weight_param1(weight_param1_),
-              weight_param2(weight_param2_),
+              clim_kernel(clim_kernel_),
+              geog_kernel(geog_kernel_),
+              clim_wparam(clim_wparam_),
+              geog_wparam(geog_wparam_),
               lattice_ptr(lattice_ptr_),
               R_earth(R_earth_),
               use_mahalanobis(use_mahalanobis_),

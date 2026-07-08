@@ -10,10 +10,8 @@ analog_impact(
   y,
   weight = NULL,
   covariates = NULL,
-  max_geog = NULL,
-  max_clim = 1,
-  kernel = c("gaussian_clim", "inverse_clim", "gaussian_joint", "inverse_joint"),
-  theta = 0.25,
+  geog = NULL,
+  clim = kernel("gaussian", theta = 0.25, max = 1),
   stat = c("weighted_mean", "count", "sum_weights"),
   lambda = 0,
   se = c("none", "ess", "design"),
@@ -71,44 +69,14 @@ should be excluded.}
 covariate values for each reference location (must have same number of
 rows/cells as \code{pool}). Required when \code{stat} includes \code{"regression"}.}
 
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
-
-\item{max_clim}{Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:
-\itemize{
-\item A scalar: Euclidean radius in climate space (e.g., 0.5)
-\item A vector: Per-variable absolute differences (length must equal
-number of climate variables)
-}
-
-Only reference locations within this climate distance are considered.
-When \code{x_cov} is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.}
-
-\item{kernel}{Kernel decay function for weighting analogs during aggregation. Only
-weighting options that are based on \emph{climate} are allowed:
-\code{"inverse_clim"} (default), \code{"gaussian_clim"}, \code{"inverse_joint"},
-\code{"gaussian_joint"}. See \code{\link[=analog_search]{analog_search()}} for details.}
-
-\item{theta}{Optional numeric parameter controlling the shape of the
-weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
-\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
-Interpretation depends on \code{kernel}:
-\itemize{
-\item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
-added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-\item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
-parameter (scalar; larger values = slower decay with distance).
-\item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
-\code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
-}
-
-See \code{\link[=kernel_params]{kernel_params()}} for help choosing \code{theta} and \code{max_clim} /
-\code{max_geog} values that work well together.}
+\item{clim, geog}{Per-family \code{\link[=kernel]{kernel()}} objects giving the distance treatment
+for climate and geography. For climate impact models, \code{clim} carries the
+climate analog threshold (\code{max}) and the weighting kernel applied to
+climate distance (\code{weight}, \code{theta}); it defaults to
+\code{kernel("gaussian", theta = 0.25, max = 1.0)}. \code{geog} carries the hard
+dispersal-distance constraint (\code{geog = kernel(max = ...)}) and defaults to
+\code{NULL} (no geographic constraint). A geographic kernel may also be supplied
+via \code{geog} if desired. See \code{\link[=kernel]{kernel()}}.}
 
 \item{stat}{Statistic(s) to compute across analogs (default: c("count",
 "sum_weights", "weighted_mean")). See \code{\link[=analog_search]{analog_search()}} for the full list
@@ -260,13 +228,14 @@ control influence. (Note that the traditional version can be implemented via
 \subsection{Choosing Parameters}{
 
 \itemize{
-\item \code{max_geog}: Set based on species dispersal ability (e.g., 5-500 km)
-\item \code{max_clim}: Defines what counts as an "analog"
-\item \code{theta}: Controls kernel decay. The weight should decay to a small value
-at the \code{max_clim}/\code{max_geog} boundary. If \code{theta} is too large relative to
-thresholds, the hard cutoffs do most of the filtering and weighting becomes
-nearly uniform. For Gaussian kernels with three or fewer climate variables,
-a reasonable rule of thumb is to set \code{theta} to \verb{max_* / 3}.
+\item \code{geog}'s \code{max}: Set based on species dispersal ability (e.g., 5-500 km)
+\item \code{clim}'s \code{max}: Defines what counts as an "analog"
+\item \code{clim}'s \code{theta}: Controls kernel decay. The weight should decay to a
+small value at the climate/geographic thresholds. If \code{theta} is too large
+relative to the thresholds, the hard cutoffs do most of the filtering and
+weighting becomes nearly uniform. For Gaussian kernels with three or fewer
+climate variables, a reasonable rule of thumb is to set \code{theta} to
+\code{max / 3}.
 }
 }
 
@@ -278,7 +247,7 @@ from analog locations.
 \item \code{tabulate}: For each class in \code{y}, the sum of analog weights that
 fall in that class. Each class's column gives the total
 climatic-similarity-weighted support among analogs (or, with
-\code{analog_search(stat = "tabulate", kernel = "uniform")}, a plain
+\code{analog_search(stat = "tabulate")} with a uniform kernel, a plain
 vote count). The "primary" projection at a focal location is
 \code{which.max()} of these columns; "agreement" is the largest column
 value divided by the row sum (or, equivalently, divided by
@@ -305,8 +274,8 @@ impact <- analog_impact(
   x = future_climate,
   pool = current_climate,
   y = current$habitat,
-  max_geog = 100,    # 100 km dispersal range
-  max_clim = 0.5     # Climate analog threshold
+  geog = kernel(max = 100),  # 100 km dispersal range
+  clim = kernel("gaussian", theta = 0.25, max = 0.5)
 )
 
 # With uncertainty quantification on weighted_mean
@@ -314,8 +283,8 @@ impact_se <- analog_impact(
   x = future_climate,
   pool = current_climate,
   y = current$habitat,
-  max_geog = 100,
-  max_clim = 0.5,
+  geog = kernel(max = 100),
+  clim = kernel("gaussian", theta = 0.25, max = 0.5),
   se = "ess"
 )
 
@@ -326,9 +295,9 @@ veg_votes <- analog_impact(
   pool = current_climate,
   y    = factor(current$vegetation_type),
   stat = c("count", "sum_weights", "tabulate"),
-  kernel = "gaussian_clim",
-  max_geog = 500,
-  max_clim = 1
+  clim = kernel("gaussian", theta = 0.25, max = 1),
+  geog = kernel(max = 500),
+  # (clim set above)
 )
 # Output has one `n_<level>` column per vegetation type.
 # Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],

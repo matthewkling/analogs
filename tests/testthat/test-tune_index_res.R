@@ -38,7 +38,7 @@ test_that("tune_index_res returns a valid per-family list", {
 
       res <- tune_index_res(
             x = d$focal, pool = d$ref,
-            select = "knn_geog", max_clim = 1, k = 1,
+            select = "knn_geog", clim = kernel(max = 1), k = 1,
             coord_type = "projected", verbose = FALSE
       )
 
@@ -53,7 +53,7 @@ test_that("tune_index_res passes inputs through unchanged on small data", {
 
       res <- tune_index_res(
             x = d$focal, pool = d$ref,
-            select = "all", stat = "count", max_clim = 1, max_geog = 2,
+            select = "all", stat = "count", clim = kernel(max = 1), geog = kernel(max = 2),
             coord_type = "projected",
             geog_res_adj = 1.5, clim_res_adj = 0.5,
             verbose = FALSE
@@ -71,7 +71,7 @@ test_that("tune_index_res works with different modes (pass-through)", {
       # knn_clim
       res1 <- tune_index_res(
             x = d$focal, pool = d$ref,
-            select = "knn_clim", max_geog = 2, k = 3,
+            select = "knn_clim", geog = kernel(max = 2), k = 3,
             coord_type = "projected", verbose = FALSE
       )
       expect_adj_list(res1)
@@ -79,7 +79,7 @@ test_that("tune_index_res works with different modes (pass-through)", {
       # count aggregation
       res2 <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "count", max_clim = 1, max_geog = 2,
+            stat = "count", clim = kernel(max = 1), geog = kernel(max = 2),
             coord_type = "projected", verbose = FALSE
       )
       expect_adj_list(res2)
@@ -87,8 +87,8 @@ test_that("tune_index_res works with different modes (pass-through)", {
       # sum_weights aggregation
       res3 <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "sum_weights", max_clim = 1, max_geog = 2,
-            kernel = "uniform", coord_type = "projected", verbose = FALSE
+            stat = "sum_weights", clim = kernel(max = 1), geog = kernel(max = 2),
+            coord_type = "projected", verbose = FALSE
       )
       expect_adj_list(res3)
 })
@@ -98,7 +98,7 @@ test_that("tune_index_res works with auto coord detection (pass-through)", {
       d_proj <- sim_test_data(lonlat = FALSE)
       res_proj <- tune_index_res(
             x = d_proj$focal, pool = d_proj$ref,
-            stat = "count", max_clim = 1,
+            stat = "count", clim = kernel(max = 1),
             coord_type = "auto", verbose = FALSE
       )
       expect_adj_list(res_proj)
@@ -106,7 +106,7 @@ test_that("tune_index_res works with auto coord detection (pass-through)", {
       d_lonlat <- sim_test_data(lonlat = TRUE)
       res_lonlat <- tune_index_res(
             x = d_lonlat$focal, pool = d_lonlat$ref,
-            stat = "count", max_clim = 1,
+            stat = "count", clim = kernel(max = 1),
             coord_type = "auto", verbose = FALSE
       )
       expect_adj_list(res_lonlat)
@@ -119,7 +119,7 @@ test_that("tune_index_res handles tiny datasets (pass-through)", {
 
       res <- tune_index_res(
             x = small_focal, pool = small_ref,
-            stat = "count", max_clim = 1,
+            stat = "count", clim = kernel(max = 1),
             coord_type = "projected",
             geog_res_adj = 2, clim_res_adj = 2,
             verbose = FALSE
@@ -138,7 +138,7 @@ test_that("tune_index_res tunes large datasets within bounds", {
 
       res <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "count", max_clim = 1, max_geog = 2,
+            stat = "count", clim = kernel(max = 1), geog = kernel(max = 2),
             coord_type = "projected", verbose = FALSE
       )
 
@@ -153,7 +153,7 @@ test_that("tune_index_res keeps tuned adjustments in [1/32, 32]", {
 
       res <- tune_index_res(
             x = d$focal, pool = d$ref,
-            select = "knn_geog", max_clim = 1, k = 1,
+            select = "knn_geog", clim = kernel(max = 1), k = 1,
             coord_type = "projected", verbose = FALSE
       )
 
@@ -171,7 +171,7 @@ test_that("tune_index_res passes a deactivated family through untouched", {
       # Climate deactivated (adj 0): should come back exactly 0, geo tuned.
       res <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "count", max_geog = 2,
+            stat = "count", geog = kernel(max = 2),
             coord_type = "projected",
             geog_res_adj = 1, clim_res_adj = 0,
             verbose = FALSE
@@ -184,7 +184,7 @@ test_that("tune_index_res passes a deactivated family through untouched", {
       # Geo deactivated (adj 0): should come back exactly 0, climate tuned.
       res2 <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "count", max_clim = 1,
+            stat = "count", clim = kernel(max = 1),
             coord_type = "projected",
             geog_res_adj = 0, clim_res_adj = 1,
             verbose = FALSE
@@ -219,7 +219,7 @@ test_that("tune_index_res verbose output works", {
       expect_message(
             tune_index_res(
                   x = d$focal, pool = d$ref,
-                  stat = "count", max_clim = 1, max_geog = 2,
+                  stat = "count", clim = kernel(max = 1), geog = kernel(max = 2),
                   coord_type = "projected", verbose = TRUE
             ),
             "Sweep|Converged"
@@ -229,7 +229,7 @@ test_that("tune_index_res verbose output works", {
       expect_silent(
             tune_index_res(
                   x = d$focal, pool = d$ref,
-                  stat = "count", max_clim = 1, max_geog = 2,
+                  stat = "count", clim = kernel(max = 1), geog = kernel(max = 2),
                   coord_type = "projected", verbose = FALSE
             )
       )
@@ -241,15 +241,15 @@ test_that("tune_index_res works with kernel weight options", {
 
       res1 <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "sum_weights", max_clim = 1, max_geog = 2,
-            kernel = "inverse_clim", coord_type = "projected", verbose = FALSE
+            stat = "sum_weights", clim = kernel("inverse", max = 1), geog = kernel(max = 2),
+            coord_type = "projected", verbose = FALSE
       )
       expect_adj_list(res1)
 
       res2 <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "sum_weights", max_clim = 1, max_geog = 2,
-            kernel = "inverse_geog", coord_type = "projected", verbose = FALSE
+            stat = "sum_weights", clim = kernel(max = 1), geog = kernel("inverse", max = 2),
+            coord_type = "projected", verbose = FALSE
       )
       expect_adj_list(res2)
 })
@@ -260,7 +260,7 @@ test_that("tune_index_res works with lonlat coordinates", {
 
       res <- tune_index_res(
             x = d$focal, pool = d$ref,
-            stat = "count", max_clim = 1,
+            stat = "count", clim = kernel(max = 1),
             coord_type = "lonlat", verbose = FALSE
       )
 

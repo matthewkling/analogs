@@ -27,10 +27,14 @@
 #'   The default `c("count", "sum_weights", "weighted_mean")` is appropriate
 #'   for continuous `y`; for categorical `y`, swap `weighted_mean` for
 #'   `tabulate`.
-#' @param kernel Kernel decay function for weighting analogs during aggregation. Only
-#'   weighting options that are based on *climate* are allowed:
-#'   `"inverse_clim"` (default), `"gaussian_clim"`, `"inverse_joint"`,
-#'   `"gaussian_joint"`. See [analog_search()] for details.
+#' @param clim,geog Per-family [kernel()] objects giving the distance treatment
+#'   for climate and geography. For climate impact models, `clim` carries the
+#'   climate analog threshold (`max`) and the weighting kernel applied to
+#'   climate distance (`weight`, `theta`); it defaults to
+#'   `kernel("gaussian", theta = 0.25, max = 1.0)`. `geog` carries the hard
+#'   dispersal-distance constraint (`geog = kernel(max = ...)`) and defaults to
+#'   `NULL` (no geographic constraint). A geographic kernel may also be supplied
+#'   via `geog` if desired. See [kernel()].
 #' @inheritParams analog_search
 #' @param ... Additional arguments passed to [analog_search()].
 #'
@@ -63,13 +67,14 @@
 #' ## Choosing Parameters
 #'
 #' \itemize{
-#'   \item `max_geog`: Set based on species dispersal ability (e.g., 5-500 km)
-#'   \item `max_clim`: Defines what counts as an "analog"
-#'   \item `theta`: Controls kernel decay. The weight should decay to a small value
-#'     at the `max_clim`/`max_geog` boundary. If `theta` is too large relative to
-#'     thresholds, the hard cutoffs do most of the filtering and weighting becomes
-#'     nearly uniform. For Gaussian kernels with three or fewer climate variables,
-#'     a reasonable rule of thumb is to set `theta` to `max_* / 3`.
+#'   \item `geog`'s `max`: Set based on species dispersal ability (e.g., 5-500 km)
+#'   \item `clim`'s `max`: Defines what counts as an "analog"
+#'   \item `clim`'s `theta`: Controls kernel decay. The weight should decay to a
+#'     small value at the climate/geographic thresholds. If `theta` is too large
+#'     relative to the thresholds, the hard cutoffs do most of the filtering and
+#'     weighting becomes nearly uniform. For Gaussian kernels with three or fewer
+#'     climate variables, a reasonable rule of thumb is to set `theta` to
+#'     `max / 3`.
 #' }
 #'
 #' ## Interpreting Results
@@ -80,7 +85,7 @@
 #'   \item `tabulate`: For each class in `y`, the sum of analog weights that
 #'     fall in that class. Each class's column gives the total
 #'     climatic-similarity-weighted support among analogs (or, with
-#'     `analog_search(stat = "tabulate", kernel = "uniform")`, a plain
+#'     `analog_search(stat = "tabulate")` with a uniform kernel, a plain
 #'     vote count). The "primary" projection at a focal location is
 #'     `which.max()` of these columns; "agreement" is the largest column
 #'     value divided by the row sum (or, equivalently, divided by
@@ -114,8 +119,8 @@
 #'   x = future_climate,
 #'   pool = current_climate,
 #'   y = current$habitat,
-#'   max_geog = 100,    # 100 km dispersal range
-#'   max_clim = 0.5     # Climate analog threshold
+#'   geog = kernel(max = 100),  # 100 km dispersal range
+#'   clim = kernel("gaussian", theta = 0.25, max = 0.5)
 #' )
 #'
 #' # With uncertainty quantification on weighted_mean
@@ -123,8 +128,8 @@
 #'   x = future_climate,
 #'   pool = current_climate,
 #'   y = current$habitat,
-#'   max_geog = 100,
-#'   max_clim = 0.5,
+#'   geog = kernel(max = 100),
+#'   clim = kernel("gaussian", theta = 0.25, max = 0.5),
 #'   se = "ess"
 #' )
 #'
@@ -135,9 +140,9 @@
 #'   pool = current_climate,
 #'   y    = factor(current$vegetation_type),
 #'   stat = c("count", "sum_weights", "tabulate"),
-#'   kernel = "gaussian_clim",
-#'   max_geog = 500,
-#'   max_clim = 1
+#'   clim = kernel("gaussian", theta = 0.25, max = 1),
+#'   geog = kernel(max = 500),
+#'   # (clim set above)
 #' )
 #' # Output has one `n_<level>` column per vegetation type.
 #' # Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],
@@ -152,11 +157,8 @@ analog_impact <- function(
             y,
             weight = NULL,
             covariates = NULL,
-            max_geog = NULL,
-            max_clim = 1.0,
-            kernel = c("gaussian_clim", "inverse_clim",
-                       "gaussian_joint", "inverse_joint"),
-            theta = .25,
+            geog = NULL,
+            clim = kernel("gaussian", theta = 0.25, max = 1.0),
             stat = c("weighted_mean", "count", "sum_weights"),
             lambda = 0,
             se = c("none", "ess", "design"),
@@ -170,7 +172,6 @@ analog_impact <- function(
             progress = FALSE,
             ...
 ) {
-      kernel <- match.arg(kernel)
       se <- match.arg(se)
 
       # Validate stat values. We don't use match.arg here because stat can be
@@ -196,11 +197,9 @@ analog_impact <- function(
             y           = y,
             weight      = weight,
             covariates  = covariates,
-            max_clim    = max_clim,
-            max_geog    = max_geog,
+            clim        = clim,
+            geog        = geog,
             k           = NULL,
-            kernel      = kernel,
-            theta       = theta,
             lambda      = lambda,
             se          = se,
             normalize   = normalize,

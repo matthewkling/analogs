@@ -11,13 +11,11 @@ analog_search(
   y = NULL,
   covariates = NULL,
   weight = NULL,
-  max_clim = NULL,
-  max_geog = NULL,
+  clim = NULL,
+  geog = NULL,
   select = "all",
   k = NULL,
   stat = NULL,
-  kernel = NULL,
-  theta = NULL,
   lambda = 0,
   se = c("none", "ess", "design"),
   normalize = "auto",
@@ -83,23 +81,29 @@ Use \code{weight = 0} for cases where the mask varies per query against a
 shared index, or where some sites have a continuous weight and others
 should be excluded.}
 
-\item{max_clim}{Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:
+\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
+shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+(\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
-\item A scalar: Euclidean radius in climate space (e.g., 0.5)
-\item A vector: Per-variable absolute differences (length must equal
-number of climate variables)
+\item \code{max}: hard distance threshold — candidates beyond it (in that family's
+distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+radius or a per-variable vector of absolute-difference thresholds (length
+equal to the number of climate variables); scalar climate thresholds are
+in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
+single radius (kilometers when \code{coord_type = "lonlat"}, projected units
+otherwise).
+\item \code{weight}: kernel shape for weighted aggregations — \code{"uniform"} (no
+distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
+\code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
+product of the two families' weights, so shapes may be mixed (e.g. an
+inverse climate kernel with a Gaussian geographic kernel).
+\item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
+distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
 
-Only reference locations within this climate distance are considered.
-When \code{x_cov} is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.}
-
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
+A \code{NULL} kernel (the default for both) applies no threshold and no
+weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 
 \item{select}{Character string specifying the analog selection strategy.
 One of:
@@ -141,9 +145,10 @@ Returns intercept and slope coefficients. Requires \code{y},
 \code{covariates}, and \code{kernel}. See \code{lambda} for regularization.
 \item \code{"tabulate"}: if \code{y} is categorical, separately sum the kernel weights
 of analogs matching each level of \code{y}.
-With \code{kernel = "uniform"} this reduces to a per-class vote count;
-with a distance-decay kernel it gives similarity-weighted support
-per class. Requires \code{y} (factor or coercible-to-factor) and \code{kernel}.
+With a uniform kernel (no \code{clim}/\code{geog} distance weighting) this
+reduces to a per-class vote count; with a distance-decay kernel it
+gives similarity-weighted support per class. Requires \code{y} (factor or
+coercible-to-factor).
 Output has one column per class. \code{"tabulate"} is mutually exclusive with
 \code{"sum"}, \code{"mean"}, \code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}
 (different \code{y} semantics); it can be combined with \code{"count"},
@@ -152,43 +157,6 @@ Output has one column per class. \code{"tabulate"} is mutually exclusive with
 \code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.
 }}
-
-\item{kernel}{Kernel decay function for weighting matches, used only when
-\code{stat} includes a weighted aggregation (\code{"sum_weights"}, \code{"mean_weights"},
-\code{"weighted_sum"}, \code{"weighted_mean"}, \code{"ess"}, \code{"regression"}, or
-\code{"tabulate"}). One of:
-\itemize{
-\item \code{"uniform"}: All matches weighted equally (kernel weight = 1.0).
-\item \code{"inverse_clim"}: Inverse climate distance,
-kernel weight = 1 / (climate_distance + eps), with epsilon given by \code{theta}.
-\item \code{"inverse_geog"}: Inverse geographic distance,
-kernel weight = 1 / (geographic_distance + eps), with epsilon given by \code{theta}.
-\item \code{"gaussian_clim"}: Gaussian kernel on climate distance,
-kernel weight = exp(-climate_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
-\item \code{"gaussian_geog"}: Gaussian kernel on geographic distance,
-kernel weight = exp(-geographic_distance^2 / (2 sigma^2)), with sigma given by \code{theta}.
-\item \code{"gaussian_joint"}: Gaussian kernel on combined distance,
-kernel weight = exp(-(clim_dist^2 / (2 sigma_clim^2) + geog_dist^2 / (2 sigma_geog^2))),
-with sigmas given by \code{theta}.
-\item \code{"inverse_joint"}: Inverse joint distance,
-kernel weight = 1 / (sqrt(clim_dist^2 + geog_dist^2) + eps), with epsilon given by \code{theta}.
-}}
-
-\item{theta}{Optional numeric parameter controlling the shape of the
-weighting \code{kernel}, used whenever \code{kernel} is active (i.e. whenever
-\code{stat} includes a weighted aggregation) and \code{kernel} is not \code{"uniform"}.
-Interpretation depends on \code{kernel}:
-\itemize{
-\item For \code{"inverse_clim"} or \code{"inverse_geog"}: epsilon value
-added to distances (scalar; default: 1e-12 for climate, 1e-6 for geography).
-\item For \code{"gaussian_clim"} or \code{"gaussian_geog"}: sigma bandwidth
-parameter (scalar; larger values = slower decay with distance).
-\item For \code{"gaussian_joint"} or \code{"inverse_joint"}: 2-element vector
-\code{c(theta_clim, theta_geog)} (defaults: 1 for climate, 1 for geography).
-}
-
-See \code{\link[=kernel_params]{kernel_params()}} for help choosing \code{theta} and \code{max_clim} /
-\code{max_geog} values that work well together.}
 
 \item{lambda}{Ridge penalty parameter for \code{stat = "regression"}
 (default: 0, giving ordinary weighted least squares). Higher values
@@ -343,11 +311,12 @@ then optionally aggregating the results.
 (\code{x}, \code{pool}, \code{x_cov}, \code{y}, \code{covariates}, \code{weight}, \code{coord_type})
 give attributes of the data on which to operate.
 \item \emph{Selection parameters}
-(\code{select}, \code{max_clim}, \code{max_geog}, \code{k})
+(\code{select}, \code{clim}, \code{geog}, \code{k})
 define which analogs to \code{select} from the \code{pool} for each \code{x}.
 \item \emph{Aggregation parameters}
-(\code{stat}, \code{kernel}, \code{theta}, \code{lambda}, \code{se}, \code{normalize})
-control how selected analogs are summarized.
+(\code{stat}, \code{clim}, \code{geog}, \code{lambda}, \code{se}, \code{normalize})
+control how selected analogs are summarized. The \code{clim} / \code{geog} kernels
+carry both the selection thresholds and the weighting kernels.
 \item \emph{Computation parameters}
 (\code{n_threads}, \code{geog_res_adj}, \code{clim_res_adj}, \code{downsample}, \code{seed}, \code{progress})
 specify behavior for controlling compute performance.
@@ -411,7 +380,7 @@ from a continuous uniform pool of perfect climate matches out to
 \code{max_geog}. The resulting columns are unitless availability fractions
 on roughly \verb{[0, 1]}.
 
-Because \code{D_max} is a continuous-domain idealization while \code{D} is a discrete sum over a finite grid, normalized
+Because \code{D_max} is a continuous-kernel idealization while \code{D} is a discrete sum over a finite grid, normalized
 values can occasionally exceed 1 by small amounts (typically a few percent). This
 is a grid discretization artifact, not an error, and at certain \verb{(cell_size, max_geog)}
 ratios this is more pronounced. Using a higher-resolution pool grid or choosing

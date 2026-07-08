@@ -14,6 +14,13 @@
 #'   memory constraints.
 #' @param fun An analog_* function to apply to each tile (e.g., analog_velocity,
 #'   analog_impact).
+#' @param geog A [kernel()] object giving the geographic search treatment. Its
+#'   `max` (the geographic search radius) is required and finite: it both sizes
+#'   the tile halos (so edge focals still see all in-range analogs) and is
+#'   forwarded to `fun`. Tiling is only beneficial when the geographic search
+#'   is bounded, hence `geog` with a finite `max` is required.
+#' @param clim Optional [kernel()] object giving the climate search treatment,
+#'   forwarded to `fun`. `NULL` (default) means no climate kernel is passed.
 #' @param y Optional SpatRaster with values to aggregate across analogs.
 #'   Must have spatial properties matching pool.
 #' @param x_cov Optional SpatRaster with covariates for focal points. Must have
@@ -28,7 +35,7 @@
 #'   mean 1 over the *full pool raster* once at the outer level, and the
 #'   resulting raster is sliced per tile. This keeps absolute magnitudes of
 #'   weighted stats (e.g. `sum_weights`) consistent across tiles.
-#' @param ... Additional arguments passed to fun. Must include max_geog.
+#' @param ... Additional arguments passed to fun (e.g. `select`, `stat`, `k`).
 #'   May include `covariates` as a SpatRaster matching `pool`'s CRS and
 #'   extent (cropped per tile alongside `y`). May also include `normalize`
 #'   for helpers that support it (e.g. `analog_density()`); when normalization
@@ -41,22 +48,21 @@
 #'   results are too large to fit in memory. Ignored for data.frame results.
 #' @param progress Logical indicating whether to show progress bar.
 #'
-#' @inheritParams analog_search
-#'
 #' @return Same type as fun returns (SpatRaster or data.frame). If output_file
 #'   is specified, returns a disk-backed SpatRaster.
 #'
 #' @details
 #' Tiled analog searches work by splitting x into a number of smaller tiles and
 #' calling the requested analog function on each tile, using an analog pool
-#' that is the size of the tile buffered by max_geog. This buffer is necessary
-#' for correctness but increases compute time, particularly if max_geog is
+#' that is the size of the tile buffered by the geographic radius (`geog`'s
+#' `max`). This buffer is necessary
+#' for correctness but increases compute time, particularly if the radius is
 #' large. The results for each tile are temporarily written to disk, and are
 #' merged into a single results raster once all tiles have processed.
 #'
-#' The function requires max_geog to be specified, as tiling is only beneficial when
+#' The function requires `geog` to have a finite `max`, as tiling is only beneficial when
 #' geographic distance constraints limit the reference pool size for each
-#' focal point. The function will warn if max_geog is so large that tiling
+#' focal point. The function will warn if the radius is so large that tiling
 #' provides minimal memory benefit.
 #'
 #' If index_res is specified in ..., all tiles will use the same lattice
@@ -72,7 +78,8 @@ tiled_analog_search <- function(
             pool,
             n_tiles,
             fun,
-            max_geog,
+            geog,
+            clim = NULL,
             y = NULL,
             x_cov = NULL,
             weight = NULL,
@@ -97,8 +104,23 @@ tiled_analog_search <- function(
             stop("x and pool must have the same CRS")
       }
 
-      if(is.null(max_geog) | max_geog <= 0) {
-            stop("tiled_analog_search requires a valid max_geog value")
+      # Tiling requires a bounded geographic search radius so that halos can be
+      # sized to guarantee edge focals still see all in-range analogs. Extract
+      # the numeric radius from the `geog` kernel; the internal tiling geometry
+      # below works with this scalar.
+      if (!inherits(geog, "analog_kernel")) {
+            stop("tiled_analog_search requires `geog` to be a kernel() object ",
+                 "with a finite `max` (the geographic search radius).",
+                 call. = FALSE)
+      }
+      max_geog <- geog$max
+      if (is.null(max_geog) || !is.finite(max_geog) || max_geog <= 0) {
+            stop("tiled_analog_search requires `geog` to have a finite, positive ",
+                 "`max`: e.g. geog = kernel(max = 100). Tiling is only beneficial ",
+                 "when the geographic search is bounded.", call. = FALSE)
+      }
+      if (!is.null(clim) && !inherits(clim, "analog_kernel")) {
+            stop("`clim` must be a kernel() object or NULL.", call. = FALSE)
       }
 
       # Validate and check y values if provided
@@ -249,17 +271,17 @@ tiled_analog_search <- function(
       focal_ext <- terra::ext(x)
       ref_ext <- terra::ext(pool)
 
-      domain_width <- focal_ext[2] - focal_ext[1]
-      domain_height <- focal_ext[4] - focal_ext[3]
-      domain_aspect <- domain_width / domain_height
+      kernel_width <- focal_ext[2] - focal_ext[1]
+      kernel_height <- focal_ext[4] - focal_ext[3]
+      kernel_aspect <- kernel_width / kernel_height
 
       # Find optimal tile grid
-      grid <- optimize_tile_grid(n_tiles, domain_aspect)
+      grid <- optimize_tile_grid(n_tiles, kernel_aspect)
       n_x <- grid$n_x
       n_y <- grid$n_y
 
-      tile_width <- domain_width / n_x
-      tile_height <- domain_height / n_y
+      tile_width <- kernel_width / n_x
+      tile_height <- kernel_height / n_y
 
       # Warning for ineffective tiling
       check_tiling_effectiveness(
@@ -307,10 +329,15 @@ tiled_analog_search <- function(
                   fun_args <- list(
                         x = terra::crop(x, tile_bbox),
                         pool = terra::crop(pool, halo_bbox),
-                        max_geog = max_geog,
+                        geog = geog,
                         coord_type = coord_type,
                         progress = FALSE
                   )
+
+                  # Forward the climate kernel if one was supplied.
+                  if (!is.null(clim)) {
+                        fun_args$clim <- clim
+                  }
 
                   # Add y values if provided
                   if (!is.null(y)) {
@@ -409,7 +436,7 @@ tiled_analog_search <- function(
 
 
 # Helper function to find optimal tile grid
-optimize_tile_grid <- function(n_tiles, domain_aspect) {
+optimize_tile_grid <- function(n_tiles, kernel_aspect) {
       # Try different factorizations
       max_dim <- ceiling(sqrt(n_tiles) * 2)
       candidates <- expand.grid(
@@ -432,7 +459,7 @@ optimize_tile_grid <- function(n_tiles, domain_aspect) {
       candidates$total_tiles <- candidates$n_x * candidates$n_y
 
       # Tile aspect ratio (we want this close to 1)
-      candidates$tile_aspect <- (candidates$n_x / domain_aspect) / candidates$n_y
+      candidates$tile_aspect <- (candidates$n_x / kernel_aspect) / candidates$n_y
       candidates$aspect_score <- abs(log(candidates$tile_aspect))
 
       # Deviation from target count (normalized by target)
@@ -471,7 +498,7 @@ check_tiling_effectiveness <- function(
       # This means each tile loads most of the reference data, defeating the memory benefit of tiling
       if (halo_area > 0.5 * ref_area) {
             warning(
-                  "The combination of tile size and max_geog is large relative to reference domain. ",
+                  "The combination of tile size and max_geog is large relative to reference kernel. ",
                   "Each tile will load >50% of the reference data, limiting memory benefits. ",
                   "Consider using a smaller max_geog and/or more tiles ",
                   "(or running without tiling if memory allows).",

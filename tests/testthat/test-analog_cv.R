@@ -1,4 +1,3 @@
-
 # analog_search(exclude_self) ----------------------------------
 
 test_that("exclude_self = TRUE validates inputs", {
@@ -10,7 +9,7 @@ test_that("exclude_self = TRUE validates inputs", {
                   x = d$focal,
                   pool = d$ref,
                   stat = "count",
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   coord_type = "projected",
                   exclude_self = TRUE
             ),
@@ -24,7 +23,7 @@ test_that("exclude_self = TRUE validates inputs", {
                   x = idx,
                   pool = idx,
                   stat = "count",
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   exclude_self = TRUE
             )
       )
@@ -35,7 +34,7 @@ test_that("exclude_self = TRUE validates inputs", {
                   x = d$ref,
                   pool = d$ref,
                   stat = "count",
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   coord_type = "projected",
                   exclude_self = TRUE,
                   progress = TRUE
@@ -49,7 +48,7 @@ test_that("exclude_self = TRUE validates inputs", {
                   x = d$ref,
                   pool = d$ref,
                   stat = "count",
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   coord_type = "projected",
                   exclude_self = TRUE,
                   downsample = 0.5
@@ -64,13 +63,13 @@ test_that("exclude_self reduces count by exactly 1 within-pool when focal row pa
 
       cnt_with <- analog_search(
             x = d$ref, pool = d$ref,
-            stat = "count", max_clim = Inf,
+            stat = "count", clim = kernel(max = Inf),
             coord_type = "projected",
             exclude_self = FALSE
       )
       cnt_without <- analog_search(
             x = d$ref, pool = d$ref,
-            stat = "count", max_clim = Inf,
+            stat = "count", clim = kernel(max = Inf),
             coord_type = "projected",
             exclude_self = TRUE
       )
@@ -90,10 +89,8 @@ test_that("analog_cv(fun = analog_impact, cv_method = 'loo') runs and returns ex
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -118,10 +115,8 @@ test_that("analog_cv kfold produces correct number of rows and fold column", {
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "kfold",
             n_folds = 5
@@ -147,10 +142,8 @@ test_that("analog_cv supports analog_regression with covariates", {
             pool = d$ref,
             y = y,
             covariates = covs,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             select = "all",
             cv_method = "loo"
@@ -178,7 +171,7 @@ test_that("analog_cv rejects unsupported fun and invalid configs", {
             analog_cv(
                   fun = analog_velocity,
                   pool = d$ref, y = y,
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   cv_method = "loo"
             ),
             "analog_impact.*analog_regression.*analog_search"
@@ -189,7 +182,7 @@ test_that("analog_cv rejects unsupported fun and invalid configs", {
             analog_cv(
                   fun = analog_impact,
                   pool = d$ref,
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   cv_method = "loo"
             ),
             "y"
@@ -200,7 +193,7 @@ test_that("analog_cv rejects unsupported fun and invalid configs", {
             analog_cv(
                   fun = analog_impact,
                   pool = d$ref, y = y,
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   cv_method = "kfold"
             ),
             "n_folds|fold_id"
@@ -211,7 +204,7 @@ test_that("analog_cv rejects unsupported fun and invalid configs", {
             analog_cv(
                   fun = analog_impact,
                   pool = d$ref, y = y,
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   cv_method = "loo",
                   n_folds = 5
             ),
@@ -223,7 +216,7 @@ test_that("analog_cv rejects unsupported fun and invalid configs", {
             analog_cv(
                   fun = analog_regression,
                   pool = d$ref, y = y,
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   cv_method = "loo"
             ),
             "covariates"
@@ -234,7 +227,7 @@ test_that("analog_cv rejects unsupported fun and invalid configs", {
             analog_cv(
                   fun = analog_impact,
                   pool = d$ref, y = y,
-                  max_clim = 1,
+                  clim = kernel(max = 1),
                   cv_method = "loo",
                   progress = TRUE
             ),
@@ -251,10 +244,8 @@ test_that("analog_cv handles multi-y correctly", {
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "loo"
       )
@@ -276,10 +267,8 @@ test_that("analog_cv with fold_id respects user-supplied folds", {
             fun = analog_impact,
             pool = d$ref,
             y = y,
-            max_clim = 1,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected",
             cv_method = "kfold",
             fold_id = fold_id
@@ -300,9 +289,8 @@ test_that("analog_cv(fun = analog_search) works with weighted_mean stat", {
             select     = "knn_clim",
             k          = 5,
             stat       = c("count", "weighted_mean"),
-            kernel     = "gaussian_clim",
-            theta      = 0.3,
-            max_geog   = 2,
+            clim       = kernel("gaussian", theta = 0.3),
+            geog       = kernel(max = 2),
             coord_type = "projected",
             cv_method  = "loo"
       )
@@ -326,10 +314,8 @@ test_that("analog_cv(fun = analog_search) errors on ambiguous stat", {
                   covariates = covs,
                   select     = "all",
                   stat       = c("weighted_mean", "regression"),
-                  kernel     = "gaussian_clim",
-                  theta      = 0.3,
-                  max_clim   = 1,
-                  max_geog   = 2,
+                  clim       = kernel("gaussian", theta = 0.3, max = 1),
+                  geog       = kernel(max = 2),
                   coord_type = "projected",
                   cv_method  = "loo"
             ),
@@ -349,8 +335,8 @@ test_that("analog_cv(fun = analog_search) skips residuals when stat lacks predic
                   y          = y,
                   select     = "all",
                   stat       = "count",
-                  max_clim   = 1,
-                  max_geog   = 2,
+                  clim       = kernel(max = 1),
+                  geog       = kernel(max = 2),
                   coord_type = "projected",
                   cv_method  = "loo"
             ),
@@ -388,8 +374,8 @@ test_that("LOO tabulate CV adds obs / primary / brier columns", {
             y          = veg,
             cv_method  = "loo",
             stat       = c("count", "sum_weights", "tabulate"),
-            kernel     = "gaussian_clim", theta = 0.5,
-            max_clim   = 5, max_geog = 100,
+            clim       = kernel("gaussian", theta = 0.5, max = 5),
+            geog       = kernel(max = 100),
             coord_type = "projected"
       )
 
@@ -416,8 +402,8 @@ test_that("LOO tabulate CV: brier and primary are consistent with vote columns",
             fun = analog_impact,
             pool = d$pool, y = veg,
             stat = c("sum_weights", "tabulate"),
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       # primary should match argmax of n_<level>
@@ -450,8 +436,8 @@ test_that("kfold tabulate CV produces consistent columns across folds", {
             pool = d$pool, y = veg,
             cv_method = "kfold", n_folds = 5,
             stat = c("sum_weights", "tabulate"),
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       expect_true(all(c("obs", "primary", "brier", "n_a", "n_b", "fold")
@@ -470,8 +456,8 @@ test_that("tabulate CV handles NA in y by setting CV cols to NA", {
             fun = analog_impact,
             pool = d$pool, y = veg,
             stat = c("sum_weights", "tabulate"),
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       # For NA-observed focals, obs and brier should be NA
@@ -492,8 +478,8 @@ test_that("tabulate CV with multi-y produces var-suffixed CV columns", {
             fun = analog_impact,
             pool = d$pool, y = Y,
             stat = "tabulate",
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       # Per-y CV columns
@@ -519,8 +505,8 @@ test_that("incompatible tabulate + weighted_mean errors in CV", {
                   fun = analog_impact,
                   pool = d$pool, y = veg,
                   stat = c("weighted_mean", "tabulate"),
-                  kernel = "gaussian_clim", theta = 0.5,
-                  max_clim = 5, max_geog = 100, coord_type = "projected"
+                  clim = kernel("gaussian", theta = 0.5, max = 5),
+                  geog = kernel(max = 100), coord_type = "projected"
             )
       )
 })
@@ -535,8 +521,8 @@ test_that("all-NA tabulate y errors clearly under CV", {
                   fun = analog_impact,
                   pool = d$pool, y = veg,
                   stat = "tabulate",
-                  kernel = "gaussian_clim", theta = 0.5,
-                  max_clim = 5, max_geog = 100, coord_type = "projected"
+                  clim = kernel("gaussian", theta = 0.5, max = 5),
+                  geog = kernel(max = 100), coord_type = "projected"
             ),
             "no non-NA"
       )
@@ -552,8 +538,8 @@ test_that("character / integer y is accepted in tabulate CV", {
             fun = analog_impact,
             pool = d$pool, y = veg_chr,
             stat = "tabulate",
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
       expect_type(cv_chr$obs, "character")
       expect_true(all(cv_chr$obs %in% c("a", "b", "c", NA_character_)))
@@ -562,8 +548,8 @@ test_that("character / integer y is accepted in tabulate CV", {
             fun = analog_impact,
             pool = d$pool, y = veg_int,
             stat = "tabulate",
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
       # Levels are "1", "2", "3" (factor coercion of integer)
       expect_type(cv_int$obs, "character")
@@ -580,8 +566,8 @@ test_that("CV metadata attributes set correctly for tabulate", {
             pool = d$pool, y = veg,
             cv_method = "kfold", n_folds = 4,
             stat = "tabulate",
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       m <- metadata(cv)

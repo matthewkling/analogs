@@ -10,8 +10,8 @@ analog_availability(
   x_cov = NULL,
   weight = NULL,
   coord_type = "auto",
-  max_clim = NULL,
-  max_geog = NULL,
+  clim = NULL,
+  geog = NULL,
   clim_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
@@ -69,23 +69,29 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
-\item{max_clim}{Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:
+\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
+shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+(\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
-\item A scalar: Euclidean radius in climate space (e.g., 0.5)
-\item A vector: Per-variable absolute differences (length must equal
-number of climate variables)
+\item \code{max}: hard distance threshold — candidates beyond it (in that family's
+distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+radius or a per-variable vector of absolute-difference thresholds (length
+equal to the number of climate variables); scalar climate thresholds are
+in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
+single radius (kilometers when \code{coord_type = "lonlat"}, projected units
+otherwise).
+\item \code{weight}: kernel shape for weighted aggregations — \code{"uniform"} (no
+distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
+\code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
+product of the two families' weights, so shapes may be mixed (e.g. an
+inverse climate kernel with a Gaussian geographic kernel).
+\item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
+distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
 
-Only reference locations within this climate distance are considered.
-When \code{x_cov} is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.}
-
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
+A \code{NULL} kernel (the default for both) applies no threshold and no
+weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 
 \item{clim_res_adj, geog_res_adj}{Control the lattice search-index resolution
 of the climate and geographic families, each a multiplier on a
@@ -159,14 +165,14 @@ This function is a wrapper that calls \code{\link[=analog_search]{analog_search(
 avail <- analog_availability(
   x = sites,
   pool = climate_data,
-  max_clim = 0.5,
-  max_geog = 100
+  clim = kernel(max = 0.5),
+  geog = kernel(max = 100)
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(climate_data)
-a1 <- analog_availability(x = sites1, pool = index, max_clim = 0.5, max_geog = 100)
-a2 <- analog_availability(x = sites2, pool = index, max_clim = 0.3, max_geog = 50)
+a1 <- analog_availability(x = sites1, pool = index, clim = kernel(max = 0.5), geog = kernel(max = 100))
+a2 <- analog_availability(x = sites2, pool = index, clim = kernel(max = 0.3), geog = kernel(max = 50))
 }
 
 }

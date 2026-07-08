@@ -13,11 +13,10 @@
 #   - K > .tabulate_K_warn warns; K > .tabulate_K_error errors
 #   - Raster I/O round-trip yields K layers per input layer
 #
-# Note: analog_impact() restricts kernel to climate-based variants
-# (gaussian_clim, inverse_clim, gaussian_joint, inverse_joint), since AIM is
-# fundamentally weighted by climate similarity. So all tests here use
-# gaussian_clim. For lighter weighting, theta is set large relative to the
-# climate ranges encountered.
+# Note: analog_impact() weights by climate similarity via the `clim` kernel
+# (gaussian or inverse), since AIM is fundamentally weighted by climate
+# similarity. So all tests here use a gaussian clim kernel. For lighter
+# weighting, theta is set large relative to the climate ranges encountered.
 
 # Helper to build a small synthetic dataset locally so this test file is
 # self-contained even if sim_test_data() isn't a public helper everywhere.
@@ -44,8 +43,8 @@ test_that("tabulate accepts factor y and returns one column per level", {
       out <- analog_impact(
             x = d$focal, pool = d$ref, y = veg,
             stat = "tabulate",
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100,
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100),
             coord_type = "projected"
       )
 
@@ -66,23 +65,23 @@ test_that("tabulate accepts character y and integer y (factored in R)", {
 
       out_chr <- analog_impact(
             x = d$focal, pool = d$ref, y = veg_chr,
-            stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
       expect_true(all(c("n_a", "n_b", "n_c") %in% names(out_chr)))
 
       out_int <- analog_impact(
             x = d$focal, pool = d$ref, y = veg_int,
-            stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
       expect_true(all(c("n_1", "n_2", "n_3") %in% names(out_int)))
 
       # Sparse integers: factor() drops the gaps -> only 3 columns, not 9.
       out_sparse <- analog_impact(
             x = d$focal, pool = d$ref, y = veg_sparse,
-            stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
       n_cols_sparse <- grep("^n_", names(out_sparse), value = TRUE)
       expect_length(n_cols_sparse, 3L)
@@ -97,8 +96,8 @@ test_that("tabulate column sums equal sum_weights for non-NA y", {
       out <- analog_impact(
             x = d$focal, pool = d$ref, y = veg,
             stat = c("sum_weights", "tabulate"),
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       # For a single y with no NAs, the sum across all class columns at each
@@ -116,8 +115,8 @@ test_that("tabulate handles NA in y by skipping that analog only", {
       out <- analog_impact(
             x = d$focal, pool = d$ref, y = veg,
             stat = c("sum_weights", "tabulate"),
-            kernel = "gaussian_clim", theta = 1.0,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 1.0, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       # The analog with NA y is still retained in count/sum_weights, so
@@ -137,8 +136,8 @@ test_that("multi-column y produces var-prefixed columns with independent K_v", {
 
       out <- analog_impact(
             x = d$focal, pool = d$ref, y = Y,
-            stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       expect_true(all(c("habitat_n_x", "habitat_n_y") %in% names(out)))
@@ -157,8 +156,8 @@ test_that("incompatible stat combinations error", {
             analog_impact(
                   x = d$focal, pool = d$ref, y = veg,
                   stat = c("weighted_mean", "tabulate"),
-                  kernel = "gaussian_clim", theta = 1.0,
-                  max_clim = 5, max_geog = 100, coord_type = "projected"
+                  clim = kernel("gaussian", theta = 1.0, max = 5),
+                  geog = kernel(max = 100), coord_type = "projected"
             ),
             "tabulate.*cannot be combined"
       )
@@ -173,8 +172,8 @@ test_that("factor y with continuous stat errors with a hint pointing at tabulate
             analog_impact(
                   x = d$focal, pool = d$ref, y = veg,
                   stat = "weighted_mean",
-                  kernel = "gaussian_clim", theta = 1.0,
-                  max_clim = 5, max_geog = 100, coord_type = "projected"
+                  clim = kernel("gaussian", theta = 1.0, max = 5),
+                  geog = kernel(max = 100), coord_type = "projected"
             ),
             "tabulate"
       )
@@ -188,8 +187,8 @@ test_that("all-NA y errors clearly under tabulate", {
       expect_error(
             analog_impact(
                   x = d$focal, pool = d$ref, y = veg,
-                  stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-                  max_clim = 5, max_geog = 100, coord_type = "projected"
+                  stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+                  geog = kernel(max = 100), coord_type = "projected"
             ),
             "no non-NA"
       )
@@ -204,8 +203,8 @@ test_that("K > warn threshold warns; K > error threshold errors", {
       expect_warning(
             analog_impact(
                   x = d$focal, pool = d$ref, y = veg_warn,
-                  stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-                  max_clim = 5, max_geog = 100, coord_type = "projected"
+                  stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+                  geog = kernel(max = 100), coord_type = "projected"
             ),
             "more than"
       )
@@ -216,8 +215,8 @@ test_that("K > warn threshold warns; K > error threshold errors", {
       expect_error(
             analog_impact(
                   x = d_big$focal, pool = d_big$ref, y = veg_err,
-                  stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-                  max_clim = 5, max_geog = 100, coord_type = "projected"
+                  stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+                  geog = kernel(max = 100), coord_type = "projected"
             ),
             "exceeding the limit"
       )
@@ -235,8 +234,8 @@ test_that("tabulate works with select = 'knn_clim' (Hoecker-style AIM)", {
             x = d$focal, pool = d$ref, y = veg,
             select = "knn_clim", k = 20,
             stat = c("count", "sum_weights", "tabulate"),
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 1000, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 1000), coord_type = "projected"
       )
 
       expect_true(all(c("n_forest", "n_grass", "n_shrub") %in% names(out)))
@@ -262,8 +261,8 @@ test_that("tabulate raster-in / raster-out yields K layers per input layer", {
 
       out <- analog_impact(
             x = r_clim, pool = r_clim, y = veg_factor_vec,
-            stat = "tabulate", kernel = "gaussian_clim", theta = 1.0,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            stat = "tabulate", clim = kernel("gaussian", theta = 1.0, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       # x is a raster, so output should be a SpatRaster
@@ -280,8 +279,8 @@ test_that("compatible regular stats coexist with tabulate", {
       out <- analog_impact(
             x = d$focal, pool = d$ref, y = veg,
             stat = c("count", "sum_weights", "mean_weights", "ess", "tabulate"),
-            kernel = "gaussian_clim", theta = 0.5,
-            max_clim = 5, max_geog = 100, coord_type = "projected"
+            clim = kernel("gaussian", theta = 0.5, max = 5),
+            geog = kernel(max = 100), coord_type = "projected"
       )
 
       expect_true(all(c("count", "sum_weights", "mean_weights", "ess",

@@ -23,11 +23,17 @@ A named list. Elements depend on which attributes are present on
 \code{select = "all"}.}
 \item{\code{stat}}{Aggregation statistic(s) requested. Character vector;
 \code{"none"} for pair-mode results.}
-\item{\code{kernel}}{Kernel function used for analog weighting (e.g.
-\code{"gaussian_clim"}), or \code{NULL} if no weighted aggregation was
-requested.}
-\item{\code{theta}}{Kernel bandwidth or epsilon parameter; scalar for
-most kernels, length-2 numeric for \verb{*_joint} kernels.}
+\item{\code{kernel_clim}}{Climate weighting kernel shape: \code{"uniform"},
+\code{"gaussian"}, or \code{"inverse"}. \code{"uniform"} when climate is not
+distance-weighted.}
+\item{\code{kernel_geog}}{Geographic weighting kernel shape: \code{"uniform"},
+\code{"gaussian"}, or \code{"inverse"}. \code{"uniform"} when geography is not
+distance-weighted.}
+\item{\code{theta_clim}}{Scale parameter for the climate kernel (Gaussian
+bandwidth or inverse half-weight distance); \code{NULL} if the climate
+kernel is uniform.}
+\item{\code{theta_geog}}{Scale parameter for the geographic kernel; \code{NULL}
+if the geographic kernel is uniform.}
 \item{\code{lambda}}{Ridge penalty for \code{stat = "regression"}; \code{0} for
 ordinary weighted least squares.}
 \item{\code{se}}{Standard-error framing applied to SE-supporting stats:
@@ -128,7 +134,7 @@ every attribute the package attaches.
 result <- analog_velocity(
   x = future_climate,
   pool = current_climate,
-  max_clim = 0.5
+  clim = kernel(max = 0.5)
 )
 
 # Get the full parameterization as a list

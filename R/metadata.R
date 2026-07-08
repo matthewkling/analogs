@@ -25,11 +25,17 @@
 #'       `select = "all"`.}
 #'     \item{`stat`}{Aggregation statistic(s) requested. Character vector;
 #'       `"none"` for pair-mode results.}
-#'     \item{`kernel`}{Kernel function used for analog weighting (e.g.
-#'       `"gaussian_clim"`), or `NULL` if no weighted aggregation was
-#'       requested.}
-#'     \item{`theta`}{Kernel bandwidth or epsilon parameter; scalar for
-#'       most kernels, length-2 numeric for `*_joint` kernels.}
+#'     \item{`kernel_clim`}{Climate weighting kernel shape: `"uniform"`,
+#'       `"gaussian"`, or `"inverse"`. `"uniform"` when climate is not
+#'       distance-weighted.}
+#'     \item{`kernel_geog`}{Geographic weighting kernel shape: `"uniform"`,
+#'       `"gaussian"`, or `"inverse"`. `"uniform"` when geography is not
+#'       distance-weighted.}
+#'     \item{`theta_clim`}{Scale parameter for the climate kernel (Gaussian
+#'       bandwidth or inverse half-weight distance); `NULL` if the climate
+#'       kernel is uniform.}
+#'     \item{`theta_geog`}{Scale parameter for the geographic kernel; `NULL`
+#'       if the geographic kernel is uniform.}
 #'     \item{`lambda`}{Ridge penalty for `stat = "regression"`; `0` for
 #'       ordinary weighted least squares.}
 #'     \item{`se`}{Standard-error framing applied to SE-supporting stats:
@@ -116,7 +122,7 @@
 #' result <- analog_velocity(
 #'   x = future_climate,
 #'   pool = current_climate,
-#'   max_clim = 0.5
+#'   clim = kernel(max = 0.5)
 #' )
 #'
 #' # Get the full parameterization as a list
@@ -138,7 +144,8 @@ metadata <- function(x) {
       # attached.
       documented <- c(
             # Selection and aggregation
-            "select", "k", "stat", "kernel", "theta",
+            "select", "k", "stat",
+            "kernel_clim", "kernel_geog", "theta_clim", "theta_geog",
             "lambda", "se",
             "max_clim", "max_geog",
             "exclude_self",

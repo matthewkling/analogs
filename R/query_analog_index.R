@@ -11,8 +11,10 @@ query_analog_index <- function(x,
                                covariates,
                                weight = NULL,
                                k,
-                               kernel,
-                               theta,
+                               kernel_clim,
+                               kernel_geog,
+                               theta_clim,
+                               theta_geog,
                                lambda,
                                se,
                                normalize = "auto",
@@ -85,7 +87,10 @@ query_analog_index <- function(x,
                                        x_cov, y, covariates,
                                        max_clim, max_geog,
                                        select, k,
-                                       stat, kernel, theta, lambda,
+                                       stat,
+                                       kernel_clim, kernel_geog,
+                                       theta_clim, theta_geog,
+                                       lambda,
                                        se,
                                        pool_row_map = index$pool_row_map,
                                        n_pool_original = index$n_pool,
@@ -94,8 +99,10 @@ query_analog_index <- function(x,
       select <- params$select
       stat <- params$stat
       k <- params$k
-      kernel <- params$kernel
-      theta <- params$theta
+      kernel_clim <- params$kernel_clim
+      kernel_geog <- params$kernel_geog
+      theta_clim <- params$theta_clim
+      theta_geog <- params$theta_geog
       lambda <- params$lambda
       se <- params$se
       x_cov_mat <- params$x_cov
@@ -118,14 +125,14 @@ query_analog_index <- function(x,
       # users who explicitly opted in clear feedback about why
       # normalization can't apply.
       if (identical(normalize, "auto")) {
-            normalize <- .normalize_is_feasible(stat, kernel, max_geog, index)
+            normalize <- .normalize_is_feasible(stat, max_geog, index)
       }
 
       # Validate normalize compatibility now that kernel/max_geog/etc. are
       # resolved and we have the index in hand. Throws on any
       # incompatibility (uniform/geo-only kernel, missing max_geog,
       # non-raster index, missing cell-area weighting, etc.).
-      .validate_normalize_compat(normalize, stat, kernel, max_geog, index)
+      .validate_normalize_compat(normalize, stat, max_geog, index)
 
       # Parse constraints
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
@@ -160,26 +167,19 @@ query_analog_index <- function(x,
       aggregate_codes <- stat_name_to_code[stat]
       names(aggregate_codes) <- NULL
 
-      # Map kernel function for C++ (passed to C++ as weight_code).
-      # Tabulate is a weighted aggregation (sums combined_weight per class),
-      # so it triggers weighting alongside the existing weighted stats.
-      has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
-                                           "weighted_sum", "weighted_mean",
-                                           "ess", "regression", "tabulate"))
-      weight_code <- if (has_weighted_stat) {
-            switch(
-                  kernel,
-                  "uniform"        = 1L,
-                  "inverse_clim"   = 2L,
-                  "inverse_geog"   = 3L,
-                  "gaussian_clim"  = 4L,
-                  "gaussian_geog"  = 5L,
-                  "gaussian_joint" = 6L,
-                  "inverse_joint"  = 7L
-            )
-      } else {
-            0L
+      # Map the per-family kernel shapes to C++ integer codes. The C++ side uses
+      # a product model: combined weight = clim-family weight x geog-family
+      # weight, each shape UNIFORM(0)/GAUSSIAN(1)/INVERSE(2). theta is resolved
+      # to a per-family scalar (NA_real_ lets C++ apply its default of 1).
+      .kernel_code <- function(k) {
+            switch(k, "uniform" = 0L, "gaussian" = 1L, "inverse" = 2L,
+                   stop("Internal error: unknown family kernel '", k, "'.",
+                        call. = FALSE))
       }
+      clim_kernel_code <- .kernel_code(kernel_clim)
+      geog_kernel_code <- .kernel_code(kernel_geog)
+      theta_clim_cpp <- if (is.null(theta_clim)) NA_real_ else as.numeric(theta_clim)
+      theta_geog_cpp <- if (is.null(theta_geog)) NA_real_ else as.numeric(theta_geog)
 
       # Map se for C++
       # SE codes: 0=none, 1=ess, 2=design
@@ -189,13 +189,6 @@ query_analog_index <- function(x,
             "ess"    = 1L,
             "design" = 2L
       )
-
-      # Convert theta to numeric vector (use NA_real_ for NULL so C++ can apply defaults)
-      theta_vec <- if (is.null(theta)) {
-            NA_real_
-      } else {
-            as.numeric(theta)
-      }
 
       # Transform k for C++ (0L for "all", integer otherwise)
       k_core <- if (select %in% c("knn_clim", "knn_geog")) as.integer(k) else 0L
@@ -238,8 +231,10 @@ query_analog_index <- function(x,
       do_dmax <- isTRUE(normalize) && any(stat %in% c("sum_weights", "tabulate"))
       D_max <- if (do_dmax) {
             .compute_global_dmax(
-                  kernel         = kernel,
-                  theta          = theta,
+                  kernel_clim    = kernel_clim,
+                  kernel_geog    = kernel_geog,
+                  theta_clim     = theta_clim,
+                  theta_geog     = theta_geog,
                   max_geog       = max_geog_num,
                   mean_cell_area = index$mean_cell_area
             )
@@ -257,8 +252,10 @@ query_analog_index <- function(x,
             max_geog = max_geog_num,
             select_code = select_code,
             aggregate_codes = aggregate_codes,
-            weight_code = weight_code,
-            theta = theta_vec,
+            clim_kernel_code = clim_kernel_code,
+            geog_kernel_code = geog_kernel_code,
+            theta_clim = theta_clim_cpp,
+            theta_geog = theta_geog_cpp,
             x_cov = x_cov_mat,
             y = values_mat,
             covariates = covariates_mat,
@@ -393,9 +390,10 @@ query_analog_index <- function(x,
             attr(out, "normalize") <- isTRUE(normalize)
 
             return(.format_output(out, focal, stat, select,
-                                  k, kernel, theta, x_cov_mat,
+                                  k, kernel_clim, kernel_geog, theta_clim, theta_geog, x_cov_mat,
                                   lambda, se, exclude_self,
                                   index$downsample_actual,
+                                  max_clim = max_clim, max_geog = max_geog,
                                   cell_area_weight_applied = emit_area_weight,
                                   weight_provided = emit_user_weight))
       }
@@ -590,8 +588,9 @@ query_analog_index <- function(x,
       attr(out, "normalize") <- isTRUE(normalize)
       attr(out, "D_max")     <- if (do_dmax) D_max else NA_real_
 
-      return(.format_output(out, focal, stat, select, k, kernel, theta, x_cov_mat,
+      return(.format_output(out, focal, stat, select, k, kernel_clim, kernel_geog, theta_clim, theta_geog, x_cov_mat,
                             lambda, se, exclude_self, index$downsample_actual,
+                            max_clim = max_clim, max_geog = max_geog,
                             cell_area_weight_applied = emit_area_weight,
                             weight_provided = emit_user_weight))
 }
@@ -622,7 +621,9 @@ query_analog_index <- function(x,
 #'
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_clim, max_geog,
-                               select_code, aggregate_codes, weight_code, theta,
+                               select_code, aggregate_codes,
+                               clim_kernel_code, geog_kernel_code,
+                               theta_clim, theta_geog,
                                x_cov, y, covariates, lambda, se_code,
                                n_classes_per_var = integer(0),
                                area_weight = NULL,
@@ -641,8 +642,10 @@ query_analog_index <- function(x,
                   max_geog = max_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
-                  weight_code = weight_code,
-                  theta = theta,
+                  clim_kernel_code = clim_kernel_code,
+                  geog_kernel_code = geog_kernel_code,
+                  theta_clim = theta_clim,
+                  theta_geog = theta_geog,
                   x_cov_sexp = x_cov,
                   values_sexp = y,
                   covariates_sexp = covariates,
@@ -695,8 +698,10 @@ query_analog_index <- function(x,
                   max_geog = max_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
-                  weight_code = weight_code,
-                  theta = theta,
+                  clim_kernel_code = clim_kernel_code,
+                  geog_kernel_code = geog_kernel_code,
+                  theta_clim = theta_clim,
+                  theta_geog = theta_geog,
                   x_cov_sexp = x_cov_chunk,
                   values_sexp = y,
                   covariates_sexp = covariates,

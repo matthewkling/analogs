@@ -133,9 +133,9 @@
 #' )
 #'
 #' # Query the index multiple times
-#' v1 <- analog_velocity(sites1, pool = index, max_clim = 0.5)
-#' v2 <- analog_velocity(sites2, pool = index, max_clim = 0.3)
-#' a1 <- analog_availability(sites3, pool = index, max_clim = 0.5, max_geog = 100)
+#' v1 <- analog_velocity(sites1, pool = index, clim = kernel(max = 0.5))
+#' v2 <- analog_velocity(sites2, pool = index, clim = kernel(max = 0.3))
+#' a1 <- analog_availability(sites3, pool = index, clim = kernel(max = 0.5), geog = kernel(max = 100))
 #' }
 #'
 #' @export

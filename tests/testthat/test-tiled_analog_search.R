@@ -1,11 +1,10 @@
-
 test_that("tiled_analog_search requires SpatRaster inputs", {
       # Create non-raster data
       focal_df <- data.frame(x = 1:10, y = 1:10, var1 = rnorm(10))
       ref_df <- data.frame(x = 1:100, y = 1:100, var1 = rnorm(100))
 
       expect_error(
-            tiled_analog_search(focal_df, ref_df, n_tiles = 4, fun = analog_velocity, max_geog = 100),
+            tiled_analog_search(focal_df, ref_df, n_tiles = 4, fun = analog_velocity, geog = kernel(max = 100)),
             "x must be a SpatRaster"
       )
 })
@@ -21,7 +20,7 @@ test_that("tiled_analog_search requires matching CRS", {
       terra::values(ref) <- rnorm(400)
 
       expect_error(
-            tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity, max_geog = 5),
+            tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity, geog = kernel(max = 5)),
             "x and pool must have the same CRS"
       )
 })
@@ -39,11 +38,11 @@ test_that("tiled_analog_search produces identical results to non-tiled (projecte
       terra::values(ref) <- rnorm(1600, mean = 10, sd = 2)
 
       # Run both versions
-      result_full <- analog_velocity(focal, ref, max_clim = 2, max_geog = 50,
+      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 50),
                                      k = 1, progress = FALSE)
       result_tiled <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                max_clim = 2, max_geog = 50, k = 1, progress = FALSE))
+                                clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
       result_full <- terra::subset(result_full, setdiff(names(result_full), "analog_index"))
 
       # Compare results
@@ -70,10 +69,10 @@ test_that("tiled_analog_search produces identical results to non-tiled (lonlat)"
       terra::values(ref) <- rnorm(1600, mean = 10, sd = 2)
 
       # Run both versions
-      result_full <- analog_velocity(focal, ref, max_clim = 2, max_geog = 200,
+      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 200),
                                      k = 1, progress = FALSE)
       result_tiled <- tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                          max_clim = 2, max_geog = 200, k = 1, progress = FALSE)
+                                          clim = kernel(max = 2), geog = kernel(max = 200), k = 1, progress = FALSE)
       result_full <- terra::subset(result_full, setdiff(names(result_full), "analog_index"))
 
       # Compare results
@@ -92,7 +91,7 @@ test_that("tiled_analog_search works with different tile counts", {
       names(ref) <- "temp"
       terra::values(ref) <- rnorm(1600, mean = 10, sd = 2)
 
-      result_full <- analog_velocity(focal, ref, max_clim = 2, max_geog = 50,
+      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 50),
                                      k = 1, progress = FALSE)
       result_full <- terra::subset(result_full, setdiff(names(result_full), "analog_index"))
 
@@ -100,7 +99,7 @@ test_that("tiled_analog_search works with different tile counts", {
       for (n_tiles in c(4, 9, 16, 25)) {
             result_tiled <- suppressWarnings(
                   tiled_analog_search(focal, ref, n_tiles = n_tiles, fun = analog_velocity,
-                                      max_clim = 2, max_geog = 50, k = 1, progress = FALSE))
+                                      clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
             diff <- terra::values(result_full$geog_dist) - terra::values(result_tiled$geog_dist)
             expect_true(max(abs(diff), na.rm = TRUE) < 1e-6,
                         info = paste("Failed for n_tiles =", n_tiles))
@@ -123,11 +122,11 @@ test_that("tiled_analog_search works with disk-based output", {
 
       result_disk <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                max_clim = 2, max_geog = 50, k = 1,
+                                clim = kernel(max = 2), geog = kernel(max = 50), k = 1,
                                 output_file = output_file, progress = FALSE))
       result_mem <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                max_clim = 2, max_geog = 50, k = 1, progress = FALSE))
+                                clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
 
       # Check file exists
       expect_true(file.exists(output_file))
@@ -140,8 +139,8 @@ test_that("tiled_analog_search works with disk-based output", {
       unlink(output_file)
 })
 
-test_that("tiled_analog_search works with non-square domains", {
-      # Create a rectangular domain (2:1 aspect ratio)
+test_that("tiled_analog_search works with non-square kernels", {
+      # Create a rectangular kernel (2:1 aspect ratio)
       focal <- terra::rast(ncol = 40, nrow = 20, xmin = 0, xmax = 200, ymin = 0, ymax = 100)
       terra::crs(focal) <- "EPSG:32611"
       names(focal) <- "temp"
@@ -152,10 +151,10 @@ test_that("tiled_analog_search works with non-square domains", {
       names(ref) <- "temp"
       terra::values(ref) <- rnorm(2400, mean = 10, sd = 2)
 
-      result_full <- analog_velocity(focal, ref, max_clim = 2, max_geog = 50,
+      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 50),
                                      k = 1, progress = FALSE)
       result_tiled <- tiled_analog_search(focal, ref, n_tiles = 16, fun = analog_velocity,
-                                          max_clim = 2, max_geog = 50, k = 1, progress = FALSE)
+                                          clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE)
 
       # Compare results
       diff <- terra::values(result_full$geog_dist) - terra::values(result_tiled$geog_dist)
@@ -176,7 +175,7 @@ test_that("tiled_analog_search works with different analog_* functions", {
       # Test analog_availability
       result_avail <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_availability,
-                                max_clim = 2, max_geog = 50, progress = FALSE))
+                                clim = kernel(max = 2), geog = kernel(max = 50), progress = FALSE))
       expect_s4_class(result_avail, "SpatRaster")
       expect_true("count" %in% names(result_avail))
 })
@@ -187,7 +186,7 @@ test_that("tiled_analog_search warns for ineffective tiling", {
       names(focal) <- "temp"
       terra::values(focal) <- rnorm(100, mean = 10, sd = 2)
 
-      # Small reference domain with large max_geog
+      # Small reference kernel with large max_geog
       ref <- terra::rast(ncol = 15, nrow = 15, xmin = -5, xmax = 15, ymin = -5, ymax = 15)
       terra::crs(ref) <- "EPSG:32611"
       names(ref) <- "temp"
@@ -195,8 +194,8 @@ test_that("tiled_analog_search warns for ineffective tiling", {
 
       expect_warning(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                max_clim = 2, max_geog = 10, k = 1, progress = FALSE),
-            "max_geog is large relative to reference domain"
+                                clim = kernel(max = 2), geog = kernel(max = 10), k = 1, progress = FALSE),
+            "max_geog is large relative to reference kernel"
       )
 })
 
@@ -223,20 +222,20 @@ test_that("tiled_analog_search works with x_cov and y", {
       expect_no_error(result <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_impact,
                                 y = vals, x_cov = x_cov,
-                                max_clim = 1, max_geog = 50,
+                                clim = kernel(max = 1), geog = kernel(max = 50),
                                 progress = FALSE)))
       expect_equal(sort(names(result)),
                    sort(c("count", "sum_weights", "weighted_mean_var1", "weighted_mean_var2")))
 })
 
 test_that("optimize_tile_grid creates square-ish tiles", {
-      # Test on square domain
-      grid <- optimize_tile_grid(n_tiles = 16, domain_aspect = 1)
+      # Test on square kernel
+      grid <- optimize_tile_grid(n_tiles = 16, kernel_aspect = 1)
       expect_equal(grid$n_x, 4)
       expect_equal(grid$n_y, 4)
 
-      # Test on 2:1 rectangular domain
-      grid <- optimize_tile_grid(n_tiles = 16, domain_aspect = 2)
+      # Test on 2:1 rectangular kernel
+      grid <- optimize_tile_grid(n_tiles = 16, kernel_aspect = 2)
       expect_true(grid$n_x > grid$n_y)  # More tiles in x direction
 
       # Test that n_tiles close to target

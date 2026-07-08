@@ -36,14 +36,14 @@
 #' avail <- analog_availability(
 #'   x = sites,
 #'   pool = climate_data,
-#'   max_clim = 0.5,
-#'   max_geog = 100
+#'   clim = kernel(max = 0.5),
+#'   geog = kernel(max = 100)
 #' )
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(climate_data)
-#' a1 <- analog_availability(x = sites1, pool = index, max_clim = 0.5, max_geog = 100)
-#' a2 <- analog_availability(x = sites2, pool = index, max_clim = 0.3, max_geog = 50)
+#' a1 <- analog_availability(x = sites1, pool = index, clim = kernel(max = 0.5), geog = kernel(max = 100))
+#' a2 <- analog_availability(x = sites2, pool = index, clim = kernel(max = 0.3), geog = kernel(max = 50))
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
@@ -57,8 +57,8 @@ analog_availability <- function(
             weight = NULL,
             coord_type = "auto",
 
-            max_clim = NULL,
-            max_geog = NULL,
+            clim = NULL,
+            geog = NULL,
 
             clim_res_adj = "auto",
             geog_res_adj = "auto",
@@ -73,11 +73,9 @@ analog_availability <- function(
             pool        = pool,
             select      = "all",
             stat        = "count",
-            max_clim    = max_clim,
-            max_geog    = max_geog,
+            clim        = clim,
+            geog        = geog,
             k           = NULL,
-            kernel      = NULL,
-            theta       = NULL,
             x_cov       = x_cov,
             y           = NULL,
             weight      = weight,

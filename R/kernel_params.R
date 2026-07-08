@@ -39,8 +39,9 @@
 #' @param theta Bandwidth value. Use this OR `fraction`. For Gaussian
 #'   kernels, this is the standard bandwidth parameter; for uniform
 #'   kernels, this is the cutoff radius (also returned as `max`); for
-#'   inverse-distance kernels, this is the epsilon regularization that
-#'   determines the half-weight scale.
+#'   inverse-distance kernels, this is the half-weight scale of the
+#'   reparameterized kernel `1 / (1 + d / theta)` (weight is 1/2 at
+#'   `d = theta`).
 #' @param d Dimensionality of the space (e.g., number of climate
 #'   variables after Mahalanobis transformation, or 2 for geographic).
 #' @param loss Fraction of aggregate kernel weight to discard at the
@@ -110,11 +111,18 @@ kernel_params <- function(fraction = NULL,
             } else if (kernel == "uniform") {
                   theta <- sqrt(qchisq(fraction, df = d))
             } else if (kernel == "inverse_distance") {
-                  target <- function(eps) {
-                        integrate(function(r) chi_density(r) / (r + eps),
+                  # Reparameterized inverse kernel: w(r) = 1 / (1 + r/theta).
+                  # Calibrate theta so the expected weight over the chi
+                  # distribution equals `fraction`. The integral converges (the
+                  # 1 + bounds the integrand at r = 0) and is monotonically
+                  # increasing in theta (larger theta -> flatter kernel ->
+                  # captures more), so uniroot finds a unique root.
+                  target <- function(th) {
+                        w <- .kernel_weight_fn("inverse", th)
+                        integrate(function(r) chi_density(r) * w(r),
                                   lower = 0, upper = Inf)$value - fraction
                   }
-                  theta <- uniroot(target, interval = c(1e-10, 1e6))$root
+                  theta <- uniroot(target, interval = c(1e-8, 1e8))$root
             }
       }
 
@@ -130,13 +138,14 @@ kernel_params <- function(fraction = NULL,
                   }
             } else if (kernel == "inverse_distance") {
                   if (data_dist == "mvn") {
+                        w <- .kernel_weight_fn("inverse", theta)
                         total <- integrate(
-                              function(r) chi_density(r) / (r + theta),
+                              function(r) chi_density(r) * w(r),
                               lower = 0, upper = Inf
                         )$value
                         max_val <- uniroot(
                               function(R) {
-                                    integrate(function(r) chi_density(r) / (r + theta),
+                                    integrate(function(r) chi_density(r) * w(r),
                                               lower = R, upper = Inf)$value -
                                           loss * total
                               },

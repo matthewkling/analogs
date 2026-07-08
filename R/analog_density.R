@@ -49,10 +49,8 @@
 #' dens <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
-#'   max_clim = 0.5,
-#'   max_geog = 100,
-#'   kernel = "gaussian_clim",
-#'   theta = 0.2
+#'   clim = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   geog = kernel(max = 100)
 #' )
 #' attr(dens, "D_max")  # the global denominator used
 #'
@@ -60,10 +58,8 @@
 #' dens_raw <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
-#'   max_clim = 0.5,
-#'   max_geog = 100,
-#'   kernel = "gaussian_clim",
-#'   theta = 0.2,
+#'   clim = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   geog = kernel(max = 100),
 #'   normalize = FALSE
 #' )
 #'
@@ -71,18 +67,18 @@
 #' intens_joint <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
-#'   max_clim = 0.5,
-#'   max_geog = 100,
-#'   kernel = "gaussian_joint",
-#'   theta = c(0.2, 50)  # c(clim_bandwidth, geog_bandwidth)
+#'   clim = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   geog = kernel("gaussian", theta = 50, max = 100)
 #' )
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(climate_data)
-#' i1 <- analog_density(x = sites1, pool = index, max_clim = 0.5,
-#'                      max_geog = 100, kernel = "inverse_clim")
-#' i2 <- analog_density(x = sites2, pool = index, max_geog = 100,
-#'                      kernel = "gaussian_clim", theta = 0.3)
+#' i1 <- analog_density(x = sites1, pool = index,
+#'                      clim = kernel("inverse", max = 0.5),
+#'                      geog = kernel(max = 100))
+#' i2 <- analog_density(x = sites2, pool = index,
+#'                      clim = kernel("gaussian", theta = 0.3),
+#'                      geog = kernel(max = 100))
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
@@ -97,13 +93,8 @@ analog_density <- function(
             coord_type = "auto",
 
             stat        = c("sum_weights"),
-            max_clim   = NULL,
-            max_geog   = NULL,
-
-            kernel     = c("uniform", "inverse_clim", "inverse_geog",
-                           "gaussian_clim", "gaussian_geog",
-                           "gaussian_joint", "inverse_joint"),
-            theta      = NULL,
+            clim        = NULL,
+            geog        = NULL,
 
             normalize  = "auto",
 
@@ -116,8 +107,6 @@ analog_density <- function(
             progress = FALSE,
             ...
 ) {
-      kernel <- match.arg(kernel)
-
       # Validate
       allowed_density_stats <- c("count", "sum_weights", "mean_weights", "ess")
       bad <- setdiff(stat, allowed_density_stats)
@@ -138,11 +127,9 @@ analog_density <- function(
             pool        = pool,
             select      = "all",
             stat        = stat,
-            max_clim    = max_clim,
-            max_geog    = max_geog,
             k           = NULL,
-            kernel      = kernel,
-            theta       = theta,
+            clim        = clim,
+            geog        = geog,
             x_cov       = x_cov,
             y           = NULL, # not relevant for density
             weight      = weight,

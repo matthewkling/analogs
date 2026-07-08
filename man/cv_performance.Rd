@@ -129,10 +129,8 @@ cv <- analog_cv(
   fun      = analog_impact,
   pool     = sites,
   y        = sites$biomass,
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel   = "gaussian_clim",
-  theta    = 0.2
+  clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog     = kernel(max = 100)
 )
 cv_performance(cv)
 
@@ -141,10 +139,8 @@ cv_bin <- analog_cv(
   fun      = analog_impact,
   pool     = sites,
   y        = sites$presence,   # 0/1 values
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel   = "gaussian_clim",
-  theta    = 0.2
+  clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog     = kernel(max = 100)
 )
 cv_performance(cv_bin)
 
@@ -154,10 +150,8 @@ cv_cat <- analog_cv(
   pool     = sites,
   y        = factor(sites$vegetation),
   stat     = c("count", "sum_weights", "tabulate"),
-  max_clim = 0.5,
-  max_geog = 100,
-  kernel   = "gaussian_clim",
-  theta    = 0.2
+  clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog     = kernel(max = 100)
 )
 perf <- cv_performance(cv_cat)
 
@@ -172,8 +166,7 @@ thetas <- c(0.1, 0.2, 0.3, 0.5)
 auc <- sapply(thetas, function(th) {
   cv <- analog_cv(
     fun = analog_impact, pool = sites, y = sites$presence,
-    max_clim = 0.5, max_geog = 100,
-    kernel = "gaussian_clim", theta = th
+    clim = kernel("gaussian", theta = th, max = 0.5), geog = kernel(max = 100)
   )
   perf <- cv_performance(cv)
   perf$value[perf$metric == "auc"]

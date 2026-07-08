@@ -11,8 +11,8 @@ analog_similarity(
   y = NULL,
   weight = NULL,
   coord_type = "auto",
-  max_geog,
-  max_clim = NULL,
+  geog,
+  clim = NULL,
   k = 20,
   clim_res_adj = "auto",
   geog_res_adj = "auto",
@@ -78,23 +78,29 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
-\item{max_geog}{Maximum geographic distance constraint (default:
-NULL = no geographic constraint). When specified, only reference locations
-within this distance are considered. Radius units should be specified in
-kilometers if \code{coord_type = "lonlat"}, or in projected coordinate units
-if \code{coord_type = "projected"}.}
-
-\item{max_clim}{Maximum climate distance constraint (default: NULL = no
-climate constraint). Can be either:
+\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
+shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+(\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
-\item A scalar: Euclidean radius in climate space (e.g., 0.5)
-\item A vector: Per-variable absolute differences (length must equal
-number of climate variables)
+\item \code{max}: hard distance threshold — candidates beyond it (in that family's
+distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+radius or a per-variable vector of absolute-difference thresholds (length
+equal to the number of climate variables); scalar climate thresholds are
+in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
+single radius (kilometers when \code{coord_type = "lonlat"}, projected units
+otherwise).
+\item \code{weight}: kernel shape for weighted aggregations — \code{"uniform"} (no
+distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
+\code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
+product of the two families' weights, so shapes may be mixed (e.g. an
+inverse climate kernel with a Gaussian geographic kernel).
+\item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
+distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
 
-Only reference locations within this climate distance are considered.
-When \code{x_cov} is provided, scalar thresholds are interpreted in
-Mahalanobis distance units.}
+A \code{NULL} kernel (the default for both) applies no threshold and no
+weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 
 \item{k}{Number of nearest analogs to return per focal location for kNN
 selection modes. Required when \code{select} is \code{"knn_geog"} or
@@ -166,7 +172,7 @@ This function is a wrapper that calls \code{\link[=analog_search]{analog_search(
 \details{
 For each focal location, \code{analog_similarity()}:
 \enumerate{
-\item Identifies all reference points within \code{max_geog} km (and
+\item Identifies all reference points within \code{geog}'s max (km) (and
 optional climate filter).
 \item Selects the \code{k} closest in \emph{climate} distance.
 }
@@ -185,14 +191,14 @@ more complete AIM implementation.
 im <- analog_similarity(
   x = clim$clim1,
   pool = clim$clim2,
-  max_geog = 100,
+  geog = kernel(max = 100),
   k = 20
 )
 
 # With pre-built index (for repeated queries)
 index <- build_analog_index(clim$clim2)
-i1 <- analog_similarity(x = sites1, pool = index, max_geog = 100, k = 20)
-i2 <- analog_similarity(x = sites2, pool = index, max_geog = 50, k = 10)
+i1 <- analog_similarity(x = sites1, pool = index, geog = kernel(max = 100), k = 20)
+i2 <- analog_similarity(x = sites2, pool = index, geog = kernel(max = 50), k = 10)
 }
 
 }

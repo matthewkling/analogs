@@ -14,9 +14,8 @@ test_that("regression stat runs without error and returns correct columns", {
             stat = "regression",
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "uniform",
+            clim = kernel(max = 2),
+            geog = kernel(max = 2),
             coord_type = "projected"
       )
 
@@ -54,9 +53,8 @@ test_that("regression recovers known coefficients on synthetic data", {
             stat = "regression",
             y = y,
             covariates = covariates,
-            max_clim = NULL,  # no climate filter: use all pool points
-            max_geog = NULL,  # no geog filter
-            kernel = "uniform",
+            clim = NULL,  # no climate filter: use all pool points
+            geog = NULL,  # no geog filter
             coord_type = "projected"
       )
 
@@ -84,10 +82,8 @@ test_that("large lambda makes intercept approach weighted mean", {
             stat = c("weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 2),
+            geog = kernel(max = 2),
             lambda = 1e8,
             coord_type = "projected"
       )
@@ -127,9 +123,8 @@ test_that("zero analogs returns NA for regression coefficients", {
             stat = c("count", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 0.0001,
-            max_geog = 0.0001,
-            kernel = "uniform",
+            clim = kernel(max = 0.0001),
+            geog = kernel(max = 0.0001),
             coord_type = "projected",
             se = "ess"
       )
@@ -160,9 +155,8 @@ test_that("regression works with multiple values variables", {
             stat = "regression",
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "uniform",
+            clim = kernel(max = 2),
+            geog = kernel(max = 2),
             coord_type = "projected"
       )
 
@@ -189,10 +183,8 @@ test_that("regression combines with other stats correctly", {
             stat = c("count", "ess", "weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 2,
-            max_geog = 2,
-            kernel = "gaussian_clim",
-            theta = 0.5,
+            clim = kernel("gaussian", theta = 0.5, max = 2),
+            geog = kernel(max = 2),
             coord_type = "projected"
       )
 
@@ -212,8 +204,7 @@ test_that("regression validation: requires y", {
                   x = d$focal, pool = d$ref,
                   stat = "regression",
                   covariates = covariates,
-                  max_clim = 2,
-                  kernel = "uniform",
+                  clim = kernel(max = 2),
                   coord_type = "projected"
             ),
             "y"
@@ -231,8 +222,7 @@ test_that("regression validation: requires covariates", {
                   x = d$focal, pool = d$ref,
                   stat = "regression",
                   y = y,
-                  max_clim = 2,
-                  kernel = "uniform",
+                  clim = kernel(max = 2),
                   coord_type = "projected"
             ),
             "covariates"
@@ -240,21 +230,23 @@ test_that("regression validation: requires covariates", {
 })
 
 
-test_that("regression validation: requires weight", {
+test_that("regression runs with uniform weights (ordinary regression)", {
 
       d <- sim_test_data()
       n_ref <- nrow(d$ref)
 
-      expect_error(
+      # A regression with no distance weighting (uniform clim/geog) is valid:
+      # it is ordinary (unweighted) least-squares regression over the selected
+      # analogs. A non-uniform kernel would make it kernel-weighted regression.
+      expect_no_error(
             analog_search(
                   x = d$focal, pool = d$ref,
                   stat = "regression",
                   y = rnorm(n_ref),
                   covariates = matrix(rnorm(n_ref), ncol = 1),
-                  max_clim = 2,
+                  clim = kernel(max = 2),
                   coord_type = "projected"
-            ),
-            "weight"
+            )
       )
 })
 
@@ -270,8 +262,7 @@ test_that("regression validation: lambda must be non-negative", {
                   stat = "regression",
                   y = rnorm(n_ref),
                   covariates = matrix(rnorm(n_ref), ncol = 1),
-                  max_clim = 2,
-                  kernel = "uniform",
+                  clim = kernel(max = 2),
                   lambda = -1,
                   coord_type = "projected"
             ),
@@ -302,9 +293,8 @@ test_that("regression with lambda = 0 returns NA for singular systems", {
             stat = c("count", "regression"),
             y = y,
             covariates = covariates,
-            max_clim = 0.01,  # very tight — may get 0 or very few analogs
-            max_geog = 0.01,
-            kernel = "uniform",
+            clim = kernel(max = 0.01),  # very tight — may get 0 or very few analogs
+            geog = kernel(max = 0.01),
             lambda = 0,
             coord_type = "projected"
       )
@@ -332,8 +322,8 @@ test_that("analog_regression without x_covariates returns coefficients only", {
 
       fit <- analog_regression(
             x = d$ref, pool = d$ref, y = y, covariates = covs,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", select = "all"
       )
 
@@ -352,8 +342,8 @@ test_that("analog_regression with x_covariates adds pred column (single-y)", {
             x = d$ref, pool = d$ref, y = y,
             covariates   = covs,
             x_covariates = covs,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", select = "all"
       )
 
@@ -377,8 +367,8 @@ test_that("analog_regression with x_covariates adds pred_{y} columns (multi-y)",
             x = d$ref, pool = d$ref, y = y,
             covariates   = covs,
             x_covariates = covs,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", select = "all"
       )
 
@@ -406,8 +396,8 @@ test_that("analog_regression x_covariates allows distinct focal/pool inputs", {
             x = d2$ref, pool = d1$ref, y = y_pool,
             covariates   = cov_pool,
             x_covariates = cov_focal,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", select = "all"
       )
 
@@ -429,8 +419,8 @@ test_that("analog_regression errors when x_covariates has wrong row count", {
                   x = d$ref, pool = d$ref, y = y,
                   covariates   = covs,
                   x_covariates = covs[1:3, , drop = FALSE],
-                  max_clim = 1, max_geog = 2,
-                  kernel = "gaussian_clim", theta = 0.3,
+                  clim = kernel("gaussian", theta = 0.3, max = 1),
+                  geog = kernel(max = 2),
                   coord_type = "projected", select = "all"
             ),
             "rows/cells"
@@ -449,8 +439,8 @@ test_that("analog_regression errors when x_covariates has missing covariate", {
                   x = d$ref, pool = d$ref, y = y,
                   covariates   = covs,
                   x_covariates = covs[, "a", drop = FALSE],
-                  max_clim = 1, max_geog = 2,
-                  kernel = "gaussian_clim", theta = 0.3,
+                  clim = kernel("gaussian", theta = 0.3, max = 1),
+                  geog = kernel(max = 2),
                   coord_type = "projected", select = "all"
             ),
             "missing columns"
@@ -469,8 +459,8 @@ test_that("analog_regression x_covariates accepts column-reordered input", {
             x = d$ref, pool = d$ref, y = y,
             covariates   = covs,
             x_covariates = covs[, c("b", "a")],   # reversed
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", select = "all"
       )
 
@@ -499,8 +489,8 @@ test_that("analog_regression with x_covariates works on SpatRaster inputs", {
             x = r, pool = r, y = yr,
             covariates   = cov_r,
             x_covariates = cov_r,
-            max_clim = 1, max_geog = 5,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 5),
             coord_type = "projected", select = "all"
       )
 
@@ -521,8 +511,8 @@ test_that("analog_cv on analog_regression receives pred via x_covariates path", 
             pool = d$ref,
             y = y,
             covariates = covs,
-            max_clim = 1, max_geog = 2,
-            kernel = "gaussian_clim", theta = 0.3,
+            clim = kernel("gaussian", theta = 0.3, max = 1),
+            geog = kernel(max = 2),
             coord_type = "projected", select = "all",
             cv_method = "loo"
       )
