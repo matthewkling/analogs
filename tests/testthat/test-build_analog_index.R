@@ -2,7 +2,7 @@ test_that("build_analog_index creates valid index object", {
 
       set.seed(123)
       ref_data <- matrix(rnorm(200 * 4), ncol = 4)
-      colnames(ref_data) <- c("x", "y", "clim1", "clim2")
+      colnames(ref_data) <- c("x", "y", "env1", "env2")
 
       # Test building index with projected coords
       index <- build_analog_index(ref_data, coord_type = "projected")
@@ -16,15 +16,15 @@ test_that("build_analog_index creates valid index object", {
       expect_true(!is.null(index$ref_data))
       expect_equal(index$coord_type, "projected")
       expect_equal(index$n_pool, 200)
-      expect_equal(index$n_clim, 2)
+      expect_equal(index$n_env, 2)
 
       # Check ranges are sensible
       expect_length(index$coord_mins, 2)
       expect_length(index$coord_maxs, 2)
-      expect_length(index$clim_mins, 2)
-      expect_length(index$clim_maxs, 2)
+      expect_length(index$env_mins, 2)
+      expect_length(index$env_maxs, 2)
       expect_true(all(index$coord_maxs > index$coord_mins))
-      expect_true(all(index$clim_maxs > index$clim_mins))
+      expect_true(all(index$env_maxs > index$env_mins))
 
       # Check diagnostics
       expect_true(index$total_bins > 0)
@@ -177,7 +177,7 @@ test_that("print.analog_index produces output", {
       expect_output(print(index), "Analog Index")
       expect_output(print(index), "Reference data")
       expect_output(print(index), "50 locations")
-      expect_output(print(index), "1 climate variable")
+      expect_output(print(index), "1 environmental variable")
       expect_output(print(index), "Index structure")
 })
 

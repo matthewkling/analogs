@@ -38,11 +38,11 @@ test_that("tiled_analog_search produces identical results to non-tiled (projecte
       terra::values(ref) <- rnorm(1600, mean = 10, sd = 2)
 
       # Run both versions
-      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 50),
+      result_full <- analog_velocity(focal, ref, env = kernel(max = 2), geog = kernel(max = 50),
                                      k = 1, progress = FALSE)
       result_tiled <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
+                                env = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
       result_full <- terra::subset(result_full, setdiff(names(result_full), "analog_index"))
 
       # Compare results
@@ -69,10 +69,10 @@ test_that("tiled_analog_search produces identical results to non-tiled (lonlat)"
       terra::values(ref) <- rnorm(1600, mean = 10, sd = 2)
 
       # Run both versions
-      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 200),
+      result_full <- analog_velocity(focal, ref, env = kernel(max = 2), geog = kernel(max = 200),
                                      k = 1, progress = FALSE)
       result_tiled <- tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                          clim = kernel(max = 2), geog = kernel(max = 200), k = 1, progress = FALSE)
+                                          env = kernel(max = 2), geog = kernel(max = 200), k = 1, progress = FALSE)
       result_full <- terra::subset(result_full, setdiff(names(result_full), "analog_index"))
 
       # Compare results
@@ -91,7 +91,7 @@ test_that("tiled_analog_search works with different tile counts", {
       names(ref) <- "temp"
       terra::values(ref) <- rnorm(1600, mean = 10, sd = 2)
 
-      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 50),
+      result_full <- analog_velocity(focal, ref, env = kernel(max = 2), geog = kernel(max = 50),
                                      k = 1, progress = FALSE)
       result_full <- terra::subset(result_full, setdiff(names(result_full), "analog_index"))
 
@@ -99,7 +99,7 @@ test_that("tiled_analog_search works with different tile counts", {
       for (n_tiles in c(4, 9, 16, 25)) {
             result_tiled <- suppressWarnings(
                   tiled_analog_search(focal, ref, n_tiles = n_tiles, fun = analog_velocity,
-                                      clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
+                                      env = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
             diff <- terra::values(result_full$geog_dist) - terra::values(result_tiled$geog_dist)
             expect_true(max(abs(diff), na.rm = TRUE) < 1e-6,
                         info = paste("Failed for n_tiles =", n_tiles))
@@ -122,11 +122,11 @@ test_that("tiled_analog_search works with disk-based output", {
 
       result_disk <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                clim = kernel(max = 2), geog = kernel(max = 50), k = 1,
+                                env = kernel(max = 2), geog = kernel(max = 50), k = 1,
                                 output_file = output_file, progress = FALSE))
       result_mem <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
+                                env = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE))
 
       # Check file exists
       expect_true(file.exists(output_file))
@@ -151,10 +151,10 @@ test_that("tiled_analog_search works with non-square kernels", {
       names(ref) <- "temp"
       terra::values(ref) <- rnorm(2400, mean = 10, sd = 2)
 
-      result_full <- analog_velocity(focal, ref, clim = kernel(max = 2), geog = kernel(max = 50),
+      result_full <- analog_velocity(focal, ref, env = kernel(max = 2), geog = kernel(max = 50),
                                      k = 1, progress = FALSE)
       result_tiled <- tiled_analog_search(focal, ref, n_tiles = 16, fun = analog_velocity,
-                                          clim = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE)
+                                          env = kernel(max = 2), geog = kernel(max = 50), k = 1, progress = FALSE)
 
       # Compare results
       diff <- terra::values(result_full$geog_dist) - terra::values(result_tiled$geog_dist)
@@ -175,7 +175,7 @@ test_that("tiled_analog_search works with different analog_* functions", {
       # Test analog_availability
       result_avail <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_availability,
-                                clim = kernel(max = 2), geog = kernel(max = 50), progress = FALSE))
+                                env = kernel(max = 2), geog = kernel(max = 50), progress = FALSE))
       expect_s4_class(result_avail, "SpatRaster")
       expect_true("count" %in% names(result_avail))
 })
@@ -194,7 +194,7 @@ test_that("tiled_analog_search warns for ineffective tiling", {
 
       expect_warning(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_velocity,
-                                clim = kernel(max = 2), geog = kernel(max = 10), k = 1, progress = FALSE),
+                                env = kernel(max = 2), geog = kernel(max = 10), k = 1, progress = FALSE),
             "max_geog is large relative to reference kernel"
       )
 })
@@ -222,7 +222,7 @@ test_that("tiled_analog_search works with x_cov and y", {
       expect_no_error(result <- suppressWarnings(
             tiled_analog_search(focal, ref, n_tiles = 4, fun = analog_impact,
                                 y = vals, x_cov = x_cov,
-                                clim = kernel(max = 1), geog = kernel(max = 50),
+                                env = kernel(max = 1), geog = kernel(max = 50),
                                 progress = FALSE)))
       expect_equal(sort(names(result)),
                    sort(c("count", "sum_weights", "weighted_mean_var1", "weighted_mean_var2")))

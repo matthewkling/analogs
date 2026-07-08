@@ -2,7 +2,7 @@
 #
 # Coverage:
 #   1. Closed-form D_max integrals match numerical integration
-#   2. D / D_max clusters near 1 on a uniform-climate raster pool
+#   2. D / D_max clusters near 1 on a uniform-environmental raster pool
 #   3. `auto` resolves to TRUE/FALSE in the right situations
 #   4. Explicit `normalize = TRUE` errors when preconditions fail
 #   5. `normalize = FALSE` matches pre-normalization behavior
@@ -21,8 +21,8 @@ set.seed(1)
 
 # ---------- Test fixtures ----------------------------------------------------
 
-# A small projected raster with non-uniform climate over a square kernel.
-# Climate is a smooth radial gradient, varying enough to make sum_weights
+# A small projected raster with non-uniform environmental over a square kernel.
+# environmental is a smooth radial gradient, varying enough to make sum_weights
 # meaningfully heterogeneous.
 #
 # Note on units: EPSG:32633 (UTM 33N) is in meters, so the extent passed
@@ -34,14 +34,14 @@ make_test_raster <- function(n = 30, extent_m = 1e6) {
       xy <- terra::xyFromCell(r, 1:terra::ncell(r))
       cx <- (extent_m / 2)
       d  <- sqrt((xy[, 1] - cx)^2 + (xy[, 2] - cx)^2)
-      terra::values(r) <- d / max(d)   # climate in [0, 1]
-      names(r) <- "clim"
+      terra::values(r) <- d / max(d)   # environmental in [0, 1]
+      names(r) <- "env"
       r
 }
 
-# A uniform-climate version (every cell has identical climate) to test that
+# A uniform-environmental version (every cell has identical environmental) to test that
 # D / D_max clusters near 1 with mild discretization noise.
-make_uniform_clim_raster <- function(n = 30, extent_m = 1e6) {
+make_uniform_env_raster <- function(n = 30, extent_m = 1e6) {
       r <- make_test_raster(n = n, extent_m = extent_m)
       terra::values(r) <- 1.0
       r
@@ -54,39 +54,39 @@ test_that(".compute_global_dmax matches numerical integration for each kernel", 
       mean_area <- 100  # arbitrary positive scalar
       G <- 50
 
-      # D_max depends ONLY on the geographic kernel: the climate kernel is
-      # evaluated at clim_dist = 0, where every reparameterized shape gives
+      # D_max depends ONLY on the geographic kernel: the environmental kernel is
+      # evaluated at env_dist = 0, where every reparameterized shape gives
       # weight 1 (uniform = 1, gaussian exp(0) = 1, inverse 1/(1+0/theta) = 1).
       # So the reference integrand K0(r) is the GEOGRAPHIC kernel alone, and any
-      # climate shape (uniform/gaussian/inverse) must produce the same D_max.
+      # environmental shape (uniform/gaussian/inverse) must produce the same D_max.
       # Each case gives the per-family shapes + scales and the geographic
       # reference kernel. Inverse uses the reparameterized form 1/(1 + r/theta).
       cases <- list(
             # --- geographically-uniform: D_max = disk area / mean_area ---
-            list(kernel_clim = "uniform",  kernel_geog = "uniform",
-                 theta_clim = NULL, theta_geog = NULL,
+            list(kernel_env = "uniform",  kernel_geog = "uniform",
+                 theta_env = NULL, theta_geog = NULL,
                  K0 = function(r) rep(1, length(r))),
-            # climate shape must not change D_max (climate factor = 1 at r_clim=0)
-            list(kernel_clim = "gaussian", kernel_geog = "uniform",
-                 theta_clim = 1, theta_geog = NULL,
+            # environmental shape must not change D_max (environmental factor = 1 at r_env=0)
+            list(kernel_env = "gaussian", kernel_geog = "uniform",
+                 theta_env = 1, theta_geog = NULL,
                  K0 = function(r) rep(1, length(r))),
-            list(kernel_clim = "inverse",  kernel_geog = "uniform",
-                 theta_clim = 1, theta_geog = NULL,
+            list(kernel_env = "inverse",  kernel_geog = "uniform",
+                 theta_env = 1, theta_geog = NULL,
                  K0 = function(r) rep(1, length(r))),
             # --- geographic Gaussian ---
-            list(kernel_clim = "uniform",  kernel_geog = "gaussian",
-                 theta_clim = NULL, theta_geog = 10,
+            list(kernel_env = "uniform",  kernel_geog = "gaussian",
+                 theta_env = NULL, theta_geog = 10,
                  K0 = function(r) exp(-r^2 / (2 * 10^2))),
             # --- geographic inverse (reparameterized) ---
-            list(kernel_clim = "uniform",  kernel_geog = "inverse",
-                 theta_clim = NULL, theta_geog = 5,
+            list(kernel_env = "uniform",  kernel_geog = "inverse",
+                 theta_env = NULL, theta_geog = 5,
                  K0 = function(r) 1 / (1 + r / 5)),
             # --- composed: non-uniform on BOTH families; D_max still = geog only ---
-            list(kernel_clim = "gaussian", kernel_geog = "gaussian",
-                 theta_clim = 1, theta_geog = 10,
+            list(kernel_env = "gaussian", kernel_geog = "gaussian",
+                 theta_env = 1, theta_geog = 10,
                  K0 = function(r) exp(-r^2 / (2 * 10^2))),
-            list(kernel_clim = "inverse",  kernel_geog = "inverse",
-                 theta_clim = 1, theta_geog = 5,
+            list(kernel_env = "inverse",  kernel_geog = "inverse",
+                 theta_env = 1, theta_geog = 5,
                  K0 = function(r) 1 / (1 + r / 5))
       )
 
@@ -98,9 +98,9 @@ test_that(".compute_global_dmax matches numerical integration for each kernel", 
             expected <- num_integral / mean_area
 
             actual <- analogs:::.compute_global_dmax(
-                  kernel_clim    = cs$kernel_clim,
+                  kernel_env    = cs$kernel_env,
                   kernel_geog    = cs$kernel_geog,
-                  theta_clim     = cs$theta_clim,
+                  theta_env     = cs$theta_env,
                   theta_geog     = cs$theta_geog,
                   max_geog       = G,
                   mean_cell_area = mean_area
@@ -109,19 +109,19 @@ test_that(".compute_global_dmax matches numerical integration for each kernel", 
             expect_equal(
                   actual, expected,
                   tolerance = 1e-6,
-                  info = paste0("clim = ", cs$kernel_clim,
+                  info = paste0("env = ", cs$kernel_env,
                                 ", geog = ", cs$kernel_geog)
             )
       }
 })
 
 
-# ---------- 2. D / D_max clusters near 1 on uniform-climate pool -----------
+# ---------- 2. D / D_max clusters near 1 on uniform-environmental pool -----------
 
-test_that("normalize on uniform-climate raster gives D/D_max ~ 1", {
+test_that("normalize on uniform-environmental raster gives D/D_max ~ 1", {
       skip_if_not_installed("terra")
 
-      pool <- make_uniform_clim_raster(n = 40, extent_m = 1e6)
+      pool <- make_uniform_env_raster(n = 40, extent_m = 1e6)
 
       # Use a moderate Gaussian kernel; max_geog small enough to keep
       # neighborhoods well inside the kernel (avoid edge effects).
@@ -129,7 +129,7 @@ test_that("normalize on uniform-climate raster gives D/D_max ~ 1", {
             x        = pool,
             pool     = pool,
             geog = kernel(max = 1e5),
-            clim = kernel("gaussian", theta = 0.1),
+            env = kernel("gaussian", theta = 0.1),
             normalize = TRUE
       )
 
@@ -153,13 +153,13 @@ test_that("normalize on uniform-climate raster gives D/D_max ~ 1", {
 
 # ---------- 3. auto-resolution behavior --------------------------------------
 
-test_that("normalize = 'auto' resolves TRUE for raster + caw + climate kernel + finite max_geog", {
+test_that("normalize = 'auto' resolves TRUE for raster + caw + environmental kernel + finite max_geog", {
       skip_if_not_installed("terra")
       pool <- make_test_raster(n = 20)
 
       res <- analog_density(
             x = pool, pool = pool,
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = "auto"
       )
       expect_true(attr(res, "normalize"))
@@ -174,7 +174,7 @@ test_that("normalize = 'auto' resolves FALSE for non-raster pool", {
 
       res <- analog_density(
             x = pool_df, pool = pool_df,
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = "auto"
       )
       expect_false(attr(res, "normalize"))
@@ -187,11 +187,11 @@ test_that("normalize = 'auto' resolves TRUE for uniform and geo-only kernels", {
 
       # uniform kernel + sum_weights: now supported (D_max well-defined
       # via the closed-form integral; D/D_max is count-fraction inside
-      # max_clim when max_clim is active).
+      # max_env when max_env is active).
       res_uni <- analog_search(
             x = pool, pool = pool,
             stat = "sum_weights",
-            geog = kernel(max = 1e5), clim = kernel(max = 0.5),
+            geog = kernel(max = 1e5), env = kernel(max = 0.5),
             normalize = "auto"
       )
       expect_true(attr(res_uni, "normalize"))
@@ -202,7 +202,7 @@ test_that("normalize = 'auto' resolves TRUE for uniform and geo-only kernels", {
             x = pool, pool = pool,
             stat = "sum_weights",
             geog = kernel("gaussian", theta = 5e4, max = 1e5),
-            clim = kernel(max = 0.5),
+            env = kernel(max = 0.5),
             normalize = "auto"
       )
       expect_true(attr(res_geo, "normalize"))
@@ -234,7 +234,7 @@ test_that("normalize = TRUE errors when max_geog is missing", {
             analog_search(
                   x = pool, pool = pool,
                   stat = "sum_weights",
-                  clim = kernel("gaussian", theta = 0.2),
+                  env = kernel("gaussian", theta = 0.2),
                   normalize = TRUE
             ),
             "max_geog"
@@ -270,12 +270,12 @@ test_that("normalize = FALSE returns raw sum_weights (no D_max scaling)", {
 
       res_norm <- analog_density(
             x = pool, pool = pool,
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = TRUE
       )
       res_raw <- analog_density(
             x = pool, pool = pool,
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = FALSE
       )
 
@@ -294,10 +294,10 @@ test_that("normalize = FALSE returns raw sum_weights (no D_max scaling)", {
 })
 
 
-test_that("uniform kernel + max_clim: D/D_max equals fraction-of-disk-passing-max_clim", {
+test_that("uniform kernel + max_env: D/D_max equals fraction-of-disk-passing-max_env", {
       skip_if_not_installed("terra")
       # For kernel = "uniform", every accepted neighbor contributes weight
-      # 1, so sum_weights == count of (geo-passing AND clim-passing)
+      # 1, so sum_weights == count of (geo-passing AND env-passing)
       # neighbors. D_max is the kernel-weighted disk integral, which for
       # uniform reduces to the count of cells inside the disk
       # (modulo cell-area weighting, which here is uniform too on a
@@ -308,13 +308,13 @@ test_that("uniform kernel + max_clim: D/D_max equals fraction-of-disk-passing-ma
       res_norm <- analog_search(
             x = pool, pool = pool,
             stat = c("count", "sum_weights"),
-            geog = kernel(max = 1e5), clim = kernel(max = 0.3),
+            geog = kernel(max = 1e5), env = kernel(max = 0.3),
             normalize = TRUE
       )
 
       # All ratios should be in [0, ~1]; many in the interior with a tight
-      # max_clim should be substantially below 1 (since most disk cells
-      # don't satisfy max_clim = 0.3 around an off-center focal).
+      # max_env should be substantially below 1 (since most disk cells
+      # don't satisfy max_env = 0.3 around an off-center focal).
       sw <- res_norm$sum_weights
       ok <- is.finite(sw)
       expect_true(all(sw[ok] >= 0))
@@ -340,14 +340,14 @@ test_that("tiled_analog_search produces same normalized output as non-tiled", {
 
       res_full <- analog_density(
             x = pool, pool = pool,
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = TRUE
       )
 
       res_tiled <- tiled_analog_search(
             x = pool, pool = pool,
             n_tiles = 4, fun = analog_density,
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = TRUE,
             progress = FALSE
       )
@@ -399,7 +399,7 @@ test_that("analog_cv k-fold uses globally consistent mean_cell_area", {
                   cv_method = "kfold",
                   fold_id   = folds,
                   geog = kernel(max = 1e5),
-                  clim = kernel("gaussian", theta = 0.2, max = 0.5),
+                  env = kernel("gaussian", theta = 0.2, max = 0.5),
                   stat = c("weighted_mean", "sum_weights"),
                   normalize = TRUE
             )
@@ -424,13 +424,13 @@ test_that("tabulate columns get divided by D_max under normalize = TRUE", {
       res_norm <- analog_search(
             x = pool, pool = pool, y = y,
             stat = c("tabulate", "sum_weights"),
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = TRUE
       )
       res_raw <- analog_search(
             x = pool, pool = pool, y = y,
             stat = c("tabulate", "sum_weights"),
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = FALSE
       )
 
@@ -475,7 +475,7 @@ test_that("D_max and normalize attributes are exposed on result", {
       res_df <- analog_search(
             x = pool, pool = pool,
             stat = c("count", "sum_weights"),
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = TRUE
       )
       expect_true(isTRUE(attr(res_df, "normalize")))
@@ -484,7 +484,7 @@ test_that("D_max and normalize attributes are exposed on result", {
       # raster mode
       res_r <- analog_density(
             x = pool, pool = pool,
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = TRUE
       )
       expect_true(isTRUE(attr(res_r, "normalize")))
@@ -494,7 +494,7 @@ test_that("D_max and normalize attributes are exposed on result", {
       res_off <- analog_search(
             x = pool, pool = pool,
             stat = "sum_weights",
-            geog = kernel(max = 1e5), clim = kernel("gaussian", theta = 0.2),
+            geog = kernel(max = 1e5), env = kernel("gaussian", theta = 0.2),
             normalize = FALSE
       )
       expect_false(isTRUE(attr(res_off, "normalize")))

@@ -62,13 +62,13 @@ SEXP emit_pairs_cpp(List res,
       const int ncol_ref   = ref_mm.ncol();
 
       if (ncol_focal < 3 || ncol_ref < 3) {
-            stop("Internal error: focal_mm and ref_mm must have >= 3 columns (x, y, climate...).");
+            stop("Internal error: focal_mm and ref_mm must have >= 3 columns (x, y, environment...).");
       }
       if (ncol_focal != ncol_ref) {
             stop("Internal error: focal_mm and ref_mm must have the same number of columns.");
       }
 
-      const int n_clim = ncol_focal - 2;
+      const int n_env = ncol_focal - 2;
 
       // Check if we have x_cov for Mahalanobis distance
       bool use_mahalanobis = false;
@@ -117,7 +117,7 @@ SEXP emit_pairs_cpp(List res,
       IntegerVector analog_index(total_pairs);
       NumericVector analog_x(total_pairs);
       NumericVector analog_y(total_pairs);
-      NumericVector clim_dist(total_pairs);
+      NumericVector env_dist(total_pairs);
       NumericVector geog_dist(total_pairs);
 
       // Three weight columns, allocated only when their mechanism is active.
@@ -159,7 +159,7 @@ SEXP emit_pairs_cpp(List res,
                         analog_index[out_idx] = NA_INTEGER;
                         analog_x[out_idx] = NA_REAL;
                         analog_y[out_idx] = NA_REAL;
-                        clim_dist[out_idx] = NA_REAL;
+                        env_dist[out_idx] = NA_REAL;
                         geog_dist[out_idx] = NA_REAL;
                         if (emit_sample_weight) sample_weight[out_idx] = NA_REAL;
                         if (emit_area_weight)   area_weight[out_idx]   = NA_REAL;
@@ -181,7 +181,7 @@ SEXP emit_pairs_cpp(List res,
                         analog_x[out_idx] = ref_mm(ref_row, 0);
                         analog_y[out_idx] = ref_mm(ref_row, 1);
 
-                        // Compute climate distance
+                        // Compute environment distance
                         if (use_mahalanobis) {
                               // Mahalanobis distance calculation
                               // Extract covariance components for this focal
@@ -192,42 +192,42 @@ SEXP emit_pairs_cpp(List res,
 
                               // Reconstruct covariance matrix using helper function
                               std::vector<double> cov_mat;
-                              reconstruct_cov_matrix(cov_vec.data(), n_clim, cov_mat);
+                              reconstruct_cov_matrix(cov_vec.data(), n_env, cov_mat);
 
                               // Invert covariance matrix
                               std::vector<double> inv_cov;
-                              bool success = invert_cov_matrix(cov_mat, n_clim, inv_cov);
+                              bool success = invert_cov_matrix(cov_mat, n_env, inv_cov);
 
                               if (!success) {
                                     // Matrix not positive definite - use Euclidean distance
                                     double sum_sq = 0.0;
-                                    for (int d = 0; d < n_clim; ++d) {
+                                    for (int d = 0; d < n_env; ++d) {
                                           double diff = focal_mm(i, 2 + d) - ref_mm(ref_row, 2 + d);
                                           sum_sq += diff * diff;
                                     }
-                                    clim_dist[out_idx] = std::sqrt(sum_sq);
+                                    env_dist[out_idx] = std::sqrt(sum_sq);
                               } else {
                                     // Compute Mahalanobis distance
                                     // Note: mahalanobis_distance expects pointers with stride access
-                                    const double* f_clim = &focal_mm(i, 2);
-                                    const double* r_clim = &ref_mm(ref_row, 2);
+                                    const double* f_env = &focal_mm(i, 2);
+                                    const double* r_env = &ref_mm(ref_row, 2);
 
                                     // stride is number of rows (for column-major access)
                                     int stride_f = focal_mm.nrow();
                                     int stride_r = ref_mm.nrow();
 
-                                    clim_dist[out_idx] = mahalanobis_distance(
-                                          f_clim, r_clim, inv_cov, n_clim, stride_f, stride_r
+                                    env_dist[out_idx] = mahalanobis_distance(
+                                          f_env, r_env, inv_cov, n_env, stride_f, stride_r
                                     );
                               }
                         } else {
                               // Euclidean distance
                               double sum_sq = 0.0;
-                              for (int d = 0; d < n_clim; ++d) {
+                              for (int d = 0; d < n_env; ++d) {
                                     double diff = focal_mm(i, 2 + d) - ref_mm(ref_row, 2 + d);
                                     sum_sq += diff * diff;
                               }
-                              clim_dist[out_idx] = std::sqrt(sum_sq);
+                              env_dist[out_idx] = std::sqrt(sum_sq);
                         }
 
                         // Compute geographic distance
@@ -270,7 +270,7 @@ SEXP emit_pairs_cpp(List res,
       out_list["analog_index"] = analog_index;
       out_list["analog_x"] = analog_x;
       out_list["analog_y"] = analog_y;
-      out_list["clim_dist"] = clim_dist;
+      out_list["env_dist"] = env_dist;
       out_list["geog_dist"] = geog_dist;
       if (emit_sample_weight) out_list["sample_weight"] = sample_weight;
       if (emit_area_weight)   out_list["area_weight"]   = area_weight;

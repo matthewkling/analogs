@@ -27,12 +27,12 @@
 #'   The default `c("count", "sum_weights", "weighted_mean")` is appropriate
 #'   for continuous `y`; for categorical `y`, swap `weighted_mean` for
 #'   `tabulate`.
-#' @param clim,geog Per-family [kernel()] objects giving the distance treatment
-#'   for climate and geography. For climate impact models, `clim` carries the
+#' @param env,geog Per-family [kernel()] objects giving the distance treatment
+#'   for environment and geography. For climate impact models, `env` carries the
 #'   climate analog threshold (`max`) and the weighting kernel applied to
 #'   climate distance (`weight`, `theta`); it defaults to
 #'   `kernel("gaussian", theta = 0.25, max = 1.0)`. `geog` carries the hard
-#'   dispersal-distance constraint (`geog = kernel(max = ...)`) and defaults to
+#'   distance constraint (`geog = kernel(max = ...)`) and defaults to
 #'   `NULL` (no geographic constraint). A geographic kernel may also be supplied
 #'   via `geog` if desired. See [kernel()].
 #' @inheritParams analog_search
@@ -51,7 +51,7 @@
 #' The methodology:
 #' \enumerate{
 #'   \item For each focal location's future climate conditions
-#'   \item Find all current locations with similar climates (within `max_clim`)
+#'   \item Find all current locations with similar climates (within `max_env`)
 #'   \item Constrain to dispersal-reachable distance (within `max_geog`)
 #'   \item Weight each analog by climate similarity (via `kernel` function)
 #'   \item Aggregate ecosystem characteristics across these weighted analogs
@@ -62,14 +62,14 @@
 #' kernel weighting. This approach eliminates arbitrary choice of k, provides smoother,
 #' more continuous results, and lets the kernel function (via `theta`) naturally
 #' control influence. (Note that the traditional version can be implemented via
-#' `analog_search(select = "knn_clim", stat = "mean", ...))`.)
+#' `analog_search(select = "knn_env", stat = "mean", ...))`.)
 #'
 #' ## Choosing Parameters
 #'
 #' \itemize{
 #'   \item `geog`'s `max`: Set based on species dispersal ability (e.g., 5-500 km)
-#'   \item `clim`'s `max`: Defines what counts as an "analog"
-#'   \item `clim`'s `theta`: Controls kernel decay. The weight should decay to a
+#'   \item `env`'s `max`: Defines what counts as an "analog"
+#'   \item `env`'s `theta`: Controls kernel decay. The weight should decay to a
 #'     small value at the climate/geographic thresholds. If `theta` is too large
 #'     relative to the thresholds, the hard cutoffs do most of the filtering and
 #'     weighting becomes nearly uniform. For Gaussian kernels with three or fewer
@@ -93,7 +93,7 @@
 #'     between two such weighted-vote matrices (e.g., contemporary vs.
 #'     future analogs) gives a measure of compositional vulnerability to
 #'     ecological transformation (cf. Hoecker et al. 2026).
-#'   \item `count`: How many analogs exist within max_clim and max_geog? Low counts
+#'   \item `count`: How many analogs exist within max_env and max_geog? Low counts
 #'     indicate limited analog availability, while zero counts indicate climates
 #'     that are novel within the geographic search radius.
 #'   \item `sum_weights`: Total analog density. Low values indicate sparse
@@ -120,7 +120,7 @@
 #'   pool = current_climate,
 #'   y = current$habitat,
 #'   geog = kernel(max = 100),  # 100 km dispersal range
-#'   clim = kernel("gaussian", theta = 0.25, max = 0.5)
+#'   env = kernel("gaussian", theta = 0.25, max = 0.5)
 #' )
 #'
 #' # With uncertainty quantification on weighted_mean
@@ -129,7 +129,7 @@
 #'   pool = current_climate,
 #'   y = current$habitat,
 #'   geog = kernel(max = 100),
-#'   clim = kernel("gaussian", theta = 0.25, max = 0.5),
+#'   env = kernel("gaussian", theta = 0.25, max = 0.5),
 #'   se = "ess"
 #' )
 #'
@@ -140,9 +140,9 @@
 #'   pool = current_climate,
 #'   y    = factor(current$vegetation_type),
 #'   stat = c("count", "sum_weights", "tabulate"),
-#'   clim = kernel("gaussian", theta = 0.25, max = 1),
+#'   env = kernel("gaussian", theta = 0.25, max = 1),
 #'   geog = kernel(max = 500),
-#'   # (clim set above)
+#'   # (env set above)
 #' )
 #' # Output has one `n_<level>` column per vegetation type.
 #' # Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],
@@ -158,14 +158,14 @@ analog_impact <- function(
             weight = NULL,
             covariates = NULL,
             geog = NULL,
-            clim = kernel("gaussian", theta = 0.25, max = 1.0),
+            env = kernel("gaussian", theta = 0.25, max = 1.0),
             stat = c("weighted_mean", "count", "sum_weights"),
             lambda = 0,
             se = c("none", "ess", "design"),
             normalize = "auto",
             x_cov = NULL,
             coord_type = "auto",
-            clim_res_adj = "auto",
+            env_res_adj = "auto",
             geog_res_adj = "auto",
             cell_area_weight = "auto",
             n_threads = NULL,
@@ -197,7 +197,7 @@ analog_impact <- function(
             y           = y,
             weight      = weight,
             covariates  = covariates,
-            clim        = clim,
+            env         = env,
             geog        = geog,
             k           = NULL,
             lambda      = lambda,
@@ -205,7 +205,7 @@ analog_impact <- function(
             normalize   = normalize,
             x_cov       = x_cov,
             coord_type  = coord_type,
-            clim_res_adj= clim_res_adj,
+            env_res_adj= env_res_adj,
             geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
             n_threads   = n_threads,

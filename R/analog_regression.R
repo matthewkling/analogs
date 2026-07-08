@@ -2,20 +2,20 @@
 #'
 #' Fits a weighted local regression of `y` on `covariates` within
 #' each focal location's analog neighborhood. Analog neighborhoods are
-#' defined by climatic similarity, geographic proximity, or both, while
+#' defined by environmental similarity, geographic proximity, or both, while
 #' covariates capture additional predictors that influence outcomes within
 #' each neighborhood but are not captured by to the search dimensions.
 #' This generalizes the weighted mean — which averages over all within-neighborhood
 #' variation — by resolving variation driven by these auxiliary predictors.
 #' Supports ordinary and ridge-penalized weighted least squares. With purely geographic
 #' neighborhoods, this is equivalent to geographically weighted regression
-#' (GWR); with climate-based neighborhoods, it extends the analog impact
+#' (GWR); with environment-based neighborhoods, it extends the analog impact
 #' model (AIM) framework to incorporate local covariate effects. This function is
 #' a wrapper that calls [analog_search()] with `"regression"` included in `stat`.
 #'
 #' @param x Focal locations for which regressions will be fit. Should be a
-#'   matrix/data.frame with columns x, y, and climate variables, or a
-#'   SpatRaster with climate variable layers.
+#'   matrix/data.frame with columns x, y, and environmental variables, or a
+#'   SpatRaster with environmental variable layers.
 #' @param y Response variable(s) to model via local regression.
 #'   Can be a numeric vector, matrix, data.frame, or SpatRaster.
 #'   Must have exactly the same number of rows/cells as `pool`.
@@ -73,9 +73,9 @@
 #' For each focal location, the function:
 #'
 #' \enumerate{
-#'   \item Selects analog pool locations based on `select`, `clim`, `geog`, and `k`
+#'   \item Selects analog pool locations based on `select`, `env`, `geog`, and `k`
 #'   \item Computes distance-based kernel weights for each analog (via the
-#'     `clim` / `geog` kernels)
+#'     `env` / `geog` kernels)
 #'   \item Fits a weighted least squares regression of `y` on `covariates`
 #'     using these weights, with optional ridge penalty `lambda`
 #'   \item Returns the regression coefficients (intercept + slopes), and
@@ -102,9 +102,9 @@
 #'     `"knn_geog"`, with `max_geog` and geographic weights): Local spatial
 #'     regression using geographic proximity to define and weight neighborhoods,
 #'     equivalent to GWR.
-#'   \item **Climate-nearest regression** (`select = "knn_clim"`, with
+#'   \item **Environmental-nearest regression** (`select = "knn_env"`, with
 #'     `max_geog` and `k`): Fixed-size neighborhoods of the k most similar
-#'     climates within geographic range.
+#'     environments within geographic range.
 #' }
 #'
 #' ## Prediction
@@ -126,7 +126,7 @@
 #'   covariates = data.frame(education = sites$edu, access = sites$access),
 #'   select = "knn_geog",
 #'   k = 50,
-#'   clim = NULL,
+#'   env = NULL,
 #'   geog = kernel("gaussian", theta = 20),
 #'   se = "ess"
 #' )
@@ -155,7 +155,7 @@ analog_regression <- function(
             covariates,
             x_covariates = NULL,
             geog = NULL,
-            clim = kernel("gaussian"),
+            env = kernel("gaussian"),
             select = "all",
             k = NULL,
             lambda = 0,
@@ -164,7 +164,7 @@ analog_regression <- function(
             normalize = "auto",
             x_cov = NULL,
             coord_type = "auto",
-            clim_res_adj = "auto",
+            env_res_adj = "auto",
             geog_res_adj = "auto",
             cell_area_weight = "auto",
             n_threads = NULL,
@@ -186,7 +186,7 @@ analog_regression <- function(
             y           = y,
             weight      = weight,
             covariates  = covariates,
-            clim        = clim,
+            env         = env,
             geog        = geog,
             k           = k,
             lambda      = lambda,
@@ -194,7 +194,7 @@ analog_regression <- function(
             normalize   = normalize,
             x_cov       = x_cov,
             coord_type  = coord_type,
-            clim_res_adj= clim_res_adj,
+            env_res_adj= env_res_adj,
             geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
             n_threads   = n_threads,

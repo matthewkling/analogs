@@ -1,7 +1,7 @@
-#' Analog availability: count of all analogs within climate/geographic limits
+#' Analog availability: count of all analogs within environmental/geographic limits
 #'
 #' Computes, for each focal location, how many reference locations satisfy
-#' the supplied climate and geographic constraints. This is useful for
+#' the supplied environmental and geographic constraints. This is useful for
 #' mapping analog "availability" or environmental similarity density.
 #'
 #' This function is a wrapper that calls [analog_search()] using
@@ -36,14 +36,14 @@
 #' avail <- analog_availability(
 #'   x = sites,
 #'   pool = climate_data,
-#'   clim = kernel(max = 0.5),
+#'   env = kernel(max = 0.5),
 #'   geog = kernel(max = 100)
 #' )
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(climate_data)
-#' a1 <- analog_availability(x = sites1, pool = index, clim = kernel(max = 0.5), geog = kernel(max = 100))
-#' a2 <- analog_availability(x = sites2, pool = index, clim = kernel(max = 0.3), geog = kernel(max = 50))
+#' a1 <- analog_availability(x = sites1, pool = index, env = kernel(max = 0.5), geog = kernel(max = 100))
+#' a2 <- analog_availability(x = sites2, pool = index, env = kernel(max = 0.3), geog = kernel(max = 50))
 #' }
 #'
 #' @seealso [analog_search()] for the underlying flexible analog search function;
@@ -57,10 +57,10 @@ analog_availability <- function(
             weight = NULL,
             coord_type = "auto",
 
-            clim = NULL,
+            env = NULL,
             geog = NULL,
 
-            clim_res_adj = "auto",
+            env_res_adj = "auto",
             geog_res_adj = "auto",
             cell_area_weight = "auto",
             n_threads = NULL,
@@ -73,14 +73,14 @@ analog_availability <- function(
             pool        = pool,
             select      = "all",
             stat        = "count",
-            clim        = clim,
+            env         = env,
             geog        = geog,
             k           = NULL,
             x_cov       = x_cov,
             y           = NULL,
             weight      = weight,
             coord_type  = coord_type,
-            clim_res_adj= clim_res_adj,
+            env_res_adj= env_res_adj,
             geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
             n_threads   = n_threads,

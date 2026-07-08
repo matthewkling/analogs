@@ -1,7 +1,7 @@
 #' Tune Index Resolution
 #'
 #' Automatically finds fast per-family lattice resolution adjustments
-#' (`geog_res_adj`, `clim_res_adj`) for your data and query pattern. Uses
+#' (`geog_res_adj`, `env_res_adj`) for your data and query pattern. Uses
 #' alternating coordinate descent (Gibbs-style): each active family's
 #' resolution is optimized in turn (holding the other fixed) via an
 #' expanding-bracket 1-D search, sweeping back and forth until the selected
@@ -12,7 +12,7 @@
 #'
 #' @param verbose Logical; if TRUE, print search progress. Default FALSE.
 #'
-#' @return A list with elements `geog_res_adj` and `clim_res_adj` giving the
+#' @return A list with elements `geog_res_adj` and `env_res_adj` giving the
 #'   recommended per-family resolution adjustments. A family that is inactive
 #'   on entry (adjustment of 0, i.e. deactivated) is returned unchanged.
 #'
@@ -41,13 +41,13 @@
 #'   pool = climate_data,
 #'   select = "all",
 #'   stat = "count",
-#'   clim = kernel(max = 0.5),
+#'   env = kernel(max = 0.5),
 #'   geog = kernel(max = 100)
 #' )
 #'
 #' index <- build_analog_index(climate_data,
 #'                             geog_res_adj = adj$geog_res_adj,
-#'                             clim_res_adj = adj$clim_res_adj)
+#'                             env_res_adj = adj$env_res_adj)
 #' }
 #'
 #' @export
@@ -57,7 +57,7 @@ tune_index_res <- function(x,
                            seed = NULL,
                            select = "all",
                            stat = NULL,
-                           clim = NULL,
+                           env = NULL,
                            geog = NULL,
                            k = NULL,
                            x_cov = NULL,
@@ -67,13 +67,13 @@ tune_index_res <- function(x,
                            se = c("none", "ess", "design"),
                            coord_type = c("auto", "lonlat", "projected"),
                            geog_res_adj = 1,
-                           clim_res_adj = 1,
+                           env_res_adj = 1,
                            n_threads = NULL,
                            verbose = FALSE) {
 
       se <- match.arg(se)
 
-      # Unpack the per-family kernels (clim, geog) into the individual
+      # Unpack the per-family kernels (env, geog) into the individual
       # components used by the internal query calls: hard thresholds and
       # per-family kernel shapes + scales. Mirrors analog_search()'s unpacking
       # so this exported helper takes the same friendly kernel() interface.
@@ -86,14 +86,14 @@ tune_index_res <- function(x,
                  weight = w$weight %||% "uniform",
                  theta  = w$theta)
       }
-      .clim_w <- .unpack_kernel(clim, "clim")
+      .env_w <- .unpack_kernel(env, "env")
       .geog_w <- .unpack_kernel(geog, "geog")
 
-      max_clim    <- .clim_w$max
+      max_env    <- .env_w$max
       max_geog    <- .geog_w$max
-      kernel_clim <- .clim_w$weight
+      kernel_env <- .env_w$weight
       kernel_geog <- .geog_w$weight
-      theta_clim  <- .clim_w$theta
+      theta_env  <- .env_w$theta
       theta_geog  <- .geog_w$theta
 
       if (is.null(seed)) seed <- .Random.seed[1]
@@ -107,12 +107,12 @@ tune_index_res <- function(x,
       # Which families are active (non-zero adj = tunable); deactivated families
       # (adj == 0) are passed through untouched.
       geo_active  <- is.numeric(geog_res_adj) && geog_res_adj > 0
-      clim_active <- is.numeric(clim_res_adj) && clim_res_adj > 0
+      env_active <- is.numeric(env_res_adj) && env_res_adj > 0
 
-      result <- list(geog_res_adj = geog_res_adj, clim_res_adj = clim_res_adj)
+      result <- list(geog_res_adj = geog_res_adj, env_res_adj = env_res_adj)
 
       # Nothing to tune if neither family is active.
-      if (!geo_active && !clim_active) {
+      if (!geo_active && !env_active) {
             if (verbose) message("No active families to tune; returning inputs.")
             return(result)
       }
@@ -140,15 +140,15 @@ tune_index_res <- function(x,
             x_cov_samp <- x_cov[idx, , drop = FALSE]
       }
 
-      # Evaluate elapsed query time for a given (geo_adj, clim_adj) pair. Only
+      # Evaluate elapsed query time for a given (geo_adj, env_adj) pair. Only
       # the query is timed; the index build is excluded (build-once/query-many).
-      eval_time <- function(geo_adj, clim_adj) {
+      eval_time <- function(geo_adj, env_adj) {
             index <- build_analog_index(
                   pool = pool,
                   coord_type = coord_type,
                   cell_area_weight = FALSE,
                   geog_res_adj = geo_adj,
-                  clim_res_adj = clim_adj,
+                  env_res_adj = env_adj,
                   downsample = downsample,
                   seed = seed
             )
@@ -158,7 +158,7 @@ tune_index_res <- function(x,
                         index = index,
                         select = select,
                         stat = stat,
-                        max_clim = max_clim,
+                        max_env = max_env,
                         max_geog = max_geog,
                         x_cov = x_cov_samp,
                         y = y,
@@ -166,9 +166,9 @@ tune_index_res <- function(x,
                         lambda = lambda,
                         se = se,
                         k = k,
-                        kernel_clim = kernel_clim,
+                        kernel_env = kernel_env,
                         kernel_geog = kernel_geog,
-                        theta_clim = theta_clim,
+                        theta_env = theta_env,
                         theta_geog = theta_geog,
                         n_threads = n_threads
                   )
@@ -176,7 +176,7 @@ tune_index_res <- function(x,
             st[["elapsed"]]
       }
 
-      # Memoized timing cache keyed on the rounded (geo, clim) adjustment pair,
+      # Memoized timing cache keyed on the rounded (geo, env) adjustment pair,
       # so re-evaluating a point across sweeps costs nothing.
       cache <- new.env(parent = emptyenv())
       key_of <- function(g, c) sprintf("%.6g|%.6g", g, c)
@@ -189,7 +189,7 @@ tune_index_res <- function(x,
       }
 
       # 1-D search over ONE family's adjustment, holding the other fixed.
-      # `family` is "geo" or "clim"; `cur` is that family's current adjustment;
+      # `family` is "geo" or "env"; `cur` is that family's current adjustment;
       # `other` is the fixed adjustment of the other family. Expands a
       # multiplicative bracket from `cur` toward decreasing time until an
       # interior minimum is bracketed or a bound is hit; returns the best adj.
@@ -249,7 +249,7 @@ tune_index_res <- function(x,
       # family in turn (geo first, as the higher-leverage lever), holding the
       # other fixed, sweeping until neither selection changes or the cap is hit.
       geo_adj  <- if (geo_active)  min(ADJ_MAX, max(ADJ_MIN, geog_res_adj)) else geog_res_adj
-      clim_adj <- if (clim_active) min(ADJ_MAX, max(ADJ_MIN, clim_res_adj)) else clim_res_adj
+      env_adj <- if (env_active) min(ADJ_MAX, max(ADJ_MIN, env_res_adj)) else env_res_adj
 
       converged <- FALSE
       for (sweep in seq_len(MAX_SWEEPS)) {
@@ -257,14 +257,14 @@ tune_index_res <- function(x,
             changed <- FALSE
 
             if (geo_active) {
-                  new_geo <- optimize_family("geo", geo_adj, clim_adj)
+                  new_geo <- optimize_family("geo", geo_adj, env_adj)
                   if (!isTRUE(all.equal(new_geo, geo_adj))) changed <- TRUE
                   geo_adj <- new_geo
             }
-            if (clim_active) {
-                  new_clim <- optimize_family("clim", clim_adj, geo_adj)
-                  if (!isTRUE(all.equal(new_clim, clim_adj))) changed <- TRUE
-                  clim_adj <- new_clim
+            if (env_active) {
+                  new_env <- optimize_family("env", env_adj, geo_adj)
+                  if (!isTRUE(all.equal(new_env, env_adj))) changed <- TRUE
+                  env_adj <- new_env
             }
 
             if (!changed) { converged <- TRUE; break }
@@ -272,15 +272,15 @@ tune_index_res <- function(x,
 
       if (verbose) {
             if (converged) {
-                  message(sprintf("Converged: geog_res_adj=%.3g clim_res_adj=%.3g",
-                                  geo_adj, clim_adj))
+                  message(sprintf("Converged: geog_res_adj=%.3g env_res_adj=%.3g",
+                                  geo_adj, env_adj))
             } else {
                   message(sprintf(
-                        "Reached sweep cap (%d) without full convergence; using geog_res_adj=%.3g clim_res_adj=%.3g",
-                        MAX_SWEEPS, geo_adj, clim_adj))
+                        "Reached sweep cap (%d) without full convergence; using geog_res_adj=%.3g env_res_adj=%.3g",
+                        MAX_SWEEPS, geo_adj, env_adj))
             }
       }
 
       list(geog_res_adj = as.numeric(geo_adj),
-           clim_res_adj = as.numeric(clim_adj))
+           env_res_adj = as.numeric(env_adj))
 }

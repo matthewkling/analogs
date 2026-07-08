@@ -1,7 +1,7 @@
-#' Analog density: kernel-weighted analog count within climate/geographic limits
+#' Analog density: kernel-weighted analog count within environmental/geographic limits
 #'
 #' Computes, for each focal location, the kernel-weighted sum of all reference
-#' locations that satisfy the supplied climate and geographic constraints.
+#' locations that satisfy the supplied environmental and geographic constraints.
 #'
 #' This function is a wrapper that calls [analog_search()] using
 #' `select = "all"` and `stat = "sum_weights"`. It also supports `"count"`,
@@ -49,7 +49,7 @@
 #' dens <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
-#'   clim = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   env = kernel("gaussian", theta = 0.2, max = 0.5),
 #'   geog = kernel(max = 100)
 #' )
 #' attr(dens, "D_max")  # the global denominator used
@@ -58,7 +58,7 @@
 #' dens_raw <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
-#'   clim = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   env = kernel("gaussian", theta = 0.2, max = 0.5),
 #'   geog = kernel(max = 100),
 #'   normalize = FALSE
 #' )
@@ -67,17 +67,17 @@
 #' intens_joint <- analog_density(
 #'   x = sites,
 #'   pool = climate_data,
-#'   clim = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   env = kernel("gaussian", theta = 0.2, max = 0.5),
 #'   geog = kernel("gaussian", theta = 50, max = 100)
 #' )
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(climate_data)
 #' i1 <- analog_density(x = sites1, pool = index,
-#'                      clim = kernel("inverse", max = 0.5),
+#'                      env = kernel("inverse", max = 0.5),
 #'                      geog = kernel(max = 100))
 #' i2 <- analog_density(x = sites2, pool = index,
-#'                      clim = kernel("gaussian", theta = 0.3),
+#'                      env = kernel("gaussian", theta = 0.3),
 #'                      geog = kernel(max = 100))
 #' }
 #'
@@ -93,12 +93,12 @@ analog_density <- function(
             coord_type = "auto",
 
             stat        = c("sum_weights"),
-            clim        = NULL,
+            env         = NULL,
             geog        = NULL,
 
             normalize  = "auto",
 
-            clim_res_adj = "auto",
+            env_res_adj = "auto",
             geog_res_adj = "auto",
             cell_area_weight = "auto",
             n_threads = NULL,
@@ -128,14 +128,14 @@ analog_density <- function(
             select      = "all",
             stat        = stat,
             k           = NULL,
-            clim        = clim,
+            env         = env,
             geog        = geog,
             x_cov       = x_cov,
             y           = NULL, # not relevant for density
             weight      = weight,
             normalize   = normalize,
             coord_type  = coord_type,
-            clim_res_adj= clim_res_adj,
+            env_res_adj= env_res_adj,
             geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
             n_threads   = n_threads,

@@ -1,5 +1,5 @@
-# Helper: brute-force climate matches (scalar Euclidean radius)
-bf_clim_radius <- function(focal, ref, radius) {
+# Helper: brute-force environmental matches (scalar Euclidean radius)
+bf_env_radius <- function(focal, ref, radius) {
       stopifnot(ncol(focal) == ncol(ref))
       out <- vector("list", nrow(focal))
       for (i in seq_len(nrow(focal))) {
@@ -9,8 +9,8 @@ bf_clim_radius <- function(focal, ref, radius) {
       out
 }
 
-# Helper: brute-force climate kNN (Euclidean), return indices only
-bf_clim_knn <- function(focal, ref, k) {
+# Helper: brute-force environmental kNN (Euclidean), return indices only
+bf_env_knn <- function(focal, ref, k) {
       stopifnot(ncol(focal) == ncol(ref))
       out <- vector("list", nrow(focal))
       for (i in seq_len(nrow(focal))) {
@@ -22,7 +22,7 @@ bf_clim_knn <- function(focal, ref, k) {
 }
 
 # Helper: brute-force per-var band pass
-bf_clim_band <- function(focal, ref, band) {
+bf_env_band <- function(focal, ref, band) {
       stopifnot(ncol(focal) == ncol(ref), length(band) == ncol(ref))
       out <- vector("list", nrow(focal))
       for (i in seq_len(nrow(focal))) {

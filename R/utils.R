@@ -16,11 +16,11 @@
 .validate_query_params <- function(focal = NULL, ref = NULL,
                                    x_cov = NULL, y = NULL,
                                    covariates = NULL,
-                                   max_clim, max_geog,
+                                   max_env, max_geog,
                                    select, k,
                                    stat,
-                                   kernel_clim, kernel_geog,
-                                   theta_clim, theta_geog,
+                                   kernel_env, kernel_geog,
+                                   theta_env, theta_geog,
                                    lambda = 0,
                                    se = "none",
                                    pool_row_map = NULL,
@@ -37,15 +37,15 @@
       # row_map (when non-NULL) to align inputs with the stripped data.
 
       # Validate select
-      select <- match.arg(select, c("all", "knn_clim", "knn_geog"))
+      select <- match.arg(select, c("all", "knn_env", "knn_geog"))
 
-      # Validate max_clim, max_geog
-      if(!is.null(max_clim)){
-            if(!is.numeric(max_clim) ||
-               min(max_clim) <= 0 ||
-               !length(max_clim) %in% c(1, ncol(focal)-2)) {
-                  stop("max_clim must be a non-negative numeric, with length 1 or",
-                       "length matching the number of climate variables.")
+      # Validate max_env, max_geog
+      if(!is.null(max_env)){
+            if(!is.numeric(max_env) ||
+               min(max_env) <= 0 ||
+               !length(max_env) %in% c(1, ncol(focal)-2)) {
+                  stop("max_env must be a non-negative numeric, with length 1 or",
+                       "length matching the number of environmental variables.")
             }
       }
       if(!is.null(max_geog)){
@@ -98,16 +98,16 @@
       # Validate and normalize per-family kernels. Each family's shape is one
       # of uniform/gaussian/inverse; NULL is treated as uniform (no weighting).
       valid_family_kernels <- c("uniform", "gaussian", "inverse")
-      if (is.null(kernel_clim)) kernel_clim <- "uniform"
+      if (is.null(kernel_env)) kernel_env <- "uniform"
       if (is.null(kernel_geog)) kernel_geog <- "uniform"
-      kernel_clim <- match.arg(kernel_clim, valid_family_kernels)
+      kernel_env <- match.arg(kernel_env, valid_family_kernels)
       kernel_geog <- match.arg(kernel_geog, valid_family_kernels)
       # A kernel is "active" (weighting applied) if either family is non-uniform.
-      kernel_active <- !(identical(kernel_clim, "uniform") &&
+      kernel_active <- !(identical(kernel_env, "uniform") &&
                                identical(kernel_geog, "uniform"))
 
       # Validate select/k combination
-      if (select %in% c("knn_clim", "knn_geog")) {
+      if (select %in% c("knn_env", "knn_geog")) {
             # kNN selection modes require k
             if (is.null(k)) k <- 1L
             k <- as.integer(k)
@@ -206,7 +206,7 @@
             # plain mean, ess becomes n, regression becomes ordinary regression,
             # and tabulate counts per class. So no non-uniform kernel is
             # required; we only validate per-family theta coherence.
-            .check_family_theta(kernel_clim, theta_clim, "clim")
+            .check_family_theta(kernel_env, theta_env, "env")
             .check_family_theta(kernel_geog, theta_geog, "geog")
 
       } else {
@@ -216,7 +216,7 @@
                        ", no kernel weighting may be set (both families must be ",
                        "uniform / NULL).", call. = FALSE)
             }
-            if (!is.null(theta_clim) || !is.null(theta_geog)) {
+            if (!is.null(theta_env) || !is.null(theta_geog)) {
                   stop("For stat = ", paste(stat, collapse = ", "),
                        ", theta must be NULL.", call. = FALSE)
             }
@@ -293,9 +293,9 @@
             select = select,
             stat = stat,
             k = k,
-            kernel_clim = kernel_clim,
+            kernel_env = kernel_env,
             kernel_geog = kernel_geog,
-            theta_clim = theta_clim,
+            theta_env = theta_env,
             theta_geog = theta_geog,
             kernel_active = kernel_active,
             lambda = lambda,
@@ -678,14 +678,14 @@
 
       # focal is already formatted matrix (post NA-strip) with coords + climate
       n_focal <- nrow(focal)
-      n_clim <- ncol(focal) - 2
+      n_env <- ncol(focal) - 2
       # User input is keyed to the original focal size; focal is post-strip.
       # When focal_row_map is non-NULL, validate against original size and
       # translate; otherwise the two are equivalent.
       n_user <- if (is.null(focal_row_map)) n_focal else n_focal_original
 
       # Expected number of covariance components
-      n_cov_components <- n_clim * (n_clim + 1) / 2
+      n_cov_components <- n_env * (n_env + 1) / 2
 
       # Convert to matrix if needed
       if (inherits(x_cov, "SpatRaster")) {
@@ -711,8 +711,8 @@
 
       if (ncol(x_cov) != n_cov_components) {
             stop(sprintf(
-                  "For %d climate variables, x_cov must have %d columns (n*(n+1)/2), but has %d",
-                  n_clim, n_cov_components, ncol(x_cov)
+                  "For %d environmental variables, x_cov must have %d columns (n*(n+1)/2), but has %d",
+                  n_env, n_cov_components, ncol(x_cov)
             ))
       }
 
@@ -731,7 +731,7 @@
 
       # Basic positive-definiteness check on first focal's covariance matrix
       # (full check is expensive, just do sanity check)
-      test_cov <- .reconstruct_cov_matrix(x_cov[1, ], n_clim)
+      test_cov <- .reconstruct_cov_matrix(x_cov[1, ], n_env)
       test_eig <- eigen(test_cov, symmetric = TRUE, only.values = TRUE)$values
 
       if (any(test_eig <= 0)) {
@@ -802,19 +802,19 @@
 }
 
 # Reconstruct symmetric covariance matrix from lower triangle
-.reconstruct_cov_matrix <- function(cov_vec, n_clim) {
-      cov_mat <- matrix(0, n_clim, n_clim)
+.reconstruct_cov_matrix <- function(cov_vec, n_env) {
+      cov_mat <- matrix(0, n_env, n_env)
 
       # Fill diagonal (variances)
-      for (i in seq_len(n_clim)) {
+      for (i in seq_len(n_env)) {
             cov_mat[i, i] <- cov_vec[i]
       }
 
       # Fill off-diagonals (covariances)
-      if (n_clim > 1) {
-            idx <- n_clim + 1
-            for (i in seq_len(n_clim - 1)) {
-                  for (j in (i + 1):n_clim) {
+      if (n_env > 1) {
+            idx <- n_env + 1
+            for (i in seq_len(n_env - 1)) {
+                  for (j in (i + 1):n_env) {
                         cov_mat[i, j] <- cov_vec[idx]
                         cov_mat[j, i] <- cov_vec[idx]  # Symmetric
                         idx <- idx + 1
@@ -825,8 +825,8 @@
       return(cov_mat)
 }
 
-# Extract coordinates and climate data from input
-.select_xy_climate <- function(obj) {
+# Extract coordinates and environmental data from input
+.select_xy_env <- function(obj) {
       nm <- colnames(obj)
 
       # Try to find x,y columns by name
@@ -851,7 +851,7 @@
       }
       if (ncol(climate) < 1L) {
             stop(
-                  "No climate variable columns found after extracting coordinates"
+                  "No environmental variable columns found after extracting coordinates"
             )
       }
 
@@ -889,10 +889,10 @@
                   stop("Package 'terra' is required for SpatRaster inputs")
             }
             df <- terra::as.data.frame(r, xy = TRUE, na.rm = FALSE)
-            df <- .select_xy_climate(df)
+            df <- .select_xy_env(df)
             attr(df, "template") <- stats::setNames(terra::setValues(r[[1]], NA), "raster")
       } else if (is.matrix(r) || is.data.frame(r)) {
-            df <- .select_xy_climate(r)
+            df <- .select_xy_env(r)
             attr(df, "template") <- NULL
       } else {
             stop("Input must be a data.frame, matrix, or SpatRaster")
@@ -1099,10 +1099,10 @@
 }
 
 .format_output <- function(out, x, stat, select, k,
-                           kernel_clim, kernel_geog, theta_clim, theta_geog,
+                           kernel_env, kernel_geog, theta_env, theta_geog,
                            x_cov_mat,
                            lambda, se, exclude_self, downsample_actual,
-                           max_clim = NULL, max_geog = NULL,
+                           max_env = NULL, max_geog = NULL,
                            cell_area_weight_applied = FALSE,
                            weight_provided = FALSE){
 
@@ -1131,11 +1131,11 @@
       attr(out, "select")            <- select
       attr(out, "stat")               <- stat
       attr(out, "k")                  <- k
-      attr(out, "kernel_clim")        <- kernel_clim
+      attr(out, "kernel_env")        <- kernel_env
       attr(out, "kernel_geog")        <- kernel_geog
-      attr(out, "theta_clim")         <- theta_clim
+      attr(out, "theta_env")         <- theta_env
       attr(out, "theta_geog")         <- theta_geog
-      attr(out, "max_clim")           <- max_clim
+      attr(out, "max_env")           <- max_env
       attr(out, "max_geog")           <- max_geog
       attr(out, "lambda")             <- lambda
       attr(out, "se")                 <- se

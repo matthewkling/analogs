@@ -7,10 +7,10 @@ test_that("analog_search uses build+query architecture correctly", {
             x = d$focal,
             pool = d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             coord_type = "projected",
-            geog_res_adj = 2, clim_res_adj = 1.25
+            geog_res_adj = 2, env_res_adj = 1.25
       )
 
       expect_s3_class(res1, "data.frame")
@@ -31,7 +31,7 @@ test_that("analog_search auto-tuning works with new architecture", {
             x = large_focal,
             pool = ref_data,
             stat = "count",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             coord_type = "projected",
             geog_res_adj = "auto"
       )
@@ -52,7 +52,7 @@ test_that("analog_search with numeric geog_res_adj builds and queries correctly"
                   x = d$focal,
                   pool = d$ref,
                   stat = "count",
-                  clim = kernel(max = 1),
+                  env = kernel(max = 1),
                   coord_type = "projected",
                   geog_res_adj = res_val
             )
@@ -75,7 +75,7 @@ test_that("analog_search raw data path matches index path results", {
             x = d$focal,
             pool = index,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1
       )
 
@@ -84,7 +84,7 @@ test_that("analog_search raw data path matches index path results", {
             x = d$focal,
             pool = d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             coord_type = "projected"
       )
@@ -106,13 +106,13 @@ test_that("analog_search preserves diagnostic attributes", {
             x = d$focal,
             pool = d$ref,
             stat = "count",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             coord_type = "projected"
       )
 
       # Should have diagnostic attributes from C++
       expect_true(!is.null(attr(res, "n_pool")))
-      expect_true(!is.null(attr(res, "n_clim")))
+      expect_true(!is.null(attr(res, "n_env")))
       expect_true(!is.null(attr(res, "total_bins")))
       expect_true(!is.null(attr(res, "binning_method")))
 })
@@ -123,27 +123,27 @@ test_that("analog_search works for all modes with new architecture", {
       d <- sim_test_data()
 
       # knn_geog
-      v <- analog_search(d$focal, d$ref, select = "knn_geog", clim = kernel(max = 1), k = 1,
+      v <- analog_search(d$focal, d$ref, select = "knn_geog", env = kernel(max = 1), k = 1,
                          coord_type = "projected")
       expect_equal(nrow(v), nrow(d$focal))
 
-      # knn_clim
-      i <- analog_search(d$focal, d$ref, select = "knn_clim", geog = kernel(max = 2), k = 3,
+      # knn_env
+      i <- analog_search(d$focal, d$ref, select = "knn_env", geog = kernel(max = 2), k = 3,
                          coord_type = "projected")
       expect_true(nrow(i) <= nrow(d$focal) * 3)
 
       # count
-      c <- analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+      c <- analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                          coord_type = "projected")
       expect_equal(nrow(c), nrow(d$focal))
 
       # sum
-      s <- analog_search(d$focal, d$ref, stat = "sum_weights", clim = kernel(max = 1),
+      s <- analog_search(d$focal, d$ref, stat = "sum_weights", env = kernel(max = 1),
                          coord_type = "projected")
       expect_equal(nrow(s), nrow(d$focal))
 
       # all
-      a <- analog_search(d$focal, d$ref, select = "all", clim = kernel(max = 1),
+      a <- analog_search(d$focal, d$ref, select = "all", env = kernel(max = 1),
                          coord_type = "projected")
       expect_true(nrow(a) >= nrow(d$focal))
 })
@@ -157,7 +157,7 @@ test_that("analog_search handles lon/lat with new architecture", {
             x = d$focal,
             pool = d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             coord_type = "lonlat"
       )
@@ -179,7 +179,7 @@ test_that("analog_search dispatches correctly on analog_index", {
             x = d$focal,
             pool = index,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1
       )
 
@@ -188,7 +188,7 @@ test_that("analog_search dispatches correctly on analog_index", {
             x = d$focal,
             pool = d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             coord_type = "projected"
       )
@@ -209,26 +209,26 @@ test_that("analog_search with index works for different modes", {
       index <- build_analog_index(d$ref, coord_type = "projected")
 
       # knn_geog
-      v <- analog_search(d$focal, index, select = "knn_geog", clim = kernel(max = 1), k = 1)
+      v <- analog_search(d$focal, index, select = "knn_geog", env = kernel(max = 1), k = 1)
       expect_equal(nrow(v), nrow(d$focal))
       expect_true(all(c("index", "analog_index", "geog_dist") %in% names(v)))
 
-      # knn_clim
-      i <- analog_search(d$focal, index, select = "knn_clim", geog = kernel(max = 2), k = 3)
+      # knn_env
+      i <- analog_search(d$focal, index, select = "knn_env", geog = kernel(max = 2), k = 3)
       expect_true(nrow(i) <= nrow(d$focal) * 3)
 
       # count
-      c <- analog_search(d$focal, index, stat = "count", clim = kernel(max = 1), geog = kernel(max = 2))
+      c <- analog_search(d$focal, index, stat = "count", env = kernel(max = 1), geog = kernel(max = 2))
       expect_equal(nrow(c), nrow(d$focal))
       expect_true("count" %in% names(c))
       expect_true(all(c$value >= 0))
 
       # sum
-      s <- analog_search(d$focal, index, stat = "sum_weights", clim = kernel(max = 1), geog = kernel(max = 2))
+      s <- analog_search(d$focal, index, stat = "sum_weights", env = kernel(max = 1), geog = kernel(max = 2))
       expect_equal(nrow(s), nrow(d$focal))
 
       # all
-      a <- analog_search(d$focal, index, select = "all", clim = kernel(max = 1), geog = kernel(max = 2))
+      a <- analog_search(d$focal, index, select = "all", env = kernel(max = 1), geog = kernel(max = 2))
       expect_true(nrow(a) >= nrow(d$focal))
 })
 
@@ -238,7 +238,7 @@ test_that("analog_search with index validates inputs", {
       d <- sim_test_data()
       index <- build_analog_index(d$ref, coord_type = "projected")
 
-      # Mismatched climate dimensions should error
+      # Mismatched environmental dimensions should error
       bad_focal <- matrix(rnorm(20 * 5), ncol = 5)  # 5 columns instead of 4
       expect_error(
             analog_search(bad_focal, index, stat = "count"),
@@ -260,7 +260,7 @@ test_that("analog_search with index works for lon/lat data", {
             x = d$focal,
             pool = index,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1
       )
 
@@ -274,8 +274,8 @@ test_that("analog_search index path handles all constraint combinations", {
       d <- sim_test_data()
       index <- build_analog_index(d$ref, coord_type = "projected")
 
-      # Only climate constraint
-      r1 <- analog_search(d$focal, index, stat = "count", clim = kernel(max = 1))
+      # Only environmental constraint
+      r1 <- analog_search(d$focal, index, stat = "count", env = kernel(max = 1))
       expect_true(all(r1$value >= 0))
 
       # Only geographic constraint
@@ -283,7 +283,7 @@ test_that("analog_search index path handles all constraint combinations", {
       expect_true(all(r2$value >= 0))
 
       # Both constraints
-      r3 <- analog_search(d$focal, index, stat = "count", clim = kernel(max = 1), geog = kernel(max = 2))
+      r3 <- analog_search(d$focal, index, stat = "count", env = kernel(max = 1), geog = kernel(max = 2))
       expect_true(all(r3$value >= 0))
       expect_true(all(r3$value <= r1$value))  # Combined should be subset
       expect_true(all(r3$value <= r2$value))
@@ -298,39 +298,39 @@ test_that("analog_search runs error-free with all valid select-stat-kernel combi
 
       d <- sim_test_data()
 
-      # Per-family kernel specs to sweep. Each entry is a list(clim=, geog=)
+      # Per-family kernel specs to sweep. Each entry is a list(env=, geog=)
       # giving the kernel objects passed to analog_search. Covers uniform,
       # single-family gaussian/inverse on each side, and composed kernels
       # (a non-uniform shape on BOTH families) which the product model now
-      # supports. All carry clim = kernel(max = 1) / geog = kernel(max = 2.)
+      # supports. All carry env = kernel(max = 1) / geog = kernel(max = 2.)
       kernel_specs <- list(
-            list(clim = kernel(max = 1),                     geog = kernel(max = 2)),                     # uniform
-            list(clim = kernel("gaussian", theta = 1, max = 1), geog = kernel(max = 2)),                  # gaussian_clim
-            list(clim = kernel(max = 1),                     geog = kernel("gaussian", theta = 1, max = 2)), # gaussian_geog
-            list(clim = kernel("gaussian", theta = 1, max = 1), geog = kernel("gaussian", theta = 1, max = 2)), # gaussian both (was joint)
-            list(clim = kernel("inverse", theta = 1, max = 1),  geog = kernel(max = 2)),                  # inverse_clim
-            list(clim = kernel(max = 1),                     geog = kernel("inverse", theta = 1, max = 2)),  # inverse_geog
-            list(clim = kernel("inverse", theta = 1, max = 1),  geog = kernel("gaussian", theta = 1, max = 2)), # composed
-            list(clim = kernel("gaussian", theta = 1, max = 1), geog = kernel("inverse", theta = 1, max = 2))   # composed
+            list(env = kernel(max = 1),                     geog = kernel(max = 2)),                     # uniform
+            list(env = kernel("gaussian", theta = 1, max = 1), geog = kernel(max = 2)),                  # gaussian_env
+            list(env = kernel(max = 1),                     geog = kernel("gaussian", theta = 1, max = 2)), # gaussian_geog
+            list(env = kernel("gaussian", theta = 1, max = 1), geog = kernel("gaussian", theta = 1, max = 2)), # gaussian both (was joint)
+            list(env = kernel("inverse", theta = 1, max = 1),  geog = kernel(max = 2)),                  # inverse_env
+            list(env = kernel(max = 1),                     geog = kernel("inverse", theta = 1, max = 2)),  # inverse_geog
+            list(env = kernel("inverse", theta = 1, max = 1),  geog = kernel("gaussian", theta = 1, max = 2)), # composed
+            list(env = kernel("gaussian", theta = 1, max = 1), geog = kernel("inverse", theta = 1, max = 2))   # composed
       )
 
-      for(s in c("all", "knn_clim", "knn_geog")){
+      for(s in c("all", "knn_env", "knn_geog")){
             for(a in c("none", "count", "sum_weights", "mean_weights")){
                   for(ks in kernel_specs){
 
                         # Non-weighted stats take no kernel: use plain max kernels.
                         if(a %in% c("none", "count")){
-                              clim_dom <- kernel(max = 1)
+                              env_dom <- kernel(max = 1)
                               geog_dom <- kernel(max = 2)
                         } else {
-                              clim_dom <- ks$clim
+                              env_dom <- ks$env
                               geog_dom <- ks$geog
                         }
 
                         expect_no_error(
                               analog_search(d$focal, d$ref,
                                             select = s, stat = a,
-                                            clim = clim_dom, geog = geog_dom)
+                                            env = env_dom, geog = geog_dom)
                         )
                   }
             }
@@ -350,7 +350,7 @@ test_that("analog_search handles multiple stats correctly", {
             pool = d$ref,
             select = "all",
             stat = stats,
-            clim = kernel("gaussian", theta = 0.2, max = 0.5),
+            env = kernel("gaussian", theta = 0.2, max = 0.5),
             geog = kernel(max = 100)
       )
 
@@ -373,7 +373,7 @@ test_that("analog_search handles user-supplied values correctly", {
             select = "all",
             stat = stats,
             y = y,
-            clim = kernel("gaussian", theta = 0.2, max = NULL),
+            env = kernel("gaussian", theta = 0.2, max = NULL),
             geog = kernel(max = NULL)
       )
 
@@ -403,7 +403,7 @@ test_that("analog_search handles raster output correctly", {
             select = "all",
             stat = c("sum_weights", "count"),
             geog = kernel("inverse"),
-            clim = kernel(max = .1)
+            env = kernel(max = .1)
       )
 
 
@@ -417,10 +417,10 @@ test_that("analog_search handles raster output correctly", {
             select = "knn_geog",
             k = 1,
             stat = "none",
-            clim = kernel(max = .1)
+            env = kernel(max = .1)
       )
       expect_true(inherits(result, "SpatRaster"))
-      expect_true(all(c("clim_dist", "geog_dist", "analog_index", "analog_x", "analog_y") %in%
+      expect_true(all(c("env_dist", "geog_dist", "analog_index", "analog_x", "analog_y") %in%
                             names(result)))
 
       # pairs mode: knn with k > 1 (should NOT return raster)
@@ -430,10 +430,10 @@ test_that("analog_search handles raster output correctly", {
             select = "knn_geog",
             k = 3,
             stat = "none",
-            clim = kernel(max = .1)
+            env = kernel(max = .1)
       )
       expect_true(inherits(result, "data.frame"))
-      expect_true(all(c("clim_dist", "geog_dist", "analog_index", "analog_x", "analog_y") %in%
+      expect_true(all(c("env_dist", "geog_dist", "analog_index", "analog_x", "analog_y") %in%
                             names(result)))
 
 })
@@ -453,7 +453,7 @@ test_that("chunking/progress bars work correctly", {
                   pool = d$ref,
                   select = "knn_geog", k = 5,
                   stat = "count",
-                  clim = kernel(max = .1),
+                  env = kernel(max = .1),
                   progress = TRUE
             ))
             expect_true(grepl("100%", out))
@@ -464,7 +464,7 @@ test_that("chunking/progress bars work correctly", {
                   pool = d$ref,
                   select = "knn_geog", k = 5,
                   stat = "count",
-                  clim = kernel(max = .1),
+                  env = kernel(max = .1),
                   progress = FALSE
             )
             expect_equal(result, result2)

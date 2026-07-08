@@ -22,7 +22,7 @@ analog_cv(
 as a function object, not a string).}
 
 \item{pool}{The reference dataset. Matrix/data.frame with columns x, y,
-and climate variables, or a SpatRaster with climate variable layers.
+and environmental variables, or a SpatRaster with environmental variable layers.
 Pre-built \code{analog_index} objects are not supported; \code{analog_cv()}
 builds indices internally per fold (for k-fold) or once (for LOO).}
 
@@ -50,7 +50,7 @@ manually specify nonrandom folds, such as for spatial block cross-validation.}
 \item{include_residuals}{Logical; if \code{TRUE} (default), the output includes
 per-focal residual-equivalent columns (see \verb{@return}).}
 
-\item{...}{Additional arguments passed to \code{fun} (e.g., \code{clim}, \code{geog}, \code{k},
+\item{...}{Additional arguments passed to \code{fun} (e.g., \code{env}, \code{geog}, \code{k},
 \code{lambda}, \code{select}, \code{se}, \code{weight}). Note:
 \code{fun} must accept \code{exclude_self} (directly or via \code{...}); \code{\link[=analog_search]{analog_search()}}
 accepts it as a named parameter, and the wrapper helpers forward it via
@@ -143,7 +143,7 @@ cv <- analog_cv(
   fun      = analog_impact,
   pool     = sites,
   y        = sites$biomass,
-  clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+  env      = kernel("gaussian", theta = 0.2, max = 0.5),
   geog     = kernel(max = 100)
 )
 rmse <- sqrt(mean(cv$residual^2, na.rm = TRUE))
@@ -167,7 +167,7 @@ cv_veg <- analog_cv(
   pool     = sites,
   y        = factor(sites$vegetation_type),
   stat     = "tabulate",
-  clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+  env      = kernel("gaussian", theta = 0.2, max = 0.5),
   geog     = kernel(max = 100)
 )
 # Per-focal Brier score and primary class are in cv_veg$brier and

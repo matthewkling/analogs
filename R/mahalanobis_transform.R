@@ -1,20 +1,20 @@
-#' Transform Climate Data for Global Mahalanobis Distance
+#' Transform Environmental Data for Global Mahalanobis Distance
 #'
-#' Transforms climate data to decorrelated, unit-variance space, enabling the
+#' Transforms environmental data to decorrelated, unit-variance space, enabling the
 #' use of Euclidean distance as a global Mahalanobis distance. Useful for
 #' climate analog analysis when you want to account for spatial correlation
 #' structure and/or standardize variables with different units.
 #'
 #' @param x Climate data for focal/query points. Can be:
 #'   \itemize{
-#'     \item Matrix/data.frame with columns x, y, and climate variables
-#'     \item SpatRaster with climate variable layers
+#'     \item Matrix/data.frame with columns x, y, and environmental variables
+#'     \item SpatRaster with environmental variable layers
 #'   }
 #'
-#' @param pool Optional reference climate data to transform jointly with \code{x}.
+#' @param pool Optional reference environmental data to transform jointly with \code{x}.
 #'   When provided, both datasets are transformed using the same transformation
 #'   (computed from their combined covariance structure). Must have the same
-#'   number of climate variables as \code{x}. Same format options as \code{x}.
+#'   number of environmental variables as \code{x}. Same format options as \code{x}.
 #'
 #' @param center Logical; if TRUE (default), center each variable to mean zero
 #'   before transformation.
@@ -22,7 +22,7 @@
 #' @param scale Logical; if TRUE (default), standardize each variable to unit
 #'   variance before transformation (correlation-based). If FALSE, use
 #'   covariance-based transformation which preserves relative variance magnitudes.
-#'   Generally TRUE is recommended when climate variables have different units
+#'   Generally TRUE is recommended when environmental variables have different units
 #'   (e.g., temperature in °C vs precipitation in mm).
 #'
 #' @return
@@ -39,7 +39,7 @@
 #' becomes \code{tmean_transformed}); each transformed axis is the whitened
 #' counterpart of its corresponding input variable.
 #'
-#' Rows / cells with NA values in any coordinate or climate column are
+#' Rows / cells with NA values in any coordinate or environmental column are
 #' excluded from the covariance estimation but preserved as NA in the
 #' returned output, so the result has the same shape (row count / cell
 #' count) as the input.
@@ -67,7 +67,7 @@
 #' @examples
 #' \dontrun{
 #' # Single dataset transformation
-#' clim_transformed <- mahalanobis_transform(climate_data)
+#' env_transformed <- mahalanobis_transform(climate_data)
 #'
 #' # Joint transformation for analog analysis
 #' transformed <- mahalanobis_transform(
@@ -80,7 +80,7 @@
 #'   x = transformed$x,
 #'   pool = transformed$pool,
 #'   select = "knn_geog",
-#'   clim = kernel(max = 2),  # Now in standardized units
+#'   env = kernel(max = 2),  # Now in standardized units
 #'   k = 1
 #' )
 #'
@@ -106,42 +106,42 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
 
       # Prepare each input into a uniform internal representation:
       #   $coords_full : full-length xy coords (NAs preserved)   -- matrix/df only
-      #   $clim_full   : full-length climate matrix (NAs preserved) -- matrix/df only
-      #   $clim_strip  : NA-stripped climate matrix used for the math
+      #   $env_full   : full-length environmental matrix (NAs preserved) -- matrix/df only
+      #   $env_strip  : NA-stripped environmental matrix used for the math
       #   $keep        : logical vector marking kept rows
       #   $n_total     : original row / cell count
       #   $template    : single-layer NA SpatRaster (raster inputs only)
-      #   $clim_names  : climate variable names (post-`.select_xy_climate`)
+      #   $env_names  : environmental variable names (post-`.select_xy_env`)
       x_prep    <- .prep_for_mahal(x,    "x")
       pool_prep <- if (!is.null(pool))  .prep_for_mahal(pool, "pool")  else NULL
 
       if (!is.null(pool_prep) &&
-          ncol(x_prep$clim_strip) != ncol(pool_prep$clim_strip)) {
-            stop("x and pool must have the same number of climate variables",
+          ncol(x_prep$env_strip) != ncol(pool_prep$env_strip)) {
+            stop("x and pool must have the same number of environmental variables",
                  call. = FALSE)
       }
 
-      n_clim <- ncol(x_prep$clim_strip)
+      n_env <- ncol(x_prep$env_strip)
 
       # Combine the stripped climate data for shared covariance structure.
       combined <- if (!is.null(pool_prep)) {
-            rbind(x_prep$clim_strip, pool_prep$clim_strip)
+            rbind(x_prep$env_strip, pool_prep$env_strip)
       } else {
-            x_prep$clim_strip
+            x_prep$env_strip
       }
 
       # Centering / scaling parameters from the (stripped) combined data.
-      clim_means <- if (center) colMeans(combined) else rep(0, n_clim)
-      clim_sds   <- if (scale)  apply(combined, 2, stats::sd) else rep(1, n_clim)
+      env_means <- if (center) colMeans(combined) else rep(0, n_env)
+      env_sds   <- if (scale)  apply(combined, 2, stats::sd) else rep(1, n_env)
 
-      if (any(clim_sds < 1e-10)) {
-            stop("One or more climate variables has zero or near-zero variance",
+      if (any(env_sds < 1e-10)) {
+            stop("One or more environmental variables has zero or near-zero variance",
                  call. = FALSE)
       }
 
       # Standardize.
-      combined_std <- sweep(combined,  2, clim_means, FUN = "-")
-      combined_std <- sweep(combined_std, 2, clim_sds, FUN = "/")
+      combined_std <- sweep(combined,  2, env_means, FUN = "-")
+      combined_std <- sweep(combined_std, 2, env_sds, FUN = "/")
 
       # Covariance (correlation when scale = TRUE) of standardized data.
       # All NAs have been stripped, so plain cov() is fine.
@@ -160,15 +160,15 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
       # Whitening matrix: V * D^(-1/2) * V'
       inv_sqrt_evals    <- 1.0 / sqrt(eig$values)
       whitening_matrix  <- eig$vectors %*%
-            diag(inv_sqrt_evals, nrow = n_clim) %*%
+            diag(inv_sqrt_evals, nrow = n_env) %*%
             t(eig$vectors)
 
       # Apply transform to each stripped input, then scatter back to full
       # length with NAs at dropped rows.
-      x_full <- .apply_and_scatter(x_prep,    clim_means, clim_sds,
+      x_full <- .apply_and_scatter(x_prep,    env_means, env_sds,
                                    whitening_matrix)
       pool_full <- if (!is.null(pool_prep)) {
-            .apply_and_scatter(pool_prep, clim_means, clim_sds,
+            .apply_and_scatter(pool_prep, env_means, env_sds,
                                whitening_matrix)
       } else NULL
 
@@ -191,7 +191,7 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
 #
 # `label` is just used in error messages.
 #
-# Reuses `.select_xy_climate()` (existing helper in utils.R) so column-name
+# Reuses `.select_xy_env()` (existing helper in utils.R) so column-name
 # / xy-detection rules match the rest of the package.
 .prep_for_mahal <- function(obj, label) {
 
@@ -200,12 +200,12 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
       if (is_raster) {
             # Pull xy + climate as a full-length data.frame (NAs preserved).
             df <- terra::as.data.frame(obj, xy = TRUE, na.rm = FALSE)
-            normalized <- .select_xy_climate(df)
+            normalized <- .select_xy_env(df)
             template   <- stats::setNames(
                   terra::setValues(obj[[1]], NA), "raster"
             )
       } else if (is.matrix(obj) || is.data.frame(obj)) {
-            normalized <- .select_xy_climate(obj)
+            normalized <- .select_xy_env(obj)
             template   <- NULL
       } else {
             stop("`", label, "` must be a data.frame, matrix, or SpatRaster.",
@@ -213,31 +213,31 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
       }
 
       coords_full <- normalized[, 1:2, drop = FALSE]
-      clim_full   <- normalized[, -(1:2), drop = FALSE]
+      env_full   <- normalized[, -(1:2), drop = FALSE]
 
       keep       <- stats::complete.cases(normalized)
-      clim_strip <- clim_full[keep, , drop = FALSE]
+      env_strip <- env_full[keep, , drop = FALSE]
 
-      if (nrow(clim_strip) == 0L) {
+      if (nrow(env_strip) == 0L) {
             stop("`", label, "` has no rows with complete (non-NA) values.",
                  call. = FALSE)
       }
 
-      # `.select_xy_climate()` doesn't synthesize column names when the input
+      # `.select_xy_env()` doesn't synthesize column names when the input
       # lacks them (e.g., bare unnamed matrix), so fall back to clim1, clim2…
-      clim_names <- colnames(clim_full)
-      if (is.null(clim_names) || length(clim_names) != ncol(clim_full)) {
-            clim_names <- paste0("clim", seq_len(ncol(clim_full)))
+      env_names <- colnames(env_full)
+      if (is.null(env_names) || length(env_names) != ncol(env_full)) {
+            env_names <- paste0("env", seq_len(ncol(env_full)))
       }
 
       list(
             coords_full = coords_full,
-            clim_full   = clim_full,
-            clim_strip  = clim_strip,
+            env_full   = env_full,
+            env_strip  = env_strip,
             keep        = keep,
             n_total     = nrow(normalized),
             template    = template,
-            clim_names  = clim_names,
+            env_names  = env_names,
             is_raster   = is_raster
       )
 }
@@ -245,10 +245,10 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
 
 # Apply (center / scale / whiten) to the stripped climate matrix and scatter
 # the result back into a full-length matrix with NA at dropped rows.
-.apply_and_scatter <- function(prep, clim_means, clim_sds, whitening_matrix) {
+.apply_and_scatter <- function(prep, env_means, env_sds, whitening_matrix) {
 
-      strip <- sweep(prep$clim_strip,  2, clim_means, FUN = "-")
-      strip <- sweep(strip,            2, clim_sds,   FUN = "/")
+      strip <- sweep(prep$env_strip,  2, env_means, FUN = "-")
+      strip <- sweep(strip,            2, env_sds,   FUN = "/")
       strip <- strip %*% whitening_matrix
 
       out <- matrix(NA_real_,
@@ -256,28 +256,28 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
                     ncol = ncol(strip))
       out[prep$keep, ] <- strip
 
-      # Preserve column names from the stripped (i.e. post-`.select_xy_climate`)
+      # Preserve column names from the stripped (i.e. post-`.select_xy_env`)
       # ordering so they line up with the original climate columns.
-      colnames(out) <- paste0(prep$clim_names, "_transformed")
+      colnames(out) <- paste0(prep$env_names, "_transformed")
       out
 }
 
 
-# Build the final output in the same format as the original input. `clim_full`
+# Build the final output in the same format as the original input. `env_full`
 # is the full-length, NA-padded transformed climate matrix produced by
 # `.apply_and_scatter()`.
-.reconstruct_mahal_output <- function(original, prep, clim_full) {
+.reconstruct_mahal_output <- function(original, prep, env_full) {
 
-      out_names <- colnames(clim_full)
-      n_clim    <- ncol(clim_full)
+      out_names <- colnames(env_full)
+      n_env    <- ncol(env_full)
 
       if (prep$is_raster) {
             # Build one layer per climate variable using the package's standard
             # template-based rasterization pattern (cf. `.cv_to_raster()`).
             template <- prep$template
-            layers <- lapply(seq_len(n_clim), function(j) {
+            layers <- lapply(seq_len(n_env), function(j) {
                   stats::setNames(
-                        terra::setValues(template, clim_full[, j]),
+                        terra::setValues(template, env_full[, j]),
                         out_names[j]
                   )
             })
@@ -291,7 +291,7 @@ mahalanobis_transform <- function(x, pool = NULL, center = TRUE, scale = TRUE) {
       coord_names <- colnames(prep$coords_full)
       if (is.null(coord_names)) coord_names <- c("x", "y")
 
-      combined <- cbind(prep$coords_full, clim_full)
+      combined <- cbind(prep$coords_full, env_full)
       colnames(combined) <- c(coord_names, out_names)
 
       if (is.data.frame(original)) {

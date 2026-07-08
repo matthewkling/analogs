@@ -5,7 +5,7 @@
 #include "types.h"
 #include "lattice.h"
 #include "geometry.h"
-#include "climate.h"
+#include "codes.h"
 #include "weights.h"
 #include "mahalanobis.h"
 #include "se_code.h"
@@ -20,7 +20,7 @@ using namespace RcppParallel;
 namespace analogs {
 
 // -------------------------------------------------------------------------
-// Worker for pair-returning modes: knn_clim, knn_geog, all
+// Worker for pair-returning modes: knn_env, knn_geog, all
 //
 // Writes into out_indices[i] a vector<int> of 1-based ref indices.
 // Writes into the three parallel weight vectors:
@@ -31,12 +31,12 @@ namespace analogs {
 // decides which to emit as columns based on which mechanisms are in use.
 // -------------------------------------------------------------------------
 struct PairWorker : public Worker {
-      const double* focal_ptr;      // focal matrix (original coords + clim)
-      const double* ref_ptr;        // reference matrix (original coords + clim)
-      const double* ref_latt_ptr;   // matrix used by lattice (may be ref_ptr or ECEF+clim)
+      const double* focal_ptr;      // focal matrix (original coords + env)
+      const double* ref_ptr;        // reference matrix (original coords + env)
+      const double* ref_latt_ptr;   // matrix used by lattice (may be ref_ptr or ECEF+env)
       int n_focal;
       int n_ref;
-      int n_clim;
+      int n_env;
       int stride_f;
       int stride_r;                 // stride for ref_ptr (n_ref)
       int stride_latt_r;            // stride for ref_latt_ptr
@@ -44,14 +44,14 @@ struct PairWorker : public Worker {
       bool use_lattice;
       bool use_geog_filter;
       bool use_haversine;
-      bool use_scalar_clim;
-      bool use_pervar_clim;
+      bool use_scalar_env;
+      bool use_pervar_env;
       bool use_ecef;                // true when lonlat + geog filtering → use ECEF
 
-      double max_clim_scalar;
+      double max_env_scalar;
       double max_geog;
       double max_geog_chord;        // chord distance threshold for ECEF mode
-      std::vector<double> max_clim_pervar;
+      std::vector<double> max_env_pervar;
 
       SelectCode scode;     // Selection strategy
 
@@ -82,17 +82,17 @@ struct PairWorker : public Worker {
       // Thread-local storage for reusable allocations
       struct ThreadLocalStorage {
             std::vector<double> fgeo_vec;
-            std::vector<double> fclim_vec;
+            std::vector<double> fenv_vec;
             std::vector<double> q_geo;
-            std::vector<double> q_clim;
+            std::vector<double> q_env;
             std::vector<index_t> cand;
             std::vector<double> cand_weights;
 
             ThreadLocalStorage() {
                   fgeo_vec.reserve(3);
-                  fclim_vec.reserve(16);
+                  fenv_vec.reserve(16);
                   q_geo.reserve(3);
-                  q_clim.reserve(16);
+                  q_env.reserve(16);
                   cand.reserve(256);
                   cand_weights.reserve(256);
             }
@@ -107,12 +107,12 @@ struct PairWorker : public Worker {
                  bool use_lattice_,
                  bool use_geog_filter_,
                  bool use_haversine_,
-                 bool use_scalar_clim_,
-                 bool use_pervar_clim_,
-                 double max_clim_scalar_,
+                 bool use_scalar_env_,
+                 bool use_pervar_env_,
+                 double max_env_scalar_,
                  double max_geog_,
                  double max_geog_chord_,
-                 const std::vector<double>& max_clim_pervar_,
+                 const std::vector<double>& max_env_pervar_,
                  SelectCode scode_,
                  int k_,
                  Lattice* lattice_ptr_,
@@ -135,20 +135,20 @@ struct PairWorker : public Worker {
               ref_latt_ptr(ref_latt_ptr_),
               n_focal(focal_mm.nrow()),
               n_ref(ref_mm.nrow()),
-              n_clim(focal_mm.ncol() - 2),
+              n_env(focal_mm.ncol() - 2),
               stride_f(focal_mm.nrow()),
               stride_r(ref_mm.nrow()),
               stride_latt_r(stride_latt_r_),
               use_lattice(use_lattice_),
               use_geog_filter(use_geog_filter_),
               use_haversine(use_haversine_),
-              use_scalar_clim(use_scalar_clim_),
-              use_pervar_clim(use_pervar_clim_),
+              use_scalar_env(use_scalar_env_),
+              use_pervar_env(use_pervar_env_),
               use_ecef(use_ecef_),
-              max_clim_scalar(max_clim_scalar_),
+              max_env_scalar(max_env_scalar_),
               max_geog(max_geog_),
               max_geog_chord(max_geog_chord_),
-              max_clim_pervar(max_clim_pervar_),
+              max_env_pervar(max_env_pervar_),
               scode(scode_),
               k(k_),
               lattice_ptr(lattice_ptr_),
@@ -187,10 +187,10 @@ struct PairWorker : public Worker {
 struct AggWorker : public Worker {
       const double* focal_ptr;
       const double* ref_ptr;
-      const double* ref_latt_ptr;   // ECEF+clim matrix if use_ecef, else ref_ptr
+      const double* ref_latt_ptr;   // ECEF+env matrix if use_ecef, else ref_ptr
       int n_focal;
       int n_ref;
-      int n_clim;
+      int n_env;
       int stride_f;
       int stride_r;
       int stride_latt_r;
@@ -198,20 +198,20 @@ struct AggWorker : public Worker {
       bool use_lattice;
       bool use_geog_filter;
       bool use_haversine;
-      bool use_scalar_clim;
-      bool use_pervar_clim;
+      bool use_scalar_env;
+      bool use_pervar_env;
       bool use_ecef;
 
-      double max_clim_scalar;
+      double max_env_scalar;
       double max_geog;
       double max_geog_chord;
-      std::vector<double> max_clim_pervar;
+      std::vector<double> max_env_pervar;
 
       SelectCode scode;
       std::vector<AggregateCode> acodes;
-      FamilyKernel clim_kernel;
+      FamilyKernel env_kernel;
       FamilyKernel geog_kernel;
-      double clim_wparam;
+      double env_wparam;
       double geog_wparam;
 
       Lattice* lattice_ptr;
@@ -263,13 +263,13 @@ struct AggWorker : public Worker {
       // Thread-local storage for reusable allocations
       struct ThreadLocalStorage {
             std::vector<double> q_geo;
-            std::vector<double> q_clim;
+            std::vector<double> q_env;
             std::vector<index_t> cand;
             std::vector<double> cand_weights;
 
             ThreadLocalStorage() {
                   q_geo.reserve(3);
-                  q_clim.reserve(16);
+                  q_env.reserve(16);
                   cand.reserve(256);
                   cand_weights.reserve(256);
             }
@@ -284,17 +284,17 @@ struct AggWorker : public Worker {
                 bool use_lattice_,
                 bool use_geog_filter_,
                 bool use_haversine_,
-                bool use_scalar_clim_,
-                bool use_pervar_clim_,
-                double max_clim_scalar_,
+                bool use_scalar_env_,
+                bool use_pervar_env_,
+                double max_env_scalar_,
                 double max_geog_,
                 double max_geog_chord_,
-                const std::vector<double>& max_clim_pervar_,
+                const std::vector<double>& max_env_pervar_,
                 SelectCode scode_,
                 const std::vector<AggregateCode>& acodes_,
-                FamilyKernel clim_kernel_,
+                FamilyKernel env_kernel_,
                 FamilyKernel geog_kernel_,
-                double clim_wparam_,
+                double env_wparam_,
                 double geog_wparam_,
                 Lattice* lattice_ptr_,
                 bool use_ecef_,
@@ -326,25 +326,25 @@ struct AggWorker : public Worker {
               ref_latt_ptr(ref_latt_ptr_),
               n_focal(focal_mm.nrow()),
               n_ref(ref_mm.nrow()),
-              n_clim(focal_mm.ncol() - 2),
+              n_env(focal_mm.ncol() - 2),
               stride_f(focal_mm.nrow()),
               stride_r(ref_mm.nrow()),
               stride_latt_r(stride_latt_r_),
               use_lattice(use_lattice_),
               use_geog_filter(use_geog_filter_),
               use_haversine(use_haversine_),
-              use_scalar_clim(use_scalar_clim_),
-              use_pervar_clim(use_pervar_clim_),
+              use_scalar_env(use_scalar_env_),
+              use_pervar_env(use_pervar_env_),
               use_ecef(use_ecef_),
-              max_clim_scalar(max_clim_scalar_),
+              max_env_scalar(max_env_scalar_),
               max_geog(max_geog_),
               max_geog_chord(max_geog_chord_),
-              max_clim_pervar(max_clim_pervar_),
+              max_env_pervar(max_env_pervar_),
               scode(scode_),
               acodes(acodes_),
-              clim_kernel(clim_kernel_),
+              env_kernel(env_kernel_),
               geog_kernel(geog_kernel_),
-              clim_wparam(clim_wparam_),
+              env_wparam(env_wparam_),
               geog_wparam(geog_wparam_),
               lattice_ptr(lattice_ptr_),
               R_earth(R_earth_),

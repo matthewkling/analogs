@@ -7,11 +7,11 @@
 namespace analogs {
 
 // Per-family kernel shape. The overall weight for a candidate is the PRODUCT
-// of the climate-family weight and the geographic-family weight, each computed
+// of the environment-family weight and the geographic-family weight, each computed
 // independently from its own distance and shape. This product model replaces
 // the old fused WeightCode enum: it reproduces every separable kernel (a
 // single-family kernel is just the other family = UNIFORM) and additionally
-// supports mixed shapes (e.g. INVERSE climate x GAUSSIAN geography). The old
+// supports mixed shapes (e.g. INVERSE environment x GAUSSIAN geography). The old
 // non-separable INVERSE_JOINT (a coupled 1/||(c,g)|| norm) is intentionally
 // dropped; INVERSE x INVERSE now gives 1/((1+c/tc)(1+g/tg)), a clean product.
 enum class FamilyKernel : int {
@@ -63,9 +63,9 @@ inline double per_family_weight(FamilyKernel k, double dist, double wparam) {
 
 // Combined weight = product of the two per-family weights. This is the single
 // entry point used by the workers.
-inline double weight_from_families(FamilyKernel clim_k, double clim_dist, double clim_wparam,
+inline double weight_from_families(FamilyKernel env_k, double env_dist, double env_wparam,
                                    FamilyKernel geog_k, double geog_dist, double geog_wparam) {
-      return per_family_weight(clim_k, clim_dist, clim_wparam) *
+      return per_family_weight(env_k, env_dist, env_wparam) *
             per_family_weight(geog_k, geog_dist, geog_wparam);
 }
 

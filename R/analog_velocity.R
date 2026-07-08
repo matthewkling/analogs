@@ -1,13 +1,13 @@
 #' Climate velocity: geographically nearest climate analogs
 #'
 #' Finds, for each focal location, the geographic nearest neighbor(s) in a
-#' reference dataset that satisfy a specified maximum climate distance threshold.
+#' reference dataset that satisfy a specified maximum environmental distance threshold.
 #' Distances to these analogs, divided by time elapsed, give analog-based climate
 #' velocity (Hamann et al. 2015; Dobrowski and Parks 2016).
 #'
 #' This function is a wrapper that calls [analog_search()] using `select = "knn_geog"`
 #' and `stat = "none"`. Note that it **does not return velocity per se**---it returns
-#' geographic and climatic distances to each focal site's nearest analog(s); to
+#' geographic and environmental distances to each focal site's nearest analog(s); to
 #' compute velocity, you can divide these geographic distances by the length of
 #' time elapsed between your `x` and `pool` datasets.
 #'
@@ -15,7 +15,7 @@
 #'
 #' @return A data.frame, or a SpatRaster when `x` is one and `k = 1`.
 #'   Contains one row per focal-analog pair with `index`, `x`, `y`,
-#'   `analog_index`, `analog_x`, `analog_y`, `clim_dist`, and
+#'   `analog_index`, `analog_x`, `analog_y`, `env_dist`, and
 #'   `geog_dist`. See [analog_search()] for full column conventions
 #'   and [metadata()] for attached metadata attributes.
 #'
@@ -25,21 +25,21 @@
 #' v <- analog_velocity(
 #'   x = clim$clim1,
 #'   pool = clim$clim2,
-#'   clim = kernel(max = 0.5),
+#'   env = kernel(max = 0.5),
 #'   k = 1
 #' )
 #'
 #' # With pre-built index (for repeated queries)
 #' index <- build_analog_index(clim$clim2)
-#' v1 <- analog_velocity(x = sites1, pool = index, clim = kernel(max = 0.5), k = 1)
-#' v2 <- analog_velocity(x = sites2, pool = index, clim = kernel(max = 0.3), k = 1)
+#' v1 <- analog_velocity(x = sites1, pool = index, env = kernel(max = 0.5), k = 1)
+#' v2 <- analog_velocity(x = sites2, pool = index, env = kernel(max = 0.3), k = 1)
 #'
 #' # With focal-specific covariance matrices
 #' v_mahal <- analog_velocity(
 #'   x = clim$clim1,
 #'   pool = clim$clim2,
 #'   x_cov = baseline_covariances,
-#'   clim = kernel(max = 2),  # In Mahalanobis distance units
+#'   env = kernel(max = 2),  # In Mahalanobis distance units
 #'   k = 1
 #' )
 #' }
@@ -66,11 +66,11 @@ analog_velocity <- function(
             weight = NULL,
             coord_type = "auto",
 
-            clim,
+            env,
             geog = NULL,
             k = 1,
 
-            clim_res_adj = "auto",
+            env_res_adj = "auto",
             geog_res_adj = "auto",
             cell_area_weight = "auto",
             n_threads = NULL,
@@ -83,14 +83,14 @@ analog_velocity <- function(
             pool        = pool,
             select      = "knn_geog",
             stat        = "none",  # Returns pairs
-            clim        = clim,
+            env         = env,
             geog        = geog,
             x_cov       = x_cov,
             y           = y,
             weight      = weight,
             k           = k,
             coord_type  = coord_type,
-            clim_res_adj= clim_res_adj,
+            env_res_adj= env_res_adj,
             geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
             n_threads   = n_threads,

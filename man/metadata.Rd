@@ -17,20 +17,20 @@ A named list. Elements depend on which attributes are present on
 \subsection{Selection and aggregation parameters}{
 
 \describe{
-\item{\code{select}}{Selection strategy: \code{"all"}, \code{"knn_clim"}, or
+\item{\code{select}}{Selection strategy: \code{"all"}, \code{"knn_env"}, or
 \code{"knn_geog"}.}
 \item{\code{k}}{Number of neighbors for kNN selection modes; \code{NULL} for
 \code{select = "all"}.}
 \item{\code{stat}}{Aggregation statistic(s) requested. Character vector;
 \code{"none"} for pair-mode results.}
-\item{\code{kernel_clim}}{Climate weighting kernel shape: \code{"uniform"},
-\code{"gaussian"}, or \code{"inverse"}. \code{"uniform"} when climate is not
+\item{\code{kernel_env}}{Environmental weighting kernel shape: \code{"uniform"},
+\code{"gaussian"}, or \code{"inverse"}. \code{"uniform"} when environment is not
 distance-weighted.}
 \item{\code{kernel_geog}}{Geographic weighting kernel shape: \code{"uniform"},
 \code{"gaussian"}, or \code{"inverse"}. \code{"uniform"} when geography is not
 distance-weighted.}
-\item{\code{theta_clim}}{Scale parameter for the climate kernel (Gaussian
-bandwidth or inverse half-weight distance); \code{NULL} if the climate
+\item{\code{theta_env}}{Scale parameter for the environmental kernel (Gaussian
+bandwidth or inverse half-weight distance); \code{NULL} if the environmental
 kernel is uniform.}
 \item{\code{theta_geog}}{Scale parameter for the geographic kernel; \code{NULL}
 if the geographic kernel is uniform.}
@@ -38,9 +38,9 @@ if the geographic kernel is uniform.}
 ordinary weighted least squares.}
 \item{\code{se}}{Standard-error framing applied to SE-supporting stats:
 \code{"none"}, \code{"ess"}, or \code{"design"}.}
-\item{\code{max_clim}}{Climate-distance threshold used for analog
+\item{\code{max_env}}{Environmental-distance threshold used for analog
 selection. Scalar for Euclidean / Mahalanobis radius, or
-length-\code{n_clim} for per-variable thresholds.}
+length-\code{n_env} for per-variable thresholds.}
 \item{\code{max_geog}}{Geographic-distance threshold used for analog
 selection. Units are km when \code{coord_type = "lonlat"}, projection
 units otherwise.}
@@ -55,12 +55,12 @@ excluded from its analog neighborhood? \code{TRUE} for results from
 \describe{
 \item{\code{n_x}}{Number of focal locations in the input \code{x}.}
 \item{\code{n_pool}}{Number of reference locations in the input \code{pool}.}
-\item{\code{n_clim}}{Number of climate variables.}
+\item{\code{n_env}}{Number of environmental variables.}
 \item{\code{coord_type}}{Coordinate system: \code{"lonlat"} (great-circle
 distances in km) or \code{"projected"} (planar distances in projection
 units).}
 \item{\code{x_cov_provided}}{Logical: was a per-focal covariance matrix
-(\code{x_cov}) supplied? If \code{TRUE}, climate distances were computed in
+(\code{x_cov}) supplied? If \code{TRUE}, environmental distances were computed in
 Mahalanobis units using location-specific covariance; otherwise
 Euclidean.}
 \item{\code{downsample_actual}}{Actual downsampling rate applied to the
@@ -83,15 +83,15 @@ detail.
 \item{\code{total_bins}, \code{n_bins_nonempty}, \code{min_bin_occupancy},
 \code{max_bin_occupancy}, \code{avg_bin_occupancy},
 \code{avg_nonempty_bin_occupancy}}{Lattice occupancy summaries.}
-\item{\code{clim_res_adj}, \code{geog_res_adj}}{Per-family resolution
+\item{\code{env_res_adj}, \code{geog_res_adj}}{Per-family resolution
 adjustments used to build the index: each scales its family's bin
 count relative to a data-dependent default (\code{1} = default, \code{0} =
 deactivated). See \code{\link[=build_analog_index]{build_analog_index()}}.}
-\item{\code{clim_target}, \code{geo_target}}{Realized per-family bin-count
+\item{\code{env_target}, \code{geo_target}}{Realized per-family bin-count
 targets passed to the lattice builder (the absolute values the
 \verb{*_res_adj} resolve to).}
 \item{\code{bins_per_axis}}{Integer vector of realized bins per axis
-(geographic axes first, then climate), showing how the budget was
+(geographic axes first, then environment), showing how the budget was
 distributed.}
 }
 }
@@ -134,13 +134,13 @@ every attribute the package attaches.
 result <- analog_velocity(
   x = future_climate,
   pool = current_climate,
-  clim = kernel(max = 0.5)
+  env = kernel(max = 0.5)
 )
 
 # Get the full parameterization as a list
 meta <- metadata(result)
 meta$select
-meta$max_clim
+meta$max_env
 meta$n_pool
 
 # Or read individual attributes directly

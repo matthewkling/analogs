@@ -10,7 +10,7 @@ tiled_analog_search(
   n_tiles,
   fun,
   geog,
-  clim = NULL,
+  env = NULL,
   y = NULL,
   x_cov = NULL,
   weight = NULL,
@@ -40,8 +40,8 @@ the tile halos (so edge focals still see all in-range analogs) and is
 forwarded to \code{fun}. Tiling is only beneficial when the geographic search
 is bounded, hence \code{geog} with a finite \code{max} is required.}
 
-\item{clim}{Optional \code{\link[=kernel]{kernel()}} object giving the climate search treatment,
-forwarded to \code{fun}. \code{NULL} (default) means no climate kernel is passed.}
+\item{env}{Optional \code{\link[=kernel]{kernel()}} object giving the environmental search treatment,
+forwarded to \code{fun}. \code{NULL} (default) means no environmental kernel is passed.}
 
 \item{y}{Optional SpatRaster with values to aggregate across analogs.
 Must have spatial properties matching pool.}
@@ -103,7 +103,7 @@ provides minimal memory benefit.
 If index_res is specified in ..., all tiles will use the same lattice
 resolution. If index_res is not specified, each tile will independently
 auto-tune its lattice resolution based on local data characteristics. This
-adaptive behavior is generally fine and can even be beneficial when climate
+adaptive behavior is generally fine and can even be beneficial when environmental
 distributions vary substantially across the landscape (e.g., mountains vs
 plains).
 }

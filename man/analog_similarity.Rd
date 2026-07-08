@@ -2,7 +2,7 @@
 % Please edit documentation in R/analog_similarity.R
 \name{analog_similarity}
 \alias{analog_similarity}
-\title{Analog similarity: best climate analogs within a geographic envelope}
+\title{Analog similarity: best environmental analogs within a geographic envelope}
 \usage{
 analog_similarity(
   x,
@@ -12,9 +12,9 @@ analog_similarity(
   weight = NULL,
   coord_type = "auto",
   geog,
-  clim = NULL,
+  env = NULL,
   k = 20,
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -25,13 +25,13 @@ analog_similarity(
 }
 \arguments{
 \item{x}{Focal locations for which analogs will be found. Should be a
-matrix/data.frame with columns x, y, and climate variables, or a
-SpatRaster with climate variable layers.}
+matrix/data.frame with columns x, y, and environmental variables, or a
+SpatRaster with environmental variable layers.}
 
 \item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-\item Matrix/data.frame with columns x, y, and climate variables,
-or SpatRaster with climate variable layers, OR
+\item Matrix/data.frame with columns x, y, and environmental variables,
+or SpatRaster with environmental variable layers, OR
 \item An \code{analog_index} object created by
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
@@ -39,7 +39,7 @@ or SpatRaster with climate variable layers, OR
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
-SpatRaster with a layer for each component. For n climate variables,
+SpatRaster with a layer for each component. For n environmental variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
@@ -78,15 +78,15 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
-\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\item{env, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
 \code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
-shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+shape, and the kernel's scale for one family: environmental (\code{env}) or geography
 (\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
 \item \code{max}: hard distance threshold — candidates beyond it (in that family's
-distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+distance) are excluded. For \code{env}, \code{max} may be a single Euclidean
 radius or a per-variable vector of absolute-difference thresholds (length
-equal to the number of climate variables); scalar climate thresholds are
+equal to the number of environmental variables); scalar environmental thresholds are
 in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
 single radius (kilometers when \code{coord_type = "lonlat"}, projected units
 otherwise).
@@ -94,7 +94,7 @@ otherwise).
 distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
 \code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
 product of the two families' weights, so shapes may be mixed (e.g. an
-inverse climate kernel with a Gaussian geographic kernel).
+inverse environmental kernel with a Gaussian geographic kernel).
 \item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
 distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
@@ -104,10 +104,10 @@ weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 
 \item{k}{Number of nearest analogs to return per focal location for kNN
 selection modes. Required when \code{select} is \code{"knn_geog"} or
-\code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.}
+\code{"knn_env"}; must be \code{NULL} for \code{select = "all"}.}
 
-\item{clim_res_adj, geog_res_adj}{Control the lattice search-index resolution
-of the climate and geographic families, each a multiplier on a
+\item{env_res_adj, geog_res_adj}{Control the lattice search-index resolution
+of the environmental and geographic families, each a multiplier on a
 data-dependent default (targeting ~50 pool points per occupied bin, split
 between families by effective dimensionality, so it scales with pool size).
 Each is either:
@@ -145,7 +145,7 @@ is used (see \code{RcppParallel::setThreadOptions}).}
 indicating the proportion of points to retain. Values < 1 reduce memory
 and improve speed at some cost to precision. Default is 1.0 (no downsampling).
 Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, resolution
-must be set explicitly via \code{geog_res_adj} / \code{clim_res_adj} (auto-tuning is
+must be set explicitly via \code{geog_res_adj} / \code{env_res_adj} (auto-tuning is
 not supported in this case; see those parameters for details).}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
@@ -160,25 +160,25 @@ is \code{FALSE}.}
 \value{
 A data.frame, or a SpatRaster when \code{x} is one and \code{k = 1}.
 Contains one row per focal-analog pair with \code{index}, \code{x}, \code{y},
-\code{analog_index}, \code{analog_x}, \code{analog_y}, \code{clim_dist}, and
+\code{analog_index}, \code{analog_x}, \code{analog_y}, \code{env_dist}, and
 \code{geog_dist}. See \code{\link[=analog_search]{analog_search()}} for full column conventions
 and \code{\link[=metadata]{metadata()}} for attached metadata attributes.
 }
 \description{
-Finds, for each focal location, the climate–nearest neighbor(s) in a
+Finds, for each focal location, the environmental–nearest neighbor(s) in a
 reference dataset that satisfy a specified geographic distance threshold.
-This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using \code{select = "knn_clim"}.
+This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using \code{select = "knn_env"}.
 }
 \details{
 For each focal location, \code{analog_similarity()}:
 \enumerate{
 \item Identifies all reference points within \code{geog}'s max (km) (and
-optional climate filter).
-\item Selects the \code{k} closest in \emph{climate} distance.
+optional environmental filter).
+\item Selects the \code{k} closest in \emph{environmental} distance.
 }
 
 This is the natural "inverse" of \code{\link{analog_velocity}}: instead of finding
-where the focal climate moves geographically, it finds the closest climatically
+where the focal environmental moves geographically, it finds the closest environmentally
 similar conditions that are geographically reachable.
 
 Among other uses, this operation is often the first step in a traditional

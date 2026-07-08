@@ -1,26 +1,26 @@
 #' Generalized analog search
 #'
-#' Identifies locations in a reference dataset that are climatically similar
+#' Identifies locations in a reference dataset that are environmentally similar
 #' and/or geographically proximal to focal locations. Analog searches use a
 #' two-stage approach: first selecting analogs based on specified criteria,
 #' then optionally aggregating the results.
 #'
 #'
 #' @param x Focal locations for which analogs will be found. Should be a
-#'   matrix/data.frame with columns x, y, and climate variables, or a
-#'   SpatRaster with climate variable layers.
+#'   matrix/data.frame with columns x, y, and environmental variables, or a
+#'   SpatRaster with environmental variable layers.
 #'
 #' @param pool The reference dataset to search for analogs. Either:
 #'
-#'   - Matrix/data.frame with columns x, y, and climate variables,
-#'     or SpatRaster with climate variable layers, OR
+#'   - Matrix/data.frame with columns x, y, and environmental variables,
+#'     or SpatRaster with environmental variable layers, OR
 #'   - An `analog_index` object created by
 #'     [build_analog_index()] (for repeated queries).
 #'
 #' @param x_cov Optional focal-specific covariance matrices for Mahalanobis
 #'   distance calculations. Should be a matrix or data.frame with one row per
 #'   focal location and one column per unique covariance component, or a
-#'   SpatRaster with a layer for each component. For n climate variables,
+#'   SpatRaster with a layer for each component. For n environmental variables,
 #'   there are n*(n+1)/2 unique components, ordered as: variances first
 #'   (diagonals), then covariances (upper triangle by row).
 #'
@@ -65,15 +65,15 @@
 #'   stored configuration: `cell_area_weight = FALSE` errors if the index
 #'   was built with cell-area weighting on (rebuild the index instead).
 #'
-#' @param clim,geog Per-family distance treatment, each a [kernel()] object (or
+#' @param env,geog Per-family distance treatment, each a [kernel()] object (or
 #'   `NULL`). A kernel bundles the hard distance threshold, the weighting kernel
-#'   shape, and the kernel's scale for one family: climate (`clim`) or geography
+#'   shape, and the kernel's scale for one family: environmental (`env`) or geography
 #'   (`geog`). `kernel(weight, theta, max)` where:
 #'
 #'   - `max`: hard distance threshold — candidates beyond it (in that family's
-#'     distance) are excluded. For `clim`, `max` may be a single Euclidean
+#'     distance) are excluded. For `env`, `max` may be a single Euclidean
 #'     radius or a per-variable vector of absolute-difference thresholds (length
-#'     equal to the number of climate variables); scalar climate thresholds are
+#'     equal to the number of environmental variables); scalar environmental thresholds are
 #'     in Mahalanobis units when `x_cov` is supplied. For `geog`, `max` is a
 #'     single radius (kilometers when `coord_type = "lonlat"`, projected units
 #'     otherwise).
@@ -81,7 +81,7 @@
 #'     distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
 #'     `"inverse"` (`1 / (1 + d / theta)`). The overall kernel weight is the
 #'     product of the two families' weights, so shapes may be mixed (e.g. an
-#'     inverse climate kernel with a Gaussian geographic kernel).
+#'     inverse environmental kernel with a Gaussian geographic kernel).
 #'   - `theta`: the kernel's scale (Gaussian bandwidth, or inverse half-weight
 #'     distance). See [kernel_params()] for calibrated values.
 #'
@@ -92,15 +92,15 @@
 #'   One of:
 #'
 #'   - `"all"` (default): Select all analogs that satisfy the
-#'     `max_clim` and `max_geog` constraints.
-#'   - `"knn_clim"`: For each focal, select up to `k` analogs
-#'     with smallest climate distance, subject to filters.
+#'     `max_env` and `max_geog` constraints.
+#'   - `"knn_env"`: For each focal, select up to `k` analogs
+#'     with smallest environmental distance, subject to filters.
 #'   - `"knn_geog"`: For each focal, select up to `k` analogs
 #'     with smallest geographic distance, subject to filters.
 #'
 #' @param k Number of nearest analogs to return per focal location for kNN
 #'   selection modes. Required when `select` is `"knn_geog"` or
-#'   `"knn_clim"`; must be `NULL` for `select = "all"`.
+#'   `"knn_env"`; must be `NULL` for `select = "all"`.
 #'
 #' @param stat Statistic(s) used to aggregate selected analogs. Either:
 #'
@@ -127,7 +127,7 @@
 #'     `covariates`, and `kernel`. See `lambda` for regularization.
 #'   - `"tabulate"`: if `y` is categorical, separately sum the kernel weights
 #'     of analogs matching each level of `y`.
-#'     With a uniform kernel (no `clim`/`geog` distance weighting) this
+#'     With a uniform kernel (no `env`/`geog` distance weighting) this
 #'     reduces to a per-class vote count; with a distance-decay kernel it
 #'     gives similarity-weighted support per class. Requires `y` (factor or
 #'     coercible-to-factor).
@@ -163,7 +163,7 @@
 #'   When active, results for these stats are divided by a global scalar so that
 #'   they represent a fraction of a theoretically "perfect" scenario where
 #'   the full search area within `max_geog` is occupied wall-to-wall by cells
-#'   whose climate exactly matches `x`. See details under [analog_search()] for
+#'   whose environment exactly matches `x`. See details under [analog_search()] for
 #'   more info.
 #'
 #' @param exclude_self Logical, default `FALSE`. `TRUE` is typically used
@@ -185,15 +185,15 @@
 #'   indicating the proportion of points to retain. Values < 1 reduce memory
 #'   and improve speed at some cost to precision. Default is 1.0 (no downsampling).
 #'   Ignored if `pool` is a pre-built index. When `downsample < 1`, resolution
-#'   must be set explicitly via `geog_res_adj` / `clim_res_adj` (auto-tuning is
+#'   must be set explicitly via `geog_res_adj` / `env_res_adj` (auto-tuning is
 #'   not supported in this case; see those parameters for details).
 #'
 #' @param seed Optional random seed for reproducible downsampling. If `NULL`
 #'   (default), uses current R random state. Ignored if `pool` is a pre-built
 #'   index or `downsample = 1`.
 #'
-#' @param clim_res_adj,geog_res_adj Control the lattice search-index resolution
-#'   of the climate and geographic families, each a multiplier on a
+#' @param env_res_adj,geog_res_adj Control the lattice search-index resolution
+#'   of the environmental and geographic families, each a multiplier on a
 #'   data-dependent default (targeting ~50 pool points per occupied bin, split
 #'   between families by effective dimensionality, so it scales with pool size).
 #'   Each is either:
@@ -238,7 +238,7 @@
 #'
 #' - `index`, `x`, `y`: Focal location (1-based index and coordinates) corresponding to input `x`
 #' - `analog_index`, `analog_x`, `analog_y`: Analog location corresponding to input `pool`
-#' - `clim_dist`: Climate distance (Euclidean or Mahalanobis)
+#' - `env_dist`: Environmental distance (Euclidean or Mahalanobis)
 #' - `geog_dist`: Geographic distance (km for lonlat, projection units otherwise)
 #' - Value columns (if `y` provided): one per variable
 #'
@@ -269,14 +269,14 @@
 #'   (`x`, `pool`, `x_cov`, `y`, `covariates`, `weight`, `coord_type`)
 #'   give attributes of the data on which to operate.
 #' - *Selection parameters*
-#'   (`select`, `clim`, `geog`, `k`)
+#'   (`select`, `env`, `geog`, `k`)
 #'   define which analogs to `select` from the `pool` for each `x`.
 #' - *Aggregation parameters*
-#'   (`stat`, `clim`, `geog`, `lambda`, `se`, `normalize`)
-#'   control how selected analogs are summarized. The `clim` / `geog` kernels
+#'   (`stat`, `env`, `geog`, `lambda`, `se`, `normalize`)
+#'   control how selected analogs are summarized. The `env` / `geog` kernels
 #'   carry both the selection thresholds and the weighting kernels.
 #' - *Computation parameters*
-#'   (`n_threads`, `geog_res_adj`, `clim_res_adj`, `downsample`, `seed`, `progress`)
+#'   (`n_threads`, `geog_res_adj`, `env_res_adj`, `downsample`, `seed`, `progress`)
 #'   specify behavior for controlling compute performance.
 #'
 #' ## Distance metrics
@@ -284,14 +284,14 @@
 #' Geographic distance can be computed for lon/lat coordinates (great-circle
 #' distance) or projected coordinates (planar distance).
 #'
-#' Climate similarity is measured using Euclidean or Mahalanobis distance in
-#' climate space. In general, when multiple climate variables are used, it is
-#' recommended to use pre-whitened (scaled) climate data, to avoid major artifacts
-#' from climate variables with different units. Pre-whitening can be done using
+#' Environmental similarity is measured using Euclidean or Mahalanobis distance in
+#' environmental space. In general, when multiple environmental variables are used, it is
+#' recommended to use pre-whitened (scaled) environmental data, to avoid major artifacts
+#' from environmental variables with different units. Pre-whitening can be done using
 #' `scale()` for dataset-wide Euclidean distances, or `mahalanobis_transform()`
 #' for dataset-wide Mahalanobis distances.
 #'
-#' The function also supports climate distance calculations based on
+#' The function also supports environmental distance calculations based on
 #' *local temporal* covariance structure at focal locations, via the `x_cov`
 #' parameter. These local covariance values need to be pre-calculated.
 #'
@@ -324,11 +324,11 @@
 #' by the  global scalar `D_max`. `D_max` (which is also attached to the result as
 #' an attribute) is the highest `D` you could theoretically expect given `max_geog`,
 #' `kernel`, and `theta`, i.e. the density value you'd get if the entire the geographic
-#' search radius were filled with grid cells whose climate exactly matches `x`.
+#' search radius were filled with grid cells whose environment exactly matches `x`.
 #' It is calculated as the analytic integral
 #' `(1 / mean_cell_area) * integral_0^max_geog K(0, r) * 2*pi*r dr`,
 #' which is the kernel-weighted count an idealized focal would accumulate
-#' from a continuous uniform pool of perfect climate matches out to
+#' from a continuous uniform pool of perfect environmental matches out to
 #' `max_geog`. The resulting columns are unitless availability fractions
 #' on roughly `[0, 1]`.
 #'
@@ -375,7 +375,7 @@ analog_search <- function(
       weight = NULL,
 
       # candidate filtering + distance weighting (per-family kernels)
-      clim = NULL,
+      env = NULL,
       geog = NULL,
       select = "all",
       k = NULL,
@@ -394,7 +394,7 @@ analog_search <- function(
       downsample = 1.0,
       seed = NULL,
       geog_res_adj = "auto",
-      clim_res_adj = "auto",
+      env_res_adj = "auto",
       cell_area_weight = "auto",
       mean_cell_area = NULL,
 
@@ -404,8 +404,8 @@ analog_search <- function(
 
       se <- match.arg(se)
 
-      # Unpack the per-family kernels (clim, geog) into the individual
-      # components used throughout: hard thresholds (max_clim/max_geog), and
+      # Unpack the per-family kernels (env, geog) into the individual
+      # components used throughout: hard thresholds (max_env/max_geog), and
       # per-family kernel shapes + scales. A NULL kernel means no threshold and
       # no weighting for that family. This is the single point where the
       # kernel() sugar is dissolved; everything downstream consumes the plain
@@ -419,14 +419,14 @@ analog_search <- function(
                  weight = w$weight %||% "uniform",
                  theta  = w$theta)
       }
-      .clim_w <- .unpack_kernel(clim, "clim")
+      .env_w <- .unpack_kernel(env, "env")
       .geog_w <- .unpack_kernel(geog, "geog")
 
-      max_clim    <- .clim_w$max
+      max_env    <- .env_w$max
       max_geog    <- .geog_w$max
-      kernel_clim <- .clim_w$weight   # "uniform" | "gaussian" | "inverse"
+      kernel_env <- .env_w$weight   # "uniform" | "gaussian" | "inverse"
       kernel_geog <- .geog_w$weight
-      theta_clim  <- .clim_w$theta
+      theta_env  <- .env_w$theta
       theta_geog  <- .geog_w$theta
 
       # Validate normalize argument format up front. Accepts TRUE, FALSE,
@@ -507,15 +507,15 @@ analog_search <- function(
             # (binning an unconstrained family only wastes time); we message when
             # an explicit non-zero user value is overridden.
             geo_constrained  <- !is.null(max_geog) || identical(select, "knn_geog")
-            clim_constrained <- !is.null(max_clim) || identical(select, "knn_clim")
+            env_constrained <- !is.null(max_env) || identical(select, "knn_env")
 
             # Resolve requested adjustments. "auto" (the default for both)
             # requests speed tuning of a single overall resolution scale applied
             # to both families; a numeric value is used directly.
             tune_requested <- identical(geog_res_adj, "auto") ||
-                  identical(clim_res_adj, "auto")
+                  identical(env_res_adj, "auto")
             geo_adj_req  <- if (identical(geog_res_adj,  "auto")) 1 else geog_res_adj
-            clim_adj_req <- if (identical(clim_res_adj, "auto")) 1 else clim_res_adj
+            env_adj_req <- if (identical(env_res_adj, "auto")) 1 else env_res_adj
 
             # Apply deactivation override (with a message if it changes an
             # explicit user value).
@@ -525,14 +525,14 @@ analog_search <- function(
                           "geographic lattice (overriding geog_res_adj = ",
                           geog_res_adj, ").")
             }
-            if (!clim_constrained && !identical(clim_res_adj, "auto") &&
-                is.numeric(clim_res_adj) && clim_res_adj != 0) {
-                  message("Query does not constrain climate; deactivating the ",
-                          "climate lattice (overriding clim_res_adj = ",
-                          clim_res_adj, ").")
+            if (!env_constrained && !identical(env_res_adj, "auto") &&
+                is.numeric(env_res_adj) && env_res_adj != 0) {
+                  message("Query does not constrain environment; deactivating the ",
+                          "environmental lattice (overriding env_res_adj = ",
+                          env_res_adj, ").")
             }
             geo_adj_use  <- if (geo_constrained)  geo_adj_req  else 0
-            clim_adj_use <- if (clim_constrained) clim_adj_req else 0
+            env_adj_use <- if (env_constrained) env_adj_req else 0
 
             # Resolve tuning (minimal: a single overall scale on both families).
             if (tune_requested) {
@@ -546,7 +546,7 @@ analog_search <- function(
                               '`downsample < 1`. The speed-optimal resolution ',
                               'can produce biased and high-variance results ',
                               'under downsampling. Set `geog_res_adj` / ',
-                              '`clim_res_adj` explicitly: finer values generally ',
+                              '`env_res_adj` explicitly: finer values generally ',
                               'give better accuracy at the cost of query speed.',
                               call. = FALSE
                         )
@@ -561,21 +561,21 @@ analog_search <- function(
                         covariates = covariates,
                         select = select,
                         stat = stat,
-                        clim = clim,
+                        env = env,
                         geog = geog,
                         k = k,
                         lambda = lambda,
                         se = se,
                         coord_type = coord_type,
                         geog_res_adj = geo_adj_use,
-                        clim_res_adj = clim_adj_use,
+                        env_res_adj = env_adj_use,
                         n_threads = n_threads,
                         verbose = FALSE,
                         downsample = downsample,
                         seed = seed
                   )
                   geo_adj_use  <- tuned$geog_res_adj
-                  clim_adj_use <- tuned$clim_res_adj
+                  env_adj_use <- tuned$env_res_adj
             }
 
             # Build index from raw pool data
@@ -583,7 +583,7 @@ analog_search <- function(
                   pool = pool,
                   coord_type = coord_type,
                   geog_res_adj = geo_adj_use,
-                  clim_res_adj = clim_adj_use,
+                  env_res_adj = env_adj_use,
                   downsample = downsample,
                   seed = seed,
                   cell_area_weight = cell_area_weight,
@@ -597,16 +597,16 @@ analog_search <- function(
             index = index,
             select = select,
             stat = stat,
-            max_clim = max_clim,
+            max_env = max_env,
             max_geog = max_geog,
             x_cov = x_cov,
             y = y,
             covariates = covariates,
             weight = weight,
             k = k,
-            kernel_clim = kernel_clim,
+            kernel_env = kernel_env,
             kernel_geog = kernel_geog,
-            theta_clim = theta_clim,
+            theta_env = theta_env,
             theta_geog = theta_geog,
             lambda = lambda,
             se = se,

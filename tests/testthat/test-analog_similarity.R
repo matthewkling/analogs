@@ -7,14 +7,14 @@ test_that("`analog_similarity` result matches manual calculation", {
       nn <- analog_similarity(d$focal, d$ref, geog = kernel(max = max_geog), k = 1, coord_type = "projected")
 
       # manual impact calculation
-      dclim <- xdist(d$focal, d$ref, "clim")
+      denv <- xdist(d$focal, d$ref, "env")
       dgeog <- xdist(d$focal, d$ref, "geog")
-      dclim[dgeog > max_geog] <- Inf
-      nn_idx <- as.vector(apply(dclim, 1, which.min))
-      nn_dst <- as.vector(apply(dclim, 1, min))
+      denv[dgeog > max_geog] <- Inf
+      nn_idx <- as.vector(apply(denv, 1, which.min))
+      nn_dst <- as.vector(apply(denv, 1, min))
 
       expect_equal(nn$analog_index, nn_idx)
-      expect_equal(nn$clim_dist, nn_dst)
+      expect_equal(nn$env_dist, nn_dst)
 })
 
 test_that("`analog_similarity` result matches manual calculation for LON/LAT coords", {
@@ -32,21 +32,21 @@ test_that("`analog_similarity` result matches manual calculation for LON/LAT coo
 
       # --- manual lon/lat impact calculation ---
 
-      # (1) climate distances (Euclidean in climate space)
-      dclim <- xdist(d$focal, d$ref, "clim")
+      # (1) environmental distances (Euclidean in environmental space)
+      denv <- xdist(d$focal, d$ref, "env")
 
       # (2) great-circle distances (km)
       dgeog <- xdist(d$focal, d$ref, "lonlat")
 
       # (3) apply geographic filter (those beyond max_geog cannot be analogs)
-      dclim[dgeog > max_geog] <- Inf
+      denv[dgeog > max_geog] <- Inf
 
-      # (4) pick minimum climate distance among those passing the geo filter
-      nn_idx <- as.vector(apply(dclim, 1, which.min))
-      nn_dst <- as.vector(apply(dclim, 1, min))
+      # (4) pick minimum environmental distance among those passing the geo filter
+      nn_idx <- as.vector(apply(denv, 1, which.min))
+      nn_dst <- as.vector(apply(denv, 1, min))
 
       expect_equal(nn$analog_index, nn_idx)
-      expect_equal(nn$clim_dist, nn_dst, tolerance = 1e-8)
+      expect_equal(nn$env_dist, nn_dst, tolerance = 1e-8)
 })
 
 test_that("analog_similarity works with x/pool parameter names", {
@@ -64,7 +64,7 @@ test_that("analog_similarity works with x/pool parameter names", {
 
       expect_s3_class(i, "data.frame")
       expect_true(nrow(i) <= nrow(d$focal) * 3)
-      expect_true(all(c("index", "analog_index", "clim_dist") %in% names(i)))
+      expect_true(all(c("index", "analog_index", "env_dist") %in% names(i)))
 })
 
 
@@ -85,5 +85,5 @@ test_that("analog_similarity works with analog_index", {
 
       expect_s3_class(i, "data.frame")
       expect_true(nrow(i) <= nrow(d$focal) * 3)
-      expect_true(all(c("index", "analog_index", "clim_dist") %in% names(i)))
+      expect_true(all(c("index", "analog_index", "env_dist") %in% names(i)))
 })

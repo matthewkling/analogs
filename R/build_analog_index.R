@@ -1,12 +1,12 @@
 #' Build Analog Index
 #'
-#' Pre-builds a reusable lattice index from reference climate data. The index
+#' Pre-builds a reusable lattice index from reference environmental data. The index
 #' can be queried multiple times with different focal points and parameters,
 #' avoiding the need to rebuild the lattice for each query.
 #'
 #' @param pool The reference dataset to search for analogs. Should be a
-#'  matrix/data.frame with columns x, y, and climate variables, or a SpatRaster
-#'  with climate variable layers.
+#'  matrix/data.frame with columns x, y, and environmental variables, or a SpatRaster
+#'  with environmental variable layers.
 #'
 #' @param coord_type Coordinate system type:
 #'   \itemize{
@@ -17,11 +17,11 @@
 #'       assumes \code{max_geog} is in projection units).
 #'   }
 #'
-#' @param clim_res_adj,geog_res_adj Non-negative scalars adjusting the lattice
-#'   resolution of the climate and geographic variable families, each as a
+#' @param env_res_adj,geog_res_adj Non-negative scalars adjusting the lattice
+#'   resolution of the environmental and geographic variable families, each as a
 #'   multiplier on a data-dependent default. The default allocation targets an
 #'   average of roughly 50 pool points per occupied bin and splits that budget
-#'   between the two families by their effective dimensionality; `clim_res_adj =
+#'   between the two families by their effective dimensionality; `env_res_adj =
 #'   geog_res_adj = 1` (the default) uses that allocation. Larger values give a
 #'   finer lattice for that family (more, smaller bins), smaller values a
 #'   coarser one, and `0` deactivates the family entirely (one bin per axis),
@@ -84,13 +84,13 @@
 #'
 #' @details
 #' The lattice index is a multidimensional grid of bins, built over both geographic
-#' and climate dimensions. This structure enables efficient analog searches by
+#' and environmental dimensions. This structure enables efficient analog searches by
 #' first filtering and sorting bins of similar points before computing exact
 #' results. For lon/lat coordinates, the index uses ECEF (Earth-Centered Earth-Fixed)
 #' space internally for optimal performance.
 #'
 #' Index resolution is controlled per family by `geog_res_adj` and
-#' `clim_res_adj`, each a multiplier on a pool-size-dependent default (targeting
+#' `env_res_adj`, each a multiplier on a pool-size-dependent default (targeting
 #' ~50 points per bin, split between the families by effective dimensionality).
 #' `1` uses the default for that family, larger values are finer, smaller are
 #' coarser, and `0` deactivates a family (one bin per axis). The optimal values
@@ -127,22 +127,22 @@
 #' # Build with downsampling for large datasets
 #' index <- build_analog_index(
 #'   large_climate_data,
-#'   geog_res_adj = 1, clim_res_adj = 1,
+#'   geog_res_adj = 1, env_res_adj = 1,
 #'   downsample = 0.1,  # Reduce max bin size to 10%
 #'   seed = 123         # Reproducible sampling
 #' )
 #'
 #' # Query the index multiple times
-#' v1 <- analog_velocity(sites1, pool = index, clim = kernel(max = 0.5))
-#' v2 <- analog_velocity(sites2, pool = index, clim = kernel(max = 0.3))
-#' a1 <- analog_availability(sites3, pool = index, clim = kernel(max = 0.5), geog = kernel(max = 100))
+#' v1 <- analog_velocity(sites1, pool = index, env = kernel(max = 0.5))
+#' v2 <- analog_velocity(sites2, pool = index, env = kernel(max = 0.3))
+#' a1 <- analog_availability(sites3, pool = index, env = kernel(max = 0.5), geog = kernel(max = 100))
 #' }
 #'
 #' @export
 build_analog_index <- function(pool,
                                coord_type = c("auto", "lonlat", "projected"),
                                geog_res_adj = 1,
-                               clim_res_adj = 1,
+                               env_res_adj = 1,
                                downsample = 1.0,
                                seed = NULL,
                                cell_area_weight = "auto",
@@ -156,9 +156,9 @@ build_analog_index <- function(pool,
             stop("geog_res_adj must be a single non-negative number (0 = deactivate)")
       }
 
-      if (!is.numeric(clim_res_adj) || length(clim_res_adj) != 1L ||
-          !is.finite(clim_res_adj) || clim_res_adj < 0) {
-            stop("clim_res_adj must be a single non-negative number (0 = deactivate)")
+      if (!is.numeric(env_res_adj) || length(env_res_adj) != 1L ||
+          !is.finite(env_res_adj) || env_res_adj < 0) {
+            stop("env_res_adj must be a single non-negative number (0 = deactivate)")
       }
 
       if (!is.numeric(downsample) || length(downsample) != 1L ||
@@ -318,10 +318,10 @@ build_analog_index <- function(pool,
       # behavior matches a balanced allocation), then each family's share is
       # scaled by its per-family resolution adjustment:
       #
-      #   geo_default  = B ^ (n_geo_eff / (n_geo_eff + n_clim))
-      #   clim_default = B ^ (n_clim    / (n_geo_eff + n_clim))
+      #   geo_default  = B ^ (n_geo_eff / (n_geo_eff + n_env))
+      #   env_default = B ^ (n_env    / (n_geo_eff + n_env))
       #   geo_target   = geog_res_adj  * geo_default
-      #   clim_target  = clim_res_adj * clim_default
+      #   env_target  = env_res_adj * env_default
       #
       # n_geo_eff is the EFFECTIVE geographic dimensionality: for lon/lat the geo
       # axes are stored as 3 ECEF coords but lie on a 2D manifold, so we use 2;
@@ -329,29 +329,29 @@ build_analog_index <- function(pool,
       # (or a target <= 1) deactivates that family (1 bin per axis).
       TARGET_OCC <- 50
       n_pool_used <- nrow(ref_mm)
-      n_clim <- ncol(ref_mm) - 2L
+      n_env <- ncol(ref_mm) - 2L
       n_geo_eff <- 2  # ECEF (lonlat) manifold dim OR projected geo dim
 
       B <- n_pool_used / TARGET_OCC
       if (!is.finite(B) || B < 1) B <- 1
 
-      geo_frac  <- n_geo_eff / (n_geo_eff + n_clim)
-      clim_frac <- n_clim    / (n_geo_eff + n_clim)
+      geo_frac  <- n_geo_eff / (n_geo_eff + n_env)
+      env_frac <- n_env    / (n_geo_eff + n_env)
       geo_default  <- B ^ geo_frac
-      clim_default <- B ^ clim_frac
+      env_default <- B ^ env_frac
 
       # res_adj = 0 deactivates (target 0 -> C++ leaves family at 1 bin/axis).
       geo_target  <- if (geog_res_adj  == 0) 0 else geog_res_adj  * geo_default
-      clim_target <- if (clim_res_adj == 0) 0 else clim_res_adj * clim_default
+      env_target <- if (env_res_adj == 0) 0 else env_res_adj * env_default
       geo_target  <- as.numeric(geo_target)
-      clim_target <- as.numeric(clim_target)
+      env_target <- as.numeric(env_target)
 
       # Call C++ to build index
       index_cpp <- build_analog_index_cpp(
             ref_mm = ref_mm,
             coord_type = coord_type,
             geo_target = geo_target,
-            clim_target = clim_target,
+            env_target = env_target,
             downsample = downsample,
             seed = seed
       )
@@ -381,17 +381,17 @@ build_analog_index <- function(pool,
                   coord_type = coord_type,
                   n_pool = n_pool_original,
                   n_pool_used = index_cpp$n_pool,
-                  n_clim = index_cpp$n_clim,
+                  n_env = index_cpp$n_env,
 
-                  # Resolution parameters. geog_res_adj/clim_res_adj are the
+                  # Resolution parameters. geog_res_adj/env_res_adj are the
                   # per-family knobs the user set (1 = default, 0 = deactivated);
-                  # geo_target/clim_target are the realized per-family bin-count
+                  # geo_target/env_target are the realized per-family bin-count
                   # targets passed to C++; bins_per_axis is the realized per-axis
                   # split (geo axes first, then climate).
                   geog_res_adj = geog_res_adj,
-                  clim_res_adj = clim_res_adj,
+                  env_res_adj = env_res_adj,
                   geo_target = index_cpp$geo_target,
-                  clim_target = index_cpp$clim_target,
+                  env_target = index_cpp$env_target,
                   bins_per_axis = index_cpp$bins_per_axis,
 
                   # Coordinate ranges
@@ -399,8 +399,8 @@ build_analog_index <- function(pool,
                   coord_maxs = index_cpp$coord_maxs,
 
                   # Climate ranges
-                  clim_mins = index_cpp$clim_mins,
-                  clim_maxs = index_cpp$clim_maxs,
+                  env_mins = index_cpp$env_mins,
+                  env_maxs = index_cpp$env_maxs,
 
                   # Internal flags
                   use_ecef = index_cpp$use_ecef,
@@ -455,31 +455,31 @@ print.analog_index <- function(x, ...) {
       } else {
             cat(sprintf("  %d locations\n", x$n_pool))
       }
-      cat(sprintf("  %d climate variables\n", x$n_clim))
+      cat(sprintf("  %d environmental variables\n", x$n_env))
       cat(sprintf("  Coordinate type: %s\n", x$coord_type))
 
       cat("\nCoordinate ranges:\n")
       cat(sprintf("  X: [%.3f, %.3f]\n", x$coord_mins[1], x$coord_maxs[1]))
       cat(sprintf("  Y: [%.3f, %.3f]\n", x$coord_mins[2], x$coord_maxs[2]))
 
-      cat("\nClimate ranges:\n")
-      for (i in seq_along(x$clim_mins)) {
+      cat("\nEnvironmental ranges:\n")
+      for (i in seq_along(x$env_mins)) {
             cat(sprintf("  Variable %d: [%.3f, %.3f]\n",
-                        i, x$clim_mins[i], x$clim_maxs[i]))
+                        i, x$env_mins[i], x$env_maxs[i]))
       }
 
       cat("\nIndex structure:\n")
-      cat(sprintf("  geog_res_adj: %g   clim_res_adj: %g\n",
-                  x$geog_res_adj %||% NA_real_, x$clim_res_adj %||% NA_real_))
+      cat(sprintf("  geog_res_adj: %g   env_res_adj: %g\n",
+                  x$geog_res_adj %||% NA_real_, x$env_res_adj %||% NA_real_))
       if (!is.null(x$bins_per_axis)) {
             n_ax  <- length(x$bins_per_axis)
-            n_clim_ax <- x$n_clim %||% 0L
-            n_geo_ax  <- max(0L, n_ax - n_clim_ax)
+            n_env_ax <- x$n_env %||% 0L
+            n_geo_ax  <- max(0L, n_ax - n_env_ax)
             geo_b  <- if (n_geo_ax > 0) x$bins_per_axis[seq_len(n_geo_ax)] else integer(0)
-            clim_b <- if (n_clim_ax > 0) x$bins_per_axis[(n_geo_ax + 1L):n_ax] else integer(0)
-            cat(sprintf("  Bins per axis: geo {%s}  climate {%s}\n",
+            env_b <- if (n_env_ax > 0) x$bins_per_axis[(n_geo_ax + 1L):n_ax] else integer(0)
+            cat(sprintf("  Bins per axis: geog {%s}   env {%s}\n",
                         paste(geo_b, collapse = ", "),
-                        paste(clim_b, collapse = ", ")))
+                        paste(env_b, collapse = ", ")))
       }
       cat(sprintf("  Total bins: %s\n", format(x$total_bins, big.mark = ",")))
       cat(sprintf("  Non-empty bins: %s (%.1f%%)\n",
@@ -551,7 +551,7 @@ is_analog_index <- function(x) {
 
       # Check required components
       required <- c("lattice_xptr", "ref_data", "coord_type",
-                    "n_pool", "n_clim", "geo_target", "clim_target")
+                    "n_pool", "n_env", "geo_target", "env_target")
       missing <- setdiff(required, names(index))
       if (length(missing) > 0) {
             stop("Invalid analog_index: missing components: ",
@@ -566,12 +566,12 @@ is_analog_index <- function(x) {
       # Validate against query data if provided
       if (!is.null(query_data)) {
             query_ncol <- ncol(query_data)
-            expected_ncol <- 2 + index$n_clim
+            expected_ncol <- 2 + index$n_env
 
             if (query_ncol != expected_ncol) {
                   stop(sprintf(
-                        "Query data has %d columns but index expects %d (2 coords + %d climate)",
-                        query_ncol, expected_ncol, index$n_clim
+                        "Query data has %d columns but index expects %d (2 coords + %d env)",
+                        query_ncol, expected_ncol, index$n_env
                   ))
             }
 
@@ -592,15 +592,15 @@ is_analog_index <- function(x) {
                   }
 
                   # Check climate bounds (warnings only)
-                  for (i in seq_len(index$n_clim)) {
-                        clim_col <- query_data[, 2 + i]
-                        clim_out <- clim_col < index$clim_mins[i] |
-                              clim_col > index$clim_maxs[i]
-                        n_clim_out <- sum(clim_out)
-                        if (n_clim_out > 0) {
+                  for (i in seq_len(index$n_env)) {
+                        env_col <- query_data[, 2 + i]
+                        env_out <- env_col < index$env_mins[i] |
+                              env_col > index$env_maxs[i]
+                        n_env_out <- sum(env_out)
+                        if (n_env_out > 0) {
                               warning(sprintf(
-                                    "%d query point(s) have climate variable %d outside index bounds",
-                                    n_clim_out, i
+                                    "%d query point(s) have environmental variable %d outside index bounds",
+                                    n_env_out, i
                               ))
                         }
                   }

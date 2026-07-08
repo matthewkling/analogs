@@ -25,7 +25,7 @@ inverse-distance kernels, this is the half-weight scale of the
 reparameterized kernel \code{1 / (1 + d / theta)} (weight is 1/2 at
 \code{d = theta}).}
 
-\item{d}{Dimensionality of the space (e.g., number of climate
+\item{d}{Dimensionality of the space (e.g., number of environmental
 variables after Mahalanobis transformation, or 2 for geographic).}
 
 \item{loss}{Fraction of aggregate kernel weight to discard at the
@@ -37,7 +37,7 @@ computed.}
 
 \item{data_dist}{Distribution of cells in space. Either \code{"mvn"}
 (multivariate standard normal; default; appropriate for
-Mahalanobis-transformed climate data) or \code{"uniform"} (appropriate
+Mahalanobis-transformed environmental data) or \code{"uniform"} (appropriate
 for geographic space).}
 }
 \value{
@@ -45,7 +45,7 @@ A named list. For Gaussian and inverse-distance kernels:
 element \code{theta}, and \code{max} if \code{loss} is specified. For uniform
 kernels: element \code{max} (the single cutoff radius, which serves as
 both bandwidth and truncation distance; supplied in the \code{analogs}
-package as \code{max_clim} or \code{max_geog}).
+package as \code{max_env} or \code{max_geog}).
 }
 \description{
 Returns recommended values for the bandwidth (\code{theta}) and hard
@@ -53,7 +53,7 @@ truncation distance (\code{max}) of a kernel operating on Euclidean
 distances in \code{d}-dimensional space. Gives theoretical answers to the
 questions, "How big should \code{theta} be in order for my kernel to capture
 a given fraction of pool sites for the typical focal site?" and "How
-big should \code{max_clim} or \code{max_geog} be to truncate only a given
+big should \code{max_env} or \code{max_geog} be to truncate only a given
 percentage of kernel weight for the typical focal site?" Accounts for
 the effects of analog space multidimensionality on pairwise distance
 distributions, which can result in one-dimensional intuitions being
@@ -79,11 +79,11 @@ kernel weight is discarded. Useful for computational efficiency.
 
 Recommendations are averages over the distribution of focal cells;
 specific focal cells experience effective neighborhoods that vary
-around these averages, with cells in dense climate regions seeing
+around these averages, with cells in dense environmental regions seeing
 more neighbors than cells in sparse regions.
 }
 \examples{
-# Climate kernel: niche fraction of 5\% in 4 climate variables
+# Environmental kernel: niche fraction of 5\% in 4 environmental variables
 kernel_params(fraction = 0.05, d = 4, loss = 0.01)
 
 # Geographic kernel: 500 km dispersal-based bandwidth

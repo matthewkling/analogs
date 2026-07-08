@@ -2,21 +2,21 @@
 % Please edit documentation in R/mahalanobis_transform.R
 \name{mahalanobis_transform}
 \alias{mahalanobis_transform}
-\title{Transform Climate Data for Global Mahalanobis Distance}
+\title{Transform Environmental Data for Global Mahalanobis Distance}
 \usage{
 mahalanobis_transform(x, pool = NULL, center = TRUE, scale = TRUE)
 }
 \arguments{
 \item{x}{Climate data for focal/query points. Can be:
 \itemize{
-\item Matrix/data.frame with columns x, y, and climate variables
-\item SpatRaster with climate variable layers
+\item Matrix/data.frame with columns x, y, and environmental variables
+\item SpatRaster with environmental variable layers
 }}
 
-\item{pool}{Optional reference climate data to transform jointly with \code{x}.
+\item{pool}{Optional reference environmental data to transform jointly with \code{x}.
 When provided, both datasets are transformed using the same transformation
 (computed from their combined covariance structure). Must have the same
-number of climate variables as \code{x}. Same format options as \code{x}.}
+number of environmental variables as \code{x}. Same format options as \code{x}.}
 
 \item{center}{Logical; if TRUE (default), center each variable to mean zero
 before transformation.}
@@ -24,7 +24,7 @@ before transformation.}
 \item{scale}{Logical; if TRUE (default), standardize each variable to unit
 variance before transformation (correlation-based). If FALSE, use
 covariance-based transformation which preserves relative variance magnitudes.
-Generally TRUE is recommended when climate variables have different units
+Generally TRUE is recommended when environmental variables have different units
 (e.g., temperature in °C vs precipitation in mm).}
 }
 \value{
@@ -41,13 +41,13 @@ inherit input names with a \code{_transformed} suffix (e.g. \code{tmean}
 becomes \code{tmean_transformed}); each transformed axis is the whitened
 counterpart of its corresponding input variable.
 
-Rows / cells with NA values in any coordinate or climate column are
+Rows / cells with NA values in any coordinate or environmental column are
 excluded from the covariance estimation but preserved as NA in the
 returned output, so the result has the same shape (row count / cell
 count) as the input.
 }
 \description{
-Transforms climate data to decorrelated, unit-variance space, enabling the
+Transforms environmental data to decorrelated, unit-variance space, enabling the
 use of Euclidean distance as a global Mahalanobis distance. Useful for
 climate analog analysis when you want to account for spatial correlation
 structure and/or standardize variables with different units.
@@ -75,7 +75,7 @@ If the covariance matrix is near-singular, a small regularization term
 \examples{
 \dontrun{
 # Single dataset transformation
-clim_transformed <- mahalanobis_transform(climate_data)
+env_transformed <- mahalanobis_transform(climate_data)
 
 # Joint transformation for analog analysis
 transformed <- mahalanobis_transform(
@@ -88,7 +88,7 @@ analogs <- analog_search(
   x = transformed$x,
   pool = transformed$pool,
   select = "knn_geog",
-  clim = kernel(max = 2),  # Now in standardized units
+  env = kernel(max = 2),  # Now in standardized units
   k = 1
 )
 

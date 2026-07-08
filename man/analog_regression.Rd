@@ -12,7 +12,7 @@ analog_regression(
   covariates,
   x_covariates = NULL,
   geog = NULL,
-  clim = kernel("gaussian"),
+  env = kernel("gaussian"),
   select = "all",
   k = NULL,
   lambda = 0,
@@ -21,7 +21,7 @@ analog_regression(
   normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -31,13 +31,13 @@ analog_regression(
 }
 \arguments{
 \item{x}{Focal locations for which regressions will be fit. Should be a
-matrix/data.frame with columns x, y, and climate variables, or a
-SpatRaster with climate variable layers.}
+matrix/data.frame with columns x, y, and environmental variables, or a
+SpatRaster with environmental variable layers.}
 
 \item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-\item Matrix/data.frame with columns x, y, and climate variables,
-or SpatRaster with climate variable layers, OR
+\item Matrix/data.frame with columns x, y, and environmental variables,
+or SpatRaster with environmental variable layers, OR
 \item An \code{analog_index} object created by
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
@@ -81,15 +81,15 @@ focal. Must have exactly the same number of rows/cells as \code{x}, and the
 same column/layer names as \code{covariates}. Default \code{NULL} returns only
 coefficients.}
 
-\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\item{env, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
 \code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
-shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+shape, and the kernel's scale for one family: environmental (\code{env}) or geography
 (\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
 \item \code{max}: hard distance threshold — candidates beyond it (in that family's
-distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+distance) are excluded. For \code{env}, \code{max} may be a single Euclidean
 radius or a per-variable vector of absolute-difference thresholds (length
-equal to the number of climate variables); scalar climate thresholds are
+equal to the number of environmental variables); scalar environmental thresholds are
 in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
 single radius (kilometers when \code{coord_type = "lonlat"}, projected units
 otherwise).
@@ -97,7 +97,7 @@ otherwise).
 distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
 \code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
 product of the two families' weights, so shapes may be mixed (e.g. an
-inverse climate kernel with a Gaussian geographic kernel).
+inverse environmental kernel with a Gaussian geographic kernel).
 \item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
 distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
@@ -109,16 +109,16 @@ weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 One of:
 \itemize{
 \item \code{"all"} (default): Select all analogs that satisfy the
-\code{max_clim} and \code{max_geog} constraints.
-\item \code{"knn_clim"}: For each focal, select up to \code{k} analogs
-with smallest climate distance, subject to filters.
+\code{max_env} and \code{max_geog} constraints.
+\item \code{"knn_env"}: For each focal, select up to \code{k} analogs
+with smallest environmental distance, subject to filters.
 \item \code{"knn_geog"}: For each focal, select up to \code{k} analogs
 with smallest geographic distance, subject to filters.
 }}
 
 \item{k}{Number of nearest analogs to return per focal location for kNN
 selection modes. Required when \code{select} is \code{"knn_geog"} or
-\code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.}
+\code{"knn_env"}; must be \code{NULL} for \code{select = "all"}.}
 
 \item{lambda}{Ridge penalty parameter (default: 0, giving ordinary
 weighted least squares). Higher values shrink high-variance coefficients
@@ -151,13 +151,13 @@ if \code{stat} includes \code{"sum_weights"} or \code{"tabulate"} and \code{pool
 When active, results for these stats are divided by a global scalar so that
 they represent a fraction of a theoretically "perfect" scenario where
 the full search area within \code{max_geog} is occupied wall-to-wall by cells
-whose climate exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
+whose environment exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
 more info.}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
-SpatRaster with a layer for each component. For n climate variables,
+SpatRaster with a layer for each component. For n environmental variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
@@ -170,8 +170,8 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
-\item{clim_res_adj, geog_res_adj}{Control the lattice search-index resolution
-of the climate and geographic families, each a multiplier on a
+\item{env_res_adj, geog_res_adj}{Control the lattice search-index resolution
+of the environmental and geographic families, each a multiplier on a
 data-dependent default (targeting ~50 pool points per occupied bin, split
 between families by effective dimensionality, so it scales with pool size).
 Each is either:
@@ -235,14 +235,14 @@ and \code{\link[=metadata]{metadata()}} for attached metadata attributes.
 \description{
 Fits a weighted local regression of \code{y} on \code{covariates} within
 each focal location's analog neighborhood. Analog neighborhoods are
-defined by climatic similarity, geographic proximity, or both, while
+defined by environmental similarity, geographic proximity, or both, while
 covariates capture additional predictors that influence outcomes within
 each neighborhood but are not captured by to the search dimensions.
 This generalizes the weighted mean — which averages over all within-neighborhood
 variation — by resolving variation driven by these auxiliary predictors.
 Supports ordinary and ridge-penalized weighted least squares. With purely geographic
 neighborhoods, this is equivalent to geographically weighted regression
-(GWR); with climate-based neighborhoods, it extends the analog impact
+(GWR); with environment-based neighborhoods, it extends the analog impact
 model (AIM) framework to incorporate local covariate effects. This function is
 a wrapper that calls \code{\link[=analog_search]{analog_search()}} with \code{"regression"} included in \code{stat}.
 }
@@ -252,9 +252,9 @@ a wrapper that calls \code{\link[=analog_search]{analog_search()}} with \code{"r
 For each focal location, the function:
 
 \enumerate{
-\item Selects analog pool locations based on \code{select}, \code{clim}, \code{geog}, and \code{k}
+\item Selects analog pool locations based on \code{select}, \code{env}, \code{geog}, and \code{k}
 \item Computes distance-based kernel weights for each analog (via the
-\code{clim} / \code{geog} kernels)
+\code{env} / \code{geog} kernels)
 \item Fits a weighted least squares regression of \code{y} on \code{covariates}
 using these weights, with optional ridge penalty \code{lambda}
 \item Returns the regression coefficients (intercept + slopes), and
@@ -283,9 +283,9 @@ interpolation between a simple weighted average and a full local regression.
 \code{"knn_geog"}, with \code{max_geog} and geographic weights): Local spatial
 regression using geographic proximity to define and weight neighborhoods,
 equivalent to GWR.
-\item \strong{Climate-nearest regression} (\code{select = "knn_clim"}, with
+\item \strong{Environmental-nearest regression} (\code{select = "knn_env"}, with
 \code{max_geog} and \code{k}): Fixed-size neighborhoods of the k most similar
-climates within geographic range.
+environments within geographic range.
 }
 }
 
@@ -309,7 +309,7 @@ gwr_result <- analog_regression(
   covariates = data.frame(education = sites$edu, access = sites$access),
   select = "knn_geog",
   k = 50,
-  clim = NULL,
+  env = NULL,
   geog = kernel("gaussian", theta = 20),
   se = "ess"
 )

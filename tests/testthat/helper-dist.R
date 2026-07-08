@@ -1,9 +1,9 @@
-xdist <- function(focal, ref, type = "clim") {
+xdist <- function(focal, ref, type = "env") {
 
       # variable selection
       i <- switch(type,
                   geog = 1:2,
-                  clim = 3:ncol(focal),
+                  env = 3:ncol(focal),
                   lonlat = 1:2)
 
       f <- focal[, i, drop=FALSE]
@@ -30,7 +30,7 @@ xdist <- function(focal, ref, type = "clim") {
             return(out)
       }
 
-      # DEFAULT: Euclidean for projected or climatic dims
+      # DEFAULT: Euclidean for projected or environmental dims
       return(as.matrix(dist(rbind(f, r)))[1:nrow(f), nrow(f) + (1:nrow(r))])
 }
 

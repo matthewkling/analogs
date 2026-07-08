@@ -19,20 +19,20 @@
 #'   ## Selection and aggregation parameters
 #'
 #'   \describe{
-#'     \item{`select`}{Selection strategy: `"all"`, `"knn_clim"`, or
+#'     \item{`select`}{Selection strategy: `"all"`, `"knn_env"`, or
 #'       `"knn_geog"`.}
 #'     \item{`k`}{Number of neighbors for kNN selection modes; `NULL` for
 #'       `select = "all"`.}
 #'     \item{`stat`}{Aggregation statistic(s) requested. Character vector;
 #'       `"none"` for pair-mode results.}
-#'     \item{`kernel_clim`}{Climate weighting kernel shape: `"uniform"`,
-#'       `"gaussian"`, or `"inverse"`. `"uniform"` when climate is not
+#'     \item{`kernel_env`}{Environmental weighting kernel shape: `"uniform"`,
+#'       `"gaussian"`, or `"inverse"`. `"uniform"` when environment is not
 #'       distance-weighted.}
 #'     \item{`kernel_geog`}{Geographic weighting kernel shape: `"uniform"`,
 #'       `"gaussian"`, or `"inverse"`. `"uniform"` when geography is not
 #'       distance-weighted.}
-#'     \item{`theta_clim`}{Scale parameter for the climate kernel (Gaussian
-#'       bandwidth or inverse half-weight distance); `NULL` if the climate
+#'     \item{`theta_env`}{Scale parameter for the environmental kernel (Gaussian
+#'       bandwidth or inverse half-weight distance); `NULL` if the environmental
 #'       kernel is uniform.}
 #'     \item{`theta_geog`}{Scale parameter for the geographic kernel; `NULL`
 #'       if the geographic kernel is uniform.}
@@ -40,9 +40,9 @@
 #'       ordinary weighted least squares.}
 #'     \item{`se`}{Standard-error framing applied to SE-supporting stats:
 #'       `"none"`, `"ess"`, or `"design"`.}
-#'     \item{`max_clim`}{Climate-distance threshold used for analog
+#'     \item{`max_env`}{Environmental-distance threshold used for analog
 #'       selection. Scalar for Euclidean / Mahalanobis radius, or
-#'       length-`n_clim` for per-variable thresholds.}
+#'       length-`n_env` for per-variable thresholds.}
 #'     \item{`max_geog`}{Geographic-distance threshold used for analog
 #'       selection. Units are km when `coord_type = "lonlat"`, projection
 #'       units otherwise.}
@@ -56,12 +56,12 @@
 #'   \describe{
 #'     \item{`n_x`}{Number of focal locations in the input `x`.}
 #'     \item{`n_pool`}{Number of reference locations in the input `pool`.}
-#'     \item{`n_clim`}{Number of climate variables.}
+#'     \item{`n_env`}{Number of environmental variables.}
 #'     \item{`coord_type`}{Coordinate system: `"lonlat"` (great-circle
 #'       distances in km) or `"projected"` (planar distances in projection
 #'       units).}
 #'     \item{`x_cov_provided`}{Logical: was a per-focal covariance matrix
-#'       (`x_cov`) supplied? If `TRUE`, climate distances were computed in
+#'       (`x_cov`) supplied? If `TRUE`, environmental distances were computed in
 #'       Mahalanobis units using location-specific covariance; otherwise
 #'       Euclidean.}
 #'     \item{`downsample_actual`}{Actual downsampling rate applied to the
@@ -83,15 +83,15 @@
 #'     \item{`total_bins`, `n_bins_nonempty`, `min_bin_occupancy`,
 #'       `max_bin_occupancy`, `avg_bin_occupancy`,
 #'       `avg_nonempty_bin_occupancy`}{Lattice occupancy summaries.}
-#'     \item{`clim_res_adj`, `geog_res_adj`}{Per-family resolution
+#'     \item{`env_res_adj`, `geog_res_adj`}{Per-family resolution
 #'       adjustments used to build the index: each scales its family's bin
 #'       count relative to a data-dependent default (`1` = default, `0` =
 #'       deactivated). See [build_analog_index()].}
-#'     \item{`clim_target`, `geo_target`}{Realized per-family bin-count
+#'     \item{`env_target`, `geo_target`}{Realized per-family bin-count
 #'       targets passed to the lattice builder (the absolute values the
 #'       `*_res_adj` resolve to).}
 #'     \item{`bins_per_axis`}{Integer vector of realized bins per axis
-#'       (geographic axes first, then climate), showing how the budget was
+#'       (geographic axes first, then environment), showing how the budget was
 #'       distributed.}
 #'   }
 #'
@@ -122,13 +122,13 @@
 #' result <- analog_velocity(
 #'   x = future_climate,
 #'   pool = current_climate,
-#'   clim = kernel(max = 0.5)
+#'   env = kernel(max = 0.5)
 #' )
 #'
 #' # Get the full parameterization as a list
 #' meta <- metadata(result)
 #' meta$select
-#' meta$max_clim
+#' meta$max_env
 #' meta$n_pool
 #'
 #' # Or read individual attributes directly
@@ -145,18 +145,18 @@ metadata <- function(x) {
       documented <- c(
             # Selection and aggregation
             "select", "k", "stat",
-            "kernel_clim", "kernel_geog", "theta_clim", "theta_geog",
+            "kernel_env", "kernel_geog", "theta_env", "theta_geog",
             "lambda", "se",
-            "max_clim", "max_geog",
+            "max_env", "max_geog",
             "exclude_self",
             # Input-data properties
-            "n_x", "n_pool", "n_clim", "coord_type", "x_cov_provided",
+            "n_x", "n_pool", "n_env", "coord_type", "x_cov_provided",
             "downsample_actual",
             # Index diagnostics
             "binning_method", "total_bins", "n_bins_nonempty",
             "min_bin_occupancy", "max_bin_occupancy",
             "avg_bin_occupancy", "avg_nonempty_bin_occupancy",
-            "geog_res_adj", "clim_res_adj", "geo_target", "clim_target", "bins_per_axis",
+            "geog_res_adj", "env_res_adj", "geo_target", "env_target", "bins_per_axis",
             # Cross-validation
             "cv_method", "cv_fun", "cv_n_folds", "cv_pred_target"
       )

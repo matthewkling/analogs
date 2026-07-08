@@ -8,7 +8,7 @@ test_that("`analog_impact` runs without error", {
                   pool = d$ref,
                   y = matrix(rnorm(2*nrow(d$ref)), ncol = 2),
                   geog = kernel(max = 1000),
-                  clim = kernel("gaussian", theta = .25, max = 1)
+                  env = kernel("gaussian", theta = .25, max = 1)
             )
       )
 
@@ -35,7 +35,7 @@ test_that("analog_impact passes covariates and lambda through, in regression mod
             covariates = covariates,
             stat = c("count", "weighted_mean", "regression"),
             geog = kernel(max = 2),
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             lambda = 0.1,
             coord_type = "projected"
       )

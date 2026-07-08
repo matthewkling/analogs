@@ -17,7 +17,7 @@ test_that("se = 'none' (default) omits SE columns", {
             stat = c("weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
@@ -47,7 +47,7 @@ test_that("se = 'ess' returns SE columns for weighted_mean and regression", {
             stat = c("weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
@@ -81,7 +81,7 @@ test_that("se = 'design' returns SE columns for weighted_mean and regression", {
             stat = c("weighted_mean", "regression"),
             y = y,
             covariates = covariates,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             se = "design",
             coord_type = "projected"
@@ -117,7 +117,7 @@ test_that("weighted_mean SE is scale-invariant in the weights", {
             select = "all",
             stat = "weighted_mean",
             y = y,
-            clim = kernel(max = 2),
+            env = kernel(max = 2),
             geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
@@ -129,7 +129,7 @@ test_that("weighted_mean SE is scale-invariant in the weights", {
             select = "all",
             stat = "weighted_mean",
             y = y,
-            clim = kernel(max = 2),
+            env = kernel(max = 2),
             geog = kernel(max = 2),
             se = "design",
             coord_type = "projected"
@@ -156,9 +156,9 @@ test_that("weighted_mean SE matches manual computation (ESS)", {
       set.seed(7)
       n <- 20
       pool <- cbind(x = runif(n, 0, 1), y = runif(n, 0, 1),
-                    clim1 = rnorm(n), clim2 = rnorm(n))
+                    env1 = rnorm(n), env2 = rnorm(n))
 
-      # Focal at origin with matching climate
+      # Focal at origin with matching environmental
       focal <- matrix(c(0.5, 0.5, 0, 0), nrow = 1)
 
       yv <- rnorm(n)
@@ -170,14 +170,14 @@ test_that("weighted_mean SE matches manual computation (ESS)", {
             stat = "weighted_mean",
             y = yv,
             geog = NULL,  # use all points
-            clim = kernel("gaussian", theta = 1),
+            env = kernel("gaussian", theta = 1),
             se = "ess",
             coord_type = "projected"
       )
 
       # Reproduce the weight computation manually
-      clim_dist <- sqrt(rowSums((pool[, 3:4] - matrix(c(0, 0), n, 2, byrow = TRUE))^2))
-      w <- exp(-clim_dist^2 / 2)  # sigma = 1
+      env_dist <- sqrt(rowSums((pool[, 3:4] - matrix(c(0, 0), n, 2, byrow = TRUE))^2))
+      w <- exp(-env_dist^2 / 2)  # sigma = 1
       ybar <- sum(w * yv) / sum(w)
       n_eff <- sum(w)^2 / sum(w^2)
       var_w <- sum(w * yv^2) / sum(w) - ybar^2
@@ -193,7 +193,7 @@ test_that("weighted_mean SE matches manual computation (design)", {
       set.seed(11)
       n <- 20
       pool <- cbind(x = runif(n, 0, 1), y = runif(n, 0, 1),
-                    clim1 = rnorm(n), clim2 = rnorm(n))
+                    env1 = rnorm(n), env2 = rnorm(n))
 
       focal <- matrix(c(0.5, 0.5, 0, 0), nrow = 1)
       yv <- rnorm(n)
@@ -204,14 +204,14 @@ test_that("weighted_mean SE matches manual computation (design)", {
             select = "all",
             stat = "weighted_mean",
             y = yv,
-            clim = kernel("gaussian", theta = 1, max = NULL),
+            env = kernel("gaussian", theta = 1, max = NULL),
             geog = kernel(max = NULL),
             se = "design",
             coord_type = "projected"
       )
 
-      clim_dist <- sqrt(rowSums((pool[, 3:4])^2))
-      w <- exp(-clim_dist^2 / 2)
+      env_dist <- sqrt(rowSums((pool[, 3:4])^2))
+      w <- exp(-env_dist^2 / 2)
       ybar <- sum(w * yv) / sum(w)
       se_expected <- sqrt(sum(w^2 * (yv - ybar)^2)) / sum(w)
 
@@ -227,7 +227,7 @@ test_that("regression SE (ESS) matches standard WLS SE with ESS df correction", 
       set.seed(13)
       n <- 100
       pool <- cbind(x = runif(n, 0, 1), y = runif(n, 0, 1),
-                    clim1 = rnorm(n), clim2 = rnorm(n))
+                    env1 = rnorm(n), env2 = rnorm(n))
       focal <- matrix(c(0.5, 0.5, 0, 0), nrow = 1)
 
       x1 <- rnorm(n)
@@ -243,7 +243,7 @@ test_that("regression SE (ESS) matches standard WLS SE with ESS df correction", 
             stat = "regression",
             y = yv,
             covariates = covariates,
-            clim = NULL,
+            env = NULL,
             geog = NULL,
             lambda = 0,
             se = "ess",
@@ -276,7 +276,7 @@ test_that("se warns when no requested stat supports SE", {
                   pool = d$ref,
                   select = "all",
                   stat = c("count", "ess"),
-                  clim = kernel(max = 2),
+                  env = kernel(max = 2),
                   geog = kernel(max = 2),
                   se = "ess",
                   coord_type = "projected"
@@ -300,7 +300,7 @@ test_that("se does not warn when at least one requested stat supports SE", {
                   select = "all",
                   stat = c("count", "weighted_mean"),
                   y = y,
-                  clim = kernel("gaussian", theta = 0.5, max = 2),
+                  env = kernel("gaussian", theta = 0.5, max = 2),
                   geog = kernel(max = 2),
                   se = "ess",
                   coord_type = "projected"
@@ -323,7 +323,7 @@ test_that("se works with multiple y variables for weighted_mean", {
             select = "all",
             stat = "weighted_mean",
             y = y,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
@@ -352,7 +352,7 @@ test_that("se works with multiple y variables for regression", {
             stat = "regression",
             y = y,
             covariates = covariates,
-            clim = kernel(max = 2),
+            env = kernel(max = 2),
             geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
@@ -383,7 +383,7 @@ test_that("analog_regression passes se through", {
             pool = d$ref,
             y = y,
             covariates = covariates,
-            clim = kernel(max = 2),
+            env = kernel(max = 2),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
@@ -396,7 +396,7 @@ test_that("analog_regression passes se through", {
             pool = d$ref,
             y = y,
             covariates = covariates,
-            clim = kernel(max = 2),
+            env = kernel(max = 2),
             geog = kernel(max = 2),
             se = "ess",
             coord_type = "projected"
@@ -417,7 +417,7 @@ test_that("analog_impact passes se through", {
             pool = d$ref,
             y = y,
             geog = kernel(max = 2),
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             se = "ess",
             coord_type = "projected"
       )
@@ -442,7 +442,7 @@ test_that("regression SE is NA when system is singular", {
             stat = c("count", "regression"),
             y = y,
             covariates = covariates,
-            clim = kernel(max = 0.0001),
+            env = kernel(max = 0.0001),
             geog = kernel(max = 0.0001),
             se = "ess",
             coord_type = "projected"
@@ -470,7 +470,7 @@ test_that("invalid se value is rejected", {
                   select = "all",
                   stat = "weighted_mean",
                   y = y,
-                  clim = kernel(max = 2),
+                  env = kernel(max = 2),
                   geog = kernel(max = 2),
                   se = "bogus",
                   coord_type = "projected"

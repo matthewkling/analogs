@@ -5,7 +5,7 @@
 #' distances in `d`-dimensional space. Gives theoretical answers to the
 #' questions, "How big should `theta` be in order for my kernel to capture
 #' a given fraction of pool sites for the typical focal site?" and "How
-#' big should `max_clim` or `max_geog` be to truncate only a given
+#' big should `max_env` or `max_geog` be to truncate only a given
 #' percentage of kernel weight for the typical focal site?" Accounts for
 #' the effects of analog space multidimensionality on pairwise distance
 #' distributions, which can result in one-dimensional intuitions being
@@ -30,7 +30,7 @@
 #'
 #' Recommendations are averages over the distribution of focal cells;
 #' specific focal cells experience effective neighborhoods that vary
-#' around these averages, with cells in dense climate regions seeing
+#' around these averages, with cells in dense environmental regions seeing
 #' more neighbors than cells in sparse regions.
 #'
 #' @param fraction Target fraction of pool sites captured (in
@@ -42,7 +42,7 @@
 #'   inverse-distance kernels, this is the half-weight scale of the
 #'   reparameterized kernel `1 / (1 + d / theta)` (weight is 1/2 at
 #'   `d = theta`).
-#' @param d Dimensionality of the space (e.g., number of climate
+#' @param d Dimensionality of the space (e.g., number of environmental
 #'   variables after Mahalanobis transformation, or 2 for geographic).
 #' @param loss Fraction of aggregate kernel weight to discard at the
 #'   truncation distance `max`. If `NULL` (default), `max` is not
@@ -51,15 +51,15 @@
 #'   `"inverse_distance"`.
 #' @param data_dist Distribution of cells in space. Either `"mvn"`
 #'   (multivariate standard normal; default; appropriate for
-#'   Mahalanobis-transformed climate data) or `"uniform"` (appropriate
+#'   Mahalanobis-transformed environmental data) or `"uniform"` (appropriate
 #'   for geographic space).
 #' @return A named list. For Gaussian and inverse-distance kernels:
 #'   element `theta`, and `max` if `loss` is specified. For uniform
 #'   kernels: element `max` (the single cutoff radius, which serves as
 #'   both bandwidth and truncation distance; supplied in the `analogs`
-#'   package as `max_clim` or `max_geog`).
+#'   package as `max_env` or `max_geog`).
 #' @examples
-#' # Climate kernel: niche fraction of 5% in 4 climate variables
+#' # Environmental kernel: niche fraction of 5% in 4 environmental variables
 #' kernel_params(fraction = 0.05, d = 4, loss = 0.01)
 #'
 #' # Geographic kernel: 500 km dispersal-based bandwidth
@@ -159,7 +159,7 @@ kernel_params <- function(fraction = NULL,
       }
 
       # Uniform kernels have only one parameter (the cutoff radius),
-      # exposed in the analogs package as `max_clim` / `max_geog`.
+      # exposed in the analogs package as `max_env` / `max_geog`.
       # Return that single parameter as `max` rather than as `theta`.
       if (kernel == "uniform") {
             return(list(max = theta))

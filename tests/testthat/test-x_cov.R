@@ -4,12 +4,12 @@ test_that("x_cov basic functionality works without error", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
+      n_env <- ncol(d$focal) - 2
 
       # Create simple diagonal covariance (variance = 1 for all variables)
-      n_cov_cols <- n_clim * (n_clim + 1) / 2
+      n_cov_cols <- n_env * (n_env + 1) / 2
       x_cov <- matrix(NA, nrow = n_focal, ncol = n_cov_cols)
-      x_cov[, 1:n_clim] <- 1.0
+      x_cov[, 1:n_env] <- 1.0
       x_cov[, 2:n_cov_cols] <- .5
 
       # Should run without error
@@ -17,7 +17,7 @@ test_that("x_cov basic functionality works without error", {
             x = d$focal,
             pool = d$ref,
             select = "knn_geog",
-            clim = NULL,
+            env = NULL,
             k = 1,
             x_cov = x_cov,
             coord_type = "projected"
@@ -34,13 +34,13 @@ test_that("x_cov validation catches dimension mismatches", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
-      n_cov_cols <- n_clim * (n_clim + 1) / 2
+      n_env <- ncol(d$focal) - 2
+      n_cov_cols <- n_env * (n_env + 1) / 2
 
       # Wrong number of rows
       x_cov_bad_rows <- matrix(1.0, nrow = n_focal - 1, ncol = n_cov_cols)
       expect_error(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov_bad_rows, coord_type = "projected"),
             "must have same number of rows"
       )
@@ -48,7 +48,7 @@ test_that("x_cov validation catches dimension mismatches", {
       # Wrong number of columns
       x_cov_bad_cols <- matrix(1.0, nrow = n_focal, ncol = n_cov_cols + 1)
       expect_error(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov_bad_cols, coord_type = "projected"),
             "must have.*columns"
       )
@@ -61,8 +61,8 @@ test_that("x_cov validation catches non-finite values", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
-      n_cov_cols <- n_clim * (n_clim + 1) / 2
+      n_env <- ncol(d$focal) - 2
+      n_cov_cols <- n_env * (n_env + 1) / 2
 
       # Create valid covariance
       x_cov <- matrix(1.0, nrow = n_focal, ncol = n_cov_cols)
@@ -70,7 +70,7 @@ test_that("x_cov validation catches non-finite values", {
       # Add NA
       x_cov[5, 2] <- NA
       expect_error(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov, coord_type = "projected"),
             "non-finite values"
       )
@@ -78,7 +78,7 @@ test_that("x_cov validation catches non-finite values", {
       # Add Inf
       x_cov[5, 2] <- Inf
       expect_error(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov, coord_type = "projected"),
             "non-finite values"
       )
@@ -91,7 +91,7 @@ test_that("x_cov validation catches non-positive-definite matrices", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2  # Should be 2 for sim_test_data
+      n_env <- ncol(d$focal) - 2  # Should be 2 for sim_test_data
 
       # Create non-PD covariance: var1=1, var2=1, cov12=2 (impossible!)
       # For a 2x2 matrix to be PD: var1*var2 > cov12^2
@@ -99,7 +99,7 @@ test_that("x_cov validation catches non-positive-definite matrices", {
       x_cov <- matrix(c(1, 1, 2), nrow = n_focal, ncol = 3, byrow = TRUE)
 
       suppressWarnings(expect_warning(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov, coord_type = "projected"),
             "not positive definite"
       ))
@@ -112,16 +112,16 @@ test_that("x_cov with identity covariance matches Euclidean results", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
+      n_env <- ncol(d$focal) - 2
 
-      # Create identity covariance: var(clim1)=1, var(clim2)=1, cov12=0
+      # Create identity covariance: var(env1)=1, var(env2)=1, cov12=0
       x_cov_identity <- matrix(c(1, 1, 0), nrow = n_focal, ncol = 3, byrow = TRUE)
 
       # Result with Mahalanobis (identity = Euclidean)
       result_mahal <- analog_search(
             d$focal, d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 3,
             x_cov = x_cov_identity,
             coord_type = "projected"
@@ -131,7 +131,7 @@ test_that("x_cov with identity covariance matches Euclidean results", {
       result_eucl <- analog_search(
             d$focal, d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 3,
             x_cov = NULL,
             coord_type = "projected"
@@ -150,12 +150,12 @@ test_that("x_cov with identity covariance matches Euclidean results", {
       expect_true(n_matches >= 2)
 })
 
-test_that("x_cov correctly implements Mahalanobis distance for filtering and clim_dist", {
+test_that("x_cov correctly implements Mahalanobis distance for filtering and env_dist", {
 
       set.seed(333)
 
       # Create simple test data where we can verify Mahalanobis distance
-      # Focal: (0, 0) in climate space
+      # Focal: (0, 0) in environmental space
       x <- matrix(c(0, 0, 0, 0), nrow = 1, ncol = 4)
 
       # Reference: points on regular grid
@@ -173,15 +173,15 @@ test_that("x_cov correctly implements Mahalanobis distance for filtering and cli
 
 
       # check if filtered sets match
-      max_clim <- 4
+      max_env <- 4
       result <- analog_search(
             x, pool,
             select = "all",
-            clim = kernel(max = max_clim),
+            env = kernel(max = max_env),
             x_cov = x_cov,
             coord_type = "projected"
       )
-      expect_equal(which(md <= max_clim),
+      expect_equal(which(md <= max_env),
                    sort(result$analog_index))
 
 
@@ -189,29 +189,29 @@ test_that("x_cov correctly implements Mahalanobis distance for filtering and cli
       result <- analog_search(
             x, pool,
             select = "all",
-            clim = NULL,
+            env = NULL,
             x_cov = x_cov,
             coord_type = "projected"
       )
-      expect_equal(result$clim_dist, md[result$analog_index])
+      expect_equal(result$env_dist, md[result$analog_index])
 })
 
 
-test_that("x_cov works correctly with knn_clim mode", {
+test_that("x_cov works correctly with knn_env mode", {
 
       set.seed(444)
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
+      n_env <- ncol(d$focal) - 2
 
-      # Create covariance where clim2 has higher variance (gets downweighted)
+      # Create covariance where env2 has higher variance (gets downweighted)
       x_cov <- matrix(c(1, 4, 0), nrow = n_focal, ncol = 3, byrow = TRUE)
 
-      # Find k=5 nearest in climate space within geographic radius
+      # Find k=5 nearest in environmental space within geographic radius
       result <- analog_search(
             d$focal, d$ref,
-            select = "knn_clim",
+            select = "knn_env",
             geog = kernel(max = 2),
             k = 5,
             x_cov = x_cov,
@@ -220,10 +220,10 @@ test_that("x_cov works correctly with knn_clim mode", {
 
       # Should return up to k matches per focal
       expect_true(nrow(result) <= n_focal * 5)
-      expect_true(all(c("index", "analog_index", "clim_dist") %in% names(result)))
+      expect_true(all(c("index", "analog_index", "env_dist") %in% names(result)))
 
       # All returned distances should be finite
-      expect_true(all(is.finite(result$clim_dist)))
+      expect_true(all(is.finite(result$env_dist)))
 })
 
 
@@ -233,7 +233,7 @@ test_that("x_cov works correctly with count mode", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
+      n_env <- ncol(d$focal) - 2
 
       # Create simple diagonal covariance
       x_cov <- matrix(c(1, 1, 0), nrow = n_focal, ncol = 3, byrow = TRUE)
@@ -242,7 +242,7 @@ test_that("x_cov works correctly with count mode", {
       result <- analog_search(
             d$focal, d$ref,
             stat = "count",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             geog = kernel(max = 2),
             x_cov = x_cov,
             coord_type = "projected"
@@ -262,7 +262,7 @@ test_that("x_cov works with focal-specific covariance matrices", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
+      n_env <- ncol(d$focal) - 2
 
       # Create different covariance for each focal point
       # First half: var1=1, var2=1, cov12=0
@@ -278,7 +278,7 @@ test_that("x_cov works with focal-specific covariance matrices", {
       result <- analog_search(
             d$focal, d$ref,
             stat = "count",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             x_cov = x_cov,
             coord_type = "projected"
       )
@@ -311,7 +311,7 @@ test_that("x_cov works with analog_velocity wrapper", {
       result <- analog_velocity(
             x = d$focal,
             pool = d$ref,
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             x_cov = x_cov,
             coord_type = "projected"
@@ -341,7 +341,7 @@ test_that("x_cov works with pre-built analog_index", {
             x = d$focal,
             pool = index,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             x_cov = x_cov
       )
@@ -360,7 +360,7 @@ test_that("x_cov NULL behavior is unchanged from before", {
       result_null <- analog_search(
             d$focal, d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             x_cov = NULL,
             coord_type = "projected"
@@ -370,7 +370,7 @@ test_that("x_cov NULL behavior is unchanged from before", {
       result_default <- analog_search(
             d$focal, d$ref,
             select = "knn_geog",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1,
             coord_type = "projected"
       )
@@ -380,24 +380,24 @@ test_that("x_cov NULL behavior is unchanged from before", {
 })
 
 
-test_that("x_cov works with single climate variable", {
+test_that("x_cov works with single environmental variable", {
 
       set.seed(1111)
 
-      # Create data with single climate variable
-      focal <- matrix(rnorm(20 * 3), ncol = 3)  # x, y, clim1
+      # Create data with single environmental variable
+      focal <- matrix(rnorm(20 * 3), ncol = 3)  # x, y, env1
       ref <- matrix(rnorm(100 * 3), ncol = 3)
 
       n_focal <- nrow(focal)
 
-      # For 1 climate var: only 1 column needed (variance)
+      # For 1 environmental var: only 1 column needed (variance)
       x_cov <- matrix(1.0, nrow = n_focal, ncol = 1)
 
       # Should work
       result <- analog_search(
             focal, ref,
             stat = "count",
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             x_cov = x_cov,
             coord_type = "projected"
       )
@@ -419,14 +419,14 @@ test_that("x_cov validation happens before expensive operations", {
 
       # Should fail quickly with clear error, not crash during C++ execution
       expect_error(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov_bad, coord_type = "projected"),
             "must have.*columns"
       )
 })
 
 
-test_that("x_cov works with correlated climate variables", {
+test_that("x_cov works with correlated environmental variables", {
 
       set.seed(1313)
 
@@ -442,7 +442,7 @@ test_that("x_cov works with correlated climate variables", {
       ), nrow = 4, ncol = 4, byrow = TRUE)
 
       # Covariance with positive correlation: var1=1, var2=1, cov12=0.5
-      # This creates positive correlation between the two climate variables
+      # This creates positive correlation between the two environmental variables
       x_cov <- matrix(c(1, 1, 0.5), nrow = 1, ncol = 3)
 
       # Verify matrix is PD: det = 1*1 - 0.5^2 = 0.75 > 0 ✓
@@ -454,7 +454,7 @@ test_that("x_cov works with correlated climate variables", {
       result <- analog_search(
             focal, ref,
             select = "all",
-            clim = kernel(max = 3),
+            env = kernel(max = 3),
             x_cov = x_cov,
             coord_type = "projected"
       )
@@ -471,12 +471,12 @@ test_that("x_cov error messages are informative", {
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      n_clim <- ncol(d$focal) - 2
+      n_env <- ncol(d$focal) - 2
 
       # Wrong number of rows
       x_cov_wrong_rows <- matrix(1.0, nrow = 5, ncol = 3)
       err_msg <- tryCatch(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov_wrong_rows, coord_type = "projected"),
             error = function(e) e$message
       )
@@ -486,12 +486,12 @@ test_that("x_cov error messages are informative", {
       # Wrong number of columns
       x_cov_wrong_cols <- matrix(1.0, nrow = n_focal, ncol = 5)
       err_msg2 <- tryCatch(
-            analog_search(d$focal, d$ref, stat = "count", clim = kernel(max = 1),
+            analog_search(d$focal, d$ref, stat = "count", env = kernel(max = 1),
                           x_cov = x_cov_wrong_cols, coord_type = "projected"),
             error = function(e) e$message
       )
       expect_true(grepl("columns", err_msg2, ignore.case = TRUE))
-      expect_true(grepl(as.character(n_clim), err_msg2))
+      expect_true(grepl(as.character(n_env), err_msg2))
 })
 
 
@@ -504,17 +504,17 @@ test_that("x_cov works with sum mode and weights", {
 
       # Create covariance with different variances
       x_cov <- matrix(0, nrow = n_focal, ncol = 3)
-      x_cov[, 1] <- 1.5  # higher variance in clim1
-      x_cov[, 2] <- 0.5  # lower variance in clim2
+      x_cov[, 1] <- 1.5  # higher variance in env1
+      x_cov[, 2] <- 0.5  # lower variance in env2
       x_cov[, 3] <- 0.3  # moderate correlation
 
-      # Test with inverse_clim weight
+      # Test with inverse_env weight
       s1 <- analog_density(d$focal, d$ref,
-                           clim = kernel("inverse", max = 1), geog = kernel(max = 2),
+                           env = kernel("inverse", max = 1), geog = kernel(max = 2),
                            coord_type = "projected")
 
       s2 <- analog_density(d$focal, d$ref,
-                           clim = kernel("inverse", max = 1), geog = kernel(max = 2),
+                           env = kernel("inverse", max = 1), geog = kernel(max = 2),
                            coord_type = "projected",
                            x_cov = x_cov)
 
@@ -548,24 +548,24 @@ test_that("x_cov with different variance scales affects analog selection", {
       x_cov_high[, 3] <- 0.0
 
       v_low <- analog_search(d$focal, d$ref, select = "all",
-                             clim = kernel(max = .25), coord_type = "projected",
+                             env = kernel(max = .25), coord_type = "projected",
                              x_cov = x_cov_low)
 
       v_high <- analog_search(d$focal, d$ref, select = "all",
-                              clim = kernel(max = .25), coord_type = "projected",
+                              env = kernel(max = .25), coord_type = "projected",
                               x_cov = x_cov_high)
 
       expect_false(all(suppressWarnings(v_low$analog_index == v_high$analog_index)))
 })
 
 
-test_that("x_cov affects which points pass max_clim threshold", {
+test_that("x_cov affects which points pass max_env threshold", {
 
       set.seed(555)
       d <- sim_test_data()
 
       n_focal <- nrow(d$focal)
-      max_clim <- 0.6  # Tight threshold
+      max_env <- 0.6  # Tight threshold
 
       # Narrow variance (identity-like)
       x_cov_std <- matrix(0, nrow = n_focal, ncol = 3)
@@ -580,12 +580,12 @@ test_that("x_cov affects which points pass max_clim threshold", {
       x_cov_high[, 3] <- 0.0
 
       a_std <- analog_availability(d$focal, d$ref,
-                                   clim = kernel(max = max_clim), geog = kernel(max = 10),
+                                   env = kernel(max = max_env), geog = kernel(max = 10),
                                    coord_type = "projected",
                                    x_cov = x_cov_std)
 
       a_high <- analog_availability(d$focal, d$ref,
-                                    clim = kernel(max = max_clim), geog = kernel(max = 10),
+                                    env = kernel(max = max_env), geog = kernel(max = 10),
                                     coord_type = "projected",
                                     x_cov = x_cov_high)
 
@@ -617,7 +617,7 @@ test_that("x_cov works with auto-tuning for large datasets", {
 
       # Should trigger auto-tuning and complete successfully
       v <- analog_velocity(focal_large, ref_large,
-                           clim = NULL, k = 1,
+                           env = NULL, k = 1,
                            coord_type = "projected",
                            geog_res_adj = "auto",
                            x_cov = x_cov)
@@ -627,26 +627,26 @@ test_that("x_cov works with auto-tuning for large datasets", {
 })
 
 
-test_that("x_cov works correctly with 3 climate variables", {
+test_that("x_cov works correctly with 3 environmental variables", {
 
       set.seed(777)
-      # 3 climate variables: 6 covariance components
-      focal_3clim <- matrix(rnorm(50 * 5), ncol = 5)  # x, y, clim1, clim2, clim3
-      ref_3clim <- matrix(rnorm(200 * 5), ncol = 5)
+      # 3 environmental variables: 6 covariance components
+      focal_3env <- matrix(rnorm(50 * 5), ncol = 5)  # x, y, env1, env2, env3
+      ref_3env <- matrix(rnorm(200 * 5), ncol = 5)
 
-      n_focal <- nrow(focal_3clim)
+      n_focal <- nrow(focal_3env)
 
       # Create covariance matrix: [var1, var2, var3, cov12, cov13, cov23]
       x_cov <- matrix(0, nrow = n_focal, ncol = 6)
-      x_cov[, 1] <- 1.0  # var(clim1)
-      x_cov[, 2] <- 1.5  # var(clim2)
-      x_cov[, 3] <- 0.8  # var(clim3)
-      x_cov[, 4] <- 0.3  # cov(clim1, clim2)
-      x_cov[, 5] <- 0.2  # cov(clim1, clim3)
-      x_cov[, 6] <- 0.4  # cov(clim2, clim3)
+      x_cov[, 1] <- 1.0  # var(env1)
+      x_cov[, 2] <- 1.5  # var(env2)
+      x_cov[, 3] <- 0.8  # var(env3)
+      x_cov[, 4] <- 0.3  # cov(env1, env2)
+      x_cov[, 5] <- 0.2  # cov(env1, env3)
+      x_cov[, 6] <- 0.4  # cov(env2, env3)
 
-      v <- analog_velocity(focal_3clim, ref_3clim,
-                           clim = NULL, k = 1,
+      v <- analog_velocity(focal_3env, ref_3env,
+                           env = NULL, k = 1,
                            coord_type = "projected",
                            x_cov = x_cov)
 
@@ -655,7 +655,7 @@ test_that("x_cov works correctly with 3 climate variables", {
 })
 
 
-test_that("x_cov works with strongly correlated climate variables", {
+test_that("x_cov works with strongly correlated environmental variables", {
 
       set.seed(888)
       d <- sim_test_data()
@@ -674,11 +674,11 @@ test_that("x_cov works with strongly correlated climate variables", {
       x_cov_corr[, 2] <- 1.0
       x_cov_corr[, 3] <- 0.85  # cor = 0.85
 
-      v_uncorr <- analog_search(d$focal, d$ref, select = "all", clim = kernel(max = 1),
+      v_uncorr <- analog_search(d$focal, d$ref, select = "all", env = kernel(max = 1),
                                 coord_type = "projected",
                                 x_cov = x_cov_uncorr)
 
-      v_corr <- analog_search(d$focal, d$ref, select = "all", clim = kernel(max = 1),
+      v_corr <- analog_search(d$focal, d$ref, select = "all", env = kernel(max = 1),
                               coord_type = "projected",
                               x_cov = x_cov_corr)
 

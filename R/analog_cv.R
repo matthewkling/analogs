@@ -46,7 +46,7 @@
 #'   [analog_impact()], [analog_regression()], or [analog_search()] (passed
 #'   as a function object, not a string).
 #' @param pool The reference dataset. Matrix/data.frame with columns x, y,
-#'   and climate variables, or a SpatRaster with climate variable layers.
+#'   and environmental variables, or a SpatRaster with environmental variable layers.
 #'   Pre-built `analog_index` objects are not supported; `analog_cv()`
 #'   builds indices internally per fold (for k-fold) or once (for LOO).
 #' @param y Response variable(s). For continuous prediction targets
@@ -67,7 +67,7 @@
 #'   manually specify nonrandom folds, such as for spatial block cross-validation.
 #' @param include_residuals Logical; if `TRUE` (default), the output includes
 #'   per-focal residual-equivalent columns (see `@return`).
-#' @param ... Additional arguments passed to `fun` (e.g., `clim`, `geog`, `k`,
+#' @param ... Additional arguments passed to `fun` (e.g., `env`, `geog`, `k`,
 #' `lambda`, `select`, `se`, `weight`). Note:
 #'   `fun` must accept `exclude_self` (directly or via `...`); [analog_search()]
 #'   accepts it as a named parameter, and the wrapper helpers forward it via
@@ -110,7 +110,7 @@
 #'   fun      = analog_impact,
 #'   pool     = sites,
 #'   y        = sites$biomass,
-#'   clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   env      = kernel("gaussian", theta = 0.2, max = 0.5),
 #'   geog     = kernel(max = 100)
 #' )
 #' rmse <- sqrt(mean(cv$residual^2, na.rm = TRUE))
@@ -134,7 +134,7 @@
 #'   pool     = sites,
 #'   y        = factor(sites$vegetation_type),
 #'   stat     = "tabulate",
-#'   clim     = kernel("gaussian", theta = 0.2, max = 0.5),
+#'   env      = kernel("gaussian", theta = 0.2, max = 0.5),
 #'   geog     = kernel(max = 100)
 #' )
 #' # Per-focal Brier score and primary class are in cv_veg$brier and

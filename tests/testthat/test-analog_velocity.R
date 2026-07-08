@@ -1,15 +1,15 @@
 test_that("`analog_velocity` result matches manual calculation for planar coords", {
 
       d <- sim_test_data(lonlat = TRUE)
-      max_clim <- 1
+      max_env <- 1
 
       # velocity
-      nn <- analog_velocity(d$focal, d$ref, clim = kernel(max = max_clim), k = 1, coord_type = "projected")
+      nn <- analog_velocity(d$focal, d$ref, env = kernel(max = max_env), k = 1, coord_type = "projected")
 
       # manual velocity calculation
-      dclim <- xdist(d$focal, d$ref, "clim")
+      denv <- xdist(d$focal, d$ref, "env")
       dgeog <- xdist(d$focal, d$ref, "geog")
-      dgeog[dclim > max_clim] <- Inf
+      dgeog[denv > max_env] <- Inf
       nn_idx <- as.vector(apply(dgeog, 1, which.min))
       nn_dst <- as.vector(apply(dgeog, 1, min))
 
@@ -21,24 +21,24 @@ test_that("`analog_velocity` result matches manual calculation for planar coords
 test_that("`analog_velocity` result matches manual calculation for LON/LAT coords", {
 
       d <- sim_test_data(lonlat = TRUE)
-      max_clim <- 1
+      max_env <- 1
 
       # velocity (ECEF chord-space internal; output arc-length km)
       nn <- analog_velocity(d$focal, d$ref,
-                            clim = kernel(max = max_clim),
+                            env = kernel(max = max_env),
                             k = 1,
                             coord_type = "lonlat")
 
       # --- manual lon/lat nearest-analog calculation ---
 
-      # (1) compute climatic distance matrix (Euclidean)
-      dclim <- xdist(d$focal, d$ref, "clim")
+      # (1) compute environmental distance matrix (Euclidean)
+      denv <- xdist(d$focal, d$ref, "env")
 
       # (2) compute true great-circle geog distances (km)
       dgeog <- xdist(d$focal, d$ref, "lonlat")
 
-      # (3) apply climatic filter
-      dgeog[dclim > max_clim] <- Inf
+      # (3) apply environmental filter
+      dgeog[denv > max_env] <- Inf
 
       # (4) find nearest analog index + distance
       nn_idx <- apply(dgeog, 1, which.min)
@@ -61,7 +61,7 @@ test_that("analog_velocity works with analog_index", {
       v <- analog_velocity(
             x = d$focal,
             pool = index,
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             k = 1
       )
 

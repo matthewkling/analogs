@@ -19,8 +19,8 @@
 #'   the tile halos (so edge focals still see all in-range analogs) and is
 #'   forwarded to `fun`. Tiling is only beneficial when the geographic search
 #'   is bounded, hence `geog` with a finite `max` is required.
-#' @param clim Optional [kernel()] object giving the climate search treatment,
-#'   forwarded to `fun`. `NULL` (default) means no climate kernel is passed.
+#' @param env Optional [kernel()] object giving the environmental search treatment,
+#'   forwarded to `fun`. `NULL` (default) means no environmental kernel is passed.
 #' @param y Optional SpatRaster with values to aggregate across analogs.
 #'   Must have spatial properties matching pool.
 #' @param x_cov Optional SpatRaster with covariates for focal points. Must have
@@ -68,7 +68,7 @@
 #' If index_res is specified in ..., all tiles will use the same lattice
 #' resolution. If index_res is not specified, each tile will independently
 #' auto-tune its lattice resolution based on local data characteristics. This
-#' adaptive behavior is generally fine and can even be beneficial when climate
+#' adaptive behavior is generally fine and can even be beneficial when environmental
 #' distributions vary substantially across the landscape (e.g., mountains vs
 #' plains).
 #'
@@ -79,7 +79,7 @@ tiled_analog_search <- function(
             n_tiles,
             fun,
             geog,
-            clim = NULL,
+            env = NULL,
             y = NULL,
             x_cov = NULL,
             weight = NULL,
@@ -119,8 +119,8 @@ tiled_analog_search <- function(
                  "`max`: e.g. geog = kernel(max = 100). Tiling is only beneficial ",
                  "when the geographic search is bounded.", call. = FALSE)
       }
-      if (!is.null(clim) && !inherits(clim, "analog_kernel")) {
-            stop("`clim` must be a kernel() object or NULL.", call. = FALSE)
+      if (!is.null(env) && !inherits(env, "analog_kernel")) {
+            stop("`env` must be a kernel() object or NULL.", call. = FALSE)
       }
 
       # Validate and check y values if provided
@@ -334,9 +334,9 @@ tiled_analog_search <- function(
                         progress = FALSE
                   )
 
-                  # Forward the climate kernel if one was supplied.
-                  if (!is.null(clim)) {
-                        fun_args$clim <- clim
+                  # Forward the environmental kernel if one was supplied.
+                  if (!is.null(env)) {
+                        fun_args$env <- env
                   }
 
                   # Add y values if provided

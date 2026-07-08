@@ -22,20 +22,20 @@
 # sum_weights values themselves and is not introduced by normalization.
 #
 # All integrals below are 1D and have closed forms. They evaluate at zero
-# climate distance, so:
-#   - climate-only kernels (gaussian_clim, inverse_clim) reduce to a
+# environmental distance, so:
+#   - environment-only kernels (gaussian_env, inverse_env) reduce to a
 #     constant-K integral over the disk
 #   - geo-only kernels (gaussian_geog, inverse_geog) keep the geographic
-#     factor unchanged at clim_dist = 0
+#     factor unchanged at env_dist = 0
 #   - joint kernels (gaussian_joint, inverse_joint) collapse to their
-#     geo-only form at clim_dist = 0
+#     geo-only form at env_dist = 0
 #   - uniform: D_max = pi * max_geog^2 / mean_cell_area
 #
-# All kernel types are supported. For climate-aware kernels (gaussian_clim,
-# inverse_clim, gaussian_joint, inverse_joint), D / D_max measures
-# climate-quality-weighted analog availability. For uniform and geo-only
-# kernels, D / D_max measures the fraction of the disk satisfying max_clim
-# (when max_clim is active); without max_clim, those reduce to D == D_max
+# All kernel types are supported. For environment-aware kernels (gaussian_env,
+# inverse_env, gaussian_joint, inverse_joint), D / D_max measures
+# eivironment-quality-weighted analog availability. For uniform and geo-only
+# kernels, D / D_max measures the fraction of the disk satisfying max_env
+# (when max_env is active); without max_env, those reduce to D == D_max
 # trivially.
 
 
@@ -46,8 +46,8 @@
 # raster-derived mean_cell_area available, etc.) is the caller's
 # responsibility -- typically done via .validate_normalize_compat() before
 # this is reached.
-.compute_global_dmax <- function(kernel_clim, kernel_geog,
-                                 theta_clim, theta_geog,
+.compute_global_dmax <- function(kernel_env, kernel_geog,
+                                 theta_env, theta_geog,
                                  max_geog, mean_cell_area) {
 
       if (!is.finite(max_geog) || max_geog <= 0) {
@@ -62,14 +62,14 @@
       # D_max is the theoretical maximum aggregate kernel weight for a focal
       # whose entire geographic disk (radius max_geog) consists of perfect
       # climate matches. Per cell the weight is
-      #     w_clim(clim_dist = 0) * w_geog(geo_dist),
-      # and w_clim(0) = 1 for every kernel shape (uniform, Gaussian exp(0)=1,
-      # and the reparameterized inverse 1/(1 + 0/theta) = 1). So the climate
+      #     w_env(env_dist = 0) * w_geog(geo_dist),
+      # and w_env(0) = 1 for every kernel shape (uniform, Gaussian exp(0)=1,
+      # and the reparameterized inverse 1/(1 + 0/theta) = 1). So the environmental
       # kernel contributes a constant factor of 1 and D_max depends only on the
       # GEOGRAPHIC kernel, integrated over the disk:
       #     D_max = [ \int_0^G w_geog(r) 2*pi*r dr ] / mean_cell_area.
-      # This holds for any composition of per-family kernels (the climate shape
-      # is irrelevant at clim_dist = 0), so no fused-kernel reconstruction is
+      # This holds for any composition of per-family kernels (the environmental shape
+      # is irrelevant at env_dist = 0), so no fused-kernel reconstruction is
       # needed. The disk integral (with closed forms per shape) lives in the
       # shared helper .kernel_disk_integral().
       geo_theta <- if (is.null(theta_geog) ||
@@ -120,7 +120,7 @@
       # integrated). Any kernel configuration is supported -- including a
       # uniform kernel, where D_max is the disk area and D / D_max is the
       # fraction of the disk satisfying the constraints. D_max depends only on
-      # the geographic kernel (the climate factor is 1 at clim_dist = 0), so a
+      # the geographic kernel (the climate factor is 1 at env_dist = 0), so a
       # non-uniform kernel is NOT required.
       if (is.null(max_geog) || !is.finite(max_geog) || max_geog <= 0) return(FALSE)
 
@@ -133,9 +133,9 @@
 #
 # Preconditions checked:
 #   - kernel is non-NULL and not "uniform" (D_max would equal D)
-#   - kernel is climate-aware: gaussian_clim, inverse_clim, gaussian_joint,
+#   - kernel is climate-aware: gaussian_env, inverse_env, gaussian_joint,
 #     inverse_joint. Geo-only kernels (gaussian_geog, inverse_geog) are
-#     rejected because for them K(0, r) = K(d_clim, r) for all d_clim,
+#     rejected because for them K(0, r) = K(d_env, r) for all d_env,
 #     so D_max == D up to discretization, which is meaningless.
 #   - max_geog is finite and positive (a finite disk is required for a
 #     finite D_max)

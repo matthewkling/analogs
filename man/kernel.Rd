@@ -10,8 +10,8 @@ kernel(weight = NULL, theta = NULL, max = NULL)
 \item{weight}{Kernel shape for this family. One of \code{"uniform"} (constant
 weight 1; the default when \code{NULL}), \code{"gaussian"}
 (\verb{exp(-d^2 / (2 theta^2))}), or \code{"inverse"} (\code{1 / (1 + d / theta)}, a
-heavy-tailed inverse-distance kernel). The family (climate vs geographic)
-is determined by whether the kernel is passed as \code{clim} or \code{geog}, so the
+heavy-tailed inverse-distance kernel). The family (environmental vs geographic)
+is determined by whether the kernel is passed as \code{env} or \code{geog}, so the
 shape name is unqualified.}
 
 \item{theta}{Scale parameter for the \code{weight} kernel. For \code{"gaussian"} it is
@@ -22,46 +22,46 @@ help choosing a value calibrated to a target coverage fraction.}
 
 \item{max}{Hard distance threshold for this family: candidates beyond \code{max}
 (in this family's distance) are excluded. \code{NULL} (default) means no
-threshold. Usually a single radius. For the climate family, \code{max} may also
+threshold. Usually a single radius. For the environmental family, \code{max} may also
 be a vector of per-variable absolute-difference thresholds (length equal to
-the number of climate variables); the geographic family uses a single
-radius. Supplied to the search as \code{max_clim} / \code{max_geog}.}
+the number of environmental variables); the geographic family uses a single
+radius. Supplied to the search as \code{max_env} / \code{max_geog}.}
 }
 \value{
 An object of class \code{"analog_kernel"}: a list with elements
 \code{weight}, \code{theta}, and \code{max} (each possibly \code{NULL}).
 }
 \description{
-Constructs a specification of how a single distance family — climate or
+Constructs a specification of how a single distance family — environment or
 geography — is filtered and weighted in an analog search. A \code{kernel}
 bundles the three per-family choices: the hard distance threshold (\code{max}),
 the weighting kernel shape (\code{weight}), and that kernel's scale parameter
-(\code{theta}). Pass one to the \code{clim} argument of \code{\link[=analog_search]{analog_search()}} and/or one
+(\code{theta}). Pass one to the \code{env} argument of \code{\link[=analog_search]{analog_search()}} and/or one
 to the \code{geog} argument.
 }
 \details{
 The overall kernel weight for a candidate is the product of the two
 families' weights, so the families are specified independently and may use
-different shapes (e.g. an inverse-distance climate kernel together with a
+different shapes (e.g. an inverse-distance environmental kernel together with a
 Gaussian geographic kernel). A family with \code{weight = "uniform"} (or \code{NULL})
 contributes a constant weight of 1, i.e. it filters (if \code{max} is set) but
 does not down-weight by distance.
 
 All three components are optional. Which combinations are valid depends on
 the operation and is checked by \code{\link[=analog_search]{analog_search()}} downstream (for example,
-climate velocity requires a climate \code{max}; a weighted statistic requires a
+climate velocity requires an environmental \code{max}; a weighted statistic requires a
 non-uniform \code{weight} on at least one family). A bare \code{NULL} passed as the
-\code{clim} or \code{geog} argument is equivalent to \code{kernel()} with all components
+\code{env} or \code{geog} argument is equivalent to \code{kernel()} with all components
 unset: no threshold and no weighting for that family.
 }
 \examples{
-# Climate: keep analogs within 2 climate-distance units, Gaussian-weighted
+# Environment: keep analogs within 2 environmental-distance units, Gaussian-weighted
 kernel(weight = "gaussian", theta = 0.5, max = 2)
 
 # Geography: hard 100 km cutoff, no distance weighting (uniform)
 kernel(max = 100)
 
-# Inverse-distance climate weighting, no hard cutoff
+# Inverse-distance environmental weighting, no hard cutoff
 kernel("inverse", theta = 1)
 
 }

@@ -1,14 +1,14 @@
-#' Analog similarity: best climate analogs within a geographic envelope
+#' Analog similarity: best environmental analogs within a geographic envelope
 #'
-#' Finds, for each focal location, the climate–nearest neighbor(s) in a
+#' Finds, for each focal location, the environmental–nearest neighbor(s) in a
 #' reference dataset that satisfy a specified geographic distance threshold.
-#' This function is a wrapper that calls [analog_search()] using `select = "knn_clim"`.
+#' This function is a wrapper that calls [analog_search()] using `select = "knn_env"`.
 #'
 #' @inheritParams analog_search
 #'
 #' @return A data.frame, or a SpatRaster when `x` is one and `k = 1`.
 #'   Contains one row per focal-analog pair with `index`, `x`, `y`,
-#'   `analog_index`, `analog_x`, `analog_y`, `clim_dist`, and
+#'   `analog_index`, `analog_x`, `analog_y`, `env_dist`, and
 #'   `geog_dist`. See [analog_search()] for full column conventions
 #'   and [metadata()] for attached metadata attributes.
 #'
@@ -16,12 +16,12 @@
 #' For each focal location, \code{analog_similarity()}:
 #' \enumerate{
 #'   \item Identifies all reference points within \code{geog}'s max (km) (and
-#'         optional climate filter).
-#'   \item Selects the \code{k} closest in \emph{climate} distance.
+#'         optional environmental filter).
+#'   \item Selects the \code{k} closest in \emph{environmental} distance.
 #' }
 #'
 #' This is the natural "inverse" of \code{\link{analog_velocity}}: instead of finding
-#' where the focal climate moves geographically, it finds the closest climatically
+#' where the focal environmental moves geographically, it finds the closest environmentally
 #' similar conditions that are geographically reachable.
 #'
 #' Among other uses, this operation is often the first step in a traditional
@@ -57,10 +57,10 @@ analog_similarity <- function(
             coord_type = "auto",
 
             geog,
-            clim = NULL,
+            env = NULL,
             k = 20,
 
-            clim_res_adj = "auto",
+            env_res_adj = "auto",
             geog_res_adj = "auto",
             cell_area_weight = "auto",
             n_threads = NULL,
@@ -71,16 +71,16 @@ analog_similarity <- function(
       analog_search(
             x           = x,
             pool        = pool,
-            select      = "knn_clim",
+            select      = "knn_env",
             stat        = "none",  # Returns pairs
-            clim        = clim,
+            env         = env,
             geog        = geog,
             x_cov       = x_cov,
             y           = y,
             weight      = weight,
             k           = k,
             coord_type  = coord_type,
-            clim_res_adj= clim_res_adj,
+            env_res_adj= env_res_adj,
             geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
             n_threads   = n_threads,

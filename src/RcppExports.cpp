@@ -11,24 +11,24 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // build_analog_index_cpp
-SEXP build_analog_index_cpp(const NumericMatrix& ref_mm, const std::string& coord_type, double geo_target, double clim_target, double downsample, unsigned int seed);
-RcppExport SEXP _analogs_build_analog_index_cpp(SEXP ref_mmSEXP, SEXP coord_typeSEXP, SEXP geo_targetSEXP, SEXP clim_targetSEXP, SEXP downsampleSEXP, SEXP seedSEXP) {
+SEXP build_analog_index_cpp(const NumericMatrix& ref_mm, const std::string& coord_type, double geo_target, double env_target, double downsample, unsigned int seed);
+RcppExport SEXP _analogs_build_analog_index_cpp(SEXP ref_mmSEXP, SEXP coord_typeSEXP, SEXP geo_targetSEXP, SEXP env_targetSEXP, SEXP downsampleSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
     Rcpp::traits::input_parameter< const std::string& >::type coord_type(coord_typeSEXP);
     Rcpp::traits::input_parameter< double >::type geo_target(geo_targetSEXP);
-    Rcpp::traits::input_parameter< double >::type clim_target(clim_targetSEXP);
+    Rcpp::traits::input_parameter< double >::type env_target(env_targetSEXP);
     Rcpp::traits::input_parameter< double >::type downsample(downsampleSEXP);
     Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
-    rcpp_result_gen = Rcpp::wrap(build_analog_index_cpp(ref_mm, coord_type, geo_target, clim_target, downsample, seed));
+    rcpp_result_gen = Rcpp::wrap(build_analog_index_cpp(ref_mm, coord_type, geo_target, env_target, downsample, seed));
     return rcpp_result_gen;
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_clim, double max_geog, int select_code, const IntegerVector& aggregate_codes, int clim_kernel_code, int geog_kernel_code, double theta_clim, double theta_geog, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, SEXP area_weight_sexp, SEXP user_weight_sexp, bool exclude_self);
-RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_climSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP clim_kernel_codeSEXP, SEXP geog_kernel_codeSEXP, SEXP theta_climSEXP, SEXP theta_geogSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP area_weight_sexpSEXP, SEXP user_weight_sexpSEXP, SEXP exclude_selfSEXP) {
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_env, double max_geog, int select_code, const IntegerVector& aggregate_codes, int env_kernel_code, int geog_kernel_code, double theta_env, double theta_geog, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, SEXP area_weight_sexp, SEXP user_weight_sexp, bool exclude_self);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_envSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP env_kernel_codeSEXP, SEXP geog_kernel_codeSEXP, SEXP theta_envSEXP, SEXP theta_geogSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP area_weight_sexpSEXP, SEXP user_weight_sexpSEXP, SEXP exclude_selfSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -36,13 +36,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const NumericMatrix& >::type focal_mm(focal_mmSEXP);
     Rcpp::traits::input_parameter< const NumericMatrix& >::type ref_mm(ref_mmSEXP);
     Rcpp::traits::input_parameter< int >::type k(kSEXP);
-    Rcpp::traits::input_parameter< const NumericVector& >::type max_clim(max_climSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type max_env(max_envSEXP);
     Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
     Rcpp::traits::input_parameter< int >::type select_code(select_codeSEXP);
     Rcpp::traits::input_parameter< const IntegerVector& >::type aggregate_codes(aggregate_codesSEXP);
-    Rcpp::traits::input_parameter< int >::type clim_kernel_code(clim_kernel_codeSEXP);
+    Rcpp::traits::input_parameter< int >::type env_kernel_code(env_kernel_codeSEXP);
     Rcpp::traits::input_parameter< int >::type geog_kernel_code(geog_kernel_codeSEXP);
-    Rcpp::traits::input_parameter< double >::type theta_clim(theta_climSEXP);
+    Rcpp::traits::input_parameter< double >::type theta_env(theta_envSEXP);
     Rcpp::traits::input_parameter< double >::type theta_geog(theta_geogSEXP);
     Rcpp::traits::input_parameter< SEXP >::type x_cov_sexp(x_cov_sexpSEXP);
     Rcpp::traits::input_parameter< SEXP >::type values_sexp(values_sexpSEXP);
@@ -53,7 +53,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type area_weight_sexp(area_weight_sexpSEXP);
     Rcpp::traits::input_parameter< SEXP >::type user_weight_sexp(user_weight_sexpSEXP);
     Rcpp::traits::input_parameter< bool >::type exclude_self(exclude_selfSEXP);
-    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_clim, max_geog, select_code, aggregate_codes, clim_kernel_code, geog_kernel_code, theta_clim, theta_geog, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self));
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_env, max_geog, select_code, aggregate_codes, env_kernel_code, geog_kernel_code, theta_env, theta_geog, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self));
     return rcpp_result_gen;
 END_RCPP
 }

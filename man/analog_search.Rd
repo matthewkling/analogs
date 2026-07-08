@@ -11,7 +11,7 @@ analog_search(
   y = NULL,
   covariates = NULL,
   weight = NULL,
-  clim = NULL,
+  env = NULL,
   geog = NULL,
   select = "all",
   k = NULL,
@@ -24,7 +24,7 @@ analog_search(
   downsample = 1,
   seed = NULL,
   geog_res_adj = "auto",
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   cell_area_weight = "auto",
   mean_cell_area = NULL,
   n_threads = NULL,
@@ -33,13 +33,13 @@ analog_search(
 }
 \arguments{
 \item{x}{Focal locations for which analogs will be found. Should be a
-matrix/data.frame with columns x, y, and climate variables, or a
-SpatRaster with climate variable layers.}
+matrix/data.frame with columns x, y, and environmental variables, or a
+SpatRaster with environmental variable layers.}
 
 \item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-\item Matrix/data.frame with columns x, y, and climate variables,
-or SpatRaster with climate variable layers, OR
+\item Matrix/data.frame with columns x, y, and environmental variables,
+or SpatRaster with environmental variable layers, OR
 \item An \code{analog_index} object created by
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
@@ -47,7 +47,7 @@ or SpatRaster with climate variable layers, OR
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
-SpatRaster with a layer for each component. For n climate variables,
+SpatRaster with a layer for each component. For n environmental variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
@@ -81,15 +81,15 @@ Use \code{weight = 0} for cases where the mask varies per query against a
 shared index, or where some sites have a continuous weight and others
 should be excluded.}
 
-\item{clim, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
+\item{env, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
 \code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
-shape, and the kernel's scale for one family: climate (\code{clim}) or geography
+shape, and the kernel's scale for one family: environmental (\code{env}) or geography
 (\code{geog}). \code{kernel(weight, theta, max)} where:
 \itemize{
 \item \code{max}: hard distance threshold — candidates beyond it (in that family's
-distance) are excluded. For \code{clim}, \code{max} may be a single Euclidean
+distance) are excluded. For \code{env}, \code{max} may be a single Euclidean
 radius or a per-variable vector of absolute-difference thresholds (length
-equal to the number of climate variables); scalar climate thresholds are
+equal to the number of environmental variables); scalar environmental thresholds are
 in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
 single radius (kilometers when \code{coord_type = "lonlat"}, projected units
 otherwise).
@@ -97,7 +97,7 @@ otherwise).
 distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
 \code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the
 product of the two families' weights, so shapes may be mixed (e.g. an
-inverse climate kernel with a Gaussian geographic kernel).
+inverse environmental kernel with a Gaussian geographic kernel).
 \item \code{theta}: the kernel's scale (Gaussian bandwidth, or inverse half-weight
 distance). See \code{\link[=kernel_params]{kernel_params()}} for calibrated values.
 }
@@ -109,16 +109,16 @@ weighting for that family. See \code{\link[=kernel]{kernel()}} for details.}
 One of:
 \itemize{
 \item \code{"all"} (default): Select all analogs that satisfy the
-\code{max_clim} and \code{max_geog} constraints.
-\item \code{"knn_clim"}: For each focal, select up to \code{k} analogs
-with smallest climate distance, subject to filters.
+\code{max_env} and \code{max_geog} constraints.
+\item \code{"knn_env"}: For each focal, select up to \code{k} analogs
+with smallest environmental distance, subject to filters.
 \item \code{"knn_geog"}: For each focal, select up to \code{k} analogs
 with smallest geographic distance, subject to filters.
 }}
 
 \item{k}{Number of nearest analogs to return per focal location for kNN
 selection modes. Required when \code{select} is \code{"knn_geog"} or
-\code{"knn_clim"}; must be \code{NULL} for \code{select = "all"}.}
+\code{"knn_env"}; must be \code{NULL} for \code{select = "all"}.}
 
 \item{stat}{Statistic(s) used to aggregate selected analogs. Either:
 \itemize{
@@ -145,7 +145,7 @@ Returns intercept and slope coefficients. Requires \code{y},
 \code{covariates}, and \code{kernel}. See \code{lambda} for regularization.
 \item \code{"tabulate"}: if \code{y} is categorical, separately sum the kernel weights
 of analogs matching each level of \code{y}.
-With a uniform kernel (no \code{clim}/\code{geog} distance weighting) this
+With a uniform kernel (no \code{env}/\code{geog} distance weighting) this
 reduces to a per-class vote count; with a distance-decay kernel it
 gives similarity-weighted support per class. Requires \code{y} (factor or
 coercible-to-factor).
@@ -183,7 +183,7 @@ if \code{stat} includes \code{"sum_weights"} or \code{"tabulate"} and \code{pool
 When active, results for these stats are divided by a global scalar so that
 they represent a fraction of a theoretically "perfect" scenario where
 the full search area within \code{max_geog} is occupied wall-to-wall by cells
-whose climate exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
+whose environment exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
 more info.}
 
 \item{exclude_self}{Logical, default \code{FALSE}. \code{TRUE} is typically used
@@ -206,15 +206,15 @@ assumes \code{max_geog} is in projection units).
 indicating the proportion of points to retain. Values < 1 reduce memory
 and improve speed at some cost to precision. Default is 1.0 (no downsampling).
 Ignored if \code{pool} is a pre-built index. When \code{downsample < 1}, resolution
-must be set explicitly via \code{geog_res_adj} / \code{clim_res_adj} (auto-tuning is
+must be set explicitly via \code{geog_res_adj} / \code{env_res_adj} (auto-tuning is
 not supported in this case; see those parameters for details).}
 
 \item{seed}{Optional random seed for reproducible downsampling. If \code{NULL}
 (default), uses current R random state. Ignored if \code{pool} is a pre-built
 index or \code{downsample = 1}.}
 
-\item{clim_res_adj, geog_res_adj}{Control the lattice search-index resolution
-of the climate and geographic families, each a multiplier on a
+\item{env_res_adj, geog_res_adj}{Control the lattice search-index resolution
+of the environmental and geographic families, each a multiplier on a
 data-dependent default (targeting ~50 pool points per occupied bin, split
 between families by effective dimensionality, so it scales with pool size).
 Each is either:
@@ -272,7 +272,7 @@ with the following variables:
 \itemize{
 \item \code{index}, \code{x}, \code{y}: Focal location (1-based index and coordinates) corresponding to input \code{x}
 \item \code{analog_index}, \code{analog_x}, \code{analog_y}: Analog location corresponding to input \code{pool}
-\item \code{clim_dist}: Climate distance (Euclidean or Mahalanobis)
+\item \code{env_dist}: Environmental distance (Euclidean or Mahalanobis)
 \item \code{geog_dist}: Geographic distance (km for lonlat, projection units otherwise)
 \item Value columns (if \code{y} provided): one per variable
 }
@@ -299,7 +299,7 @@ Use \code{\link[=metadata]{metadata()}} to retrieve them as a named list, or see
 reference.
 }
 \description{
-Identifies locations in a reference dataset that are climatically similar
+Identifies locations in a reference dataset that are environmentally similar
 and/or geographically proximal to focal locations. Analog searches use a
 two-stage approach: first selecting analogs based on specified criteria,
 then optionally aggregating the results.
@@ -311,14 +311,14 @@ then optionally aggregating the results.
 (\code{x}, \code{pool}, \code{x_cov}, \code{y}, \code{covariates}, \code{weight}, \code{coord_type})
 give attributes of the data on which to operate.
 \item \emph{Selection parameters}
-(\code{select}, \code{clim}, \code{geog}, \code{k})
+(\code{select}, \code{env}, \code{geog}, \code{k})
 define which analogs to \code{select} from the \code{pool} for each \code{x}.
 \item \emph{Aggregation parameters}
-(\code{stat}, \code{clim}, \code{geog}, \code{lambda}, \code{se}, \code{normalize})
-control how selected analogs are summarized. The \code{clim} / \code{geog} kernels
+(\code{stat}, \code{env}, \code{geog}, \code{lambda}, \code{se}, \code{normalize})
+control how selected analogs are summarized. The \code{env} / \code{geog} kernels
 carry both the selection thresholds and the weighting kernels.
 \item \emph{Computation parameters}
-(\code{n_threads}, \code{geog_res_adj}, \code{clim_res_adj}, \code{downsample}, \code{seed}, \code{progress})
+(\code{n_threads}, \code{geog_res_adj}, \code{env_res_adj}, \code{downsample}, \code{seed}, \code{progress})
 specify behavior for controlling compute performance.
 }
 }
@@ -328,14 +328,14 @@ specify behavior for controlling compute performance.
 Geographic distance can be computed for lon/lat coordinates (great-circle
 distance) or projected coordinates (planar distance).
 
-Climate similarity is measured using Euclidean or Mahalanobis distance in
-climate space. In general, when multiple climate variables are used, it is
-recommended to use pre-whitened (scaled) climate data, to avoid major artifacts
-from climate variables with different units. Pre-whitening can be done using
+Environmental similarity is measured using Euclidean or Mahalanobis distance in
+environmental space. In general, when multiple environmental variables are used, it is
+recommended to use pre-whitened (scaled) environmental data, to avoid major artifacts
+from environmental variables with different units. Pre-whitening can be done using
 \code{scale()} for dataset-wide Euclidean distances, or \code{mahalanobis_transform()}
 for dataset-wide Mahalanobis distances.
 
-The function also supports climate distance calculations based on
+The function also supports environmental distance calculations based on
 \emph{local temporal} covariance structure at focal locations, via the \code{x_cov}
 parameter. These local covariance values need to be pre-calculated.
 }
@@ -372,11 +372,11 @@ Normalization divides \code{D} (the density result from \code{sum_weights} or \c
 by the  global scalar \code{D_max}. \code{D_max} (which is also attached to the result as
 an attribute) is the highest \code{D} you could theoretically expect given \code{max_geog},
 \code{kernel}, and \code{theta}, i.e. the density value you'd get if the entire the geographic
-search radius were filled with grid cells whose climate exactly matches \code{x}.
+search radius were filled with grid cells whose environment exactly matches \code{x}.
 It is calculated as the analytic integral
 \verb{(1 / mean_cell_area) * integral_0^max_geog K(0, r) * 2*pi*r dr},
 which is the kernel-weighted count an idealized focal would accumulate
-from a continuous uniform pool of perfect climate matches out to
+from a continuous uniform pool of perfect environmental matches out to
 \code{max_geog}. The resulting columns are unitless availability fractions
 on roughly \verb{[0, 1]}.
 

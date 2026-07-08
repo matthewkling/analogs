@@ -1,22 +1,22 @@
 test_that("`analog_density` result matches manual calculation", {
 
       d <- sim_test_data()
-      max_clim <- 2
+      max_env <- 2
       max_geog <- 2
 
       # density
-      nn <- analog_density(d$focal, d$ref, clim = kernel("inverse", max = max_clim),
+      nn <- analog_density(d$focal, d$ref, env = kernel("inverse", max = max_env),
                            geog = kernel(max = max_geog), coord_type = "projected")
 
       # manual density calculation. The inverse kernel is 1/(1 + d/theta) with
       # theta defaulting to 1, so each in-window analog contributes
-      # 1/(1 + clim_dist). Out-of-window analogs (clim or geog beyond max) get
+      # 1/(1 + env_dist). Out-of-window analogs (env or geog beyond max) get
       # distance Inf, hence weight 1/(1+Inf) = 0.
-      dclim <- xdist(d$focal, d$ref, "clim")
+      denv <- xdist(d$focal, d$ref, "env")
       dgeog <- xdist(d$focal, d$ref, "geog")
-      dclim[dclim > max_clim] <- Inf
-      dclim[dgeog > max_geog] <- Inf
-      intens <- as.vector(rowSums(1 / (1 + dclim)))
+      denv[denv > max_env] <- Inf
+      denv[dgeog > max_geog] <- Inf
+      intens <- as.vector(rowSums(1 / (1 + denv)))
 
       expect_equal(nn$sum_weights, intens)
 })
@@ -29,7 +29,7 @@ test_that("analog_density works with x/pool parameter names", {
       i <- analog_density(
             x = d$focal,
             pool = d$ref,
-            clim = kernel("inverse", max = 1),
+            env = kernel("inverse", max = 1),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
@@ -52,7 +52,7 @@ test_that("analog_density works with analog_index", {
       i <- analog_density(
             x = d$focal,
             pool = index,
-            clim = kernel("inverse", max = 1),
+            env = kernel("inverse", max = 1),
             geog = kernel(max = 2)
       )
 
@@ -62,14 +62,14 @@ test_that("analog_density works with analog_index", {
       expect_true(all(is.numeric(i$sum_weights)))
 })
 
-test_that("gaussian_clim kernel works", {
+test_that("gaussian_env kernel works", {
 
       d <- sim_test_data()
 
-      # Test with gaussian_clim
+      # Test with gaussian_env
       result <- analog_density(
             d$focal, d$ref,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
@@ -89,7 +89,7 @@ test_that("gaussian_geog kernel works", {
       result <- analog_density(
             d$focal, d$ref,
             geog = kernel("gaussian", theta = 0.5, max = 2),
-            clim = kernel(max = 2),
+            env = kernel(max = 2),
             coord_type = "projected"
       )
 
@@ -107,8 +107,8 @@ test_that("gaussian_joint kernel works", {
       # Test with gaussian_joint (requires theta length 2)
       result <- analog_density(
             d$focal, d$ref,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
-            geog = kernel("gaussian", theta = 1.0, max = 2),  # c(theta_clim, theta_geog)
+            env = kernel("gaussian", theta = 0.5, max = 2),
+            geog = kernel("gaussian", theta = 1.0, max = 2),  # c(theta_env, theta_geog)
             coord_type = "projected"
       )
 
@@ -126,14 +126,14 @@ test_that("gaussian kernels respect theta parameter", {
       # Smaller theta should produce more localized (smaller) kernels
       r1 <- analog_density(
             d$focal, d$ref,
-            clim = kernel("gaussian", theta = 0.2, max = 2),
+            env = kernel("gaussian", theta = 0.2, max = 2),
             geog = kernel(max = 2),  # small bandwidth
             coord_type = "projected"
       )
 
       r2 <- analog_density(
             d$focal, d$ref,
-            clim = kernel("gaussian", theta = 2.0, max = 2),
+            env = kernel("gaussian", theta = 2.0, max = 2),
             geog = kernel(max = 2),  # large bandwidth
             coord_type = "projected"
       )
@@ -155,7 +155,7 @@ test_that("new kernels work with analog_index", {
       # Test each new kernel with index
       r1 <- analog_density(
             d$focal, index,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2)
       )
       expect_true(all(is.finite(r1$sum_weights)))
@@ -163,13 +163,13 @@ test_that("new kernels work with analog_index", {
       r2 <- analog_density(
             d$focal, index,
             geog = kernel("gaussian", theta = 0.5, max = 2),
-            clim = kernel(max = 2)
+            env = kernel(max = 2)
       )
       expect_true(all(is.finite(r2$sum_weights)))
 
       r3 <- analog_density(
             d$focal, index,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel("gaussian", theta = 1.0, max = 2)
       )
       expect_true(all(is.finite(r3$sum_weights)))
@@ -183,14 +183,14 @@ test_that("gaussian and inverse kernels produce different results", {
       # Compare gaussian vs inverse with similar parameterization
       r_gauss <- analog_density(
             d$focal, d$ref,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
 
       r_inv <- analog_density(
             d$focal, d$ref,
-            clim = kernel("inverse", theta = 0.5, max = 2),
+            env = kernel("inverse", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
@@ -207,18 +207,18 @@ test_that("joint kernels combine both dimensions appropriately", {
       # Joint should differ from single-dimension kernels
       r_joint <- analog_density(
             d$focal, d$ref,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel("gaussian", theta = 0.5, max = 2),
             coord_type = "projected"
       )
 
-      r_clim_only <- analog_density(
+      r_env_only <- analog_density(
             d$focal, d$ref,
-            clim = kernel("gaussian", theta = 0.5, max = 2),
+            env = kernel("gaussian", theta = 0.5, max = 2),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
 
       # Results should generally differ since joint considers both dimensions
-      expect_false(all(abs(r_joint$sum_weights - r_clim_only$sum_weights) < 1e-10))
+      expect_false(all(abs(r_joint$sum_weights - r_env_only$sum_weights) < 1e-10))
 })

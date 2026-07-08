@@ -94,13 +94,13 @@ inline bool invert_cov_matrix(const std::vector<double>& cov_matrix, int n,
 }
 
 // Compute Mahalanobis distance: sqrt((x - y)^T * Sigma^{-1} * (x - y))
-// focal_clim: pointer to focal climate vector (length n)
-// ref_clim: pointer to reference climate vector (length n)
+// focal_env: pointer to focal environment vector (length n)
+// ref_env: pointer to reference environment vector (length n)
 // inv_cov: inverse covariance matrix (n×n, row-major)
-// n: number of climate dimensions
-// stride_f, stride_r: strides for accessing climate columns
-inline double mahalanobis_distance(const double* focal_clim,
-                                   const double* ref_clim,
+// n: number of environment dimensions
+// stride_f, stride_r: strides for accessing environment columns
+inline double mahalanobis_distance(const double* focal_env,
+                                   const double* ref_env,
                                    const std::vector<double>& inv_cov,
                                    int n,
                                    int stride_f,
@@ -108,7 +108,7 @@ inline double mahalanobis_distance(const double* focal_clim,
       // Compute difference vector: d = focal - ref
       std::vector<double> diff(n);
       for (int i = 0; i < n; ++i) {
-            diff[i] = focal_clim[i * stride_f] - ref_clim[i * stride_r];
+            diff[i] = focal_env[i * stride_f] - ref_env[i * stride_r];
       }
 
       // Compute d^T * inv_cov * d
@@ -126,15 +126,15 @@ inline double mahalanobis_distance(const double* focal_clim,
 
 // Compute axis-aligned bounding box for Mahalanobis ellipsoid
 // Given a Mahalanobis distance threshold, compute the min/max bounds
-// in each climate dimension that could possibly satisfy the threshold.
+// in each environment dimension that could possibly satisfy the threshold.
 // This is used for lattice queries to expand search bounds appropriately.
 //
-// focal_clim: focal point climate values
+// focal_env: focal point environment values
 // inv_cov: inverse covariance matrix (n×n, row-major)
-// n: number of climate dimensions
+// n: number of environment dimensions
 // threshold: Mahalanobis distance threshold
 // Output: bounds (2*n elements: [min0, max0, min1, max1, ...])
-inline void mahalanobis_bounding_box(const double* focal_clim,
+inline void mahalanobis_bounding_box(const double* focal_env,
                                      const std::vector<double>& inv_cov,
                                      int n,
                                      double threshold,
@@ -164,8 +164,8 @@ inline void mahalanobis_bounding_box(const double* focal_clim,
                   // Conservative bound: threshold / sqrt(diagonal)
                   // This gives a bounding box that's guaranteed to contain the ellipsoid
                   double half_width = threshold / std::sqrt(inv_var);
-                  bounds[2 * i] = focal_clim[i] - half_width;
-                  bounds[2 * i + 1] = focal_clim[i] + half_width;
+                  bounds[2 * i] = focal_env[i] - half_width;
+                  bounds[2 * i + 1] = focal_env[i] + half_width;
             } else {
                   // Shouldn't happen with valid positive definite matrix
                   bounds[2 * i] = -std::numeric_limits<double>::infinity();
@@ -177,8 +177,8 @@ inline void mahalanobis_bounding_box(const double* focal_clim,
 // Check if Mahalanobis distance satisfies threshold and optionally compute distance
 // Returns: (ok, distance) where ok indicates if threshold is satisfied
 inline std::pair<bool, double>
-mahalanobis_ok_and_dist(const double* focal_clim,
-                        const double* ref_clim,
+mahalanobis_ok_and_dist(const double* focal_env,
+                        const double* ref_env,
                         const std::vector<double>& inv_cov,
                         int n,
                         int stride_f,
@@ -188,7 +188,7 @@ mahalanobis_ok_and_dist(const double* focal_clim,
       if (!std::isfinite(threshold)) {
             // No threshold - always pass
             if (compute_dist) {
-                  double d = mahalanobis_distance(focal_clim, ref_clim, inv_cov,
+                  double d = mahalanobis_distance(focal_env, ref_env, inv_cov,
                                                   n, stride_f, stride_r);
                   return std::make_pair(true, d);
             } else {
@@ -197,7 +197,7 @@ mahalanobis_ok_and_dist(const double* focal_clim,
       }
 
       // Compute distance
-      double dist = mahalanobis_distance(focal_clim, ref_clim, inv_cov,
+      double dist = mahalanobis_distance(focal_env, ref_env, inv_cov,
                                          n, stride_f, stride_r);
 
       if (dist > threshold) {

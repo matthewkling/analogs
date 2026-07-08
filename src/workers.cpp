@@ -10,17 +10,17 @@ thread_local PairWorker::ThreadLocalStorage PairWorker::tls;
 thread_local AggWorker::ThreadLocalStorage AggWorker::tls;
 
 // ---------------------------------------------------------------------------
-// Helper: Check if focal point has NA in coordinates or any climate variable
+// Helper: Check if focal point has NA in coordinates or any environment variable
 // Returns true if any value is NA/NaN, meaning this focal should be skipped.
 // ---------------------------------------------------------------------------
 inline bool focal_has_na(const double* focal_ptr, std::size_t i,
-                         int stride_f, int n_clim) {
+                         int stride_f, int n_env) {
       // Check coordinates
       if (ISNAN(focal_ptr[i]) || ISNAN(focal_ptr[i + stride_f])) {
             return true;
       }
-      // Check climate values (strided access)
-      for (int d = 0; d < n_clim; ++d) {
+      // Check environment values (strided access)
+      for (int d = 0; d < n_env; ++d) {
             if (ISNAN(focal_ptr[i + (2 + d) * stride_f])) {
                   return true;
             }
@@ -41,15 +41,15 @@ static inline double get_user_weight(bool has, const double* ptr, std::size_t j)
 }
 
 void PairWorker::operator()(std::size_t begin, std::size_t end) {
-      const bool knn_mode      = (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG);
-      const bool rank_by_clim  = (scode == SelectCode::KNN_CLIM);
+      const bool knn_mode      = (scode == SelectCode::KNN_ENV || scode == SelectCode::KNN_GEOG);
+      const bool rank_by_env  = (scode == SelectCode::KNN_ENV);
       const bool rank_by_geog  = (scode == SelectCode::KNN_GEOG);
 
       // Get thread-local storage
       auto& fgeo_vec = tls.fgeo_vec;
-      auto& fclim_vec = tls.fclim_vec;
+      auto& fenv_vec = tls.fenv_vec;
       auto& q_geo = tls.q_geo;
-      auto& q_clim = tls.q_clim;
+      auto& q_env = tls.q_env;
       auto& cand = tls.cand;
       auto& cand_weights = tls.cand_weights;
 
@@ -62,7 +62,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   const size_t local_idx = i - begin;
 
                   // Skip NA focals - leave inv_cov empty (won't be used)
-                  if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+                  if (focal_has_na(focal_ptr, i, stride_f, n_env)) {
                         continue;
                   }
 
@@ -76,15 +76,15 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
                   // Reconstruct covariance matrix
                   std::vector<double> cov_matrix;
-                  reconstruct_cov_matrix(cov_vec.data(), n_clim, cov_matrix);
+                  reconstruct_cov_matrix(cov_vec.data(), n_env, cov_matrix);
 
                   // Invert covariance matrix
                   std::vector<double>& inv_cov = inv_cov_matrices[local_idx];
-                  if (!invert_cov_matrix(cov_matrix, n_clim, inv_cov)) {
+                  if (!invert_cov_matrix(cov_matrix, n_env, inv_cov)) {
                         // Matrix not positive definite - use identity (Euclidean)
-                        inv_cov.resize(n_clim * n_clim, 0.0);
-                        for (int k = 0; k < n_clim; ++k) {
-                              inv_cov[k * n_clim + k] = 1.0;
+                        inv_cov.resize(n_env * n_env, 0.0);
+                        for (int k = 0; k < n_env; ++k) {
+                              inv_cov[k * n_env + k] = 1.0;
                         }
                   }
             }
@@ -93,14 +93,14 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
       for (std::size_t i = begin; i < end; ++i) {
             const double fx = focal_ptr[i];
             const double fy = focal_ptr[i + stride_f];
-            const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+            const double* f_env_col = focal_ptr + i + 2 * stride_f;
 
             // -----------------------------------------------------------------
-            // Check for NA in focal coordinates or climate values.
+            // Check for NA in focal coordinates or environment values.
             // If NA, leave out_indices[i] and out_weights[i] empty.
             // Post-processing in core.cpp handles k=1 case by inserting 0 sentinel.
             // -----------------------------------------------------------------
-            if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+            if (focal_has_na(focal_ptr, i, stride_f, n_env)) {
                   // out_indices[i] and out_weights[i] are already empty
                   continue;
             }
@@ -119,7 +119,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   // Use lattice KNN expansion (Euclidean only)
                   const size_tu n_geo = lattice_ptr->n_geo_dims;
                   fgeo_vec.resize(n_geo);
-                  fclim_vec.resize(n_clim);
+                  fenv_vec.resize(n_env);
 
                   // Geographic coords
                   if (use_ecef && n_geo == 3) {
@@ -133,9 +133,9 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         fgeo_vec[1] = fy;
                   }
 
-                  // Climate coords
-                  for (int d = 0; d < n_clim; ++d) {
-                        fclim_vec[d] = f_clim_col[d * stride_f];
+                  // Environment coords
+                  for (int d = 0; d < n_env; ++d) {
+                        fenv_vec[d] = f_env_col[d * stride_f];
                   }
 
                   // Expanded KNN search (Euclidean)
@@ -150,15 +150,15 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         ANALOGS_PROFILE_SCOPE(GATHER);
                         lattice_ptr->knn_query(
                                     fgeo_vec.data(),
-                                    fclim_vec.data(),
+                                    fenv_vec.data(),
                                     ref_ptr,
                                     static_cast<size_tu>(stride_r),
-                                    static_cast<size_tu>(n_clim),
+                                    static_cast<size_tu>(n_env),
                                     rank_by_geog,
                                     geog_thresh,
-                                    use_scalar_clim,
-                                    max_clim_pervar,
-                                    max_clim_scalar,
+                                    use_scalar_env,
+                                    max_env_pervar,
+                                    max_env_scalar,
                                     k,
                                     cand,
                                     cand_weights
@@ -205,21 +205,21 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         q_geo[1] = fy;
                   }
 
-                  q_clim.resize(n_clim);
-                  for (int d = 0; d < n_clim; ++d) {
-                        q_clim[d] = f_clim_col[d * stride_f];
+                  q_env.resize(n_env);
+                  for (int d = 0; d < n_env; ++d) {
+                        q_env[d] = f_env_col[d * stride_f];
                   }
 
-                  // Adjust climate bounds if using Mahalanobis
-                  double effective_max_clim = max_clim_scalar;
+                  // Adjust environment bounds if using Mahalanobis
+                  double effective_max_env = max_env_scalar;
                   std::vector<double> mahal_bounds;
 
-                  if (use_mahalanobis && std::isfinite(max_clim_scalar)) {
+                  if (use_mahalanobis && std::isfinite(max_env_scalar)) {
                         const std::vector<double>& inv_cov = inv_cov_matrices[i - begin];
-                        mahalanobis_bounding_box(q_clim.data(), inv_cov, n_clim,
-                                                 max_clim_scalar, mahal_bounds);
+                        mahalanobis_bounding_box(q_env.data(), inv_cov, n_env,
+                                                 max_env_scalar, mahal_bounds);
                         // Note: We could use mahal_bounds to adjust lattice query,
-                        // but for simplicity we just use a conservative max_clim.
+                        // but for simplicity we just use a conservative max_env.
                         // The actual Mahalanobis filtering happens below.
                   }
 
@@ -227,11 +227,11 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         ANALOGS_PROFILE_SCOPE(GATHER);
                         lattice_ptr->query(
                                     q_geo.data(),
-                                    q_clim.data(),
+                                    q_env.data(),
                                     max_geog,
-                                    use_scalar_clim,
-                                    max_clim_pervar,
-                                    effective_max_clim,
+                                    use_scalar_env,
+                                    max_env_pervar,
+                                    effective_max_env,
                                     cand,
                                     cand_weights
                         );
@@ -289,26 +289,26 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                               }
                         }
 
-                        // Climate checks
-                        const double* r_clim_col = ref_ptr + j + 2 * stride_r;
+                        // Environment checks
+                        const double* r_env_col = ref_ptr + j + 2 * stride_r;
                         bool ok;
 
                         if (use_mahalanobis) {
                               // Use Mahalanobis distance
                               auto okd = mahalanobis_ok_and_dist(
-                                    f_clim_col, r_clim_col,
+                                    f_env_col, r_env_col,
                                     *inv_cov_ptr,
-                                    n_clim, stride_f, stride_r,
-                                    max_clim_scalar, false
+                                    n_env, stride_f, stride_r,
+                                    max_env_scalar, false
                               );
                               ok = okd.first;
                         } else {
                               // Use Euclidean distance
-                              auto okd = clim_ok_and_dist(
-                                    f_clim_col, r_clim_col,
-                                    n_clim, stride_f, stride_r,
-                                    use_pervar_clim, max_clim_pervar,
-                                    use_scalar_clim, max_clim_scalar
+                              auto okd = env_ok_and_dist(
+                                    f_env_col, r_env_col,
+                                    n_env, stride_f, stride_r,
+                                    use_pervar_env, max_env_pervar,
+                                    use_scalar_env, max_env_scalar
                               );
                               ok = okd.first;
                         }
@@ -329,7 +329,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   continue;
             }
 
-            // kNN modes (Climate or Geog) without expanding-search lattice path
+            // kNN modes (Environment or Geog) without expanding-search lattice path
             ANALOGS_PROFILE_SCOPE(EXACT);
             auto cmp = [](const Neighbor& a, const Neighbor& b) {
                   return a.first < b.first; // max-heap: top has largest distance
@@ -376,37 +376,37 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         if (use_geog_filter && gdist > max_geog) continue;
                   }
 
-                  // Climate checks & distance
-                  const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                  double clim_dist;
+                  // Environment checks & distance
+                  const double* r_env_col = ref_ptr + j + 2 * stride_r;
+                  double env_dist;
                   bool ok;
 
                   if (use_mahalanobis) {
                         // Use Mahalanobis distance
                         auto okd = mahalanobis_ok_and_dist(
-                              f_clim_col, r_clim_col,
+                              f_env_col, r_env_col,
                               *inv_cov_ptr,
-                              n_clim, stride_f, stride_r,
-                              max_clim_scalar, true
+                              n_env, stride_f, stride_r,
+                              max_env_scalar, true
                         );
                         ok = okd.first;
-                        clim_dist = okd.second;
+                        env_dist = okd.second;
                   } else {
                         // Use Euclidean distance
-                        auto okd = clim_ok_and_dist(
-                              f_clim_col, r_clim_col,
-                              n_clim, stride_f, stride_r,
-                              use_pervar_clim, max_clim_pervar,
-                              use_scalar_clim, max_clim_scalar
+                        auto okd = env_ok_and_dist(
+                              f_env_col, r_env_col,
+                              n_env, stride_f, stride_r,
+                              use_pervar_env, max_env_pervar,
+                              use_scalar_env, max_env_scalar
                         );
                         ok = okd.first;
-                        clim_dist = okd.second;
+                        env_dist = okd.second;
                   }
 
                   if (!ok) continue;
 
-                  const double key = rank_by_clim ?
-                  clim_dist : gdist;
+                  const double key = rank_by_env ?
+                  env_dist : gdist;
                   const index_t ref_index_1based = j + 1;
 
                   if (static_cast<int>(pq.size()) < k) {
@@ -446,7 +446,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 void AggWorker::operator()(std::size_t begin, std::size_t end) {
       // Get thread-local storage
       auto& q_geo = tls.q_geo;
-      auto& q_clim = tls.q_clim;
+      auto& q_env = tls.q_env;
       auto& cand = tls.cand;
       auto& cand_weights = tls.cand_weights;
 
@@ -527,7 +527,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   const size_t local_idx = i - begin;
 
                   // Skip NA focals - leave inv_cov empty (won't be used)
-                  if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+                  if (focal_has_na(focal_ptr, i, stride_f, n_env)) {
                         continue;
                   }
 
@@ -539,15 +539,15 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
                   // Reconstruct covariance matrix
                   std::vector<double> cov_matrix;
-                  reconstruct_cov_matrix(cov_vec.data(), n_clim, cov_matrix);
+                  reconstruct_cov_matrix(cov_vec.data(), n_env, cov_matrix);
 
                   // Invert covariance matrix
                   std::vector<double>& inv_cov = inv_cov_matrices[local_idx];
-                  if (!invert_cov_matrix(cov_matrix, n_clim, inv_cov)) {
+                  if (!invert_cov_matrix(cov_matrix, n_env, inv_cov)) {
                         // Matrix not positive definite - use identity (Euclidean)
-                        inv_cov.resize(n_clim * n_clim, 0.0);
-                        for (int k = 0; k < n_clim; ++k) {
-                              inv_cov[k * n_clim + k] = 1.0;
+                        inv_cov.resize(n_env * n_env, 0.0);
+                        for (int k = 0; k < n_env; ++k) {
+                              inv_cov[k * n_env + k] = 1.0;
                         }
                   }
             }
@@ -561,19 +561,19 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
       for (std::size_t i = begin; i < end; ++i) {
             // Skip focal points with NA
-            if (focal_has_na(focal_ptr, i, stride_f, n_clim)) {
+            if (focal_has_na(focal_ptr, i, stride_f, n_env)) {
                   // Leave all output as NA_REAL (pre-initialized)
                   continue;
             }
 
             const double fx = focal_ptr[i];
             const double fy = focal_ptr[i + stride_f];
-            const double* f_clim_col = focal_ptr + i + 2 * stride_f;
+            const double* f_env_col = focal_ptr + i + 2 * stride_f;
 
             // Get candidates from lattice
             if (use_lattice) {
                   q_geo.resize(use_ecef ? 3 : 2);
-                  q_clim.resize(n_clim);
+                  q_env.resize(n_env);
 
                   if (use_ecef) {
                         lonlat_to_ecef(fx, fy, R_earth, q_geo[0], q_geo[1], q_geo[2]);
@@ -582,17 +582,17 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         q_geo[1] = fy;
                   }
 
-                  for (int d = 0; d < n_clim; ++d) {
-                        q_clim[d] = f_clim_col[d * stride_f];
+                  for (int d = 0; d < n_env; ++d) {
+                        q_env[d] = f_env_col[d * stride_f];
                   }
 
                   {
                         ANALOGS_PROFILE_SCOPE(GATHER);
-                        lattice_ptr->query(q_geo.data(), q_clim.data(),
+                        lattice_ptr->query(q_geo.data(), q_env.data(),
                                            use_geog_filter ? max_geog : -1.0,
-                                           use_scalar_clim,
-                                           max_clim_pervar,
-                                           max_clim_scalar,
+                                           use_scalar_env,
+                                           max_env_pervar,
+                                           max_env_scalar,
                                            cand, cand_weights);
                   }
             } else {
@@ -691,32 +691,32 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                               }
                         }
 
-                        // Climate checks & distance
-                        const double* r_clim_col = ref_ptr + j + 2 * stride_r;
-                        double clim_dist = 0.0;
+                        // Environment checks & distance
+                        const double* r_env_col = ref_ptr + j + 2 * stride_r;
+                        double env_dist = 0.0;
                         bool ok;
 
                         if (use_mahalanobis) {
                               // Use Mahalanobis distance
                               const bool need_dist = need_weights;
                               auto okd = mahalanobis_ok_and_dist(
-                                    f_clim_col, r_clim_col,
+                                    f_env_col, r_env_col,
                                     *inv_cov_ptr,
-                                    n_clim, stride_f, stride_r,
-                                    max_clim_scalar, need_dist
+                                    n_env, stride_f, stride_r,
+                                    max_env_scalar, need_dist
                               );
                               ok = okd.first;
-                              clim_dist = okd.second;
+                              env_dist = okd.second;
                         } else {
                               // Use Euclidean distance
-                              auto okd = clim_ok_and_dist(
-                                    f_clim_col, r_clim_col,
-                                    n_clim, stride_f, stride_r,
-                                    use_pervar_clim, max_clim_pervar,
-                                    use_scalar_clim, max_clim_scalar
+                              auto okd = env_ok_and_dist(
+                                    f_env_col, r_env_col,
+                                    n_env, stride_f, stride_r,
+                                    use_pervar_env, max_env_pervar,
+                                    use_scalar_env, max_env_scalar
                               );
                               ok = okd.first;
-                              clim_dist = okd.second;
+                              env_dist = okd.second;
                         }
 
                         if (!ok) continue;
@@ -725,7 +725,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         // Combined weight is the product of the two per-family
                         // kernels (each UNIFORM short-circuits to 1.0).
                         const double dist_weight = need_weights
-                        ? weight_from_families(clim_kernel, clim_dist, clim_wparam,
+                        ? weight_from_families(env_kernel, env_dist, env_wparam,
                                                geog_kernel, gdist, geog_wparam)
                               : 1.0;
 

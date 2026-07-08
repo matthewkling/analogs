@@ -21,7 +21,7 @@
 //
 // Phases (per focal):
 //   GATHER - lattice candidate collection (query / knn_query)
-//   EXACT  - exact geo/climate distance pass + selection over candidates
+//   EXACT  - exact geo/environment distance pass + selection over candidates
 //   AGG    - aggregation / finalize / solve_ridge (AggWorker only)
 // ---------------------------------------------------------------------------
 

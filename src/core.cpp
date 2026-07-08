@@ -7,7 +7,7 @@
 #include "types.h"
 #include "profiling.h"
 #include "geometry.h"
-#include "climate.h"
+#include "codes.h"
 #include "weights.h"
 #include "workers.h"
 #include "mahalanobis.h"
@@ -32,7 +32,7 @@ using namespace RcppParallel;
 SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                             const std::string& coord_type,
                             double geo_target,
-                            double clim_target,
+                            double env_target,
                             double downsample,
                             unsigned int seed)
 {
@@ -40,10 +40,10 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
       const int ncol_ref = ref_mm.ncol();
 
       if (ncol_ref < 3) {
-            stop("Reference data must have at least 2 coordinate columns and 1 climate variable");
+            stop("Reference data must have at least 2 coordinate columns and 1 environment variable");
       }
 
-      const int n_clim = ncol_ref - 2;
+      const int n_env = ncol_ref - 2;
       const bool use_haversine = (coord_type == "lonlat");
       const bool use_ecef = use_haversine; // Use ECEF for lonlat coords
       const double R_earth = 6371.0088;
@@ -53,7 +53,7 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
 
       // Storage for coordinate ranges (for metadata)
       std::vector<double> coord_mins(2), coord_maxs(2);
-      std::vector<double> clim_mins(n_clim), clim_maxs(n_clim);
+      std::vector<double> env_mins(n_env), env_maxs(n_env);
 
       // Compute ranges
       const double* ref_ptr = REAL(ref_mm);
@@ -64,7 +64,7 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
       // from the first valid row, not row 0, in case row 0 is NaN.
       bool ranges_initialized = false;
       for (int i = 0; i < n_ref; ++i) {
-            // Check whether this row contains any NaN across coords + clim
+            // Check whether this row contains any NaN across coords + env
             bool row_nan = false;
             for (int d = 0; d < ncol_ref; ++d) {
                   if (std::isnan(ref_ptr[i + d * stride])) { row_nan = true; break; }
@@ -76,9 +76,9 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                         double v = ref_ptr[i + d * stride];
                         coord_mins[d] = coord_maxs[d] = v;
                   }
-                  for (int k = 0; k < n_clim; ++k) {
+                  for (int k = 0; k < n_env; ++k) {
                         double v = ref_ptr[i + (2 + k) * stride];
-                        clim_mins[k] = clim_maxs[k] = v;
+                        env_mins[k] = env_maxs[k] = v;
                   }
                   ranges_initialized = true;
             } else {
@@ -87,10 +87,10 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                         if (v < coord_mins[d]) coord_mins[d] = v;
                         if (v > coord_maxs[d]) coord_maxs[d] = v;
                   }
-                  for (int k = 0; k < n_clim; ++k) {
+                  for (int k = 0; k < n_env; ++k) {
                         double v = ref_ptr[i + (2 + k) * stride];
-                        if (v < clim_mins[k]) clim_mins[k] = v;
-                        if (v > clim_maxs[k]) clim_maxs[k] = v;
+                        if (v < env_mins[k]) env_mins[k] = v;
+                        if (v > env_maxs[k]) env_maxs[k] = v;
                   }
             }
       }
@@ -106,10 +106,10 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
       size_t n_geo_dims;
 
       if (use_ecef) {
-            // Build ECEF (X,Y,Z) + climate lattice
+            // Build ECEF (X,Y,Z) + environment lattice
             n_geo_dims = 3;
             const size_t stride_e = static_cast<size_t>(n_ref);
-            const size_t n_cols = n_geo_dims + static_cast<size_t>(n_clim);
+            const size_t n_cols = n_geo_dims + static_cast<size_t>(n_env);
 
             ecef_storage.assign(n_cols * n_ref, 0.0);
 
@@ -125,8 +125,8 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                   ecef_storage[j + 2 * stride_e] = Z;
             }
 
-            // Copy climate variables
-            for (size_t k = 0; k < static_cast<size_t>(n_clim); ++k) {
+            // Copy environment variables
+            for (size_t k = 0; k < static_cast<size_t>(n_env); ++k) {
                   const double* src_col = ref_ptr + (2 + k) * stride_e;
                   double* dst_col = ecef_storage.data() + (3 + k) * stride_e;
                   std::copy(src_col, src_col + n_ref, dst_col);
@@ -150,7 +150,7 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                   lattice_data_ptr,
                   static_cast<size_tu>(n_ref),
                   static_cast<size_tu>(n_geo_dims),
-                  static_cast<size_tu>(n_clim),
+                  static_cast<size_tu>(n_env),
                   static_cast<size_tu>(lattice_stride),
                   metric,
                   std::numeric_limits<double>::infinity(),
@@ -158,7 +158,7 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
                   std::vector<double>(),
                   std::numeric_limits<double>::infinity(),
                   geo_target,    // from R (per-family target; <=1 = off)
-                  clim_target,   // from R (per-family target; <=1 = off)
+                  env_target,   // from R (per-family target; <=1 = off)
                   downsample, // NEW
                   seed        // NEW
       );
@@ -173,8 +173,8 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             ecef_xptr = XPtr< std::vector<double> >(ecef_copy, true);
       }
 
-      // Realized per-axis bin counts (geo axes first, then climate), so the
-      // R layer can report the geo/climate resolution split.
+      // Realized per-axis bin counts (geo axes first, then environment), so the
+      // R layer can report the geo/environment resolution split.
       IntegerVector bins_per_axis(lattice->n_dims);
       for (size_tu d = 0; d < lattice->n_dims; ++d) {
             bins_per_axis[d] = static_cast<int>(lattice->n_bins[d]);
@@ -186,14 +186,14 @@ SEXP build_analog_index_cpp(const NumericMatrix& ref_mm,
             Named("ecef_xptr") = ecef_xptr,
             Named("coord_type") = coord_type,
             Named("n_pool") = n_ref,
-            Named("n_clim") = n_clim,
+            Named("n_env") = n_env,
             Named("geo_target") = geo_target,
-            Named("clim_target") = clim_target,
+            Named("env_target") = env_target,
             Named("bins_per_axis") = bins_per_axis,
             Named("coord_mins") = coord_mins,
             Named("coord_maxs") = coord_maxs,
-            Named("clim_mins") = clim_mins,
-            Named("clim_maxs") = clim_maxs,
+            Named("env_mins") = env_mins,
+            Named("env_maxs") = env_maxs,
             Named("use_ecef") = use_ecef,
             Named("total_bins") = static_cast<double>(lattice->total_bins),
             Named("n_bins_nonempty") = static_cast<double>(lattice->n_cells_nonempty),
@@ -215,13 +215,13 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             const NumericMatrix& focal_mm,
                             const NumericMatrix& ref_mm,
                             int k,
-                            const NumericVector& max_clim,
+                            const NumericVector& max_env,
                             double max_geog,
                             int select_code,
                             const IntegerVector& aggregate_codes,
-                            int clim_kernel_code,
+                            int env_kernel_code,
                             int geog_kernel_code,
-                            double theta_clim,
+                            double theta_env,
                             double theta_geog,
                             SEXP x_cov_sexp,
                             SEXP values_sexp,
@@ -258,15 +258,15 @@ SEXP query_analog_index_cpp(SEXP index_list,
             n_ref = as<int>(idx["n_pool"]);
             n_pool_original = n_ref;
       }
-      int n_clim = as<int>(idx["n_clim"]);
+      int n_env = as<int>(idx["n_env"]);
       bool use_ecef = as<bool>(idx["use_ecef"]);
 
       // Validate dimensions
       if (ref_mm.nrow() != n_ref) {
             stop("Reference data dimensions don't match index");
       }
-      if (ref_mm.ncol() - 2 != n_clim) {
-            stop("Number of climate variables doesn't match index");
+      if (ref_mm.ncol() - 2 != n_env) {
+            stop("Number of environment variables doesn't match index");
       }
       if (focal_mm.ncol() != ref_mm.ncol()) {
             stop("Focal and reference data must have same number of columns");
@@ -276,25 +276,25 @@ SEXP query_analog_index_cpp(SEXP index_list,
       const bool use_haversine = (coord_type == "lonlat");
       const double R_earth = 6371.0088;
 
-      // Parse climate constraints
-      bool use_scalar_clim = false;
-      bool use_pervar_clim = false;
-      double max_clim_scalar = std::numeric_limits<double>::infinity();
-      std::vector<double> max_clim_pervar_std(n_clim, std::numeric_limits<double>::infinity());
+      // Parse environment constraints
+      bool use_scalar_env = false;
+      bool use_pervar_env = false;
+      double max_env_scalar = std::numeric_limits<double>::infinity();
+      std::vector<double> max_env_pervar_std(n_env, std::numeric_limits<double>::infinity());
 
-      if (max_clim.size() == 1) {
-            double v = max_clim[0];
+      if (max_env.size() == 1) {
+            double v = max_env[0];
             if (std::isfinite(v)) {
-                  use_scalar_clim = true;
-                  max_clim_scalar = v;
+                  use_scalar_env = true;
+                  max_env_scalar = v;
             }
-      } else if (max_clim.size() == n_clim) {
-            for (int i = 0; i < n_clim; ++i) {
-                  max_clim_pervar_std[i] = max_clim[i];
+      } else if (max_env.size() == n_env) {
+            for (int i = 0; i < n_env; ++i) {
+                  max_env_pervar_std[i] = max_env[i];
             }
-            use_pervar_clim = true;
-      } else if (max_clim.size() > 1) {
-            stop("max_clim must be length 1 or equal to number of climate variables");
+            use_pervar_env = true;
+      } else if (max_env.size() > 1) {
+            stop("max_env must be length 1 or equal to number of environment variables");
       }
 
       const bool use_geog_filter = std::isfinite(max_geog);
@@ -318,7 +318,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
       // Check for "none" (pairs mode)
       const bool return_pairs = (n_stats == 1 && acodes[0] == AggregateCode::NONE);
 
-      const FamilyKernel clim_kernel = static_cast<FamilyKernel>(clim_kernel_code);
+      const FamilyKernel env_kernel = static_cast<FamilyKernel>(env_kernel_code);
       const FamilyKernel geog_kernel = static_cast<FamilyKernel>(geog_kernel_code);
 
       // Validate and parse SE code
@@ -328,7 +328,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
       const SeCode scode_se = static_cast<SeCode>(se_code);
 
       // Pre-compute per-family weight parameters for efficiency (one per family).
-      const double clim_wparam = precompute_family_param(clim_kernel, theta_clim);
+      const double env_wparam = precompute_family_param(env_kernel, theta_env);
       const double geog_wparam = precompute_family_param(geog_kernel, theta_geog);
 
       // Parse x_cov parameter
@@ -345,9 +345,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
                   stop("x_cov must have same number of rows as focal data");
             }
 
-            n_cov_components = n_clim * (n_clim + 1) / 2;
+            n_cov_components = n_env * (n_env + 1) / 2;
             if (x_cov_mat.ncol() != n_cov_components) {
-                  stop("x_cov must have n_clim * (n_clim + 1) / 2 columns");
+                  stop("x_cov must have n_env * (n_env + 1) / 2 columns");
             }
 
             use_mahalanobis = true;
@@ -466,12 +466,12 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               true,  // use_lattice
                               use_geog_filter,
                               use_haversine,
-                              use_scalar_clim,
-                              use_pervar_clim,
-                              max_clim_scalar,
+                              use_scalar_env,
+                              use_pervar_env,
+                              max_env_scalar,
                               max_geog,
                               max_geog_chord,
-                              max_clim_pervar_std,
+                              max_env_pervar_std,
                               scode,
                               k_knn,
                               lattice_ptr,
@@ -495,7 +495,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
             ANALOGS_PROFILE_REPORT("PairWorker (pairs/knn)");
 
             // Handle k=1 NA cases - need to add weight too
-            if (k == 1 && (scode == SelectCode::KNN_CLIM || scode == SelectCode::KNN_GEOG)) {
+            if (k == 1 && (scode == SelectCode::KNN_ENV || scode == SelectCode::KNN_GEOG)) {
                   for (int i = 0; i < n_focal; ++i) {
                         if (out_indices[i].empty()) {
                               out_indices[i].push_back(0);
@@ -558,9 +558,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
             // Attach diagnostics
             out.attr("n_x") = n_focal;
             out.attr("n_pool") = n_pool_original;
-            out.attr("n_clim") = n_clim;
+            out.attr("n_env") = n_env;
             out.attr("max_geog") = max_geog;
-            out.attr("max_clim") = max_clim;
+            out.attr("max_env") = max_env;
             out.attr("coord_type") = coord_type;
             out.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";
             out.attr("total_bins") = static_cast<double>(lattice_ptr->total_bins);
@@ -654,17 +654,17 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               true,  // use_lattice
                               use_geog_filter,
                               use_haversine,
-                              use_scalar_clim,
-                              use_pervar_clim,
-                              max_clim_scalar,
+                              use_scalar_env,
+                              use_pervar_env,
+                              max_env_scalar,
                               max_geog,
                               max_geog_chord,
-                              max_clim_pervar_std,
+                              max_env_pervar_std,
                               scode,
                               acodes,
-                              clim_kernel,
+                              env_kernel,
                               geog_kernel,
-                              clim_wparam,
+                              env_wparam,
                               geog_wparam,
                               lattice_ptr,
                               use_ecef,
@@ -707,9 +707,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
             // Add diagnostics as attributes
             agg.attr("n_x") = n_focal;
             agg.attr("n_pool") = n_pool_original;
-            agg.attr("n_clim") = n_clim;
+            agg.attr("n_env") = n_env;
             agg.attr("max_geog") = max_geog;
-            agg.attr("max_clim") = max_clim;
+            agg.attr("max_env") = max_env;
             agg.attr("coord_type") = coord_type;
             agg.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";
             agg.attr("total_bins") = static_cast<double>(lattice_ptr->total_bins);

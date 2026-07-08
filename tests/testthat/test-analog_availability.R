@@ -1,16 +1,16 @@
 test_that("`analog_availability` result matches manual calculation for planar coords", {
 
       d <- sim_test_data()
-      max_clim <- 2
+      max_env <- 2
       max_geog <- 2
 
       # availability
-      nn <- analog_availability(d$focal, d$ref, clim = kernel(max = max_clim), geog = kernel(max = max_geog), coord_type = "projected")
+      nn <- analog_availability(d$focal, d$ref, env = kernel(max = max_env), geog = kernel(max = max_geog), coord_type = "projected")
 
       # manual availability calculation
-      dclim <- xdist(d$focal, d$ref, "clim")
+      denv <- xdist(d$focal, d$ref, "env")
       dgeog <- xdist(d$focal, d$ref, "geog")
-      avail <- as.vector(rowSums(dclim < max_clim & dgeog < max_geog))
+      avail <- as.vector(rowSums(denv < max_env & dgeog < max_geog))
 
       expect_equal(nn$count, avail)
 })
@@ -20,21 +20,21 @@ test_that("`analog_availability` result matches manual calculation for LON/LAT c
 
       d <- sim_test_data(lonlat = TRUE)
 
-      max_clim <- 2
+      max_env <- 2
       max_geog <- 5000  # km, large enough that some analogs will typically pass
 
       # availability using lon/lat mode (AggWorker path)
       nn <- analog_availability(
             d$focal, d$ref,
-            clim = kernel(max = max_clim),
+            env = kernel(max = max_env),
             geog = kernel(max = max_geog),
             coord_type = "lonlat"
       )
 
-      # manual availability calculation (clim + Haversine geog)
-      dclim <- xdist(d$focal, d$ref, "clim")
+      # manual availability calculation (env + Haversine geog)
+      denv <- xdist(d$focal, d$ref, "env")
       dgeog <- xdist(d$focal, d$ref, "lonlat")
-      avail <- as.vector(rowSums(dclim < max_clim & dgeog < max_geog))
+      avail <- as.vector(rowSums(denv < max_env & dgeog < max_geog))
 
       expect_equal(nn$count, avail)
 })
@@ -48,7 +48,7 @@ test_that("analog_availability works with x/pool parameter names", {
       a <- analog_availability(
             x = d$focal,
             pool = d$ref,
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             geog = kernel(max = 2),
             coord_type = "projected"
       )
@@ -71,7 +71,7 @@ test_that("analog_availability works with analog_index", {
       a <- analog_availability(
             x = d$focal,
             pool = index,
-            clim = kernel(max = 1),
+            env = kernel(max = 1),
             geog = kernel(max = 2)
       )
 

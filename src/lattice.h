@@ -43,14 +43,14 @@ inline bool row_has_nan(const double* ref_ptr,
 //   geo_target    target total bin count for the GEOGRAPHIC family (product of
 //                 its per-axis counts ~= this). <= 1 deactivates the family
 //                 (every geo axis gets 1 bin).
-//   clim_target   target total bin count for the CLIMATE family, same meaning.
+//   env_target   target total bin count for the ENVIRONMENT family, same meaning.
 //
 // Output:
 //   n_bins_out    per-axis integer bin counts (>=1). Geo axes' product ~=
-//                 geo_target, climate axes' product ~= clim_target.
+//                 geo_target, environment axes' product ~= env_target.
 //
 // Method (independent per-family allocation):
-//   Geographic axes share a distance metric; climate axes share a distance
+//   Geographic axes share a distance metric; environment axes share a distance
 //   metric; the two families do NOT share a metric, and each family's total
 //   bin target is now supplied directly by the caller (R computes it from the
 //   per-family resolution adjustment and the occupancy-based default, including
@@ -67,16 +67,16 @@ inline bool row_has_nan(const double* ref_ptr,
 inline void allocate_bins(const std::vector<double>& range,
                           size_tu n_geo_dims,
                           double geo_target,
-                          double clim_target,
+                          double env_target,
                           std::vector<size_tu>& n_bins_out) {
       const size_tu n_dims = range.size();
       n_bins_out.assign(n_dims, 1);
 
       // Partition axes into families.
-      std::vector<size_tu> geo_ax, clim_ax;
+      std::vector<size_tu> geo_ax, env_ax;
       for (size_tu d = 0; d < n_dims; ++d) {
             if (d < n_geo_dims) geo_ax.push_back(d);
-            else                clim_ax.push_back(d);
+            else                env_ax.push_back(d);
       }
 
       // Allocate one family independently: distribute `target` across `fam`
@@ -177,7 +177,7 @@ inline void allocate_bins(const std::vector<double>& range,
       };
 
       allocate_family(geo_ax,  geo_target);
-      allocate_family(clim_ax, clim_target);
+      allocate_family(env_ax, env_target);
 }
 
 // Bin structure: stores point IDs and sampling weight
@@ -189,12 +189,12 @@ struct Bin {
 };
 
 // Full-dimensional regular lattice over
-//   dims = [x, y, clim1, ..., climP].
+//   dims = [x, y, env1, ..., envP].
 //
-// - Uses 2 geographic dims (x, y) and all climate dims.
+// - Uses 2 geographic dims (x, y) and all environment dims.
 // - Bins are regular in each dimension.
 // - Cells are stored sparsely in an unordered_map keyed by a flattened index.
-// - Used only for *candidate generation*; all exact geo/clim tests
+// - Used only for *candidate generation*; all exact geo/env tests
 //   still happen in core.cpp.
 class Lattice {
 public:
@@ -202,8 +202,8 @@ public:
 
       size_tu n_points;     // number of reference points (before downsampling)
       size_tu n_geo_dims;   // number of geographic variables (2 for planar; 2 or 3 in general)
-      size_tu n_clim_dims;  // number of climate variables
-      size_tu n_dims;       // = n_geo_dims + n_clim_dims
+      size_tu n_env_dims;  // number of environment variables
+      size_tu n_dims;       // = n_geo_dims + n_env_dims
 
       // Per-dimension metadata
       std::vector<double> mins;    // min value per dimension
@@ -226,7 +226,7 @@ public:
             : metric_type(MetricType::Planar),
               n_points(0),
               n_geo_dims(2),
-              n_clim_dims(0),
+              n_env_dims(0),
               n_dims(2),
               total_bins(1),
               min_cell_occ(std::numeric_limits<size_tu>::max()),
@@ -237,22 +237,22 @@ public:
       // Build lattice over all dims with optional downsampling.
       //
       // Bin allocation is driven by two per-family bin-count targets
-      // (geo_target, clim_target), computed R-side from the per-family
+      // (geo_target, env_target), computed R-side from the per-family
       // resolution adjustments and the occupancy default. Each family is
       // allocated independently across its axes (bin width proportional to
       // range). A target <= 1 deactivates that family (1 bin/axis).
       void build(const double* ref_ptr,
                  size_tu n_ref,
                  size_tu n_geo,
-                 size_tu n_clim,
+                 size_tu n_env,
                  size_tu stride_r,
                  MetricType metric,
                  double max_dist,
-                 bool use_scalar_clim,
-                 const std::vector<double>& max_clim_pervar,
-                 double max_clim_scalar,
+                 bool use_scalar_env,
+                 const std::vector<double>& max_env_pervar,
+                 double max_env_scalar,
                  double geo_target,
-                 double clim_target,
+                 double env_target,
                  double downsample_rate = 1.0,
                  unsigned int seed = 0);
 
@@ -264,26 +264,26 @@ public:
 
       // Query candidate indices for a focal point
       void query(const double* focal_geo,
-                 const double* focal_clim,
+                 const double* focal_env,
                  double max_dist,
-                 bool use_scalar_clim,
-                 const std::vector<double>& max_clim_pervar,
-                 double max_clim_scalar,
+                 bool use_scalar_env,
+                 const std::vector<double>& max_env_pervar,
+                 double max_env_scalar,
                  std::vector<index_t>& out_indices,
                  std::vector<double>& out_weights) const;
 
       // KNN query with priority-queue based search
       // May contain fewer than k if not enough admissible refs.
       void knn_query(const double* focal_geo,
-                     const double* focal_clim,
+                     const double* focal_env,
                      const double* ref_ptr,
                      size_tu stride_r,
-                     size_tu n_clim,
+                     size_tu n_env,
                      bool rank_by_geog,
                      double max_geog,
-                     bool use_scalar_clim,
-                     const std::vector<double>& max_clim_pervar,
-                     double max_clim_scalar,
+                     bool use_scalar_env,
+                     const std::vector<double>& max_env_pervar,
+                     double max_env_scalar,
                      int k,
                      std::vector<index_t>& out_indices,
                      std::vector<double>& out_weights) const;
@@ -313,22 +313,22 @@ private:
 inline void Lattice::build(const double* ref_ptr,
                            size_tu n_ref,
                            size_tu n_geo,
-                           size_tu n_clim,
+                           size_tu n_env,
                            size_tu stride_r,
                            MetricType metric,
                            double max_dist,
-                           bool use_scalar_clim,
-                           const std::vector<double>& max_clim_pervar,
-                           double max_clim_scalar,
+                           bool use_scalar_env,
+                           const std::vector<double>& max_env_pervar,
+                           double max_env_scalar,
                            double geo_target,
-                           double clim_target,
+                           double env_target,
                            double downsample_rate,
                            unsigned int seed) {
       metric_type    = metric;
       n_points       = n_ref;
       n_geo_dims     = n_geo;
-      n_clim_dims    = n_clim;
-      n_dims         = n_geo_dims + n_clim_dims;
+      n_env_dims    = n_env;
+      n_dims         = n_geo_dims + n_env_dims;
 
       mins.assign(n_dims, 0.0);
       maxs.assign(n_dims, 0.0);
@@ -361,7 +361,7 @@ inline void Lattice::build(const double* ref_ptr,
                         double v = ref_ptr[j + g * stride_r];
                         mins[g] = maxs[g] = v;
                   }
-                  for (size_tu k = 0; k < n_clim_dims; ++k) {
+                  for (size_tu k = 0; k < n_env_dims; ++k) {
                         size_tu d = n_geo_dims + k;
                         double v = ref_ptr[j + d * stride_r];
                         mins[d] = maxs[d] = v;
@@ -373,7 +373,7 @@ inline void Lattice::build(const double* ref_ptr,
                         if (v < mins[g]) mins[g] = v;
                         if (v > maxs[g]) maxs[g] = v;
                   }
-                  for (size_tu k = 0; k < n_clim_dims; ++k) {
+                  for (size_tu k = 0; k < n_env_dims; ++k) {
                         size_tu d = n_geo_dims + k;
                         double v = ref_ptr[j + d * stride_r];
                         if (v < mins[d]) mins[d] = v;
@@ -389,7 +389,7 @@ inline void Lattice::build(const double* ref_ptr,
 
       // Choose per-dimension bin counts from the two per-family targets.
       //
-      // R supplies geo_target and clim_target directly (computed from the
+      // R supplies geo_target and env_target directly (computed from the
       // per-family resolution adjustments, the occupancy default, and the ECEF
       // effective-dimensionality correction). allocate_bins distributes each
       // family's target across its axes with bin width proportional to axis
@@ -400,7 +400,7 @@ inline void Lattice::build(const double* ref_ptr,
             range_v[d] = (span > 0.0) ? span : 0.0;
       }
 
-      allocate_bins(range_v, n_geo_dims, geo_target, clim_target, n_bins);
+      allocate_bins(range_v, n_geo_dims, geo_target, env_target, n_bins);
 
       // Derive per-axis bin width (res) from the allocated counts and span.
       for (size_tu d = 0; d < n_dims; ++d) {
@@ -440,8 +440,8 @@ inline void Lattice::build(const double* ref_ptr,
                   idx[g] = ib;
             }
 
-            // climate dims
-            for (size_tu k = 0; k < n_clim_dims; ++k) {
+            // environment dims
+            for (size_tu k = 0; k < n_env_dims; ++k) {
                   size_tu d = n_geo_dims + k;
                   double v = ref_ptr[j + d * stride_r];
                   double pos = (v - mins[d]) / res[d];
@@ -564,11 +564,11 @@ inline void Lattice::get_candidates(const std::vector<size_tu>& lo,
 }
 
 inline void Lattice::query(const double* focal_geo,
-                           const double* focal_clim,
+                           const double* focal_env,
                            double max_dist,
-                           bool use_scalar_clim,
-                           const std::vector<double>& max_clim_pervar,
-                           double max_clim_scalar,
+                           bool use_scalar_env,
+                           const std::vector<double>& max_env_pervar,
+                           double max_env_scalar,
                            std::vector<index_t>& out_indices,
                            std::vector<double>& out_weights) const {
       out_indices.clear();
@@ -592,20 +592,20 @@ inline void Lattice::query(const double* focal_geo,
                         maxv = q + max_dist;
                   }
             } else {
-                  // Climate dims: bound by per-var or scalar climate thresholds
-                  size_tu clim_idx = d - n_geo_dims;
-                  double q = focal_clim[clim_idx];
+                  // Environment dims: bound by per-var or scalar environment thresholds
+                  size_tu env_idx = d - n_geo_dims;
+                  double q = focal_env[env_idx];
 
-                  if (!max_clim_pervar.empty() && clim_idx < max_clim_pervar.size()) {
-                        double thr = max_clim_pervar[clim_idx];
+                  if (!max_env_pervar.empty() && env_idx < max_env_pervar.size()) {
+                        double thr = max_env_pervar[env_idx];
                         if (std::isfinite(thr) && thr > 0.0) {
                               minv = q - thr;
                               maxv = q + thr;
                         }
                   }
 
-                  if (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0) {
-                        double thr2 = max_clim_scalar;
+                  if (use_scalar_env && std::isfinite(max_env_scalar) && max_env_scalar > 0.0) {
+                        double thr2 = max_env_scalar;
                         minv = (minv == mins[d]) ? (q - thr2) : std::max(minv, q - thr2);
                         maxv = (maxv == maxs[d]) ? (q + thr2) : std::min(maxv, q + thr2);
                   }
@@ -674,31 +674,31 @@ inline double lb_geo_chord3d(const Lattice& lat,
                              const std::array<size_tu, 8>& idx,
                              const double* focal_geo);
 
-inline double lb_clim(const Lattice& lat,
+inline double lb_env(const Lattice& lat,
                       const std::array<size_tu, 8>& idx,
-                      const double* focal_clim);
+                      const double* focal_env);
 
-inline bool clim_ok_and_dist_knn(const double* focal_clim,
-                                 const double* ref_clim_col,
-                                 size_tu n_clim,
+inline bool env_ok_and_dist_knn(const double* focal_env,
+                                 const double* ref_env_col,
+                                 size_tu n_env,
                                  size_tu stride_r,
-                                 bool use_scalar_clim,
-                                 const std::vector<double>& max_clim_pervar,
-                                 double max_clim_scalar,
-                                 double& clim_dist_out,
+                                 bool use_scalar_env,
+                                 const std::vector<double>& max_env_pervar,
+                                 double max_env_scalar,
+                                 double& env_dist_out,
                                  bool compute_dist);
 
 // KNN query implementation with weight tracking
 inline void Lattice::knn_query(const double* focal_geo,
-                               const double* focal_clim,
+                               const double* focal_env,
                                const double* ref_ptr,
                                size_tu stride_r,
-                               size_tu n_clim,
+                               size_tu n_env,
                                bool rank_by_geog,
                                double max_geog,
-                               bool use_scalar_clim,
-                               const std::vector<double>& max_clim_pervar,
-                               double max_clim_scalar,
+                               bool use_scalar_env,
+                               const std::vector<double>& max_env_pervar,
+                               double max_env_scalar,
                                int k,
                                std::vector<index_t>& out_indices,
                                std::vector<double>& out_weights) const {
@@ -712,7 +712,7 @@ inline void Lattice::knn_query(const double* focal_geo,
             return;
       }
 
-      if (n_clim != n_clim_dims) {
+      if (n_env != n_env_dims) {
             return;
       }
 
@@ -722,7 +722,7 @@ inline void Lattice::knn_query(const double* focal_geo,
       // Compute threshold bin ranges
       std::vector<size_tu> lo(D), hi(D);
       for (size_tu d = 0; d < D; ++d) {
-            double q = (d < n_geo) ? focal_geo[d] : focal_clim[d - n_geo];
+            double q = (d < n_geo) ? focal_geo[d] : focal_env[d - n_geo];
 
             double minv = mins[d];
             double maxv = maxs[d];
@@ -734,16 +734,16 @@ inline void Lattice::knn_query(const double* focal_geo,
                   }
             } else {
                   size_tu cidx = d - n_geo;
-                  if (!max_clim_pervar.empty() && cidx < max_clim_pervar.size()) {
-                        double t = max_clim_pervar[cidx];
+                  if (!max_env_pervar.empty() && cidx < max_env_pervar.size()) {
+                        double t = max_env_pervar[cidx];
                         if (std::isfinite(t) && t > 0.0) {
                               minv = q - t;
                               maxv = q + t;
                         }
                   }
-                  if (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0) {
-                        minv = (minv == mins[d]) ? (q - max_clim_scalar) : std::max(minv, q - max_clim_scalar);
-                        maxv = (maxv == maxs[d]) ? (q + max_clim_scalar) : std::min(maxv, q + max_clim_scalar);
+                  if (use_scalar_env && std::isfinite(max_env_scalar) && max_env_scalar > 0.0) {
+                        minv = (minv == mins[d]) ? (q - max_env_scalar) : std::max(minv, q - max_env_scalar);
+                        maxv = (maxv == maxs[d]) ? (q + max_env_scalar) : std::min(maxv, q + max_env_scalar);
                   }
             }
 
@@ -767,7 +767,7 @@ inline void Lattice::knn_query(const double* focal_geo,
       // Find center cell
       std::array<size_tu, 8> center;
       for (size_tu d = 0; d < D; ++d) {
-            double q = (d < n_geo) ? focal_geo[d] : focal_clim[d - n_geo];
+            double q = (d < n_geo) ? focal_geo[d] : focal_env[d - n_geo];
             double pos = (q - mins[d]) / res[d];
             if (pos < 0.0) pos = 0.0;
             size_tu ic = static_cast<size_tu>(pos);
@@ -787,7 +787,7 @@ inline void Lattice::knn_query(const double* focal_geo,
                   }
                   return 0.0;
             } else {
-                  return lb_clim(*this, idx, focal_clim);
+                  return lb_env(*this, idx, focal_env);
             }
       };
 
@@ -866,23 +866,23 @@ inline void Lattice::knn_query(const double* focal_geo,
 
                         if (use_geo_constraint && gdist2 > max_geog2) continue;
 
-                        // Climate constraints
-                        double clim_dist = 0.0;
-                        bool compute_clim = !rank_by_geog;
-                        if (!clim_ok_and_dist_knn(focal_clim,
+                        // Environment constraints
+                        double env_dist = 0.0;
+                        bool compute_env = !rank_by_geog;
+                        if (!env_ok_and_dist_knn(focal_env,
                                                   ref_ptr + j + n_geo * stride_r,
-                                                  n_clim, stride_r,
-                                                  use_scalar_clim, max_clim_pervar, max_clim_scalar,
-                                                  clim_dist, compute_clim)) {
+                                                  n_env, stride_r,
+                                                  use_scalar_env, max_env_pervar, max_env_scalar,
+                                                  env_dist, compute_env)) {
                               continue;
                         }
 
                         // Ranking distance (SQUARED for both modes: gdist2 for
-                        // geo, and clim_ok_and_dist_knn now returns squared
-                        // climate distance). d_k and all cell lower bounds are
+                        // geo, and env_ok_and_dist_knn now returns squared
+                        // environment distance). d_k and all cell lower bounds are
                         // therefore squared, keeping every comparison
                         // consistent and monotonic in true distance.
-                        double key_dist = rank_by_geog ? gdist2 : clim_dist;
+                        double key_dist = rank_by_geog ? gdist2 : env_dist;
 
                         if (static_cast<int>(knn.size()) < k) {
                               knn.emplace(key_dist, j, bin_weight);
@@ -984,13 +984,13 @@ inline double lb_geo_chord3d(const Lattice& lat,
       return sumsq;  // squared lower bound (see lb_geo_projected)
 }
 
-inline double lb_clim(const Lattice& lat,
+inline double lb_env(const Lattice& lat,
                       const std::array<size_tu, 8>& idx,
-                      const double* focal_clim) {
+                      const double* focal_env) {
       double sumsq = 0.0;
-      for (size_tu c = 0; c < lat.n_clim_dims; ++c) {
+      for (size_tu c = 0; c < lat.n_env_dims; ++c) {
             size_tu d = lat.n_geo_dims + c;
-            const double fc = focal_clim[c];
+            const double fc = focal_env[c];
             const double c_min = lat.mins[d] + static_cast<double>(idx[d]) * lat.res[d];
             const double c_max = c_min + lat.res[d];
 
@@ -1003,47 +1003,47 @@ inline double lb_clim(const Lattice& lat,
       return sumsq;  // squared lower bound (see lb_geo_projected)
 }
 
-inline bool clim_ok_and_dist_knn(const double* focal_clim,
-                                 const double* ref_clim_col,
-                                 size_tu n_clim,
+inline bool env_ok_and_dist_knn(const double* focal_env,
+                                 const double* ref_env_col,
+                                 size_tu n_env,
                                  size_tu stride_r,
-                                 bool use_scalar_clim,
-                                 const std::vector<double>& max_clim_pervar,
-                                 double max_clim_scalar,
-                                 double& clim_dist_out,
+                                 bool use_scalar_env,
+                                 const std::vector<double>& max_env_pervar,
+                                 double max_env_scalar,
+                                 double& env_dist_out,
                                  bool compute_dist) {
       double sumsq = 0.0;
 
-      for (size_tu c = 0; c < n_clim; ++c) {
-            const double fc = focal_clim[c];
-            const double rc = ref_clim_col[c * stride_r];
+      for (size_tu c = 0; c < n_env; ++c) {
+            const double fc = focal_env[c];
+            const double rc = ref_env_col[c * stride_r];
             const double diff = fc - rc;
 
             // Check per-variable threshold
-            if (!max_clim_pervar.empty() && c < max_clim_pervar.size()) {
-                  double thr = max_clim_pervar[c];
+            if (!max_env_pervar.empty() && c < max_env_pervar.size()) {
+                  double thr = max_env_pervar[c];
                   if (std::isfinite(thr) && thr > 0.0) {
                         if (std::fabs(diff) > thr) return false;
                   }
             }
 
-            if (compute_dist || use_scalar_clim) {
+            if (compute_dist || use_scalar_env) {
                   sumsq += diff * diff;
             }
       }
 
       // Check scalar threshold (compared in SQUARED space to avoid a sqrt:
       // dist > thr  iff  sumsq > thr^2, both being non-negative).
-      if (use_scalar_clim && std::isfinite(max_clim_scalar) && max_clim_scalar > 0.0) {
-            if (sumsq > max_clim_scalar * max_clim_scalar) return false;
+      if (use_scalar_env && std::isfinite(max_env_scalar) && max_env_scalar > 0.0) {
+            if (sumsq > max_env_scalar * max_env_scalar) return false;
       }
 
-      // Output the SQUARED climate distance. knn_query ranks on this directly
+      // Output the SQUARED environment distance. knn_query ranks on this directly
       // (monotonic in the true distance), avoiding a per-candidate sqrt; the
       // value is used only for internal ranking and is never emitted as a
       // reported distance (emit_pairs recomputes distances from coordinates).
       if (compute_dist) {
-            clim_dist_out = sumsq;
+            env_dist_out = sumsq;
       }
 
       return true;

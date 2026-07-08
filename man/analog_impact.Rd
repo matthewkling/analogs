@@ -11,14 +11,14 @@ analog_impact(
   weight = NULL,
   covariates = NULL,
   geog = NULL,
-  clim = kernel("gaussian", theta = 0.25, max = 1),
+  env = kernel("gaussian", theta = 0.25, max = 1),
   stat = c("weighted_mean", "count", "sum_weights"),
   lambda = 0,
   se = c("none", "ess", "design"),
   normalize = "auto",
   x_cov = NULL,
   coord_type = "auto",
-  clim_res_adj = "auto",
+  env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
   n_threads = NULL,
@@ -28,13 +28,13 @@ analog_impact(
 }
 \arguments{
 \item{x}{Focal locations for which analogs will be found. Should be a
-matrix/data.frame with columns x, y, and climate variables, or a
-SpatRaster with climate variable layers.}
+matrix/data.frame with columns x, y, and environmental variables, or a
+SpatRaster with environmental variable layers.}
 
 \item{pool}{The reference dataset to search for analogs. Either:
 \itemize{
-\item Matrix/data.frame with columns x, y, and climate variables,
-or SpatRaster with climate variable layers, OR
+\item Matrix/data.frame with columns x, y, and environmental variables,
+or SpatRaster with environmental variable layers, OR
 \item An \code{analog_index} object created by
 \code{\link[=build_analog_index]{build_analog_index()}} (for repeated queries).
 }}
@@ -69,12 +69,12 @@ should be excluded.}
 covariate values for each reference location (must have same number of
 rows/cells as \code{pool}). Required when \code{stat} includes \code{"regression"}.}
 
-\item{clim, geog}{Per-family \code{\link[=kernel]{kernel()}} objects giving the distance treatment
-for climate and geography. For climate impact models, \code{clim} carries the
+\item{env, geog}{Per-family \code{\link[=kernel]{kernel()}} objects giving the distance treatment
+for environment and geography. For climate impact models, \code{env} carries the
 climate analog threshold (\code{max}) and the weighting kernel applied to
 climate distance (\code{weight}, \code{theta}); it defaults to
 \code{kernel("gaussian", theta = 0.25, max = 1.0)}. \code{geog} carries the hard
-dispersal-distance constraint (\code{geog = kernel(max = ...)}) and defaults to
+distance constraint (\code{geog = kernel(max = ...)}) and defaults to
 \code{NULL} (no geographic constraint). A geographic kernel may also be supplied
 via \code{geog} if desired. See \code{\link[=kernel]{kernel()}}.}
 
@@ -122,13 +122,13 @@ if \code{stat} includes \code{"sum_weights"} or \code{"tabulate"} and \code{pool
 When active, results for these stats are divided by a global scalar so that
 they represent a fraction of a theoretically "perfect" scenario where
 the full search area within \code{max_geog} is occupied wall-to-wall by cells
-whose climate exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
+whose environment exactly matches \code{x}. See details under \code{\link[=analog_search]{analog_search()}} for
 more info.}
 
 \item{x_cov}{Optional focal-specific covariance matrices for Mahalanobis
 distance calculations. Should be a matrix or data.frame with one row per
 focal location and one column per unique covariance component, or a
-SpatRaster with a layer for each component. For n climate variables,
+SpatRaster with a layer for each component. For n environmental variables,
 there are n*(n+1)/2 unique components, ordered as: variances first
 (diagonals), then covariances (upper triangle by row).}
 
@@ -141,8 +141,8 @@ assumes \code{max_geog} is in km).
 assumes \code{max_geog} is in projection units).
 }}
 
-\item{clim_res_adj, geog_res_adj}{Control the lattice search-index resolution
-of the climate and geographic families, each a multiplier on a
+\item{env_res_adj, geog_res_adj}{Control the lattice search-index resolution
+of the environmental and geographic families, each a multiplier on a
 data-dependent default (targeting ~50 pool points per occupied bin, split
 between families by effective dimensionality, so it scales with pool size).
 Each is either:
@@ -211,7 +211,7 @@ similar climates that are within dispersal range?"
 The methodology:
 \enumerate{
 \item For each focal location's future climate conditions
-\item Find all current locations with similar climates (within \code{max_clim})
+\item Find all current locations with similar climates (within \code{max_env})
 \item Constrain to dispersal-reachable distance (within \code{max_geog})
 \item Weight each analog by climate similarity (via \code{kernel} function)
 \item Aggregate ecosystem characteristics across these weighted analogs
@@ -222,15 +222,15 @@ this function uses all analogs within thresholds combined with climate-distance-
 kernel weighting. This approach eliminates arbitrary choice of k, provides smoother,
 more continuous results, and lets the kernel function (via \code{theta}) naturally
 control influence. (Note that the traditional version can be implemented via
-\verb{analog_search(select = "knn_clim", stat = "mean", ...))}.)
+\verb{analog_search(select = "knn_env", stat = "mean", ...))}.)
 }
 
 \subsection{Choosing Parameters}{
 
 \itemize{
 \item \code{geog}'s \code{max}: Set based on species dispersal ability (e.g., 5-500 km)
-\item \code{clim}'s \code{max}: Defines what counts as an "analog"
-\item \code{clim}'s \code{theta}: Controls kernel decay. The weight should decay to a
+\item \code{env}'s \code{max}: Defines what counts as an "analog"
+\item \code{env}'s \code{theta}: Controls kernel decay. The weight should decay to a
 small value at the climate/geographic thresholds. If \code{theta} is too large
 relative to the thresholds, the hard cutoffs do most of the filtering and
 weighting becomes nearly uniform. For Gaussian kernels with three or fewer
@@ -255,7 +255,7 @@ value divided by the row sum (or, equivalently, divided by
 between two such weighted-vote matrices (e.g., contemporary vs.
 future analogs) gives a measure of compositional vulnerability to
 ecological transformation (cf. Hoecker et al. 2026).
-\item \code{count}: How many analogs exist within max_clim and max_geog? Low counts
+\item \code{count}: How many analogs exist within max_env and max_geog? Low counts
 indicate limited analog availability, while zero counts indicate climates
 that are novel within the geographic search radius.
 \item \code{sum_weights}: Total analog density. Low values indicate sparse
@@ -275,7 +275,7 @@ impact <- analog_impact(
   pool = current_climate,
   y = current$habitat,
   geog = kernel(max = 100),  # 100 km dispersal range
-  clim = kernel("gaussian", theta = 0.25, max = 0.5)
+  env = kernel("gaussian", theta = 0.25, max = 0.5)
 )
 
 # With uncertainty quantification on weighted_mean
@@ -284,7 +284,7 @@ impact_se <- analog_impact(
   pool = current_climate,
   y = current$habitat,
   geog = kernel(max = 100),
-  clim = kernel("gaussian", theta = 0.25, max = 0.5),
+  env = kernel("gaussian", theta = 0.25, max = 0.5),
   se = "ess"
 )
 
@@ -295,9 +295,9 @@ veg_votes <- analog_impact(
   pool = current_climate,
   y    = factor(current$vegetation_type),
   stat = c("count", "sum_weights", "tabulate"),
-  clim = kernel("gaussian", theta = 0.25, max = 1),
+  env = kernel("gaussian", theta = 0.25, max = 1),
   geog = kernel(max = 500),
-  # (clim set above)
+  # (env set above)
 )
 # Output has one `n_<level>` column per vegetation type.
 # Primary class per focal:  apply(veg_votes[, grep("^n_", names(veg_votes))],
