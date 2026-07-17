@@ -79,15 +79,20 @@ Allowed options: \code{"sum_weights"} (default), \code{"mean_weights"}, \code{"c
 \item{env, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
 \code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
 shape, and the kernel's scale for one family: environmental (\code{env}) or geography
-(\code{geog}). \code{kernel(weight, theta, max)} where:
+(\code{geog}). \code{kernel(weight, theta, max, min)} where:
 \itemize{
-\item \code{max}: hard distance threshold — candidates beyond it (in that family's
-distance) are excluded. For \code{env}, \code{max} may be a single Euclidean
+\item \code{max}: hard upper distance threshold — candidates beyond it (in that
+family's distance) are excluded. For \code{env}, \code{max} may be a single Euclidean
 radius or a per-variable vector of absolute-difference thresholds (length
 equal to the number of environmental variables); scalar environmental thresholds are
 in Mahalanobis units when \code{x_cov} is supplied. For \code{geog}, \code{max} is a
 single radius (kilometers when \code{coord_type = "lonlat"}, projected units
 otherwise).
+\item \code{min}: hard lower distance threshold — candidates closer than it are
+excluded, so retained candidates form an annulus \verb{min <= d <= max}.
+Supported only for \code{geog} (a single radius, same units as the geographic
+\code{max}); setting \code{min} on \code{env} is an error. Mainly used to impose a
+spatial buffer for cross-validation (see \code{\link[=analog_cv]{analog_cv()}}).
 \item \code{weight}: kernel shape for weighted aggregations — \code{"uniform"} (no
 distance weighting), \code{"gaussian"} (\verb{exp(-d^2 / (2 theta^2))}), or
 \code{"inverse"} (\code{1 / (1 + d / theta)}). The overall kernel weight is the

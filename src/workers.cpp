@@ -146,41 +146,50 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   const double geog_thresh = use_ecef ?
                   max_geog_chord : max_geog;
 
-                  {
-                        ANALOGS_PROFILE_SCOPE(GATHER);
-                        lattice_ptr->knn_query(
-                                    fgeo_vec.data(),
-                                    fenv_vec.data(),
-                                    ref_ptr,
-                                    static_cast<size_tu>(stride_r),
-                                    static_cast<size_tu>(n_env),
-                                    rank_by_geog,
-                                    geog_thresh,
-                                    use_scalar_env,
-                                    max_env_pervar,
-                                    max_env_scalar,
-                                    k,
-                                    cand,
-                                    cand_weights
-                        );
-                  }
+                  // Matching inner-radius threshold for the annulus. Uses the
+                  // same metric as geog_thresh: chord distance on the ECEF path,
+                  // planar distance otherwise. 0 when inactive (min_geog check
+                  // is skipped inside knn_query).
+                  const double geog_min_thresh = use_geog_min
+                  ? (use_ecef ? min_geog_chord : min_geog)
+                        : 0.0;
 
-                  // Convert 0-based indices to 1-based and emit three weight streams.
-                  const int m = static_cast<int>(cand.size());
-                  std::vector<int>    keep(m);
-                  std::vector<double> sw(m), aw(m), uw(m);
-                  for (int t = 0; t < m; ++t) {
-                        const std::size_t j0 = static_cast<std::size_t>(cand[t]);
-                        keep[t] = static_cast<int>(j0) + 1;
-                        sw[t]   = cand_weights[t];
-                        aw[t]   = get_area_weight(has_area_weight, area_weight_ptr, j0);
-                        uw[t]   = get_user_weight(has_user_weight, user_weight_ptr, j0);
-                  }
-                  out_indices[i]        = std::move(keep);
-                  out_sample_weights[i] = std::move(sw);
-                  out_area_weights[i]   = std::move(aw);
-                  out_user_weights[i]   = std::move(uw);
-                  continue;
+                        {
+                              ANALOGS_PROFILE_SCOPE(GATHER);
+                              lattice_ptr->knn_query(
+                                          fgeo_vec.data(),
+                                          fenv_vec.data(),
+                                          ref_ptr,
+                                          static_cast<size_tu>(stride_r),
+                                          static_cast<size_tu>(n_env),
+                                          rank_by_geog,
+                                          geog_thresh,
+                                          geog_min_thresh,
+                                          use_scalar_env,
+                                          max_env_pervar,
+                                          max_env_scalar,
+                                          k,
+                                          cand,
+                                          cand_weights
+                              );
+                        }
+
+                        // Convert 0-based indices to 1-based and emit three weight streams.
+                        const int m = static_cast<int>(cand.size());
+                        std::vector<int>    keep(m);
+                        std::vector<double> sw(m), aw(m), uw(m);
+                        for (int t = 0; t < m; ++t) {
+                              const std::size_t j0 = static_cast<std::size_t>(cand[t]);
+                              keep[t] = static_cast<int>(j0) + 1;
+                              sw[t]   = cand_weights[t];
+                              aw[t]   = get_area_weight(has_area_weight, area_weight_ptr, j0);
+                              uw[t]   = get_user_weight(has_user_weight, user_weight_ptr, j0);
+                        }
+                        out_indices[i]        = std::move(keep);
+                        out_sample_weights[i] = std::move(sw);
+                        out_area_weights[i]   = std::move(aw);
+                        out_user_weights[i]   = std::move(uw);
+                        continue;
             }
 
             // -----------------------------------------------------------------
@@ -271,8 +280,9 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
-                        // Geog distance & filter
-                        if (use_geog_filter) {
+                        // Geog distance & filter (annulus: min <= gdist <= max).
+                        // gdist is needed when either bound is active.
+                        if (use_geog_filter || use_geog_min) {
                               double gdist;
                               if (use_ecef) {
                                     const double rx_ecef = ref_latt_ptr[j];
@@ -282,10 +292,12 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                                     const double dy = fy_ecef - ry_ecef;
                                     const double dz = fz_ecef - rz_ecef;
                                     gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
-                                    if (gdist > max_geog_chord) continue;
+                                    if (use_geog_filter && gdist > max_geog_chord) continue;
+                                    if (use_geog_min && gdist < min_geog_chord) continue;
                               } else {
                                     gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
-                                    if (gdist > max_geog) continue;
+                                    if (use_geog_filter && gdist > max_geog) continue;
+                                    if (use_geog_min && gdist < min_geog) continue;
                               }
                         }
 
@@ -359,7 +371,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                   const double rx = ref_ptr[j];
                   const double ry = ref_ptr[j + stride_r];
 
-                  // Geog distance & filter
+                  // Geog distance & filter (annulus: min <= gdist <= max)
                   double gdist;
                   if (use_ecef) {
                         // Use ECEF chord distance
@@ -371,9 +383,11 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                         const double dz = fz_ecef - rz_ecef;
                         gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
                         if (use_geog_filter && gdist > max_geog_chord) continue;
+                        if (use_geog_min && gdist < min_geog_chord) continue;
                   } else {
                         gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
                         if (use_geog_filter && gdist > max_geog) continue;
+                        if (use_geog_min && gdist < min_geog) continue;
                   }
 
                   // Environment checks & distance
@@ -673,9 +687,9 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         const double rx = ref_ptr[j];
                         const double ry = ref_ptr[j + stride_r];
 
-                        // Geog distance & filter
+                        // Geog distance & filter (annulus: min <= gdist <= max)
                         double gdist = 0.0;
-                        if (use_geog_filter || need_weights) {
+                        if (use_geog_filter || use_geog_min || need_weights) {
                               if (use_ecef) {
                                     const double rx_ecef = ref_latt_ptr[j];
                                     const double ry_ecef = ref_latt_ptr[j + stride_latt_r];
@@ -685,9 +699,11 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     const double dz = fz_ecef - rz_ecef;
                                     gdist = std::sqrt(dx*dx + dy*dy + dz*dz);
                                     if (use_geog_filter && gdist > max_geog_chord) continue;
+                                    if (use_geog_min && gdist < min_geog_chord) continue;
                               } else {
                                     gdist = geo_distance_km(fx, fy, rx, ry, use_haversine);
                                     if (use_geog_filter && gdist > max_geog) continue;
+                                    if (use_geog_min && gdist < min_geog) continue;
                               }
                         }
 

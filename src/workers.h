@@ -53,6 +53,15 @@ struct PairWorker : public Worker {
       double max_geog_chord;        // chord distance threshold for ECEF mode
       std::vector<double> max_env_pervar;
 
+      // Geographic annulus inner radius (0 = inactive). When use_geog_min is
+      // true, candidates with geographic distance < min_geog are skipped,
+      // yielding a half-open annulus [min_geog, max_geog]. min_geog_chord is
+      // the chord-distance equivalent used on the ECEF path (mirrors
+      // max_geog_chord). Geographic-only; there is no environmental analogue.
+      bool use_geog_min;
+      double min_geog;
+      double min_geog_chord;
+
       SelectCode scode;     // Selection strategy
 
       int k;                        // k for kNN modes (>=1), ignored for ALL
@@ -113,6 +122,9 @@ struct PairWorker : public Worker {
                  double max_geog_,
                  double max_geog_chord_,
                  const std::vector<double>& max_env_pervar_,
+                 bool use_geog_min_,
+                 double min_geog_,
+                 double min_geog_chord_,
                  SelectCode scode_,
                  int k_,
                  Lattice* lattice_ptr_,
@@ -149,6 +161,9 @@ struct PairWorker : public Worker {
               max_geog(max_geog_),
               max_geog_chord(max_geog_chord_),
               max_env_pervar(max_env_pervar_),
+              use_geog_min(use_geog_min_),
+              min_geog(min_geog_),
+              min_geog_chord(min_geog_chord_),
               scode(scode_),
               k(k_),
               lattice_ptr(lattice_ptr_),
@@ -206,6 +221,12 @@ struct AggWorker : public Worker {
       double max_geog;
       double max_geog_chord;
       std::vector<double> max_env_pervar;
+
+      // Geographic annulus inner radius (0 = inactive); see PairWorker for
+      // full semantics. min_geog_chord is the ECEF-path chord equivalent.
+      bool use_geog_min;
+      double min_geog;
+      double min_geog_chord;
 
       SelectCode scode;
       std::vector<AggregateCode> acodes;
@@ -290,6 +311,9 @@ struct AggWorker : public Worker {
                 double max_geog_,
                 double max_geog_chord_,
                 const std::vector<double>& max_env_pervar_,
+                bool use_geog_min_,
+                double min_geog_,
+                double min_geog_chord_,
                 SelectCode scode_,
                 const std::vector<AggregateCode>& acodes_,
                 FamilyKernel env_kernel_,
@@ -340,6 +364,9 @@ struct AggWorker : public Worker {
               max_geog(max_geog_),
               max_geog_chord(max_geog_chord_),
               max_env_pervar(max_env_pervar_),
+              use_geog_min(use_geog_min_),
+              min_geog(min_geog_),
+              min_geog_chord(min_geog_chord_),
               scode(scode_),
               acodes(acodes_),
               env_kernel(env_kernel_),

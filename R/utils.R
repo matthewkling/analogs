@@ -19,6 +19,7 @@
                                    max_env, max_geog,
                                    select, k,
                                    stat,
+                                   min_geog = NULL,
                                    kernel_env, kernel_geog,
                                    theta_env, theta_geog,
                                    lambda = 0,
@@ -53,6 +54,23 @@
                min(max_geog) <= 0 ||
                length(max_geog) != 1) {
                   stop("max_geog must be a non-negative numeric value of length 1.")
+            }
+      }
+
+      # min_geog: geographic annulus inner radius. A single positive finite
+      # scalar, or NULL. When both are set, min_geog must be < max_geog, else
+      # the annulus is empty and every candidate is filtered out (almost
+      # certainly a user error, so we stop rather than silently return nothing).
+      if(!is.null(min_geog)){
+            if(!is.numeric(min_geog) ||
+               length(min_geog) != 1 ||
+               !is.finite(min_geog) ||
+               min_geog <= 0) {
+                  stop("min_geog must be a single positive finite numeric value.")
+            }
+            if(!is.null(max_geog) && min_geog >= max_geog){
+                  stop("min_geog (", min_geog, ") must be less than max_geog (",
+                       max_geog, "); otherwise the geographic annulus is empty.")
             }
       }
 
@@ -1102,7 +1120,7 @@
                            kernel_env, kernel_geog, theta_env, theta_geog,
                            x_cov_mat,
                            lambda, se, exclude_self, downsample_actual,
-                           max_env = NULL, max_geog = NULL,
+                           max_env = NULL, max_geog = NULL, min_geog = NULL,
                            cell_area_weight_applied = FALSE,
                            weight_provided = FALSE){
 
@@ -1137,6 +1155,7 @@
       attr(out, "theta_geog")         <- theta_geog
       attr(out, "max_env")           <- max_env
       attr(out, "max_geog")           <- max_geog
+      attr(out, "min_geog")           <- min_geog
       attr(out, "lambda")             <- lambda
       attr(out, "se")                 <- se
       attr(out, "exclude_self")       <- exclude_self

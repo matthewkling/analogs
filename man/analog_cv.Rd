@@ -112,6 +112,18 @@ autocorrelation by holding out larger contiguous sets of locations
 (if folds are spatially blocked).
 }
 
+Plain LOO excludes only each focal's own pool row, so a focal can still
+be predicted by its immediate geographic neighbors. When \code{y} and the
+environment are spatially autocorrelated those near-neighbors are
+effectively near-duplicates, and LOO error is optimistically low as a
+result. To perform \emph{buffered} (spatially blocked) LOO, pass a geographic
+kernel with a \code{min} distance, which excludes any candidate closer than
+\code{min} to the focal in addition to the self row: for example
+\code{geog = kernel(max = 500, min = 50)} keeps analogs in a 50-500 km annulus
+around each focal. Choosing \code{min} on the order of the autocorrelation
+range of the residuals gives a less biased estimate of predictive skill
+than either plain LOO or unblocked k-fold. See \code{\link[=kernel]{kernel()}} for details.
+
 Supported functions: \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_regression]{analog_regression()}}, and
 \code{\link[=analog_search]{analog_search()}}. Other \verb{analog_*()} functions have no \code{y} input and
 thus no prediction to validate.
@@ -148,6 +160,16 @@ cv <- analog_cv(
 )
 rmse <- sqrt(mean(cv$residual^2, na.rm = TRUE))
 
+# Buffered (spatially blocked) LOO: exclude analogs within 50 km of each
+# focal, so predictions can't lean on near-duplicate neighbors.
+cv_buf <- analog_cv(
+  fun      = analog_impact,
+  pool     = sites,
+  y        = sites$biomass,
+  env      = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog     = kernel(max = 100, min = 50)
+)
+
 # 10-fold CV for local regression
 cv_reg <- analog_cv(
   fun         = analog_regression,
@@ -178,5 +200,5 @@ mean_brier <- mean(cv_veg$brier, na.rm = TRUE)
 
 }
 \seealso{
-\code{\link[=analog_search]{analog_search()}}, \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_regression]{analog_regression()}}.
+\code{\link[=analog_search]{analog_search()}}, \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_regression]{analog_regression()}}, \code{\link[=kernel]{kernel()}}.
 }

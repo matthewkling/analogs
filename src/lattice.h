@@ -281,6 +281,7 @@ public:
                      size_tu n_env,
                      bool rank_by_geog,
                      double max_geog,
+                     double min_geog,
                      bool use_scalar_env,
                      const std::vector<double>& max_env_pervar,
                      double max_env_scalar,
@@ -675,18 +676,18 @@ inline double lb_geo_chord3d(const Lattice& lat,
                              const double* focal_geo);
 
 inline double lb_env(const Lattice& lat,
-                      const std::array<size_tu, 8>& idx,
-                      const double* focal_env);
+                     const std::array<size_tu, 8>& idx,
+                     const double* focal_env);
 
 inline bool env_ok_and_dist_knn(const double* focal_env,
-                                 const double* ref_env_col,
-                                 size_tu n_env,
-                                 size_tu stride_r,
-                                 bool use_scalar_env,
-                                 const std::vector<double>& max_env_pervar,
-                                 double max_env_scalar,
-                                 double& env_dist_out,
-                                 bool compute_dist);
+                                const double* ref_env_col,
+                                size_tu n_env,
+                                size_tu stride_r,
+                                bool use_scalar_env,
+                                const std::vector<double>& max_env_pervar,
+                                double max_env_scalar,
+                                double& env_dist_out,
+                                bool compute_dist);
 
 // KNN query implementation with weight tracking
 inline void Lattice::knn_query(const double* focal_geo,
@@ -696,6 +697,7 @@ inline void Lattice::knn_query(const double* focal_geo,
                                size_tu n_env,
                                bool rank_by_geog,
                                double max_geog,
+                               double min_geog,
                                bool use_scalar_env,
                                const std::vector<double>& max_env_pervar,
                                double max_env_scalar,
@@ -830,6 +832,16 @@ inline void Lattice::knn_query(const double* focal_geo,
 
       const bool use_geo_constraint = (std::isfinite(max_geog) && max_geog > 0.0);
       const double max_geog2 = use_geo_constraint ? max_geog * max_geog : std::numeric_limits<double>::infinity();
+      // Inner-radius (annulus) lower bound. Ranked and pruned in squared space
+      // like the max. Only active for a positive finite min_geog. When active,
+      // candidates with squared geo distance below min_geog2 are skipped, so
+      // the fast path yields the same annulus [min_geog, max_geog] as the
+      // regular candidate loop. Note: min only tightens which points are kept;
+      // it does not change cell lower bounds or the expansion order, so the
+      // expanding search remains correct (the inner core cells are still
+      // visited, their points simply fail the min test).
+      const bool use_geo_min = (std::isfinite(min_geog) && min_geog > 0.0);
+      const double min_geog2 = use_geo_min ? min_geog * min_geog : 0.0;
       double d_k = std::numeric_limits<double>::infinity();
 
       // Expanding search
@@ -854,7 +866,7 @@ inline void Lattice::knn_query(const double* focal_geo,
                         // this is the dominant cost in geo-ranked (velocity)
                         // queries. The geo constraint below is also squared.
                         double gdist2 = 0.0;
-                        if (rank_by_geog || use_geo_constraint) {
+                        if (rank_by_geog || use_geo_constraint || use_geo_min) {
                               double sumsq = 0.0;
                               for (size_tu g = 0; g < n_geo; ++g) {
                                     double rg = ref_ptr[j + g * stride_r];
@@ -865,15 +877,16 @@ inline void Lattice::knn_query(const double* focal_geo,
                         }
 
                         if (use_geo_constraint && gdist2 > max_geog2) continue;
+                        if (use_geo_min && gdist2 < min_geog2) continue;
 
                         // Environment constraints
                         double env_dist = 0.0;
                         bool compute_env = !rank_by_geog;
                         if (!env_ok_and_dist_knn(focal_env,
-                                                  ref_ptr + j + n_geo * stride_r,
-                                                  n_env, stride_r,
-                                                  use_scalar_env, max_env_pervar, max_env_scalar,
-                                                  env_dist, compute_env)) {
+                                                 ref_ptr + j + n_geo * stride_r,
+                                                 n_env, stride_r,
+                                                 use_scalar_env, max_env_pervar, max_env_scalar,
+                                                 env_dist, compute_env)) {
                               continue;
                         }
 
@@ -985,8 +998,8 @@ inline double lb_geo_chord3d(const Lattice& lat,
 }
 
 inline double lb_env(const Lattice& lat,
-                      const std::array<size_tu, 8>& idx,
-                      const double* focal_env) {
+                     const std::array<size_tu, 8>& idx,
+                     const double* focal_env) {
       double sumsq = 0.0;
       for (size_tu c = 0; c < lat.n_env_dims; ++c) {
             size_tu d = lat.n_geo_dims + c;
@@ -1004,14 +1017,14 @@ inline double lb_env(const Lattice& lat,
 }
 
 inline bool env_ok_and_dist_knn(const double* focal_env,
-                                 const double* ref_env_col,
-                                 size_tu n_env,
-                                 size_tu stride_r,
-                                 bool use_scalar_env,
-                                 const std::vector<double>& max_env_pervar,
-                                 double max_env_scalar,
-                                 double& env_dist_out,
-                                 bool compute_dist) {
+                                const double* ref_env_col,
+                                size_tu n_env,
+                                size_tu stride_r,
+                                bool use_scalar_env,
+                                const std::vector<double>& max_env_pervar,
+                                double max_env_scalar,
+                                double& env_dist_out,
+                                bool compute_dist) {
       double sumsq = 0.0;
 
       for (size_tu c = 0; c < n_env; ++c) {

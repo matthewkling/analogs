@@ -46,6 +46,10 @@
 #'     \item{`max_geog`}{Geographic-distance threshold used for analog
 #'       selection. Units are km when `coord_type = "lonlat"`, projection
 #'       units otherwise.}
+#'     \item{`min_geog`}{Geographic-distance lower threshold (annulus inner
+#'       radius): analogs closer than this to the focal were excluded.
+#'       `NULL` when no lower bound was set. Same units as `max_geog`. Mainly
+#'       used as a spatial buffer for cross-validation.}
 #'     \item{`exclude_self`}{Logical: was each focal's own pool row
 #'       excluded from its analog neighborhood? `TRUE` for results from
 #'       [analog_cv()] (LOO) or from `analog_search(exclude_self = TRUE)`.}
@@ -147,7 +151,7 @@ metadata <- function(x) {
             "select", "k", "stat",
             "kernel_env", "kernel_geog", "theta_env", "theta_geog",
             "lambda", "se",
-            "max_env", "max_geog",
+            "max_env", "max_geog", "min_geog",
             "exclude_self",
             # Input-data properties
             "n_x", "n_pool", "n_env", "coord_type", "x_cov_provided",

@@ -11,6 +11,7 @@ query_analog_index(
   stat,
   max_env,
   max_geog,
+  min_geog = NULL,
   x_cov,
   y,
   covariates,

@@ -217,6 +217,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             int k,
                             const NumericVector& max_env,
                             double max_geog,
+                            double min_geog,
                             int select_code,
                             const IntegerVector& aggregate_codes,
                             int env_kernel_code,
@@ -301,6 +302,16 @@ SEXP query_analog_index_cpp(SEXP index_list,
       const double max_geog_chord = (use_ecef && std::isfinite(max_geog))
             ? km_to_chord(max_geog, R_earth)
                   : max_geog;
+
+      // Geographic annulus inner radius. min_geog <= 0 means "no floor"
+      // (inactive). When active, candidates strictly closer than min_geog are
+      // excluded, giving a half-open annulus [min_geog, max_geog]. On the ECEF
+      // path the comparison is against chord distance, so convert like max.
+      // Geographic-only: there is no environmental analogue (rejected in R).
+      const bool use_geog_min = (min_geog > 0.0);
+      const double min_geog_chord = (use_ecef && use_geog_min)
+            ? km_to_chord(min_geog, R_earth)
+                  : min_geog;
 
       const SelectCode scode = static_cast<SelectCode>(select_code);
 
@@ -472,6 +483,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               max_geog,
                               max_geog_chord,
                               max_env_pervar_std,
+                              use_geog_min,
+                              min_geog,
+                              min_geog_chord,
                               scode,
                               k_knn,
                               lattice_ptr,
@@ -560,6 +574,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
             out.attr("n_pool") = n_pool_original;
             out.attr("n_env") = n_env;
             out.attr("max_geog") = max_geog;
+            out.attr("min_geog") = min_geog;
             out.attr("max_env") = max_env;
             out.attr("coord_type") = coord_type;
             out.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";
@@ -660,6 +675,9 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               max_geog,
                               max_geog_chord,
                               max_env_pervar_std,
+                              use_geog_min,
+                              min_geog,
+                              min_geog_chord,
                               scode,
                               acodes,
                               env_kernel,
@@ -709,6 +727,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
             agg.attr("n_pool") = n_pool_original;
             agg.attr("n_env") = n_env;
             agg.attr("max_geog") = max_geog;
+            agg.attr("min_geog") = min_geog;
             agg.attr("max_env") = max_env;
             agg.attr("coord_type") = coord_type;
             agg.attr("binning_method") = use_ecef ? "lattice_ecef" : "lattice";

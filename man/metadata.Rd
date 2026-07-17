@@ -44,6 +44,10 @@ length-\code{n_env} for per-variable thresholds.}
 \item{\code{max_geog}}{Geographic-distance threshold used for analog
 selection. Units are km when \code{coord_type = "lonlat"}, projection
 units otherwise.}
+\item{\code{min_geog}}{Geographic-distance lower threshold (annulus inner
+radius): analogs closer than this to the focal were excluded.
+\code{NULL} when no lower bound was set. Same units as \code{max_geog}. Mainly
+used as a spatial buffer for cross-validation.}
 \item{\code{exclude_self}}{Logical: was each focal's own pool row
 excluded from its analog neighborhood? \code{TRUE} for results from
 \code{\link[=analog_cv]{analog_cv()}} (LOO) or from \code{analog_search(exclude_self = TRUE)}.}

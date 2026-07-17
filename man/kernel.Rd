@@ -4,7 +4,7 @@
 \alias{kernel}
 \title{Define the distance treatment for one analog dimension}
 \usage{
-kernel(weight = NULL, theta = NULL, max = NULL)
+kernel(weight = NULL, theta = NULL, max = NULL, min = NULL)
 }
 \arguments{
 \item{weight}{Kernel shape for this family. One of \code{"uniform"} (constant
@@ -20,34 +20,45 @@ weight is 1/2 at \code{d = theta}). Ignored for \code{"uniform"}. Defaults to \c
 which lets downstream code apply a default of 1. See \code{\link[=kernel_params]{kernel_params()}} for
 help choosing a value calibrated to a target coverage fraction.}
 
-\item{max}{Hard distance threshold for this family: candidates beyond \code{max}
-(in this family's distance) are excluded. \code{NULL} (default) means no
-threshold. Usually a single radius. For the environmental family, \code{max} may also
-be a vector of per-variable absolute-difference thresholds (length equal to
-the number of environmental variables); the geographic family uses a single
-radius. Supplied to the search as \code{max_env} / \code{max_geog}.}
+\item{max}{Hard upper distance threshold for this family: candidates beyond
+\code{max} (in this family's distance) are excluded. \code{NULL} (default) means no
+upper threshold. Usually a single radius. For the environmental family,
+\code{max} may also be a vector of per-variable absolute-difference thresholds
+(length equal to the number of environmental variables); the geographic
+family uses a single radius. Supplied to the search as \code{max_env} /
+\code{max_geog}.}
+
+\item{min}{Hard lower distance threshold for this family: candidates closer
+than \code{min} (in this family's distance) are excluded, so the retained
+candidates form an annulus \verb{min <= d <= max}. A single positive scalar, or
+\code{NULL} (default) for no lower threshold. Currently supported only for the
+\strong{geographic} family; setting \code{min} on an environmental kernel is an
+error. The primary use case is buffered spatial cross-validation (e.g. via
+\code{\link[=analog_cv]{analog_cv()}}), where excluding geographically near-duplicate candidates
+around each focal gives a less optimistic estimate of predictive skill
+than plain leave-one-out. Supplied to the search as \code{min_geog}.}
 }
 \value{
 An object of class \code{"analog_kernel"}: a list with elements
-\code{weight}, \code{theta}, and \code{max} (each possibly \code{NULL}).
+\code{weight}, \code{theta}, \code{max}, and \code{min} (each possibly \code{NULL}).
 }
 \description{
 Constructs a specification of how a single distance family — environment or
 geography — is filtered and weighted in an analog search. A \code{kernel}
-bundles the three per-family choices: the hard distance threshold (\code{max}),
-the weighting kernel shape (\code{weight}), and that kernel's scale parameter
-(\code{theta}). Pass one to the \code{env} argument of \code{\link[=analog_search]{analog_search()}} and/or one
-to the \code{geog} argument.
+bundles the per-family choices: the hard distance thresholds (\code{max} and
+\code{min}), the weighting kernel shape (\code{weight}), and that kernel's scale
+parameter (\code{theta}). Pass one to the \code{env} argument of \code{\link[=analog_search]{analog_search()}}
+and/or one to the \code{geog} argument.
 }
 \details{
 The overall kernel weight for a candidate is the product of the two
 families' weights, so the families are specified independently and may use
 different shapes (e.g. an inverse-distance environmental kernel together with a
 Gaussian geographic kernel). A family with \code{weight = "uniform"} (or \code{NULL})
-contributes a constant weight of 1, i.e. it filters (if \code{max} is set) but
-does not down-weight by distance.
+contributes a constant weight of 1, i.e. it filters (if \code{max}/\code{min} are set)
+but does not down-weight by distance.
 
-All three components are optional. Which combinations are valid depends on
+All four components are optional. Which combinations are valid depends on
 the operation and is checked by \code{\link[=analog_search]{analog_search()}} downstream (for example,
 climate velocity requires an environmental \code{max}; a weighted statistic requires a
 non-uniform \code{weight} on at least one family). A bare \code{NULL} passed as the
@@ -60,6 +71,10 @@ kernel(weight = "gaussian", theta = 0.5, max = 2)
 
 # Geography: hard 100 km cutoff, no distance weighting (uniform)
 kernel(max = 100)
+
+# Geography: annulus keeping analogs between 5 km and 100 km of each focal
+# (e.g. a 5 km buffer for spatial cross-validation)
+kernel(max = 100, min = 5)
 
 # Inverse-distance environmental weighting, no hard cutoff
 kernel("inverse", theta = 1)

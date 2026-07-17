@@ -6,6 +6,7 @@ query_analog_index <- function(x,
                                stat,
                                max_env,
                                max_geog,
+                               min_geog = NULL,
                                x_cov,
                                y,
                                covariates,
@@ -87,6 +88,7 @@ query_analog_index <- function(x,
                                        x_cov, y, covariates,
                                        max_env, max_geog,
                                        select, k,
+                                       min_geog = min_geog,
                                        stat,
                                        kernel_env, kernel_geog,
                                        theta_env, theta_geog,
@@ -137,6 +139,14 @@ query_analog_index <- function(x,
       # Parse constraints
       max_geog_num <- if (is.null(max_geog)) Inf else as.numeric(max_geog)[1L]
       max_env_val <- if (is.null(max_env)) Inf else max_env
+
+      # Geographic lower bound (annulus inner radius). 0 means "no floor": the
+      # C++ side treats min_geog <= 0 as inactive, so gdist < 0 is never true
+      # and the check is zero-cost. A finite positive value excludes candidates
+      # strictly closer than min_geog, giving a half-open annulus
+      # [min_geog, max_geog]. Geographic-only (env min is rejected upstream in
+      # analog_search()).
+      min_geog_num <- if (is.null(min_geog)) 0 else as.numeric(min_geog)[1L]
 
       # Map select for C++
       # Select codes: 0=knn_env, 1=knn_geog, 2=all
@@ -250,6 +260,7 @@ query_analog_index <- function(x,
             k = k_core,
             max_env = max_env_val,
             max_geog = max_geog_num,
+            min_geog = min_geog_num,
             select_code = select_code,
             aggregate_codes = aggregate_codes,
             env_kernel_code = env_kernel_code,
@@ -394,6 +405,7 @@ query_analog_index <- function(x,
                                   lambda, se, exclude_self,
                                   index$downsample_actual,
                                   max_env = max_env, max_geog = max_geog,
+                                  min_geog = min_geog,
                                   cell_area_weight_applied = emit_area_weight,
                                   weight_provided = emit_user_weight))
       }
@@ -591,6 +603,7 @@ query_analog_index <- function(x,
       return(.format_output(out, focal, stat, select, k, kernel_env, kernel_geog, theta_env, theta_geog, x_cov_mat,
                             lambda, se, exclude_self, index$downsample_actual,
                             max_env = max_env, max_geog = max_geog,
+                            min_geog = min_geog,
                             cell_area_weight_applied = emit_area_weight,
                             weight_provided = emit_user_weight))
 }
@@ -621,6 +634,7 @@ query_analog_index <- function(x,
 #'
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_env, max_geog,
+                               min_geog = 0,
                                select_code, aggregate_codes,
                                env_kernel_code, geog_kernel_code,
                                theta_env, theta_geog,
@@ -640,6 +654,7 @@ query_analog_index <- function(x,
                   k = k,
                   max_env = max_env,
                   max_geog = max_geog,
+                  min_geog = min_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
                   env_kernel_code = env_kernel_code,
@@ -696,6 +711,7 @@ query_analog_index <- function(x,
                   k = k,
                   max_env = max_env,
                   max_geog = max_geog,
+                  min_geog = min_geog,
                   select_code = select_code,
                   aggregate_codes = aggregate_codes,
                   env_kernel_code = env_kernel_code,

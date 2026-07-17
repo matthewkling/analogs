@@ -68,15 +68,20 @@
 #' @param env,geog Per-family distance treatment, each a [kernel()] object (or
 #'   `NULL`). A kernel bundles the hard distance threshold, the weighting kernel
 #'   shape, and the kernel's scale for one family: environmental (`env`) or geography
-#'   (`geog`). `kernel(weight, theta, max)` where:
+#'   (`geog`). `kernel(weight, theta, max, min)` where:
 #'
-#'   - `max`: hard distance threshold — candidates beyond it (in that family's
-#'     distance) are excluded. For `env`, `max` may be a single Euclidean
+#'   - `max`: hard upper distance threshold — candidates beyond it (in that
+#'     family's distance) are excluded. For `env`, `max` may be a single Euclidean
 #'     radius or a per-variable vector of absolute-difference thresholds (length
 #'     equal to the number of environmental variables); scalar environmental thresholds are
 #'     in Mahalanobis units when `x_cov` is supplied. For `geog`, `max` is a
 #'     single radius (kilometers when `coord_type = "lonlat"`, projected units
 #'     otherwise).
+#'   - `min`: hard lower distance threshold — candidates closer than it are
+#'     excluded, so retained candidates form an annulus `min <= d <= max`.
+#'     Supported only for `geog` (a single radius, same units as the geographic
+#'     `max`); setting `min` on `env` is an error. Mainly used to impose a
+#'     spatial buffer for cross-validation (see [analog_cv()]).
 #'   - `weight`: kernel shape for weighted aggregations — `"uniform"` (no
 #'     distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
 #'     `"inverse"` (`1 / (1 + d / theta)`). The overall kernel weight is the
@@ -411,11 +416,15 @@ analog_search <- function(
       # kernel() sugar is dissolved; everything downstream consumes the plain
       # per-family values. Validation of the components happened in kernel().
       .unpack_kernel <- function(w, arg) {
-            if (is.null(w)) return(list(max = NULL, weight = "uniform", theta = NULL))
+            if (is.null(w)) {
+                  return(list(max = NULL, min = NULL,
+                              weight = "uniform", theta = NULL))
+            }
             if (!inherits(w, "analog_kernel")) {
                   stop("`", arg, "` must be a kernel() object or NULL.", call. = FALSE)
             }
             list(max    = w$max,
+                 min    = w$min,
                  weight = w$weight %||% "uniform",
                  theta  = w$theta)
       }
@@ -424,10 +433,23 @@ analog_search <- function(
 
       max_env    <- .env_w$max
       max_geog    <- .geog_w$max
+      min_geog    <- .geog_w$min
       kernel_env <- .env_w$weight   # "uniform" | "gaussian" | "inverse"
       kernel_geog <- .geog_w$weight
       theta_env  <- .env_w$theta
       theta_geog  <- .geog_w$theta
+
+      # `min` is currently a geographic-only filter (its main use is a spatial
+      # buffer for cross-validation). An environmental `min` raises awkward
+      # box-vs-ball semantics and has no established use case, so it is rejected
+      # here rather than silently ignored. The kernel() constructor accepts
+      # `min` generically so the API stays symmetric and future-proof; this is
+      # the single place that enforces the geographic-only restriction.
+      if (!is.null(.env_w$min)) {
+            stop("`min` is currently supported only for the geographic family ",
+                 "(the `geog` kernel), not the environmental family (`env`).",
+                 call. = FALSE)
+      }
 
       # Validate normalize argument format up front. Accepts TRUE, FALSE,
       # or the string "auto". Compatibility with kernel/max_geog/index/etc.
@@ -599,6 +621,7 @@ analog_search <- function(
             stat = stat,
             max_env = max_env,
             max_geog = max_geog,
+            min_geog = min_geog,
             x_cov = x_cov,
             y = y,
             covariates = covariates,

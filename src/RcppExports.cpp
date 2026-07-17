@@ -27,8 +27,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_env, double max_geog, int select_code, const IntegerVector& aggregate_codes, int env_kernel_code, int geog_kernel_code, double theta_env, double theta_geog, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, SEXP area_weight_sexp, SEXP user_weight_sexp, bool exclude_self);
-RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_envSEXP, SEXP max_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP env_kernel_codeSEXP, SEXP geog_kernel_codeSEXP, SEXP theta_envSEXP, SEXP theta_geogSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP area_weight_sexpSEXP, SEXP user_weight_sexpSEXP, SEXP exclude_selfSEXP) {
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_env, double max_geog, double min_geog, int select_code, const IntegerVector& aggregate_codes, int env_kernel_code, int geog_kernel_code, double theta_env, double theta_geog, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, SEXP area_weight_sexp, SEXP user_weight_sexp, bool exclude_self);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_envSEXP, SEXP max_geogSEXP, SEXP min_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP env_kernel_codeSEXP, SEXP geog_kernel_codeSEXP, SEXP theta_envSEXP, SEXP theta_geogSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP area_weight_sexpSEXP, SEXP user_weight_sexpSEXP, SEXP exclude_selfSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -38,6 +38,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type k(kSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type max_env(max_envSEXP);
     Rcpp::traits::input_parameter< double >::type max_geog(max_geogSEXP);
+    Rcpp::traits::input_parameter< double >::type min_geog(min_geogSEXP);
     Rcpp::traits::input_parameter< int >::type select_code(select_codeSEXP);
     Rcpp::traits::input_parameter< const IntegerVector& >::type aggregate_codes(aggregate_codesSEXP);
     Rcpp::traits::input_parameter< int >::type env_kernel_code(env_kernel_codeSEXP);
@@ -53,7 +54,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type area_weight_sexp(area_weight_sexpSEXP);
     Rcpp::traits::input_parameter< SEXP >::type user_weight_sexp(user_weight_sexpSEXP);
     Rcpp::traits::input_parameter< bool >::type exclude_self(exclude_selfSEXP);
-    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_env, max_geog, select_code, aggregate_codes, env_kernel_code, geog_kernel_code, theta_env, theta_geog, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self));
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_env, max_geog, min_geog, select_code, aggregate_codes, env_kernel_code, geog_kernel_code, theta_env, theta_geog, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -105,7 +106,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 6},
-    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 21},
+    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 22},
     {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 11},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
