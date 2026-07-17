@@ -226,6 +226,25 @@ analog_cv <- function(fun,
       raster_template <- attr(pool_mat, "template")
       n_pool <- nrow(pool_mat)
 
+      # NA-strip alignment. .format_data() drops pool rows/cells with any NA
+      # (env) value and, when it does, records the surviving original-row
+      # indices in the "row_map" attribute. Pool-keyed user inputs (y,
+      # covariates, weight, cell_area_weight) are supplied against the
+      # ORIGINAL pool, so they must be validated at the original size and then
+      # subset to the stripped ordering that pool_mat / the inner calls use.
+      # This mirrors how analog_search() aligns these inputs via the index's
+      # pool_row_map, so analog_cv(y = <full raster>) behaves like a direct
+      # analog_search(y = <full raster>) call. When no rows were stripped,
+      # pool_row_map is NULL and the two sizes coincide.
+      pool_row_map    <- attr(pool_mat, "row_map")
+      n_pool_original <- if (is.null(pool_row_map)) {
+            n_pool
+      } else if (inherits(pool, "SpatRaster")) {
+            terra::ncell(pool)
+      } else {
+            nrow(pool)
+      }
+
       # Pre-parse extra args (before y coercion) so we can detect tabulate
       # mode and route y through categorical coercion if needed.
       extra <- list(...)
@@ -240,7 +259,9 @@ analog_cv <- function(fun,
       # resolve both to length-n_pool numeric vectors here (or NULL), then
       # strip them from extra. The runners will slice or pass full
       # depending on LOO vs k-fold.
-      user_weight_vec <- .validate_and_format_weight(extra$weight, pool_mat)
+      user_weight_vec <- .validate_and_format_weight(extra$weight, pool_mat,
+                                                     pool_row_map = pool_row_map,
+                                                     n_pool_original = n_pool_original)
       extra$weight <- NULL
 
       caw_arg <- if (is.null(extra$cell_area_weight)) "auto" else extra$cell_area_weight
@@ -275,6 +296,12 @@ analog_cv <- function(fun,
             caw <- .compute_cell_area_weights(pool)
             cell_area_weight_vec  <- caw$weights
             mean_cell_area_global <- caw$mean_area
+            # .compute_cell_area_weights() returns one weight per ORIGINAL cell
+            # (terra::cellSize over the full raster). Subset to the stripped
+            # pool ordering so it aligns with pool_mat and the per-fold slices.
+            if (!is.null(pool_row_map)) {
+                  cell_area_weight_vec <- cell_area_weight_vec[pool_row_map]
+            }
       }
 
       # Detect whether this is a tabulate-mode CV run. Different y semantics
@@ -286,7 +313,9 @@ analog_cv <- function(fun,
       # a list of factored vectors plus a captured global level set.
       y_levels_list <- NULL
       if (is_tabulate) {
-            y_info <- .cv_coerce_categorical_y(y, n_pool)
+            y_info <- .cv_coerce_categorical_y(y, n_pool,
+                                               pool_row_map = pool_row_map,
+                                               n_pool_original = n_pool_original)
             # For inner calls, package factored y into a data.frame (multi-y)
             # or use the bare factor (single-y). The analog_search-side
             # categorical helper accepts either.
@@ -307,7 +336,9 @@ analog_cv <- function(fun,
             colnames(y_mat) <- y_names
             storage.mode(y_mat) <- "double"
       } else {
-            y_info <- .cv_coerce_values(y, "y", n_pool)
+            y_info <- .cv_coerce_values(y, "y", n_pool,
+                                        pool_row_map = pool_row_map,
+                                        n_pool_original = n_pool_original)
             y_mat <- y_info$mat
             y_names <- y_info$names
             y_for_inner <- y_mat
@@ -316,7 +347,9 @@ analog_cv <- function(fun,
       cov_mat <- NULL
       cov_names <- NULL
       if (!is.null(covariates)) {
-            cov_info <- .cv_coerce_values(covariates, "covariates", n_pool)
+            cov_info <- .cv_coerce_values(covariates, "covariates", n_pool,
+                                          pool_row_map = pool_row_map,
+                                          n_pool_original = n_pool_original)
             cov_mat <- cov_info$mat
             cov_names <- cov_info$names
       }
@@ -447,7 +480,9 @@ analog_cv <- function(fun,
       # Raster-in / raster-out ------------------------------------------------
       # Reassemble if pool was a SpatRaster.
       if (!is.null(raster_template)) {
-            return(.cv_to_raster(res_df, raster_template))
+            return(.cv_to_raster(res_df, raster_template,
+                                 pool_row_map = pool_row_map,
+                                 n_cells = n_pool_original))
       }
 
       res_df
@@ -548,7 +583,13 @@ analog_cv <- function(fun,
 
 
 # Coerce a y or covariates argument to a numeric matrix
-.cv_coerce_values <- function(obj, arg_name, n_pool) {
+.cv_coerce_values <- function(obj, arg_name, n_pool,
+                              pool_row_map = NULL, n_pool_original = NULL) {
+      # Row-count convention mirrors .validate_and_format_weight(): user input
+      # is keyed to the ORIGINAL pool. Validate against n_user (original size
+      # when NA stripping occurred, else the stripped size), then subset to the
+      # stripped ordering used by pool_mat and the inner calls.
+      n_user <- if (is.null(pool_row_map)) n_pool else n_pool_original
       if (inherits(obj, "SpatRaster")) {
             if (!requireNamespace("terra", quietly = TRUE)) {
                   stop("Package 'terra' is required for SpatRaster inputs",
@@ -572,9 +613,13 @@ analog_cv <- function(fun,
       }
 
       storage.mode(mat) <- "double"
-      if (nrow(mat) != n_pool) {
-            stop("`", arg_name, "` must have exactly ", n_pool,
+      if (nrow(mat) != n_user) {
+            stop("`", arg_name, "` must have exactly ", n_user,
                  " rows/cells to match pool.", call. = FALSE)
+      }
+      # Translate to stripped-pool ordering when NA stripping occurred.
+      if (!is.null(pool_row_map)) {
+            mat <- mat[pool_row_map, , drop = FALSE]
       }
       if (is.null(nms) || any(!nzchar(nms))) {
             nms <- paste0(arg_name, seq_len(ncol(mat)))
@@ -597,9 +642,14 @@ analog_cv <- function(fun,
 #                 Used downstream to compute primary class labels and to
 #                 align tabulate-vote columns across folds.
 #   n_y           number of y variables.
-.cv_coerce_categorical_y <- function(obj, n_pool) {
+.cv_coerce_categorical_y <- function(obj, n_pool,
+                                     pool_row_map = NULL, n_pool_original = NULL) {
       cols <- NULL
       var_names <- NULL
+
+      # User input is keyed to the ORIGINAL pool; validate against n_user and
+      # subset to stripped ordering below (see .cv_coerce_values()).
+      n_user <- if (is.null(pool_row_map)) n_pool else n_pool_original
 
       if (inherits(obj, "SpatRaster")) {
             if (!requireNamespace("terra", quietly = TRUE)) {
@@ -607,40 +657,40 @@ analog_cv <- function(fun,
                        call. = FALSE)
             }
             df <- terra::as.data.frame(obj, xy = FALSE, na.rm = FALSE)
-            if (nrow(df) != n_pool) {
+            if (nrow(df) != n_user) {
                   stop("`y` SpatRaster has ", nrow(df), " cells but pool has ",
-                       n_pool, " rows. They must match.", call. = FALSE)
+                       n_user, " rows. They must match.", call. = FALSE)
             }
             var_names <- names(df)
             cols <- as.list(df)
 
       } else if (is.factor(obj)) {
-            if (length(obj) != n_pool) {
-                  stop("`y` length is ", length(obj), " but pool has ", n_pool,
+            if (length(obj) != n_user) {
+                  stop("`y` length is ", length(obj), " but pool has ", n_user,
                        " rows. They must match.", call. = FALSE)
             }
             cols <- list(obj)
             var_names <- "y"
 
       } else if (is.data.frame(obj)) {
-            if (nrow(obj) != n_pool) {
-                  stop("`y` has ", nrow(obj), " rows but pool has ", n_pool,
+            if (nrow(obj) != n_user) {
+                  stop("`y` has ", nrow(obj), " rows but pool has ", n_user,
                        " rows. They must match.", call. = FALSE)
             }
             var_names <- names(obj)
             cols <- as.list(obj)
 
       } else if (is.matrix(obj)) {
-            if (nrow(obj) != n_pool) {
-                  stop("`y` has ", nrow(obj), " rows but pool has ", n_pool,
+            if (nrow(obj) != n_user) {
+                  stop("`y` has ", nrow(obj), " rows but pool has ", n_user,
                        " rows. They must match.", call. = FALSE)
             }
             var_names <- colnames(obj)
             cols <- lapply(seq_len(ncol(obj)), function(j) obj[, j])
 
       } else if (is.atomic(obj) && is.null(dim(obj))) {
-            if (length(obj) != n_pool) {
-                  stop("`y` length is ", length(obj), " but pool has ", n_pool,
+            if (length(obj) != n_user) {
+                  stop("`y` length is ", length(obj), " but pool has ", n_user,
                        " rows. They must match.", call. = FALSE)
             }
             cols <- list(obj)
@@ -650,6 +700,12 @@ analog_cv <- function(fun,
             stop("`y` must be a factor, character/integer vector, matrix, ",
                  "data.frame, or SpatRaster for stat = 'tabulate' CV.",
                  call. = FALSE)
+      }
+
+      # Translate each column to stripped-pool ordering when NA stripping
+      # occurred. Factor structure is preserved by subsetting.
+      if (!is.null(pool_row_map)) {
+            cols <- lapply(cols, function(col) col[pool_row_map])
       }
 
       n_y <- length(cols)
@@ -1045,7 +1101,8 @@ analog_cv <- function(fun,
 
 
 # Reassemble CV result as a SpatRaster when pool was a SpatRaster
-.cv_to_raster <- function(res_df, template) {
+.cv_to_raster <- function(res_df, template, pool_row_map = NULL,
+                          n_cells = NULL) {
       if (!requireNamespace("terra", quietly = TRUE)) {
             stop("Package 'terra' required for SpatRaster output.", call. = FALSE)
       }
@@ -1067,8 +1124,21 @@ analog_cv <- function(fun,
 
       num_cols <- data_cols[vapply(res_df[data_cols], is.numeric, logical(1))]
 
+      # When pool NA stripping occurred, res_df has one row per SURVIVING cell
+      # (in stripped order), but the template has one cell per ORIGINAL cell.
+      # Scatter each column back to its original cell position (NA elsewhere)
+      # so setValues() receives a full-length, correctly-aligned vector.
+      scatter <- !is.null(pool_row_map)
+      n_full  <- if (scatter) n_cells else NULL
+
       layers <- lapply(num_cols, function(cn) {
-            r <- terra::setValues(template, res_df[[cn]])
+            vals <- res_df[[cn]]
+            if (scatter) {
+                  full <- rep(NA_real_, n_full)
+                  full[pool_row_map] <- vals
+                  vals <- full
+            }
+            r <- terra::setValues(template, vals)
             names(r) <- cn
             r
       })
