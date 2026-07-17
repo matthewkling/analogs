@@ -68,13 +68,7 @@
 -->
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/matthewkling/analogs" class="external-link">analogs</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span>
-<span><span class="co">#&gt; terra 1.9.27</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Attaching package: 'terra'</span></span>
-<span><span class="co">#&gt; The following objects are masked from 'package:testthat':</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;     compare, describe</span></span></code></pre></div>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
@@ -478,8 +472,8 @@ interpretable.</p>
 <code class="sourceCode R"><span><span class="va">intens</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_density.html">analog_density</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.6</span>, weight <span class="op">=</span>  <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>,</span>
-<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.25</span>, weight <span class="op">=</span>  <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">50</span><span class="op">)</span></span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span>  <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.2</span>, max <span class="op">=</span> <span class="fl">0.6</span><span class="op">)</span>,</span>
+<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span>  <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">50</span>, max <span class="op">=</span> <span class="fl">0.25</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">intens</span>, main <span class="op">=</span> <span class="st">"Analog density"</span><span class="op">)</span></span></code></pre></div>
@@ -523,7 +517,7 @@ errors based on effective sample size for each grid cell.</p>
 <span>      x <span class="op">=</span> <span class="va">fut</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      y <span class="op">=</span> <span class="va">eco_var</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.5</span>, weight <span class="op">=</span>  <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span><span class="op">)</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span>  <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
 <span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      se <span class="op">=</span> <span class="st">"ess"</span></span>
 <span><span class="op">)</span></span>
@@ -572,8 +566,8 @@ selected <code>kernel</code> function.</p>
 <span>      x <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      pool <span class="op">=</span> <span class="fu"><a href="https://rspatial.github.io/terra/reference/coerce.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">sites</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x"</span>, <span class="st">"y"</span>, <span class="st">"CWD"</span>, <span class="st">"AET"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span>,</span>
 <span>      y <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">observed</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">1</span>, weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span><span class="op">)</span>,</span>
-<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span>, weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span>, max <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">100</span>, max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">interp</span><span class="op">[[</span><span class="st">"weighted_mean"</span><span class="op">]</span><span class="op">]</span>, main <span class="op">=</span> <span class="st">"Climate-informed spatial interpolation"</span><span class="op">)</span></span></code></pre></div>
@@ -626,7 +620,7 @@ but here we’ll arbitrarily pick a modest value.</p>
 <span>      y <span class="op">=</span> <span class="va">eco_var</span>,</span>
 <span>      covariates <span class="op">=</span> <span class="va">pool_covariates</span>,</span>
 <span>      x_covariates <span class="op">=</span> <span class="va">x_covariates</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.25</span>, weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span><span class="op">)</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span>, max <span class="op">=</span> <span class="fl">0.25</span><span class="op">)</span>,</span>
 <span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      lambda <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>      se <span class="op">=</span> <span class="st">"ess"</span> <span class="co"># request standard errors</span></span>
@@ -656,7 +650,7 @@ local regression on covariates.</p>
 <span>      y <span class="op">=</span> <span class="va">eco_var</span>,</span>
 <span>      covariates <span class="op">=</span> <span class="va">pool_covariates</span>,</span>
 <span>      select <span class="op">=</span> <span class="st">"all"</span>,</span>
-<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span>, weight <span class="op">=</span> <span class="st">"inverse"</span>, theta <span class="op">=</span> <span class="fl">30</span><span class="op">)</span>,</span>
+<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span> <span class="st">"inverse"</span>, theta <span class="op">=</span> <span class="fl">30</span>, max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span>,</span>
 <span>      lambda <span class="op">=</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -714,20 +708,24 @@ parameter values to identify the best-performing settings.</p>
 <code class="sourceCode R"><span><span class="co"># Run cross-validation and plot residuals</span></span>
 <span><span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_cv.html">analog_cv</a></span><span class="op">(</span></span>
 <span>      fun <span class="op">=</span> <span class="va">analog_impact</span>, pool <span class="op">=</span> <span class="va">hist</span>, y <span class="op">=</span> <span class="va">eco_var</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">.5</span>, weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span><span class="op">)</span>,</span>
-<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span>, weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">60</span><span class="op">)</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span>, max <span class="op">=</span> <span class="fl">.5</span><span class="op">)</span>,</span>
+<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span> <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">60</span>, max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      se <span class="op">=</span> <span class="st">"ess"</span>, cv_method <span class="op">=</span> <span class="st">"loo"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Error:</span></span>
-<span><span class="co">#&gt; ! `y` must have exactly 228823 rows/cells to match pool.</span></span>
-<span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">cv</span><span class="op">$</span><span class="va">residual</span>, main <span class="op">=</span> <span class="st">"Cross-validation residual"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Error in `h()`:</span></span>
-<span><span class="co">#&gt; ! error in evaluating the argument 'x' in selecting a method for function 'plot': object 'cv' not found</span></span>
-<span></span>
+<span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">cv</span><span class="op">$</span><span class="va">residual</span>, main <span class="op">=</span> <span class="st">"Cross-validation residual"</span><span class="op">)</span></span></code></pre></div>
+<div class="float">
+<img src="figures/cv-1.png" alt="plot of chunk cv"><div class="figcaption">plot of chunk cv</div>
+</div>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
 <span><span class="co"># Calculate prediction error metrics</span></span>
 <span><span class="fu"><a href="../reference/cv_performance.html">cv_performance</a></span><span class="op">(</span><span class="va">cv</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Error:</span></span>
-<span><span class="co">#&gt; ! object 'cv' not found</span></span></code></pre></div>
+<span><span class="co">#&gt;   variable       type metric         value</span></span>
+<span><span class="co">#&gt; 1        y continuous      n  2.288230e+05</span></span>
+<span><span class="co">#&gt; 2        y continuous   rmse  3.827635e-02</span></span>
+<span><span class="co">#&gt; 3        y continuous    mae  2.946300e-02</span></span>
+<span><span class="co">#&gt; 4        y continuous   bias -2.129624e-03</span></span>
+<span><span class="co">#&gt; 5        y continuous     r2  9.985170e-01</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
@@ -740,16 +738,12 @@ of pairwise comparisons.</p>
 </h4>
 <p>When running multiple queries against the same reference pool, build
 the lattice index once and reuse it:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Multiple queries reuse the same index</span></span>
-<span><span class="va">avail_tight</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.3</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Error:</span></span>
-<span><span class="co">#&gt; ! `weight` must be one of "uniform", "gaussian", "inverse", or NULL.</span></span>
-<span><span class="va">avail_loose</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.8</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">300</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Error:</span></span>
-<span><span class="co">#&gt; ! `weight` must be one of "uniform", "gaussian", "inverse", or NULL.</span></span></code></pre></div>
+<span><span class="va">avail_tight</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">avail_loose</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.8</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">300</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
 <h4 id="index-tuning">Index tuning<a class="anchor" aria-label="anchor" href="#index-tuning"></a>
@@ -757,11 +751,11 @@ the lattice index once and reuse it:</p>
 <p>By default, the lattice resolution is auto-tuned for each query. For
 repeated queries with the same configuration, you can tune once and
 reuse:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tune_index_res.html">tune_index_res</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      stat <span class="op">=</span> <span class="st">"count"</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.5</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">200</span><span class="op">)</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span>, index_res <span class="op">=</span> <span class="va">res</span><span class="op">)</span></span></code></pre></div>
@@ -771,7 +765,7 @@ reuse:</p>
 </h4>
 <p>Use the <code>n_threads</code> parameter to parallelize across focal
 locations:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_velocity.html">analog_velocity</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">hist</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.5</span><span class="op">)</span>, k <span class="op">=</span> <span class="fl">1</span>, n_threads <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
@@ -780,13 +774,13 @@ locations:</p>
 <p>For rasters too large to fit in memory,
 <code><a href="../reference/tiled_analog_search.html">tiled_analog_search()</a></code> processes the focal data in spatial
 tiles:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tiled_analog_search.html">tiled_analog_search</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">very_large_raster</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">idx</span>,</span>
 <span>      stat <span class="op">=</span> <span class="st">"count"</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.5</span><span class="op">)</span>,  </span>
-<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">200</span><span class="op">)</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,  </span>
+<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      n_tiles <span class="op">=</span> <span class="fl">16</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -800,12 +794,12 @@ environmental-geographic space in order to preserve coverage in sparse
 regions. As noted above, each <code>pool</code> site in the downsampled
 data gets a sample weight that’s used to correct summary statistics so
 that downsampling doesn’t bias the results:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, </span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.5</span><span class="op">)</span>, </span>
-<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">200</span><span class="op">)</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>, </span>
+<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      downsample <span class="op">=</span> <span class="fl">0.1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>

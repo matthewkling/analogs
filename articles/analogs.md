@@ -4,12 +4,6 @@
 
 library(analogs)
 library(terra)
-#> terra 1.9.27
-#> 
-#> Attaching package: 'terra'
-#> The following objects are masked from 'package:testthat':
-#> 
-#>     compare, describe
 ```
 
 ## Overview
@@ -387,8 +381,8 @@ theoretical maximum value (calculated from `kernel`, `max_geog`, and
 intens <- analog_density(
       x = fut,
       pool = hist,
-      env = kernel(max = 0.6, weight =  "gaussian", theta = 0.2),
-      geog = kernel(max = 0.25, weight =  "gaussian", theta = 50)
+      env = kernel(weight =  "gaussian", theta = 0.2, max = 0.6),
+      geog = kernel(weight =  "gaussian", theta = 50, max = 0.25)
 )
 
 plot(intens, main = "Analog density")
@@ -436,7 +430,7 @@ impact <- analog_impact(
       x = fut,
       pool = hist,
       y = eco_var,
-      env = kernel(max = 0.5, weight =  "gaussian", theta = 0.15),
+      env = kernel(weight =  "gaussian", theta = 0.15, max = 0.5),
       geog = kernel(max = 200),
       se = "ess"
 )
@@ -489,8 +483,8 @@ interp <- analog_impact(
       x = hist,
       pool = as.matrix(sites[, c("x", "y", "CWD", "AET")]),
       y = sites$observed,
-      env = kernel(max = 1, weight = "gaussian", theta = 0.15),
-      geog = kernel(max = 200, weight = "gaussian", theta = 100)
+      env = kernel(weight = "gaussian", theta = 0.15, max = 1),
+      geog = kernel(weight = "gaussian", theta = 100, max = 200)
 )
 
 plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
@@ -547,7 +541,7 @@ fit <- analog_regression(
       y = eco_var,
       covariates = pool_covariates,
       x_covariates = x_covariates,
-      env = kernel(max = 0.25, weight = "gaussian", theta = 0.15),
+      env = kernel(weight = "gaussian", theta = 0.15, max = 0.25),
       geog = kernel(max = 200),
       lambda = 1,
       se = "ess" # request standard errors
@@ -580,7 +574,7 @@ gwr <- analog_regression(
       y = eco_var,
       covariates = pool_covariates,
       select = "all",
-      geog = kernel(max = 100, weight = "inverse", theta = 30),
+      geog = kernel(weight = "inverse", theta = 30, max = 100),
       lambda = 0
 )
 
@@ -646,20 +640,28 @@ values to identify the best-performing settings.
 # Run cross-validation and plot residuals
 cv <- analog_cv(
       fun = analog_impact, pool = hist, y = eco_var,
-      env = kernel(max = .5, weight = "gaussian", theta = 0.15),
-      geog = kernel(max = 200, weight = "gaussian", theta = 60),
+      env = kernel(weight = "gaussian", theta = 0.15, max = .5),
+      geog = kernel(weight = "gaussian", theta = 60, max = 200),
       se = "ess", cv_method = "loo"
 )
-#> Error:
-#> ! `y` must have exactly 228823 rows/cells to match pool.
 plot(cv$residual, main = "Cross-validation residual")
-#> Error in `h()`:
-#> ! error in evaluating the argument 'x' in selecting a method for function 'plot': object 'cv' not found
+```
+
+![plot of chunk cv](figures/cv-1.png)
+
+plot of chunk cv
+
+``` r
+
 
 # Calculate prediction error metrics
 cv_performance(cv)
-#> Error:
-#> ! object 'cv' not found
+#>   variable       type metric         value
+#> 1        y continuous      n  2.288230e+05
+#> 2        y continuous   rmse  3.827635e-02
+#> 3        y continuous    mae  2.946300e-02
+#> 4        y continuous   bias -2.129624e-03
+#> 5        y continuous     r2  9.985170e-01
 ```
 
 ## Computational performance
@@ -677,12 +679,8 @@ lattice index once and reuse it:
 idx <- build_analog_index(hist)
 
 # Multiple queries reuse the same index
-avail_tight <- analog_availability(fut, idx, env = kernel(0.3), geog = kernel(100))
-#> Error:
-#> ! `weight` must be one of "uniform", "gaussian", "inverse", or NULL.
-avail_loose <- analog_availability(fut, idx, env = kernel(0.8), geog = kernel(300))
-#> Error:
-#> ! `weight` must be one of "uniform", "gaussian", "inverse", or NULL.
+avail_tight <- analog_availability(fut, idx, env = kernel(max = 0.3), geog = kernel(max = 100))
+avail_loose <- analog_availability(fut, idx, env = kernel(max = 0.8), geog = kernel(max = 300))
 ```
 
 #### Index tuning
@@ -696,7 +694,7 @@ reuse:
 res <- tune_index_res(
       x = fut, pool = hist,
       stat = "count",
-      env = kernel(0.5), geog = kernel(200),
+      env = kernel(max = 0.5), geog = kernel(max = 200),
       verbose = TRUE
 )
 idx <- build_analog_index(hist, index_res = res)
@@ -723,8 +721,8 @@ result <- tiled_analog_search(
       x = very_large_raster,
       pool = idx,
       stat = "count",
-      env = kernel(0.5),  
-      geog = kernel(200),
+      env = kernel(max = 0.5),  
+      geog = kernel(max = 200),
       n_tiles = 16
 )
 ```
@@ -744,8 +742,8 @@ downsampling doesn’t bias the results:
 result <- analog_availability(
       x = fut, 
       pool = hist,
-      env = kernel(0.5), 
-      geog = kernel(200),
+      env = kernel(max = 0.5), 
+      geog = kernel(max = 200),
       downsample = 0.1
 )
 ```
