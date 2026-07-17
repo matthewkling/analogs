@@ -137,13 +137,18 @@ assumes <code>max_geog</code> is in projection units).</p></li>
 <dd><p>Per-family distance treatment, each a <code><a href="kernel.html">kernel()</a></code> object (or
 <code>NULL</code>). A kernel bundles the hard distance threshold, the weighting kernel
 shape, and the kernel's scale for one family: environmental (<code>env</code>) or geography
-(<code>geog</code>). <code>kernel(weight, theta, max)</code> where:</p><ul><li><p><code>max</code>: hard distance threshold — candidates beyond it (in that family's
-distance) are excluded. For <code>env</code>, <code>max</code> may be a single Euclidean
+(<code>geog</code>). <code>kernel(weight, theta, max, min)</code> where:</p><ul><li><p><code>max</code>: hard upper distance threshold — candidates beyond it (in that
+family's distance) are excluded. For <code>env</code>, <code>max</code> may be a single Euclidean
 radius or a per-variable vector of absolute-difference thresholds (length
 equal to the number of environmental variables); scalar environmental thresholds are
 in Mahalanobis units when <code>x_cov</code> is supplied. For <code>geog</code>, <code>max</code> is a
 single radius (kilometers when <code>coord_type = "lonlat"</code>, projected units
 otherwise).</p></li>
+<li><p><code>min</code>: hard lower distance threshold — candidates closer than it are
+excluded, so retained candidates form an annulus <code>min &lt;= d &lt;= max</code>.
+Supported only for <code>geog</code> (a single radius, same units as the geographic
+<code>max</code>); setting <code>min</code> on <code>env</code> is an error. Mainly used to impose a
+spatial buffer for cross-validation (see <code><a href="analog_cv.html">analog_cv()</a></code>).</p></li>
 <li><p><code>weight</code>: kernel shape for weighted aggregations — <code>"uniform"</code> (no
 distance weighting), <code>"gaussian"</code> (<code>exp(-d^2 / (2 theta^2))</code>), or
 <code>"inverse"</code> (<code>1 / (1 + d / theta)</code>). The overall kernel weight is the

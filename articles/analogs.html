@@ -68,7 +68,13 @@
 -->
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/matthewkling/analogs" class="external-link">analogs</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span></code></pre></div>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span>
+<span><span class="co">#&gt; terra 1.9.27</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Attaching package: 'terra'</span></span>
+<span><span class="co">#&gt; The following objects are masked from 'package:testthat':</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;     compare, describe</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
@@ -674,21 +680,30 @@ accuracy).</p>
 <p><code><a href="../reference/analog_cv.html">analog_cv()</a></code> provides CV workflows for
 <code><a href="../reference/analog_impact.html">analog_impact()</a></code> and <code><a href="../reference/analog_regression.html">analog_regression()</a></code>. It
 runs an analog analysis in cross-validation mode and returns held-out
-predictions alongside observed values and residuals. It supports
-leave-one-out (LOO) and k-fold cross-validation methods. LOO is the
-default and for analog models (in contrast to traditional statistical
-models) actually runs faster than k-fold because separate models are
-already being fit for each focal site. You can plot and analyze CV
-results directly, or pass them to <code><a href="../reference/cv_performance.html">cv_performance()</a></code> to
-calculate a basic set of overall performance metrics (e.g., R-squared
-for continuous outcomes, AUC for binary outcomes, etc.).</p>
-<p>Importantly, cross-validation is <strong>internal to
-<code>pool</code></strong>—it does not take an <code>x</code> argument
-and can’t quantify how well the model predicts values in an independent
+predictions alongside observed values and residuals. You can plot and
+analyze CV results directly, or pass them to
+<code><a href="../reference/cv_performance.html">cv_performance()</a></code> to calculate a basic set of overall
+performance metrics (e.g., R-squared for continuous outcomes, AUC for
+binary outcomes, etc.).</p>
+<p>The CV routine supports leave-one-out (LOO), buffered LOO, and k-fold
+cross-validation methods. In contrast to traditional statistical models,
+LOO actually runs faster than k-fold for analog models because separate
+models are already being fit for each focal. Standard LOO
+(<code>cv_method = "loo"</code>) is the default method, and excludes
+each focal site’s own data point from model fitting. Buffered LOO
+(<code>cv_method = "loo", geog = kernel(min = ...)</code>) excludes each
+focal site and all sites within a specified geographic distance, which
+can help mitigate over-optimistic performance measures resulting from
+spatial autocorrelation. K-fold cross-validation splits the data into a
+set of partitions, either randomly or based on groups you define, and
+excludes all points in each focal’s own partition during fitting.</p>
+<p>Importantly, cross-validation is <em>internal to
+<code>pool</code></em>—it does not take an <code>x</code> argument and
+can’t quantify how well the model predicts values in an independent
 dataset of focal sites. Thus it should not be assumed that CV
-performance metrics represent model transferability to data from
-different regimes (such as an <code>x</code> dataset representing future
-climates).</p>
+performance metrics necessarily represent model transferability to data
+from different regimes (such as an <code>x</code> dataset representing
+future climates).</p>
 <p>As an example, let’s run LOO cross-validation for an analog impact
 model, plot a map of the residuals, and quantify the model’s
 performance. If we wanted to tune a model parameter (<code>labmda</code>

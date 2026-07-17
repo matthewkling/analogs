@@ -160,7 +160,18 @@ remaining folds as the pool. Implemented as <code>k</code> separate calls with
 the index rebuilt per fold. Reduces optimism from spatial
 autocorrelation by holding out larger contiguous sets of locations
 (if folds are spatially blocked).</p></li>
-</ul><p>Supported functions: <code><a href="analog_impact.html">analog_impact()</a></code>, <code><a href="analog_regression.html">analog_regression()</a></code>, and
+</ul><p>Plain LOO excludes only each focal's own pool row, so a focal can still
+be predicted by its immediate geographic neighbors. When <code>y</code> and the
+environment are spatially autocorrelated those near-neighbors are
+effectively near-duplicates, and LOO error is optimistically low as a
+result. To perform <em>buffered</em> (spatially blocked) LOO, pass a geographic
+kernel with a <code>min</code> distance, which excludes any candidate closer than
+<code>min</code> to the focal in addition to the self row: for example
+<code>geog = kernel(max = 500, min = 50)</code> keeps analogs in a 50-500 km annulus
+around each focal. Choosing <code>min</code> on the order of the autocorrelation
+range of the residuals gives a less biased estimate of predictive skill
+than either plain LOO or unblocked k-fold. See <code><a href="kernel.html">kernel()</a></code> for details.</p>
+<p>Supported functions: <code><a href="analog_impact.html">analog_impact()</a></code>, <code><a href="analog_regression.html">analog_regression()</a></code>, and
 <code><a href="analog_search.html">analog_search()</a></code>. Other <code>analog_*()</code> functions have no <code>y</code> input and
 thus no prediction to validate.</p>
 <p>When <code>fun = analog_search</code>, residuals are computed against:</p><ul><li><p>the <code>weighted_mean</code> column if <code>stat</code> includes <code>"weighted_mean"</code> but not
@@ -180,7 +191,7 @@ columns: see <code>@return</code> below.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code>, <code><a href="analog_impact.html">analog_impact()</a></code>, <code><a href="analog_regression.html">analog_regression()</a></code>.</p></div>
+    <div class="dont-index"><p><code><a href="analog_search.html">analog_search()</a></code>, <code><a href="analog_impact.html">analog_impact()</a></code>, <code><a href="analog_regression.html">analog_regression()</a></code>, <code><a href="kernel.html">kernel()</a></code>.</p></div>
     </div>
 
     <div class="section level2">
@@ -195,6 +206,16 @@ columns: see <code>@return</code> below.</p>
 <span class="r-in"><span>  geog     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">rmse</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">cv</span><span class="op">$</span><span class="va">residual</span><span class="op">^</span><span class="fl">2</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Buffered (spatially blocked) LOO: exclude analogs within 50 km of each</span></span></span>
+<span class="r-in"><span><span class="co"># focal, so predictions can't lean on near-duplicate neighbors.</span></span></span>
+<span class="r-in"><span><span class="va">cv_buf</span> <span class="op">&lt;-</span> <span class="fu">analog_cv</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  fun      <span class="op">=</span> <span class="va">analog_impact</span>,</span></span>
+<span class="r-in"><span>  pool     <span class="op">=</span> <span class="va">sites</span>,</span></span>
+<span class="r-in"><span>  y        <span class="op">=</span> <span class="va">sites</span><span class="op">$</span><span class="va">biomass</span>,</span></span>
+<span class="r-in"><span>  env      <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.2</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  geog     <span class="op">=</span> <span class="fu"><a href="kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span>, min <span class="op">=</span> <span class="fl">50</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># 10-fold CV for local regression</span></span></span>
 <span class="r-in"><span><span class="va">cv_reg</span> <span class="op">&lt;-</span> <span class="fu">analog_cv</span><span class="op">(</span></span></span>

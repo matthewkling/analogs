@@ -13,6 +13,7 @@ Handles merging of chunked results.
   k,
   max_env,
   max_geog,
+  min_geog = 0,
   select_code,
   aggregate_codes,
   env_kernel_code,

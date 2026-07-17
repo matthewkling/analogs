@@ -86,6 +86,13 @@ placeholders). Possible elements include:
   Geographic-distance threshold used for analog selection. Units are km
   when `coord_type = "lonlat"`, projection units otherwise.
 
+- `min_geog`:
+
+  Geographic-distance lower threshold (annulus inner radius): analogs
+  closer than this to the focal were excluded. `NULL` when no lower
+  bound was set. Same units as `max_geog`. Mainly used as a spatial
+  buffer for cross-validation.
+
 - `exclude_self`:
 
   Logical: was each focal's own pool row excluded from its analog

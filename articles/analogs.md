@@ -4,6 +4,12 @@
 
 library(analogs)
 library(terra)
+#> terra 1.9.27
+#> 
+#> Attaching package: 'terra'
+#> The following objects are masked from 'package:testthat':
+#> 
+#>     compare, describe
 ```
 
 ## Overview
@@ -602,21 +608,31 @@ provides CV workflows for
 and
 [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md).
 It runs an analog analysis in cross-validation mode and returns held-out
-predictions alongside observed values and residuals. It supports
-leave-one-out (LOO) and k-fold cross-validation methods. LOO is the
-default and for analog models (in contrast to traditional statistical
-models) actually runs faster than k-fold because separate models are
-already being fit for each focal site. You can plot and analyze CV
-results directly, or pass them to
+predictions alongside observed values and residuals. You can plot and
+analyze CV results directly, or pass them to
 [`cv_performance()`](https://matthewkling.github.io/analogs/reference/cv_performance.md)
 to calculate a basic set of overall performance metrics (e.g., R-squared
 for continuous outcomes, AUC for binary outcomes, etc.).
 
-Importantly, cross-validation is **internal to `pool`**—it does not take
+The CV routine supports leave-one-out (LOO), buffered LOO, and k-fold
+cross-validation methods. In contrast to traditional statistical models,
+LOO actually runs faster than k-fold for analog models because separate
+models are already being fit for each focal. Standard LOO
+(`cv_method = "loo"`) is the default method, and excludes each focal
+site’s own data point from model fitting. Buffered LOO
+(`cv_method = "loo", geog = kernel(min = ...)`) excludes each focal site
+and all sites within a specified geographic distance, which can help
+mitigate over-optimistic performance measures resulting from spatial
+autocorrelation. K-fold cross-validation splits the data into a set of
+partitions, either randomly or based on groups you define, and excludes
+all points in each focal’s own partition during fitting.
+
+Importantly, cross-validation is *internal to `pool`*—it does not take
 an `x` argument and can’t quantify how well the model predicts values in
 an independent dataset of focal sites. Thus it should not be assumed
-that CV performance metrics represent model transferability to data from
-different regimes (such as an `x` dataset representing future climates).
+that CV performance metrics necessarily represent model transferability
+to data from different regimes (such as an `x` dataset representing
+future climates).
 
 As an example, let’s run LOO cross-validation for an analog impact
 model, plot a map of the residuals, and quantify the model’s

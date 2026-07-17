@@ -137,6 +137,20 @@ pass `pool` as a data.frame to retain them.
   holding out larger contiguous sets of locations (if folds are
   spatially blocked).
 
+Plain LOO excludes only each focal's own pool row, so a focal can still
+be predicted by its immediate geographic neighbors. When `y` and the
+environment are spatially autocorrelated those near-neighbors are
+effectively near-duplicates, and LOO error is optimistically low as a
+result. To perform *buffered* (spatially blocked) LOO, pass a geographic
+kernel with a `min` distance, which excludes any candidate closer than
+`min` to the focal in addition to the self row: for example
+`geog = kernel(max = 500, min = 50)` keeps analogs in a 50-500 km
+annulus around each focal. Choosing `min` on the order of the
+autocorrelation range of the residuals gives a less biased estimate of
+predictive skill than either plain LOO or unblocked k-fold. See
+[`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
+for details.
+
 Supported functions:
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md),
 [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md),
@@ -170,7 +184,8 @@ columns: see `@return` below.
 
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md),
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md),
-[`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md).
+[`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md),
+[`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md).
 
 ## Examples
 
@@ -185,6 +200,16 @@ cv <- analog_cv(
   geog     = kernel(max = 100)
 )
 rmse <- sqrt(mean(cv$residual^2, na.rm = TRUE))
+
+# Buffered (spatially blocked) LOO: exclude analogs within 50 km of each
+# focal, so predictions can't lean on near-duplicate neighbors.
+cv_buf <- analog_cv(
+  fun      = analog_impact,
+  pool     = sites,
+  y        = sites$biomass,
+  env      = kernel("gaussian", theta = 0.2, max = 0.5),
+  geog     = kernel(max = 100, min = 50)
+)
 
 # 10-fold CV for local regression
 cv_reg <- analog_cv(

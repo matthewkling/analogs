@@ -129,6 +129,12 @@ length-<code>n_env</code> for per-variable thresholds.</p></dd>
 selection. Units are km when <code>coord_type = "lonlat"</code>, projection
 units otherwise.</p></dd>
 
+<dt><code>min_geog</code></dt>
+<dd><p>Geographic-distance lower threshold (annulus inner
+radius): analogs closer than this to the focal were excluded.
+<code>NULL</code> when no lower bound was set. Same units as <code>max_geog</code>. Mainly
+used as a spatial buffer for cross-validation.</p></dd>
+
 <dt><code>exclude_self</code></dt>
 <dd><p>Logical: was each focal's own pool row
 excluded from its analog neighborhood? <code>TRUE</code> for results from

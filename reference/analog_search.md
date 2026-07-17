@@ -107,9 +107,9 @@ analog_search(
   object (or `NULL`). A kernel bundles the hard distance threshold, the
   weighting kernel shape, and the kernel's scale for one family:
   environmental (`env`) or geography (`geog`).
-  `kernel(weight, theta, max)` where:
+  `kernel(weight, theta, max, min)` where:
 
-  - `max`: hard distance threshold — candidates beyond it (in that
+  - `max`: hard upper distance threshold — candidates beyond it (in that
     family's distance) are excluded. For `env`, `max` may be a single
     Euclidean radius or a per-variable vector of absolute-difference
     thresholds (length equal to the number of environmental variables);
@@ -117,6 +117,13 @@ analog_search(
     `x_cov` is supplied. For `geog`, `max` is a single radius
     (kilometers when `coord_type = "lonlat"`, projected units
     otherwise).
+
+  - `min`: hard lower distance threshold — candidates closer than it are
+    excluded, so retained candidates form an annulus `min <= d <= max`.
+    Supported only for `geog` (a single radius, same units as the
+    geographic `max`); setting `min` on `env` is an error. Mainly used
+    to impose a spatial buffer for cross-validation (see
+    [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)).
 
   - `weight`: kernel shape for weighted aggregations — `"uniform"` (no
     distance weighting), `"gaussian"` (`exp(-d^2 / (2 theta^2))`), or
