@@ -87,7 +87,7 @@ fut <- clim$future
 plot(hist, main = c("Historical CWD", "Historical AET"))
 ```
 
-![plot of chunk data](figures/data-1.png)
+![](figures/data-1.png)
 
 plot of chunk data
 
@@ -295,7 +295,7 @@ plot(vel, range = range(minmax(vel)),
      main = c("Forward velocity (km/dec)", "Reverse velocity (km/dec)"))
 ```
 
-![plot of chunk velocity](figures/velocity-1.png)
+![](figures/velocity-1.png)
 
 plot of chunk velocity
 
@@ -314,7 +314,7 @@ plot(fwd_vel$bearing, main = c("Bearing to forward analog (deg)"),
      col = rainbow(12))
 ```
 
-![plot of chunk bearing](figures/bearing-1.png)
+![](figures/bearing-1.png)
 
 plot of chunk bearing
 
@@ -339,7 +339,7 @@ sim <- analog_similarity(
 plot(sim$env_dist, main = "Similarity of best nearby climate analog")
 ```
 
-![plot of chunk similarity](figures/similarity-1.png)
+![](figures/similarity-1.png)
 
 plot of chunk similarity
 
@@ -363,7 +363,7 @@ avail <- analog_availability(
 plot(avail, main = "Analog availability (count)")
 ```
 
-![plot of chunk availability](figures/availability-1.png)
+![](figures/availability-1.png)
 
 plot of chunk availability
 
@@ -388,7 +388,7 @@ intens <- analog_density(
 plot(intens, main = "Analog density")
 ```
 
-![plot of chunk density](figures/density-1.png)
+![](figures/density-1.png)
 
 plot of chunk density
 
@@ -439,7 +439,7 @@ plot(impact[[c("weighted_mean", "se_weighted_mean")]],
      main = c("Predicted ecological state", "Standard error"))
 ```
 
-![plot of chunk impact](figures/impact-1.png)
+![](figures/impact-1.png)
 
 plot of chunk impact
 
@@ -490,7 +490,7 @@ interp <- analog_impact(
 plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 ```
 
-![plot of chunk interpolation](figures/interpolation-1.png)
+![](figures/interpolation-1.png)
 
 plot of chunk interpolation
 
@@ -553,7 +553,7 @@ plot(fit[[c("coef_aet", "se_aet", "pred")]],
      nr = 1)
 ```
 
-![plot of chunk regression](figures/regression-1.png)
+![](figures/regression-1.png)
 
 plot of chunk regression
 
@@ -583,7 +583,7 @@ plot(gwr[[c("coef_intercept", "coef_aet")]],
      range = c(-2, 2), fill_range = TRUE)
 ```
 
-![plot of chunk gwr](figures/gwr-1.png)
+![](figures/gwr-1.png)
 
 plot of chunk gwr
 
@@ -647,7 +647,7 @@ cv <- analog_cv(
 plot(cv$residual, main = "Cross-validation residual")
 ```
 
-![plot of chunk cv](figures/cv-1.png)
+![](figures/cv-1.png)
 
 plot of chunk cv
 

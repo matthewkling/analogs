@@ -187,8 +187,10 @@ Let’s unpack them and make some quick maps:</p>
 <span><span class="va">fut</span> <span class="op">&lt;-</span> <span class="va">clim</span><span class="op">$</span><span class="va">future</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">hist</span>, main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Historical CWD"</span>, <span class="st">"Historical AET"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/data-1.png" alt="plot of chunk data"><div class="figcaption">plot of chunk data</div>
+<div class="figure">
+<img src="figures/data-1.png" alt=""><p class="caption">
+plot of chunk data
+</p>
 </div>
 </div>
 </div>
@@ -397,8 +399,10 @@ Sites with no analog in the reference pool—an important category— have
 <span><span class="va">vel</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">fwd_vel</span><span class="op">$</span><span class="va">geog_dist</span>, <span class="va">rev_vel</span><span class="op">$</span><span class="va">geog_dist</span><span class="op">)</span> <span class="op">/</span> <span class="va">decades</span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">vel</span>, range <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/minmax.html" class="external-link">minmax</a></span><span class="op">(</span><span class="va">vel</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Forward velocity (km/dec)"</span>, <span class="st">"Reverse velocity (km/dec)"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/velocity-1.png" alt="plot of chunk velocity"><div class="figcaption">plot of chunk velocity</div>
+<div class="figure">
+<img src="figures/velocity-1.png" alt=""><p class="caption">
+plot of chunk velocity
+</p>
 </div>
 <p>In addition to geographic and environmental distances, the result
 also includes the spatial coordinates of each site’s nearest analog (as
@@ -411,8 +415,10 @@ direction from a site to its analog location:</p>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fwd_vel</span><span class="op">$</span><span class="va">bearing</span>, main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Bearing to forward analog (deg)"</span><span class="op">)</span>,</span>
 <span>     col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/grDevices/palettes.html" class="external-link">rainbow</a></span><span class="op">(</span><span class="fl">12</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/bearing-1.png" alt="plot of chunk bearing"><div class="figcaption">plot of chunk bearing</div>
+<div class="figure">
+<img src="figures/bearing-1.png" alt=""><p class="caption">
+plot of chunk bearing
+</p>
 </div>
 </div>
 <div class="section level3">
@@ -433,8 +439,10 @@ given limited dispersal capacity.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">env_dist</span>, main <span class="op">=</span> <span class="st">"Similarity of best nearby climate analog"</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/similarity-1.png" alt="plot of chunk similarity"><div class="figcaption">plot of chunk similarity</div>
+<div class="figure">
+<img src="figures/similarity-1.png" alt=""><p class="caption">
+plot of chunk similarity
+</p>
 </div>
 </div>
 <div class="section level3">
@@ -454,8 +462,10 @@ with zero analogs represent novel or disappearing climates.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">avail</span>, main <span class="op">=</span> <span class="st">"Analog availability (count)"</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/availability-1.png" alt="plot of chunk availability"><div class="figcaption">plot of chunk availability</div>
+<div class="figure">
+<img src="figures/availability-1.png" alt=""><p class="caption">
+plot of chunk availability
+</p>
 </div>
 </div>
 <div class="section level3">
@@ -477,8 +487,10 @@ interpretable.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">intens</span>, main <span class="op">=</span> <span class="st">"Analog density"</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/density-1.png" alt="plot of chunk density"><div class="figcaption">plot of chunk density</div>
+<div class="figure">
+<img src="figures/density-1.png" alt=""><p class="caption">
+plot of chunk density
+</p>
 </div>
 </div>
 </div>
@@ -524,8 +536,10 @@ errors based on effective sample size for each grid cell.</p>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">impact</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"weighted_mean"</span>, <span class="st">"se_weighted_mean"</span><span class="op">)</span><span class="op">]</span><span class="op">]</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Predicted ecological state"</span>, <span class="st">"Standard error"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/impact-1.png" alt="plot of chunk impact"><div class="figcaption">plot of chunk impact</div>
+<div class="figure">
+<img src="figures/impact-1.png" alt=""><p class="caption">
+plot of chunk impact
+</p>
 </div>
 <p>The <code>kernel</code> and <code>theta</code> parameters control how
 analog influence decays with environmental distance. A Gaussian kernel
@@ -571,8 +585,10 @@ selected <code>kernel</code> function.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">interp</span><span class="op">[[</span><span class="st">"weighted_mean"</span><span class="op">]</span><span class="op">]</span>, main <span class="op">=</span> <span class="st">"Climate-informed spatial interpolation"</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/interpolation-1.png" alt="plot of chunk interpolation"><div class="figcaption">plot of chunk interpolation</div>
+<div class="figure">
+<img src="figures/interpolation-1.png" alt=""><p class="caption">
+plot of chunk interpolation
+</p>
 </div>
 </div>
 <div class="section level3">
@@ -630,8 +646,10 @@ but here we’ll arbitrarily pick a modest value.</p>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coef_aet"</span>, <span class="st">"se_aet"</span>, <span class="st">"pred"</span><span class="op">)</span><span class="op">]</span><span class="op">]</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A coefficient"</span>, <span class="st">"The coefficient's SE"</span>, <span class="st">"Predicted value"</span><span class="op">)</span>,</span>
 <span>     nr <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/regression-1.png" alt="plot of chunk regression"><div class="figcaption">plot of chunk regression</div>
+<div class="figure">
+<img src="figures/regression-1.png" alt=""><p class="caption">
+plot of chunk regression
+</p>
 </div>
 </div>
 <div class="section level3">
@@ -657,8 +675,10 @@ local regression on covariates.</p>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">gwr</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coef_intercept"</span>, <span class="st">"coef_aet"</span><span class="op">)</span><span class="op">]</span><span class="op">]</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"GWR intercept"</span>, <span class="st">"GWR coefficient: cov1"</span><span class="op">)</span>,</span>
 <span>     range <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, fill_range <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/gwr-1.png" alt="plot of chunk gwr"><div class="figcaption">plot of chunk gwr</div>
+<div class="figure">
+<img src="figures/gwr-1.png" alt=""><p class="caption">
+plot of chunk gwr
+</p>
 </div>
 </div>
 <div class="section level3">
@@ -713,8 +733,10 @@ parameter values to identify the best-performing settings.</p>
 <span>      se <span class="op">=</span> <span class="st">"ess"</span>, cv_method <span class="op">=</span> <span class="st">"loo"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">cv</span><span class="op">$</span><span class="va">residual</span>, main <span class="op">=</span> <span class="st">"Cross-validation residual"</span><span class="op">)</span></span></code></pre></div>
-<div class="float">
-<img src="figures/cv-1.png" alt="plot of chunk cv"><div class="figcaption">plot of chunk cv</div>
+<div class="figure">
+<img src="figures/cv-1.png" alt=""><p class="caption">
+plot of chunk cv
+</p>
 </div>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
