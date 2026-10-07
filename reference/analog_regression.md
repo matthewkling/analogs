@@ -175,9 +175,12 @@ analog_regression(
 - lambda:
 
   Ridge penalty parameter (default: 0, giving ordinary weighted least
-  squares). Higher values shrink high-variance coefficients toward zero,
+  squares). Higher values shrink covariate coefficients toward zero,
   causing the intercept to approach the weighted mean as
-  `lambda -> Inf`. Useful when some neighborhoods have few analogs
+  `lambda -> Inf`. Acts as `lambda` pseudo-observations, so shrinkage is
+  stronger in neighborhoods with less kernel weight (fewer or more
+  distant analogs) and is unaffected by the overall scale of `weight`
+  (see Details). Useful when some neighborhoods have few analogs
   relative to the number of covariates, or when covariates are strongly
   inter-correlated.
 
@@ -339,9 +342,17 @@ For each focal location, the function:
     optionally their standard errors (see `se` in
     [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)).
 
-The math: `beta = (X'WX + lambda * I_p)^{-1} X'Wy`, where `W` is
-diagonal weights, `X` is the design matrix (intercept + covariates), and
-`I_p` penalizes covariate coefficients only (not the intercept).
+The math: `beta = (X'WX + lambda * (sum(w) / I) * I_p)^{-1} X'Wy`, where
+`W` is diagonal weights `w`, `X` is the design matrix (intercept +
+covariates), and `I_p` penalizes covariate coefficients only (not the
+intercept). `I` is the neighborhood's information content: the sum of
+the weights excluding any downsampling weights, with user `weight`
+values rescaled to mean 1 across the pool. Each slope is shrunk by a
+factor of roughly `I * v / (I * v + lambda)`, where `v` is the
+covariate's weighted variance within the neighborhood, so `lambda`
+behaves like `lambda` pseudo-observations at full kernel weight. With no
+user weights or downsampling, `I = sum(w)` and the penalty is simply
+`lambda`.
 
 ### Relationship to Weighted Mean
 

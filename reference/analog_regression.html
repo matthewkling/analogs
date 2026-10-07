@@ -208,10 +208,13 @@ selection modes. Required when <code>select</code> is <code>"knn_geog"</code> or
 
 <dt id="arg-lambda">lambda<a class="anchor" aria-label="anchor" href="#arg-lambda"></a></dt>
 <dd><p>Ridge penalty parameter (default: 0, giving ordinary
-weighted least squares). Higher values shrink high-variance coefficients
+weighted least squares). Higher values shrink covariate coefficients
 toward zero, causing the intercept to approach the weighted mean as
-<code>lambda -&gt; Inf</code>. Useful when some neighborhoods have few analogs
-relative to the number of covariates, or when covariates are strongly
+<code>lambda -&gt; Inf</code>. Acts as <code>lambda</code> pseudo-observations, so shrinkage is
+stronger in neighborhoods with less kernel weight (fewer or more distant
+analogs) and is unaffected by the overall scale of <code>weight</code> (see
+Details). Useful when some neighborhoods have few analogs relative to
+the number of covariates, or when covariates are strongly
 inter-correlated.</p></dd>
 
 
@@ -345,9 +348,16 @@ and <code><a href="metadata.html">metadata()</a></code> for attached metadata at
 using these weights, with optional ridge penalty <code>lambda</code></p></li>
 <li><p>Returns the regression coefficients (intercept + slopes), and
 optionally their standard errors (see <code>se</code> in <code><a href="analog_search.html">analog_search()</a></code>).</p></li>
-</ol><p>The math: <code>beta = (X'WX + lambda * I_p)^{-1} X'Wy</code>, where <code>W</code> is diagonal
-weights, <code>X</code> is the design matrix (intercept + covariates), and <code>I_p</code> penalizes
-covariate coefficients only (not the intercept).</p>
+</ol><p>The math: <code>beta = (X'WX + lambda * (sum(w) / I) * I_p)^{-1} X'Wy</code>, where <code>W</code>
+is diagonal weights <code>w</code>, <code>X</code> is the design matrix (intercept + covariates),
+and <code>I_p</code> penalizes covariate coefficients only (not the intercept). <code>I</code> is
+the neighborhood's information content: the sum of the weights excluding
+any downsampling weights, with user <code>weight</code> values rescaled to mean 1
+across the pool. Each slope is shrunk by a factor of roughly
+<code>I * v / (I * v + lambda)</code>, where <code>v</code> is the covariate's weighted variance
+within the neighborhood, so <code>lambda</code> behaves like <code>lambda</code> pseudo-observations
+at full kernel weight. With no user weights or downsampling, <code>I = sum(w)</code>
+and the penalty is simply <code>lambda</code>.</p>
 </div>
 
 <div class="section">
