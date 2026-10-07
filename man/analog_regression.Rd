@@ -126,10 +126,13 @@ selection modes. Required when \code{select} is \code{"knn_geog"} or
 \code{"knn_env"}; must be \code{NULL} for \code{select = "all"}.}
 
 \item{lambda}{Ridge penalty parameter (default: 0, giving ordinary
-weighted least squares). Higher values shrink high-variance coefficients
+weighted least squares). Higher values shrink covariate coefficients
 toward zero, causing the intercept to approach the weighted mean as
-\code{lambda -> Inf}. Useful when some neighborhoods have few analogs
-relative to the number of covariates, or when covariates are strongly
+\code{lambda -> Inf}. Acts as \code{lambda} pseudo-observations, so shrinkage is
+stronger in neighborhoods with less kernel weight (fewer or more distant
+analogs) and is unaffected by the overall scale of \code{weight} (see
+Details). Useful when some neighborhoods have few analogs relative to
+the number of covariates, or when covariates are strongly
 inter-correlated.}
 
 \item{stat}{Statistic(s) to compute. \code{"regression"} is always included.
@@ -266,9 +269,16 @@ using these weights, with optional ridge penalty \code{lambda}
 optionally their standard errors (see \code{se} in \code{\link[=analog_search]{analog_search()}}).
 }
 
-The math: \verb{beta = (X'WX + lambda * I_p)^\{-1\} X'Wy}, where \code{W} is diagonal
-weights, \code{X} is the design matrix (intercept + covariates), and \code{I_p} penalizes
-covariate coefficients only (not the intercept).
+The math: \verb{beta = (X'WX + lambda * (sum(w) / I) * I_p)^\{-1\} X'Wy}, where \code{W}
+is diagonal weights \code{w}, \code{X} is the design matrix (intercept + covariates),
+and \code{I_p} penalizes covariate coefficients only (not the intercept). \code{I} is
+the neighborhood's information content: the sum of the weights excluding
+any downsampling weights, with user \code{weight} values rescaled to mean 1
+across the pool. Each slope is shrunk by a factor of roughly
+\code{I * v / (I * v + lambda)}, where \code{v} is the covariate's weighted variance
+within the neighborhood, so \code{lambda} behaves like \code{lambda} pseudo-observations
+at full kernel weight. With no user weights or downsampling, \code{I = sum(w)}
+and the penalty is simply \code{lambda}.
 }
 
 \subsection{Relationship to Weighted Mean}{

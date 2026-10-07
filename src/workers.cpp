@@ -665,6 +665,9 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             // REGRESSION: collect analog indices and combined weights for regression solve
             std::vector<std::size_t> reg_analog_indices;
             std::vector<double> reg_combined_weights;
+            // Information content for the ridge penalty: combined weight with
+            // downsampling excluded and user weights rescaled to mean 1.
+            double reg_info = 0.0;
             if (has_regression) {
                   reg_analog_indices.reserve(cand.size());
                   reg_combined_weights.reserve(cand.size());
@@ -849,6 +852,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         if (has_regression) {
                               reg_analog_indices.push_back(static_cast<std::size_t>(j));
                               reg_combined_weights.push_back(combined_weight);
+                              reg_info += dist_weight * area_w * user_w / user_weight_mean;
                         }
                   }
             } // end EXACT scope
@@ -1001,6 +1005,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     covariates_stride,
                                     n_covs,
                                     lambda,
+                                    reg_info,
                                     se_code,
                                     coeffs.data(),
                                     se_ptr);

@@ -126,15 +126,27 @@ inline void cholesky_inverse(const std::vector<double>& L, int dim,
 //   - covariates cov_ptr[j + p * cov_stride] for analog j, covariate p
 //   - weights w[j] (combined distance × sample weight)
 //   - ridge penalty lambda (applied to covariate coefficients only, not intercept)
+//   - info: the neighborhood's information content, in units of "full-relevance
+//     observations" (see below)
+//
+// The penalty added to the covariate diagonal is lambda * sum_w / info, so the
+// system solved is A = X'WX + (lambda * sum_w / info) I_covs. Since X'WX ~ sum_w
+// * V (V = weighted covariate covariance; the unpenalized intercept absorbs
+// covariate means), each slope is shrunk by roughly info*v / (info*v + lambda):
+// lambda acts as lambda pseudo-observations. `info` is computed by the caller as
+// sum(kernel * area * user / mean_user), i.e. the combined weights with the
+// downsampling weight excluded and user weights rescaled to mean 1. With no
+// user weights and no downsampling, info == sum_w and the penalty is plain
+// lambda. Rescaling all user weights by a constant leaves the fit unchanged.
 //
 // Writes output into out_coeffs (always) and out_se (only if se_code != NONE).
 // Layout: [intercept_v0, beta1_v0, ..., betap_v0, intercept_v1, ...].
 //
 // SE formulas:
-//   ESS:    Var(beta) = sigma2_ess * (X'WX + lambda I)^{-1}
+//   ESS:    Var(beta) = sigma2_ess * A^{-1}
 //           sigma2_ess = (RSS_w / sum_w) * n_eff / (n_eff - p)
 //           n_eff = (sum_w)^2 / sum_w_sq
-//   DESIGN: Var(beta) = A^{-1} M A^{-1}, A = X'WX + lambda I
+//   DESIGN: Var(beta) = A^{-1} M A^{-1}
 //           M_{ab} = sum_t w_t^2 r_t^2 x_{ta} x_{tb}
 //
 // Returns false if the system is singular (only possible when lambda == 0).
@@ -148,6 +160,7 @@ inline bool solve_ridge(
             int cov_stride,                                  // stride for covariates (n_ref)
             int n_covs,                                      // number of covariate columns
             double lambda,                                   // ridge penalty
+            double info,                                     // information content (see above)
             SeCode se_code,                                  // which SE variant (or NONE)
             double* out_coeffs,                              // output: n_vars * (n_covs + 1)
             double* out_se                                   // output: n_vars * (n_covs + 1); ignored if se_code == NONE
@@ -212,12 +225,14 @@ inline bool solve_ridge(
             }
       }
 
-      // Add ridge penalty to covariate diagonal (not intercept)
+      // Add information-scaled ridge penalty to covariate diagonal (not
+      // intercept). sum_w is complete here (accumulated in the loop above).
+      const double penalty = (info > 0.0) ? lambda * sum_w / info : 0.0;
       for (int p = 0; p < n_covs; ++p) {
-            XtWX[(p + 1) * dim + (p + 1)] += lambda;
+            XtWX[(p + 1) * dim + (p + 1)] += penalty;
       }
 
-      // Cholesky factorization of A = X'WX + lambda I_covs
+      // Cholesky factorization of A = X'WX + penalty * I_covs
       std::vector<double> L = XtWX;
       if (!cholesky_factor(L, dim)) {
             // Singular: write NAs for coefficients (and SEs if requested)

@@ -441,6 +441,23 @@ SEXP query_analog_index_cpp(SEXP index_list,
             user_weight_ptr = REAL(uw);
       }
 
+      // Mean of the positive user weights (NA weights arrive as 0 and are
+      // excluded). Used to rescale user weights to mean 1 in the ridge
+      // penalty's information measure, making lambda invariant to the overall
+      // scale of `weight`. 1.0 when user weights are inactive.
+      double user_weight_mean = 1.0;
+      if (has_user_weight) {
+            double s = 0.0;
+            std::size_t n_pos = 0;
+            for (int j = 0; j < n_ref; ++j) {
+                  const double u = user_weight_ptr[j];
+                  if (u > 0.0) { s += u; ++n_pos; }
+            }
+            if (n_pos > 0 && s > 0.0) {
+                  user_weight_mean = s / static_cast<double>(n_pos);
+            }
+      }
+
       // Get ECEF data pointer if applicable
       const double* ref_latt_ptr;
       int stride_latt_r;
@@ -704,6 +721,7 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               area_weight_ptr,
                               has_user_weight,
                               user_weight_ptr,
+                              user_weight_mean,
                               scode_se,
                               n_classes_per_var_std,
                               exclude_self,

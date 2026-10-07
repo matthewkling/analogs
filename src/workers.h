@@ -264,6 +264,10 @@ struct AggWorker : public Worker {
       const double* area_weight_ptr;
       bool has_user_weight;
       const double* user_weight_ptr;
+      // Mean of the positive user weights over the pool (1.0 when inactive).
+      // Used only to rescale user weights to mean 1 in the ridge penalty's
+      // information measure; see solve_ridge().
+      double user_weight_mean;
 
       // SE variant (applies to weighted_mean and regression)
       SeCode se_code;
@@ -340,6 +344,7 @@ struct AggWorker : public Worker {
                 const double* area_weight_ptr_,
                 bool has_user_weight_,
                 const double* user_weight_ptr_,
+                double user_weight_mean_,
                 SeCode se_code_,
                 const std::vector<int>& n_classes_per_var_,
                 bool exclude_self_,
@@ -392,6 +397,7 @@ struct AggWorker : public Worker {
               area_weight_ptr(area_weight_ptr_),
               has_user_weight(has_user_weight_),
               user_weight_ptr(user_weight_ptr_),
+              user_weight_mean(user_weight_mean_),
               se_code(se_code_),
               n_classes_per_var(n_classes_per_var_),
               exclude_self(exclude_self_),

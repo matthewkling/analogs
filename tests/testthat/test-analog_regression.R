@@ -106,6 +106,148 @@ test_that("large lambda makes intercept approach weighted mean", {
 })
 
 
+test_that("ridge penalty matches closed form with kernel and user weights", {
+
+      d <- sim_test_data()
+      n_ref <- nrow(d$ref)
+
+      set.seed(1)
+      cv <- matrix(rnorm(n_ref * 2), ncol = 2,
+                   dimnames = list(NULL, c("c1", "c2")))
+      y <- 1 + 2 * cv[, 1] - cv[, 2] + rnorm(n_ref)
+      u <- runif(n_ref, 0.5, 2) * 37   # arbitrary overall scale
+      lambda <- 3
+      f <- d$focal[1:3, , drop = FALSE]
+
+      result <- analog_regression(
+            x = f,
+            pool = d$ref,
+            y = y,
+            covariates = cv,
+            weight = u,
+            env = NULL,
+            geog = kernel("gaussian", theta = 1),
+            lambda = lambda,
+            coord_type = "projected"
+      )
+
+      # Penalty is lambda * sum(w) / I with I = sum(k * u / mean(u)), which
+      # (without downsampling) is lambda * mean(u). Kernel weights are NOT
+      # normalized away: neighborhoods with less kernel weight shrink more.
+      X <- cbind(1, cv)
+      P <- diag(c(0, 1, 1))
+      for (i in 1:3) {
+            gd2 <- (d$ref[, 1] - f[i, 1])^2 + (d$ref[, 2] - f[i, 2])^2
+            w <- exp(-gd2 / 2) * u
+            b <- solve(crossprod(X, w * X) + lambda * mean(u) * P,
+                       crossprod(X, w * y))
+            expect_equal(unname(unlist(result[i, c("coef_intercept", "coef_c1", "coef_c2")])),
+                         as.vector(b), tolerance = 1e-8)
+      }
+})
+
+
+test_that("ridge fit is invariant to rescaling user weights", {
+
+      d <- sim_test_data()
+      n_ref <- nrow(d$ref)
+
+      set.seed(2)
+      cv <- matrix(rnorm(n_ref * 2), ncol = 2,
+                   dimnames = list(NULL, c("c1", "c2")))
+      y <- rnorm(n_ref)
+      w <- runif(n_ref, 0.5, 2)
+
+      fit <- function(weight) {
+            analog_regression(
+                  x = d$focal,
+                  pool = d$ref,
+                  y = y,
+                  covariates = cv,
+                  weight = weight,
+                  env = kernel("gaussian", theta = 0.5, max = 2),
+                  geog = kernel(max = 2),
+                  lambda = 0.5,
+                  coord_type = "projected"
+            )
+      }
+      r1 <- fit(w)
+      r10 <- fit(w * 10)
+
+      coef_cols <- c("coef_intercept", "coef_c1", "coef_c2")
+      expect_true(any(!is.na(r1$coef_c1)))
+      expect_equal(r10[, coef_cols], r1[, coef_cols], tolerance = 1e-10)
+})
+
+
+test_that("lambda acts as pseudo-observations: n * v = lambda halves the slope", {
+
+      d <- sim_test_data()
+      n_ref <- nrow(d$ref)
+
+      set.seed(3)
+      x1 <- rnorm(n_ref, mean = 2, sd = 1.5)  # nonzero mean: intercept absorbs it
+      y <- 1 + 3 * x1 + rnorm(n_ref)
+      w <- runif(n_ref, 0.5, 2)
+      v <- sum(w * (x1 - weighted.mean(x1, w))^2) / sum(w)
+
+      fit <- function(lambda) {
+            analog_regression(
+                  x = d$focal[1, , drop = FALSE],
+                  pool = d$ref,
+                  y = y,
+                  covariates = data.frame(x1 = x1),
+                  weight = w,
+                  env = NULL,
+                  geog = kernel(max = Inf),
+                  lambda = lambda,
+                  coord_type = "projected"
+            )$coef_x1
+      }
+
+      # Uniform kernel: information = n_ref (user weights rescaled to mean 1)
+      expect_equal(fit(n_ref * v) / fit(0), 0.5, tolerance = 1e-8)
+})
+
+
+test_that("neighborhoods with less kernel weight are shrunk more", {
+
+      # Tight pool cluster at the origin; one focal on the cluster (kernel
+      # weights ~1) and one far away (kernel weights ~0.1 for every analog).
+      set.seed(4)
+      n_ref <- 200
+      pool <- cbind(x = rnorm(n_ref, sd = 0.01), y = rnorm(n_ref, sd = 0.01),
+                    e1 = 0, e2 = 0)
+      focal <- rbind(c(0, 0, 0, 0), c(2.146, 0, 0, 0))
+      colnames(focal) <- colnames(pool)
+      x1 <- rnorm(n_ref)
+      y <- 3 * x1 + rnorm(n_ref)
+      lambda <- 20
+
+      fit <- function(lambda) {
+            analog_regression(
+                  x = focal,
+                  pool = pool,
+                  y = y,
+                  covariates = data.frame(x1 = x1),
+                  env = NULL,
+                  geog = kernel("gaussian", theta = 1),
+                  lambda = lambda,
+                  coord_type = "projected"
+            )$coef_x1
+      }
+      ratio <- fit(lambda) / fit(0)
+
+      # Expected shrinkage factor: info * v / (info * v + lambda), info = sum(k)
+      v <- mean((x1 - mean(x1))^2)
+      k_far <- exp(-2.146^2 / 2)
+      expect_equal(ratio[1], n_ref * v / (n_ref * v + lambda), tolerance = 0.01)
+      expect_equal(ratio[2], n_ref * k_far * v / (n_ref * k_far * v + lambda),
+                   tolerance = 0.01)
+      expect_lt(ratio[2], ratio[1])
+})
+
+
 test_that("zero analogs returns NA for regression coefficients", {
 
       d <- sim_test_data()
