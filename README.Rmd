@@ -13,7 +13,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-# analogs
+# analogs <a href="https://matthewkling.github.io/analogs/"><img src="man/figures/logo.png" align="right" height="200" alt="analogs website" /></a>
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/matthewkling/analogs/actions/workflows/R-CMD-check.yaml)

@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# analogs
+# analogs <a href="https://matthewkling.github.io/analogs/"><img src="man/figures/logo.png" align="right" height="200" alt="analogs website" /></a>
 
 <!-- badges: start -->
 
