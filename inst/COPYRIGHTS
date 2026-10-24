@@ -1,0 +1,12 @@
+The analogs package includes the following third-party code.
+
+src/pocketfft_hdronly.h -- pocketfft (C++ header-only version)
+  https://github.com/mreineck/pocketfft
+  Copyright (C) 2010-2024 Max-Planck-Society
+  Copyright (C) 2019-2020 Peter Bell
+  Copyright (C) 2003, 2007-14 Matteo Frigo
+  Copyright (C) 2003, 2007-14 Massachusetts Institute of Technology
+  Copyright (C) 2024 Tan Ping Liang, Peter Bell
+  Copyright (C) 2024 Cris Luengo
+  Authors: Martin Reinecke, Peter Bell
+  License: BSD 3-clause (full text at the top of the file)

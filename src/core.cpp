@@ -12,6 +12,7 @@
 #include "workers.h"
 #include "mahalanobis.h"
 #include "se_code.h"
+#include "focal_stats.h"
 
 #include <vector>
 #include <limits>
@@ -617,63 +618,10 @@ SEXP query_analog_index_cpp(SEXP index_list,
             return out;
       }
 
-      // Aggregate modes
-      // Count regular vs value stats vs tabulate to calculate total columns
-      int n_regular_stats = 0;
-      int n_value_stats = 0;
-      bool has_weighted_mean_stat = false;
-      bool has_regression_stat = false;
-      bool has_tabulate_stat = false;
-
-      for (int i = 0; i < n_stats; ++i) {
-            if (acodes[i] == AggregateCode::SUM ||
-                acodes[i] == AggregateCode::MEAN ||
-                acodes[i] == AggregateCode::WEIGHTED_SUM ||
-                acodes[i] == AggregateCode::WEIGHTED_MEAN) {
-                  n_value_stats++;
-                  if (acodes[i] == AggregateCode::WEIGHTED_MEAN) {
-                        has_weighted_mean_stat = true;
-                  }
-            } else if (acodes[i] == AggregateCode::REGRESSION) {
-                  has_regression_stat = true;
-            } else if (acodes[i] == AggregateCode::TABULATE) {
-                  has_tabulate_stat = true;
-            } else {
-                  n_regular_stats++;
-            }
-      }
-
-      // Column counts
-      // - Value stats: n_value_stats × n_vars columns
-      // - Regression: reg_dim columns per var for coefficients,
-      //               plus reg_dim columns per var for SEs if se != NONE
-      // - weighted_mean SE: one additional column per var if se != NONE AND
-      //                    weighted_mean is among requested stats
-      // - Tabulate: sum of K_v across y variables (one column per class)
-      const bool want_se = (scode_se != SeCode::NONE);
-
-      const int reg_dim = has_regression_stat ? (n_covs + 1) : 0;
-      const int reg_cols_per_var = reg_dim + (want_se ? reg_dim : 0);
-      const int n_regression_cols = has_regression_stat
-      ? (n_vars * reg_cols_per_var)
-            : 0;
-
-      const int wm_se_cols = (want_se && has_weighted_mean_stat) ? n_vars : 0;
-
-      int n_tabulate_cols = 0;
-      if (has_tabulate_stat) {
-            for (int v = 0; v < static_cast<int>(n_classes_per_var_std.size()); ++v) {
-                  n_tabulate_cols += n_classes_per_var_std[v];
-            }
-      }
-
-      // Total columns = regular stats + (value stats × n_vars) + wm SE cols
-      //                 + tabulate cols + regression cols
-      const int n_total_cols = n_regular_stats
-      + (n_value_stats * n_vars)
-            + wm_se_cols
-            + n_tabulate_cols
-            + n_regression_cols;
+      // Aggregate modes. The column count comes from the layout shared with
+      // the FFT engine (focal_stats.h), so both engines agree on it.
+      const int n_total_cols = StatLayout(acodes, scode_se, has_values, n_vars,
+                                          n_covs, n_classes_per_var_std).n_cols();
 
             // Allocate flat vector for all stats
             // Layout: [focal0_stat0, focal0_stat1, ..., focal1_stat0, focal1_stat1, ...]

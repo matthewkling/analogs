@@ -83,7 +83,7 @@
 #'
 #'   \describe{
 #'     \item{`binning_method`}{Internal indexing method; one of
-#'       `"lattice"` or `"lattice_ecef"`.}
+#'       `"lattice"`, `"lattice_ecef"`, or `"fft"` (see [fft_method()]).}
 #'     \item{`total_bins`, `n_bins_nonempty`, `min_bin_occupancy`,
 #'       `max_bin_occupancy`, `avg_bin_occupancy`,
 #'       `avg_nonempty_bin_occupancy`}{Lattice occupancy summaries.}
@@ -97,6 +97,20 @@
 #'     \item{`bins_per_axis`}{Integer vector of realized bins per axis
 #'       (geographic axes first, then environment), showing how the budget was
 #'       distributed.}
+#'   }
+#'
+#'   ## FFT method diagnostics
+#'
+#'   Present when `method = "fft"` (see [fft_method()]).
+#'
+#'   \describe{
+#'     \item{`fft_grid`}{Data frame with one row per grid axis: the axis,
+#'       its number of grid nodes, node spacing, and padded FFT length.}
+#'     \item{`fft_check`}{When `fft_method(check = )` is positive: data frame
+#'       with one row per output column, giving the number of checked focals
+#'       with finite values (`n`), and the maximum absolute error, root mean
+#'       squared error, and root mean square of the exact values over those
+#'       focals.}
 #'   }
 #'
 #'   ## Cross-validation metadata
@@ -161,6 +175,8 @@ metadata <- function(x) {
             "min_bin_occupancy", "max_bin_occupancy",
             "avg_bin_occupancy", "avg_nonempty_bin_occupancy",
             "geog_res_adj", "env_res_adj", "geo_target", "env_target", "bins_per_axis",
+            # FFT method
+            "fft_grid", "fft_check",
             # Cross-validation
             "cv_method", "cv_fun", "cv_n_folds", "cv_pred_target"
       )

@@ -83,7 +83,7 @@ detail.
 
 \describe{
 \item{\code{binning_method}}{Internal indexing method; one of
-\code{"lattice"} or \code{"lattice_ecef"}.}
+\code{"lattice"}, \code{"lattice_ecef"}, or \code{"fft"} (see \code{\link[=fft_method]{fft_method()}}).}
 \item{\code{total_bins}, \code{n_bins_nonempty}, \code{min_bin_occupancy},
 \code{max_bin_occupancy}, \code{avg_bin_occupancy},
 \code{avg_nonempty_bin_occupancy}}{Lattice occupancy summaries.}
@@ -97,6 +97,21 @@ targets passed to the lattice builder (the absolute values the
 \item{\code{bins_per_axis}}{Integer vector of realized bins per axis
 (geographic axes first, then environment), showing how the budget was
 distributed.}
+}
+}
+
+\subsection{FFT method diagnostics}{
+
+Present when \code{method = "fft"} (see \code{\link[=fft_method]{fft_method()}}).
+
+\describe{
+\item{\code{fft_grid}}{Data frame with one row per grid axis: the axis,
+its number of grid nodes, node spacing, and padded FFT length.}
+\item{\code{fft_check}}{When \code{fft_method(check = )} is positive: data frame
+with one row per output column, giving the number of checked focals
+with finite values (\code{n}), and the maximum absolute error, root mean
+squared error, and root mean square of the exact values over those
+focals.}
 }
 }
 

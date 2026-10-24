@@ -79,6 +79,47 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// fft_fields_cpp
+NumericMatrix fft_fields_cpp(NumericMatrix pool_pts, NumericMatrix focal_pts, NumericVector origin, NumericVector delta, IntegerVector n_nodes, IntegerVector group_sizes, IntegerVector pad_sizes, List kernels, NumericMatrix masses, IntegerVector field_kernel, bool exclude_self);
+RcppExport SEXP _analogs_fft_fields_cpp(SEXP pool_ptsSEXP, SEXP focal_ptsSEXP, SEXP originSEXP, SEXP deltaSEXP, SEXP n_nodesSEXP, SEXP group_sizesSEXP, SEXP pad_sizesSEXP, SEXP kernelsSEXP, SEXP massesSEXP, SEXP field_kernelSEXP, SEXP exclude_selfSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type pool_pts(pool_ptsSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type focal_pts(focal_ptsSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type origin(originSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type delta(deltaSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type n_nodes(n_nodesSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type group_sizes(group_sizesSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type pad_sizes(pad_sizesSEXP);
+    Rcpp::traits::input_parameter< List >::type kernels(kernelsSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type masses(massesSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type field_kernel(field_kernelSEXP);
+    Rcpp::traits::input_parameter< bool >::type exclude_self(exclude_selfSEXP);
+    rcpp_result_gen = Rcpp::wrap(fft_fields_cpp(pool_pts, focal_pts, origin, delta, n_nodes, group_sizes, pad_sizes, kernels, masses, field_kernel, exclude_self));
+    return rcpp_result_gen;
+END_RCPP
+}
+// fft_finalize_cpp
+NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles, IntegerVector aggregate_codes, int se_code, int n_vars, int n_covs, IntegerVector n_classes_per_var, double lambda, bool has_values, double user_weight_mean);
+RcppExport SEXP _analogs_fft_finalize_cpp(SEXP field_valsSEXP, SEXP rolesSEXP, SEXP aggregate_codesSEXP, SEXP se_codeSEXP, SEXP n_varsSEXP, SEXP n_covsSEXP, SEXP n_classes_per_varSEXP, SEXP lambdaSEXP, SEXP has_valuesSEXP, SEXP user_weight_meanSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type field_vals(field_valsSEXP);
+    Rcpp::traits::input_parameter< List >::type roles(rolesSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type aggregate_codes(aggregate_codesSEXP);
+    Rcpp::traits::input_parameter< int >::type se_code(se_codeSEXP);
+    Rcpp::traits::input_parameter< int >::type n_vars(n_varsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_covs(n_covsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type n_classes_per_var(n_classes_per_varSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< bool >::type has_values(has_valuesSEXP);
+    Rcpp::traits::input_parameter< double >::type user_weight_mean(user_weight_meanSEXP);
+    rcpp_result_gen = Rcpp::wrap(fft_finalize_cpp(field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, user_weight_mean));
+    return rcpp_result_gen;
+END_RCPP
+}
 // analogs_euclid_cpp
 double analogs_euclid_cpp(NumericVector a, NumericVector b);
 RcppExport SEXP _analogs_analogs_euclid_cpp(SEXP aSEXP, SEXP bSEXP) {
@@ -108,6 +149,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 6},
     {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 22},
     {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 11},
+    {"_analogs_fft_fields_cpp", (DL_FUNC) &_analogs_fft_fields_cpp, 11},
+    {"_analogs_fft_finalize_cpp", (DL_FUNC) &_analogs_fft_finalize_cpp, 10},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
     {NULL, NULL, 0}

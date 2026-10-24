@@ -1,6 +1,7 @@
 // src/workers.cpp
 #include "workers.h"
 #include "ridge_solve.h"
+#include "focal_stats.h"
 #include "profiling.h"
 
 namespace analogs {
@@ -464,73 +465,20 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       auto& cand = tls.cand;
       auto& cand_weights = tls.cand_weights;
 
-      // Determine which stats are regular vs value-based vs regression vs tabulate.
-      // Also record the position of the WEIGHTED_MEAN stat within the value
-      // stats (if any), since that's the only value stat with SE support.
-      std::vector<int> regular_stat_positions;
-      std::vector<int> value_stat_positions;
-      int wm_value_idx = -1;            // index into value_stat_positions of WEIGHTED_MEAN, or -1
-      bool has_regression = false;
-      bool has_tabulate = false;
-
-      for (int s = 0; s < static_cast<int>(acodes.size()); ++s) {
-            if (acodes[s] == AggregateCode::SUM ||
-                acodes[s] == AggregateCode::MEAN ||
-                acodes[s] == AggregateCode::WEIGHTED_SUM ||
-                acodes[s] == AggregateCode::WEIGHTED_MEAN) {
-                  if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
-                        wm_value_idx = static_cast<int>(value_stat_positions.size());
-                  }
-                  value_stat_positions.push_back(s);
-            } else if (acodes[s] == AggregateCode::REGRESSION) {
-                  // REGRESSION: regression is handled separately
-                  has_regression = true;
-            } else if (acodes[s] == AggregateCode::TABULATE) {
-                  // TABULATE: handled separately, K_v columns per y variable
-                  has_tabulate = true;
-            } else {
-                  regular_stat_positions.push_back(s);  // COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS
-            }
-      }
-
-      const int n_regular = static_cast<int>(regular_stat_positions.size());
-      const int n_value = static_cast<int>(value_stat_positions.size());
-
-      // SE bookkeeping: do we need weighted_mean SE accumulators this call?
-      const bool want_se = (se_code != SeCode::NONE);
-      const bool wm_se = want_se && (wm_value_idx >= 0) && has_values;
-      const bool wm_se_design = wm_se && (se_code == SeCode::DESIGN);
-
-      // Check if any stats need weights
-      bool need_weights = false;
-      for (size_t s = 0; s < acodes.size(); ++s) {
-            if (acodes[s] == AggregateCode::SUM_WEIGHTS ||
-                acodes[s] == AggregateCode::MEAN_WEIGHTS ||
-                acodes[s] == AggregateCode::WEIGHTED_SUM ||
-                acodes[s] == AggregateCode::WEIGHTED_MEAN ||
-                acodes[s] == AggregateCode::ESS ||
-                acodes[s] == AggregateCode::REGRESSION ||
-                acodes[s] == AggregateCode::TABULATE) {
-                  need_weights = true;
-                  break;
-            }
-      }
-
-      // TABULATE: pre-compute per-variable bin offsets so we can index into a
-      // single flat tabulate accumulator. tab_offsets[v] is the starting index
-      // in tabulate_accum for variable v's K_v bins; tab_total is the total
-      // number of tabulate bins across all y variables.
-      std::vector<int> tab_offsets;
-      int tab_total = 0;
-      if (has_tabulate) {
-            tab_offsets.resize(n_vars, 0);
-            for (int v = 0; v < n_vars; ++v) {
-                  tab_offsets[v] = tab_total;
-                  if (v < static_cast<int>(n_classes_per_var.size())) {
-                        tab_total += n_classes_per_var[v];
-                  }
-            }
-      }
+      // Output layout and stat bookkeeping (shared with the FFT engine; see
+      // focal_stats.h). Local aliases keep the accumulation loop below terse.
+      const StatLayout L(acodes, se_code, has_values, n_vars, n_covs, n_classes_per_var);
+      const int n_regular = L.n_regular;
+      const int n_value = L.n_value;
+      const std::vector<int>& regular_stat_positions = L.regular_pos;
+      const std::vector<int>& value_stat_positions = L.value_pos;
+      const bool has_regression = L.has_regression;
+      const bool has_tabulate = L.has_tabulate;
+      const bool wm_se = L.wm_se;
+      const bool wm_se_design = L.wm_se_design;
+      const bool need_weights = L.need_weights;
+      const std::vector<int>& tab_offsets = L.tab_offsets;
+      const int tab_total = L.tab_total;
 
       // Pre-compute inverse covariance matrices if using Mahalanobis
       std::vector< std::vector<double> > inv_cov_matrices;
@@ -571,7 +519,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       // Each variable contributes reg_dim columns for coefficients, and
       // (when se_code != NONE) an additional reg_dim columns for SEs.
       const int reg_dim = has_covariates ? (n_covs + 1) : 0;
-      const bool reg_se = want_se && has_regression;
+      const bool reg_se = L.reg_se;
 
       for (std::size_t i = begin; i < end; ++i) {
             // Skip focal points with NA
@@ -617,35 +565,17 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   }
             }
 
-            // Initialize accumulators for regular and value stats
-            std::vector<double> regular_accum(n_regular, 0.0);
-            std::vector<double> value_accum;
-            if (has_values && n_value > 0) {
-                  value_accum.resize(n_vars * n_value, 0.0);
-            }
-
-            // TABULATE: per-focal accumulator, length = sum of K_v across vars.
-            // Layout is contiguous per-variable: var 0's bins, then var 1's, etc.
-            std::vector<double> tabulate_accum;
-            if (has_tabulate && tab_total > 0) {
-                  tabulate_accum.assign(tab_total, 0.0);
-            }
-
-            // weighted_mean SE accumulators (per y-var).
-            // Allocated only when actually needed.
-            //   Common (ESS + DESIGN): sum_wy2
-            //   DESIGN extra: sum_w2y, sum_w2y2, sum_w2 (scalar, not per-var)
-            std::vector<double> wm_sum_wy2;
-            std::vector<double> wm_sum_w2y;
-            std::vector<double> wm_sum_w2y2;
+            // Per-focal accumulators. Vectors live in the shared FocalAccum;
+            // scalars stay local in the hot loop and are copied in at finalize.
+            FocalAccum acc;
+            acc.reset(L, has_values);
+            std::vector<double>& regular_accum = acc.regular_accum;
+            std::vector<double>& value_accum = acc.value_accum;
+            std::vector<double>& tabulate_accum = acc.tabulate_accum;
+            std::vector<double>& wm_sum_wy2 = acc.wm_sum_wy2;
+            std::vector<double>& wm_sum_w2y = acc.wm_sum_w2y;
+            std::vector<double>& wm_sum_w2y2 = acc.wm_sum_w2y2;
             double wm_sum_w2 = 0.0;
-            if (wm_se) {
-                  wm_sum_wy2.assign(n_vars, 0.0);
-                  if (wm_se_design) {
-                        wm_sum_w2y.assign(n_vars, 0.0);
-                        wm_sum_w2y2.assign(n_vars, 0.0);
-                  }
-            }
 
             int count = 0;
             double sum_weights = 0.0;
@@ -861,134 +791,22 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             // Finalize and store results
             // -----------------------------------------------------------------
             ANALOGS_PROFILE_SCOPE(AGG);
-            int col_idx = 0;
+            acc.count = static_cast<double>(count);
+            acc.sum_weights = sum_weights;
+            acc.sum_weights_squared = sum_weights_squared;
+            acc.wm_sum_w2 = wm_sum_w2;
+            double* row = &agg[i * n_stats];
+            const int col_idx = write_nonregression_stats(L, acc, has_values, row);
 
-            // Write regular stats
-            for (int idx = 0; idx < n_regular; ++idx) {
-                  int s = regular_stat_positions[idx];
-                  double result = NA_REAL;
-
-                  if (acodes[s] == AggregateCode::COUNT) {
-                        result = static_cast<double>(count);
-                  } else if (acodes[s] == AggregateCode::SUM_WEIGHTS) {
-                        result = regular_accum[idx];
-                  } else if (acodes[s] == AggregateCode::MEAN_WEIGHTS) {
-                        result = (count > 0) ?
-                        (regular_accum[idx] / count) : NA_REAL;
-                  } else if (acodes[s] == AggregateCode::ESS) {
-                        if (sum_weights_squared > 0.0 && sum_weights > 0.0) {
-                              result = (sum_weights * sum_weights) / sum_weights_squared;
-                        } else {
-                              result = 0.0;
-                        }
-                  }
-
-                  agg[i * n_stats + col_idx] = result;
-                  col_idx++;
-            }
-
-            // Write value stats.
-            // Layout: for each value var v, for each requested value stat s (in
-            // order they appear in acodes), write one column. When weighted_mean
-            // SE is requested, the SE column is emitted immediately after its
-            // weighted_mean column (still within the v-block).
-            if (has_values && n_value > 0) {
-                  for (int v = 0; v < n_vars; ++v) {
-                        for (int idx = 0; idx < n_value; ++idx) {
-                              int s = value_stat_positions[idx];
-                              int accum_idx = v * n_value + idx;
-                              double result = NA_REAL;
-
-                              if (acodes[s] == AggregateCode::SUM) {
-                                    result = value_accum[accum_idx];
-                              } else if (acodes[s] == AggregateCode::MEAN) {
-                                    result = (count > 0) ? (value_accum[accum_idx] / count) : NA_REAL;
-                              } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
-                                    result = value_accum[accum_idx];
-                              } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
-                                    result = (sum_weights > 0) ? (value_accum[accum_idx] / sum_weights) : NA_REAL;
-                              }
-
-                              agg[i * n_stats + col_idx] = result;
-                              col_idx++;
-
-                              // Immediately after weighted_mean, emit SE if requested.
-                              if (wm_se && idx == wm_value_idx) {
-                                    double se_val = NA_REAL;
-                                    if (sum_weights > 0.0 && !ISNAN(result)) {
-                                          const double ybar = result;  // weighted mean for var v
-                                          const double sum_wy2 = wm_sum_wy2[v];
-
-                                          if (se_code == SeCode::ESS) {
-                                                // n_eff = (Σw)^2 / Σw^2
-                                                // var_w(y) = Σwy^2 / Σw - ybar^2
-                                                // SE = sqrt(var_w / n_eff)
-                                                if (sum_weights_squared > 0.0) {
-                                                      const double n_eff =
-                                                            (sum_weights * sum_weights) / sum_weights_squared;
-                                                      double var_w =
-                                                            (sum_wy2 / sum_weights) - (ybar * ybar);
-                                                      if (var_w < 0.0) var_w = 0.0;  // fp guard
-                                                      if (n_eff > 0.0 && std::isfinite(var_w)) {
-                                                            se_val = std::sqrt(var_w / n_eff);
-                                                      }
-                                                }
-                                          } else {
-                                                // DESIGN: SE = sqrt(Σ w^2 (y - ybar)^2) / Σw
-                                                //   numerator = Σw^2 y^2 - 2*ybar*Σw^2 y + ybar^2 * Σw^2
-                                                const double sum_w2y  = wm_sum_w2y[v];
-                                                const double sum_w2y2 = wm_sum_w2y2[v];
-                                                double num = sum_w2y2
-                                                - 2.0 * ybar * sum_w2y
-                                                + ybar * ybar * wm_sum_w2;
-                                                if (num < 0.0) num = 0.0;  // fp guard
-                                                if (std::isfinite(num)) {
-                                                      se_val = std::sqrt(num) / sum_weights;
-                                                }
-                                          }
-                                    }
-                                    agg[i * n_stats + col_idx] = se_val;
-                                    col_idx++;
-                              }
-                        }
-                  }
-            }
-
-            // TABULATE: write per-class weighted vote totals.
-            // Layout: for each y variable v (in column order), write K_v
-            // contiguous columns, one per class.
-            if (has_tabulate && tab_total > 0) {
-                  for (int b = 0; b < tab_total; ++b) {
-                        agg[i * n_stats + col_idx] = tabulate_accum[b];
-                        col_idx++;
-                  }
-            }
-
-            // REGRESSION: solve and write regression coefficients (and SEs if requested).
+            // REGRESSION: solve and write coefficients (and SEs if requested).
             if (has_regression && has_covariates && has_values) {
                   if (reg_analog_indices.empty()) {
-                        // Zero analogs: write NAs for all coefficients (and SEs if requested)
-                        for (int v = 0; v < n_vars; ++v) {
-                              for (int d = 0; d < reg_dim; ++d) {
-                                    agg[i * n_stats + col_idx] = NA_REAL;
-                                    col_idx++;
-                              }
-                        }
-                        if (reg_se) {
-                              for (int v = 0; v < n_vars; ++v) {
-                                    for (int d = 0; d < reg_dim; ++d) {
-                                          agg[i * n_stats + col_idx] = NA_REAL;
-                                          col_idx++;
-                                    }
-                              }
-                        }
+                        // Zero analogs: all-NA coefficients (and SEs)
+                        write_regression_stats(L, nullptr, nullptr, row, col_idx);
                   } else {
-                        // Solve ridge regression
                         std::vector<double> coeffs(n_vars * reg_dim);
-                        // Allocate SE buffer only if requested, but pass a
-                        // harmless pointer either way so solve_ridge can be
-                        // uniform. When se_code == NONE, solve_ridge does not
-                        // touch out_se.
+                        // SE buffer only if requested; solve_ridge does not
+                        // touch out_se when se_code == NONE.
                         std::vector<double> se_buf;
                         double* se_ptr = nullptr;
                         if (reg_se) {
@@ -1010,22 +828,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     coeffs.data(),
                                     se_ptr);
 
-                        // Write coefficients: for each variable, intercept then covariate slopes
-                        for (int v = 0; v < n_vars; ++v) {
-                              for (int d = 0; d < reg_dim; ++d) {
-                                    agg[i * n_stats + col_idx] = coeffs[v * reg_dim + d];
-                                    col_idx++;
-                              }
-                        }
-                        // Write standard errors (same layout) if requested.
-                        if (reg_se) {
-                              for (int v = 0; v < n_vars; ++v) {
-                                    for (int d = 0; d < reg_dim; ++d) {
-                                          agg[i * n_stats + col_idx] = se_buf[v * reg_dim + d];
-                                          col_idx++;
-                                    }
-                              }
-                        }
+                        write_regression_stats(L, coeffs.data(), se_ptr, row, col_idx);
                   }
             }
       }

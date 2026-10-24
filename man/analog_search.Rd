@@ -27,6 +27,7 @@ analog_search(
   env_res_adj = "auto",
   cell_area_weight = "auto",
   mean_cell_area = NULL,
+  method = "exact",
   n_threads = NULL,
   progress = FALSE
 )
@@ -256,6 +257,14 @@ consistent value across per-tile index builds; most users should
 leave this \code{NULL} (auto-computed from the raster pool). See
 \code{\link[=build_analog_index]{build_analog_index()}} for details.}
 
+\item{method}{Computation method: \code{"exact"} (default) visits every
+focal-analog pair; \code{"fft"}, or an \code{\link[=fft_method]{fft_method()}} object for custom
+settings, evaluates kernel-weighted sums for all focals at once by binned
+convolution, which is much faster for large problems and gives
+approximately the same results. The FFT method requires \code{select = "all"}
+and a raw (non-index) \code{pool}, and ignores \code{geog_res_adj} / \code{env_res_adj};
+see \code{\link[=fft_method]{fft_method()}} for its other requirements.}
+
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
@@ -354,6 +363,9 @@ The analog search architecture is designed with compute performance in mind:
 search through large reference datasets. By default, the lattice
 resolution is tuned for optimal performance.
 \item Parallel processing is available via the \code{n_threads} parameter.
+\item For kernel-weighted aggregation over many focals, \code{method = "fft"}
+replaces pairwise distance computations with binned convolution
+(see \code{\link[=fft_method]{fft_method()}}).
 \item You can \code{downsample} prohibitively large reference pool datasets
 to improve speed and memory, using a stratified sampling
 scheme that reduces loss of precision relative to random sampling.

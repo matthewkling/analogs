@@ -223,6 +223,14 @@
 #'   leave this `NULL` (auto-computed from the raster pool). See
 #'   [build_analog_index()] for details.
 #'
+#' @param method Computation method: `"exact"` (default) visits every
+#'   focal-analog pair; `"fft"`, or an [fft_method()] object for custom
+#'   settings, evaluates kernel-weighted sums for all focals at once by binned
+#'   convolution, which is much faster for large problems and gives
+#'   approximately the same results. The FFT method requires `select = "all"`
+#'   and a raw (non-index) `pool`, and ignores `geog_res_adj` / `env_res_adj`;
+#'   see [fft_method()] for its other requirements.
+#'
 #' @param n_threads Optional integer number of threads to use for the
 #'   computation. If `NULL` (default), the global RcppParallel setting
 #'   is used (see `RcppParallel::setThreadOptions`).
@@ -309,6 +317,9 @@
 #'   search through large reference datasets. By default, the lattice
 #'   resolution is tuned for optimal performance.
 #' - Parallel processing is available via the `n_threads` parameter.
+#' - For kernel-weighted aggregation over many focals, `method = "fft"`
+#'   replaces pairwise distance computations with binned convolution
+#'   (see [fft_method()]).
 #' - You can `downsample` prohibitively large reference pool datasets
 #'   to improve speed and memory, using a stratified sampling
 #'   scheme that reduces loss of precision relative to random sampling.
@@ -403,11 +414,14 @@ analog_search <- function(
       cell_area_weight = "auto",
       mean_cell_area = NULL,
 
+      # execution
+      method = "exact",
       n_threads = NULL,
       progress = FALSE
 ) {
 
       se <- match.arg(se)
+      fft <- .resolve_method(method)  # NULL for the exact engine
 
       # Unpack the per-family kernels (env, geog) into the individual
       # components used throughout: hard thresholds (max_env/max_geog), and
@@ -476,6 +490,24 @@ analog_search <- function(
             stop('`cell_area_weight` must be "auto", TRUE, FALSE, or a numeric ',
                  "vector of length nrow(pool).",
                  call. = FALSE)
+      }
+
+      # FFT preconditions that must be checked before an index is built. The
+      # remaining ones are checked in query_analog_index() once inputs are
+      # formatted.
+      if (!is.null(fft)) {
+            if (is_analog_index(pool)) {
+                  stop('`method = "fft"` needs raw `pool` data, not a pre-built ',
+                       "`analog_index`.", call. = FALSE)
+            }
+            if (!identical(select, "all")) {
+                  stop('`method = "fft"` requires `select = "all"`; nearest-',
+                       "neighbor selection needs the exact method.", call. = FALSE)
+            }
+            if (downsample < 1) {
+                  stop('`method = "fft"` does not support `downsample < 1` ',
+                       "(binning already compresses the pool).", call. = FALSE)
+            }
       }
 
       # Check if pool is already an index
@@ -556,6 +588,14 @@ analog_search <- function(
             geo_adj_use  <- if (geo_constrained)  geo_adj_req  else 0
             env_adj_use <- if (env_constrained) env_adj_req else 0
 
+            # The FFT method never queries the lattice, so build a trivial one
+            # (one bin per axis) and skip tuning.
+            if (!is.null(fft)) {
+                  tune_requested <- FALSE
+                  geo_adj_use <- 0
+                  env_adj_use <- 0
+            }
+
             # Resolve tuning (minimal: a single overall scale on both families).
             if (tune_requested) {
                   # Auto-tuning is not safe when downsampling is in effect:
@@ -635,6 +675,7 @@ analog_search <- function(
             se = se,
             normalize = normalize,
             exclude_self = exclude_self,
+            fft = fft,
             n_threads = n_threads,
             show_progress = progress
       ))

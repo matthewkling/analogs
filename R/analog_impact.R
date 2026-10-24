@@ -168,6 +168,7 @@ analog_impact <- function(
             env_res_adj = "auto",
             geog_res_adj = "auto",
             cell_area_weight = "auto",
+            method = "exact",
             n_threads = NULL,
             progress = FALSE,
             ...
@@ -208,6 +209,7 @@ analog_impact <- function(
             env_res_adj= env_res_adj,
             geog_res_adj = geog_res_adj,
             cell_area_weight = cell_area_weight,
+            method      = method,
             n_threads   = n_threads,
             progress    = progress,
             ...

@@ -668,3 +668,46 @@ test_that("analog_cv on analog_regression receives pred via x_covariates path", 
       expect_equal(cv$pred[ok], manual_pred, tolerance = 1e-10)
       expect_equal(cv$residual[ok], cv$obs[ok] - cv$pred[ok], tolerance = 1e-10)
 })
+
+
+test_that("regression drops analogs with a missing response from that variable's fit", {
+      # Each response variable should be fit on exactly the analogs that
+      # observe it: a multi-y fit with NAs in one variable must match a
+      # separate fit on the pool subset where that variable is observed, and
+      # leave the fully observed variable unchanged.
+      set.seed(7)
+      n <- 300
+      pool <- cbind(x = runif(n), y = runif(n), e1 = rnorm(n), e2 = rnorm(n))
+      covs <- cbind(c1 = rnorm(n), c2 = rnorm(n))
+      ya <- 1 + covs[, 1] - 2 * covs[, 2] + rnorm(n)
+      yb <- 4 - covs[, 1] + rnorm(n)
+      miss <- sample(n, 60)
+      yb[miss] <- NA
+      ok <- !is.na(yb)
+      focal <- pool[1:25, ]
+
+      fit <- function(pool, y, covs, se) {
+            analog_regression(
+                  x = focal, pool = pool, y = y, covariates = covs,
+                  env = kernel("gaussian", theta = 0.8, max = 2.5),
+                  lambda = 2, se = se, coord_type = "projected"
+            )
+      }
+
+      for (se in c("none", "ess", "design")) {
+            both <- fit(pool, cbind(a = ya, b = yb), covs, se)
+            only_a <- fit(pool, ya, covs, se)
+            only_b <- fit(pool[ok, ], yb[ok], covs[ok, ], se)
+
+            cols <- c("intercept", "c1", "c2")
+            prefixes <- if (se == "none") "coef" else c("coef", "se")
+            for (pfx in prefixes) {
+                  expect_equal(both[, paste0(pfx, "_", cols, "_a")],
+                               only_a[, paste0(pfx, "_", cols)],
+                               tolerance = 1e-10, ignore_attr = TRUE)
+                  expect_equal(both[, paste0(pfx, "_", cols, "_b")],
+                               only_b[, paste0(pfx, "_", cols)],
+                               tolerance = 1e-10, ignore_attr = TRUE)
+            }
+      }
+})

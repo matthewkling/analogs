@@ -20,6 +20,7 @@ query_analog_index <- function(x,
                                se,
                                normalize = "auto",
                                exclude_self = FALSE,
+                               fft = NULL,
                                n_threads,
                                show_progress = FALSE) {
 
@@ -252,32 +253,48 @@ query_analog_index <- function(x,
             NA_real_
       }
 
-      # Call C++ query function (with optional chunking/progress)
-      res <- .query_cpp_chunked(
-            index = index,
-            focal = focal,
-            ref_mm = index$ref_data,
-            k = k_core,
-            max_env = max_env_val,
-            max_geog = max_geog_num,
-            min_geog = min_geog_num,
-            select_code = select_code,
-            aggregate_codes = aggregate_codes,
-            env_kernel_code = env_kernel_code,
-            geog_kernel_code = geog_kernel_code,
-            theta_env = theta_env_cpp,
-            theta_geog = theta_geog_cpp,
-            x_cov = x_cov_mat,
-            y = values_mat,
-            covariates = covariates_mat,
-            lambda = lambda,
-            se_code = se_code,
-            n_classes_per_var = n_classes_per_var,
-            area_weight = area_weight_vec,
-            user_weight = user_weight_vec,
-            exclude_self = exclude_self,
-            show_progress = show_progress
-      )
+      # Exact engine (with optional chunking/progress) on a subset of focal
+      # rows; the FFT method uses it for its accuracy check.
+      # `rows = NULL` (all focals) avoids copying the focal matrix.
+      exact_fn <- function(rows = NULL) {
+            sub <- function(m) if (is.null(rows) || is.null(m)) m else m[rows, , drop = FALSE]
+            .query_cpp_chunked(
+                  index = index,
+                  focal = sub(focal),
+                  ref_mm = index$ref_data,
+                  k = k_core,
+                  max_env = max_env_val,
+                  max_geog = max_geog_num,
+                  min_geog = min_geog_num,
+                  select_code = select_code,
+                  aggregate_codes = aggregate_codes,
+                  env_kernel_code = env_kernel_code,
+                  geog_kernel_code = geog_kernel_code,
+                  theta_env = theta_env_cpp,
+                  theta_geog = theta_geog_cpp,
+                  x_cov = sub(x_cov_mat),
+                  y = values_mat,
+                  covariates = covariates_mat,
+                  lambda = lambda,
+                  se_code = se_code,
+                  n_classes_per_var = n_classes_per_var,
+                  area_weight = area_weight_vec,
+                  user_weight = user_weight_vec,
+                  exclude_self = exclude_self,
+                  show_progress = show_progress
+            )
+      }
+
+      res <- if (is.null(fft)) {
+            exact_fn()
+      } else {
+            .query_fft(fft, focal, index$ref_data, stat, aggregate_codes, se,
+                       se_code, values_mat, covariates_mat, n_classes_per_var,
+                       area_weight_vec, user_weight_vec, lambda,
+                       kernel_env, theta_env, max_env_val,
+                       kernel_geog, theta_geog, max_geog_num, min_geog_num,
+                       x_cov_mat, exclude_self, index$coord_type, exact_fn)
+      }
 
       # Capture diagnostic attributes (before they get lost)
       cpp_attrs <- attributes(res)
@@ -581,7 +598,15 @@ query_analog_index <- function(x,
       for (nm in names(cpp_attrs)) {
             attr(out, nm) <- cpp_attrs[[nm]]
       }
-      out <- .attach_index_res_attrs(out, index)
+      if (is.null(fft)) {
+            out <- .attach_index_res_attrs(out, index)
+      } else if (!is.null(attr(out, "fft_check"))) {
+            # Name the FFT accuracy-check rows by output column
+            chk <- attr(out, "fft_check")
+            stat_cols <- setdiff(names(out), c("index", "x", "y"))
+            if (length(stat_cols) == nrow(chk)) chk$column <- stat_cols
+            attr(out, "fft_check") <- chk
+      }
 
       # Apply D_max normalization to sum_weights and tabulate columns,
       # if requested AND if a normalizable stat is present. The

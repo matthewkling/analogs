@@ -13,6 +13,43 @@ query_analog_index_cpp <- function(index_list, focal_mm, ref_mm, k, max_env, max
     .Call(`_analogs_emit_pairs_cpp`, res, focal_mm, ref_mm, report_dist, geo_mode, x_cov, values, values_names, emit_sample_weight, emit_area_weight, emit_user_weight)
 }
 
+#' Evaluate kernel-convolved fields at focal points (FFT engine)
+#'
+#' @param pool_pts n_pool x D matrix of pool coordinates on the grid axes.
+#' @param focal_pts n_focal x D matrix of focal coordinates on the grid axes.
+#' @param origin,delta,n_nodes Per-axis grid origin, node spacing, node count.
+#' @param group_sizes Number of axes in each kernel family's axis group, in
+#'   axis order (groups are contiguous and cover all D axes).
+#' @param pad_sizes Padded FFT length per axis.
+#' @param kernels List over kernels; each a list over groups of numeric
+#'   arrays (column-major, dims 2h+1 per group axis), the kernel's values at
+#'   integer node offsets. All kernels share each group's dims.
+#' @param masses n_pool x F matrix of field masses.
+#' @param field_kernel Integer (0-based) kernel index per field.
+#' @param exclude_self Subtract each focal's own binned contribution (focal i
+#'   is pool point i).
+#' @return n_focal x F matrix of field values.
+#' @noRd
+.fft_fields_cpp <- function(pool_pts, focal_pts, origin, delta, n_nodes, group_sizes, pad_sizes, kernels, masses, field_kernel, exclude_self) {
+    .Call(`_analogs_fft_fields_cpp`, pool_pts, focal_pts, origin, delta, n_nodes, group_sizes, pad_sizes, kernels, masses, field_kernel, exclude_self)
+}
+
+#' Turn per-focal field values into aggregate output columns (FFT engine)
+#'
+#' @param field_vals n_focal x F matrix from .fft_fields_cpp().
+#' @param roles Named list of 0-based field indices (-1 = absent) giving
+#'   which field feeds each accumulator slot; see .fft_build_fields().
+#' @param aggregate_codes,se_code,n_vars,n_covs,n_classes_per_var,lambda As
+#'   for query_analog_index_cpp().
+#' @param has_values Whether y was supplied.
+#' @param user_weight_mean Mean of positive user weights (1 if none); the
+#'   ridge information measure is sum_w / user_weight_mean.
+#' @return n_focal x n_cols matrix in the exact engine's column layout.
+#' @noRd
+.fft_finalize_cpp <- function(field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, user_weight_mean) {
+    .Call(`_analogs_fft_finalize_cpp`, field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, user_weight_mean)
+}
+
 analogs_euclid_cpp <- function(a, b) {
     .Call(`_analogs_analogs_euclid_cpp`, a, b)
 }
