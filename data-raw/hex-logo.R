@@ -145,6 +145,10 @@ line_layers <- function(d, color){
                       alpha = 0.8, size = 0.25))
 }
 
+# vignette mask and distance contours
+bg$dist <- with(bg, sqrt((X)^2 + (Y)^2))
+bg$k <- with(bg, dnorm(dist, sd = 250))
+
 p <- ggplot() +
       geom_raster(data = bg, aes(X, Y, fill = fill)) +
       scale_fill_identity() +
@@ -152,6 +156,10 @@ p <- ggplot() +
       glow_layers(glow_fwd, col$fwd) +
       line_layers(lines_bwd, col$bwd) +
       line_layers(lines_fwd, col$fwd) +
+      geom_contour(data = bg, aes(X, Y, z = k),
+                   color = "white", linewidth = .1, alpha = .5) +
+      geom_raster(data = bg, aes(X, Y, alpha = k), fill = "black") +
+      scale_alpha_continuous(range = 1:0) +
       annotate("point", 0, 0, size = 1.6, color = "white") +
       annotate("text", 0, -0.3 * R, #-0.47 * R,
                label = "analogs", color = "white",
