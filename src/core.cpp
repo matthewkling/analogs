@@ -676,6 +676,13 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               agg_vals,
                               n_total_cols);
 
+            if (has_values) {
+                  const std::size_t n_val = static_cast<std::size_t>(n_ref) * n_vars;
+                  for (std::size_t q = 0; q < n_val; ++q) {
+                        if (ISNAN(values_ptr[q])) { aworker.values_have_na = true; break; }
+                  }
+            }
+
             ANALOGS_PROFILE_RESET();
             parallelFor(0, static_cast<std::size_t>(n_focal), aworker);
             ANALOGS_PROFILE_REPORT("AggWorker (count/mean/regression)");

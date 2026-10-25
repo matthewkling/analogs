@@ -535,6 +535,7 @@ NumericMatrix fft_fields_cpp(NumericMatrix pool_pts, NumericMatrix focal_pts,
 //' @param aggregate_codes,se_code,n_vars,n_covs,n_classes_per_var,lambda As
 //'   for query_analog_index_cpp().
 //' @param has_values Whether y was supplied.
+//' @param values_have_na Whether any y value is NA (per-variable denominators).
 //' @param user_weight_mean Mean of positive user weights (1 if none); the
 //'   ridge information measure is sum_w / user_weight_mean.
 //' @return n_focal x n_cols matrix in the exact engine's column layout.
@@ -545,6 +546,7 @@ NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles,
                                int n_vars, int n_covs,
                                IntegerVector n_classes_per_var,
                                double lambda, bool has_values,
+                               bool values_have_na,
                                double user_weight_mean) {
       using namespace analogs;
 
@@ -554,7 +556,7 @@ NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles,
       }
       const SeCode sc = static_cast<SeCode>(se_code);
       const std::vector<int> ncls(n_classes_per_var.begin(), n_classes_per_var.end());
-      const StatLayout L(acodes, sc, has_values, n_vars, n_covs, ncls);
+      const StatLayout L(acodes, sc, has_values, n_vars, n_covs, ncls, values_have_na);
       const int n_cols = L.n_cols();
       const size_t n_focal = field_vals.nrow();
 
@@ -565,6 +567,9 @@ NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles,
       const int r_count = role("count")[0];
       const int r_sw = role("sw")[0];
       const int r_sw2 = role("sw2")[0];
+      const std::vector<int> r_obs_count = role("obs_count");
+      const std::vector<int> r_obs_sw = role("obs_sw");
+      const std::vector<int> r_obs_sw2 = role("obs_sw2");
       const std::vector<int> r_value = role("value");
       const std::vector<int> r_wm_wy2 = role("wm_wy2");
       const std::vector<int> r_wm_w2y = role("wm_w2y");
@@ -610,6 +615,12 @@ NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles,
             for (size_t v = 0; v < a.wm_sum_w2y2.size(); ++v) a.wm_sum_w2y2[v] = get(r_wm_w2y2[v]);
             a.wm_sum_w2 = a.sum_weights_squared;
             for (size_t b = 0; b < a.tabulate_accum.size(); ++b) a.tabulate_accum[b] = get(r_tab[b]);
+            auto role_at = [](const std::vector<int>& r, size_t v) { return r.empty() ? -1 : r[v]; };
+            for (size_t v = 0; v < a.obs_count.size(); ++v) {
+                  a.obs_count[v]  = get(role_at(r_obs_count, v));
+                  a.obs_sum_w[v]  = get(role_at(r_obs_sw, v));
+                  a.obs_sum_w2[v] = get(role_at(r_obs_sw2, v));
+            }
 
             double* row = agg.data() + i * static_cast<size_t>(n_cols);
             const int col_idx = write_nonregression_stats(L, a, has_values, row);

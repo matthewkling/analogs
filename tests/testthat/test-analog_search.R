@@ -471,3 +471,41 @@ test_that("chunking/progress bars work correctly", {
       }
 
 })
+
+
+
+test_that("value stats skip analogs with a missing response", {
+      # Each variable's stats use only the analogs that observe it, so a
+      # multi-y query with NAs in one variable matches a query on the pool
+      # subset where that variable is observed.
+      set.seed(9)
+      n <- 400
+      pool <- cbind(x = runif(n), y = runif(n), e1 = rnorm(n), e2 = rnorm(n))
+      ya <- rnorm(n)
+      yb <- rnorm(n)
+      yb[sample(n, 80)] <- NA
+      ok <- !is.na(yb)
+      focal <- pool[1:30, ]
+      stats_all <- c("count", "sum", "mean", "weighted_sum", "weighted_mean")
+
+      for (se in c("ess", "design")) {
+            q <- function(pool, y) {
+                  analog_search(focal, pool, y = y, stat = stats_all, se = se,
+                                env = kernel("gaussian", theta = 0.8, max = 2),
+                                coord_type = "projected")
+            }
+            both <- q(pool, cbind(a = ya, b = yb))
+            only_a <- q(pool, ya)
+            only_b <- q(pool[ok, ], yb[ok])
+
+            value_cols <- c("sum", "mean", "weighted_sum", "weighted_mean",
+                            "se_weighted_mean")
+            for (cc in value_cols) {
+                  expect_equal(both[[paste0(cc, "_a")]], only_a[[cc]], tolerance = 1e-10)
+                  expect_equal(both[[paste0(cc, "_b")]], only_b[[cc]], tolerance = 1e-10)
+            }
+            # count describes the neighborhood, not any one variable
+            expect_equal(both$count, only_a$count)
+            expect_false(anyNA(both$weighted_mean_b))
+      }
+})

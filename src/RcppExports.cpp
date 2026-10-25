@@ -101,8 +101,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // fft_finalize_cpp
-NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles, IntegerVector aggregate_codes, int se_code, int n_vars, int n_covs, IntegerVector n_classes_per_var, double lambda, bool has_values, double user_weight_mean);
-RcppExport SEXP _analogs_fft_finalize_cpp(SEXP field_valsSEXP, SEXP rolesSEXP, SEXP aggregate_codesSEXP, SEXP se_codeSEXP, SEXP n_varsSEXP, SEXP n_covsSEXP, SEXP n_classes_per_varSEXP, SEXP lambdaSEXP, SEXP has_valuesSEXP, SEXP user_weight_meanSEXP) {
+NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles, IntegerVector aggregate_codes, int se_code, int n_vars, int n_covs, IntegerVector n_classes_per_var, double lambda, bool has_values, bool values_have_na, double user_weight_mean);
+RcppExport SEXP _analogs_fft_finalize_cpp(SEXP field_valsSEXP, SEXP rolesSEXP, SEXP aggregate_codesSEXP, SEXP se_codeSEXP, SEXP n_varsSEXP, SEXP n_covsSEXP, SEXP n_classes_per_varSEXP, SEXP lambdaSEXP, SEXP has_valuesSEXP, SEXP values_have_naSEXP, SEXP user_weight_meanSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -115,8 +115,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< IntegerVector >::type n_classes_per_var(n_classes_per_varSEXP);
     Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
     Rcpp::traits::input_parameter< bool >::type has_values(has_valuesSEXP);
+    Rcpp::traits::input_parameter< bool >::type values_have_na(values_have_naSEXP);
     Rcpp::traits::input_parameter< double >::type user_weight_mean(user_weight_meanSEXP);
-    rcpp_result_gen = Rcpp::wrap(fft_finalize_cpp(field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, user_weight_mean));
+    rcpp_result_gen = Rcpp::wrap(fft_finalize_cpp(field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, values_have_na, user_weight_mean));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -150,7 +151,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 22},
     {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 11},
     {"_analogs_fft_fields_cpp", (DL_FUNC) &_analogs_fft_fields_cpp, 11},
-    {"_analogs_fft_finalize_cpp", (DL_FUNC) &_analogs_fft_finalize_cpp, 10},
+    {"_analogs_fft_finalize_cpp", (DL_FUNC) &_analogs_fft_finalize_cpp, 11},
     {"_analogs_analogs_euclid_cpp", (DL_FUNC) &_analogs_analogs_euclid_cpp, 2},
     {"_analogs_analogs_haversine_cpp", (DL_FUNC) &_analogs_analogs_haversine_cpp, 2},
     {NULL, NULL, 0}

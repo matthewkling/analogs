@@ -42,12 +42,13 @@ query_analog_index_cpp <- function(index_list, focal_mm, ref_mm, k, max_env, max
 #' @param aggregate_codes,se_code,n_vars,n_covs,n_classes_per_var,lambda As
 #'   for query_analog_index_cpp().
 #' @param has_values Whether y was supplied.
+#' @param values_have_na Whether any y value is NA (per-variable denominators).
 #' @param user_weight_mean Mean of positive user weights (1 if none); the
 #'   ridge information measure is sum_w / user_weight_mean.
 #' @return n_focal x n_cols matrix in the exact engine's column layout.
 #' @noRd
-.fft_finalize_cpp <- function(field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, user_weight_mean) {
-    .Call(`_analogs_fft_finalize_cpp`, field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, user_weight_mean)
+.fft_finalize_cpp <- function(field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, values_have_na, user_weight_mean) {
+    .Call(`_analogs_fft_finalize_cpp`, field_vals, roles, aggregate_codes, se_code, n_vars, n_covs, n_classes_per_var, lambda, has_values, values_have_na, user_weight_mean)
 }
 
 analogs_euclid_cpp <- function(a, b) {

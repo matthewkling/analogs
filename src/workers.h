@@ -282,6 +282,10 @@ struct AggWorker : public Worker {
       // R level). Used for leave-one-out cross-validation.
       bool exclude_self;
 
+      // True when any response value is NA: value stats then use per-variable
+      // denominators (see focal_stats.h). Set by the caller after construction.
+      bool values_have_na = false;
+
       std::vector<double>& agg; // flat output: size = n_focal * n_stats
       int n_stats;              // number of stats to compute (total columns in output)
 

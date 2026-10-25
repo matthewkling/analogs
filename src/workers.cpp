@@ -467,7 +467,9 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
 
       // Output layout and stat bookkeeping (shared with the FFT engine; see
       // focal_stats.h). Local aliases keep the accumulation loop below terse.
-      const StatLayout L(acodes, se_code, has_values, n_vars, n_covs, n_classes_per_var);
+      const StatLayout L(acodes, se_code, has_values, n_vars, n_covs, n_classes_per_var,
+                         values_have_na);
+      const bool per_var_obs = L.per_var_obs;
       const int n_regular = L.n_regular;
       const int n_value = L.n_value;
       const std::vector<int>& regular_stat_positions = L.regular_pos;
@@ -720,6 +722,13 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         if (has_values && n_value > 0) {
                               for (int v = 0; v < n_vars; ++v) {
                                     const double val = values_ptr[j + v * values_stride];
+                                    if (ISNAN(val)) continue;  // missing response: skip for v
+
+                                    if (per_var_obs) {
+                                          acc.obs_count[v] += static_cast<int>(sample_weight);
+                                          acc.obs_sum_w[v] += combined_weight;
+                                          acc.obs_sum_w2[v] += combined_weight * combined_weight;
+                                    }
 
                                     for (int idx = 0; idx < n_value; ++idx) {
                                           int s = value_stat_positions[idx];
@@ -739,15 +748,12 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                     // weighted_mean SE accumulators (extra work only
                                     // when weighted_mean SE is requested)
                                     if (wm_se) {
-                                          // NA y is skipped for SE too; ISNAN test
-                                          if (!ISNAN(val)) {
-                                                const double w = combined_weight;
-                                                wm_sum_wy2[v] += w * val * val;
-                                                if (wm_se_design) {
-                                                      const double w2 = w * w;
-                                                      wm_sum_w2y[v]  += w2 * val;
-                                                      wm_sum_w2y2[v] += w2 * val * val;
-                                                }
+                                          const double w = combined_weight;
+                                          wm_sum_wy2[v] += w * val * val;
+                                          if (wm_se_design) {
+                                                const double w2 = w * w;
+                                                wm_sum_w2y[v]  += w2 * val;
+                                                wm_sum_w2y2[v] += w2 * val * val;
                                           }
                                     }
                               }

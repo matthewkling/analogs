@@ -14,6 +14,13 @@
 //   [tabulate]        for each y variable: one column per class
 //   [regression]      for each y variable: intercept + slopes; then, when SEs
 //                     are requested, the same block of SEs
+//
+// Missing responses: an analog whose response v is NA is skipped by every
+// statistic of variable v. When any response value is NA (`per_var_obs`),
+// each variable's count, weight sum, and squared-weight sum are accumulated
+// over the analogs that observe it, and used as that variable's denominators
+// (mean, weighted_mean, and the weighted_mean SE). Otherwise the shared
+// neighborhood totals serve every variable.
 
 #include <Rcpp.h>
 #include <vector>
@@ -49,9 +56,12 @@ struct StatLayout {
       int reg_dim;                   // n_covs + 1 when regression is requested, else 0
       bool reg_se;
 
+      bool per_var_obs;              // per-variable denominators (any NA response)
+
       StatLayout(const std::vector<AggregateCode>& acodes_in, SeCode se_code_in,
                  bool has_values, int n_vars_in, int n_covs_in,
-                 const std::vector<int>& n_classes_per_var_in)
+                 const std::vector<int>& n_classes_per_var_in,
+                 bool values_have_na = false)
             : acodes(acodes_in), se_code(se_code_in), n_vars(n_vars_in),
               n_covs(n_covs_in), n_classes_per_var(n_classes_per_var_in) {
 
@@ -100,6 +110,8 @@ struct StatLayout {
 
             reg_dim = has_regression ? (n_covs + 1) : 0;
             reg_se = want_se && has_regression;
+
+            per_var_obs = values_have_na && has_values && n_value > 0;
       }
 
       // Total output columns per focal.
@@ -123,6 +135,9 @@ struct FocalAccum {
       std::vector<double> wm_sum_w2y;     // n_vars (DESIGN SE)
       std::vector<double> wm_sum_w2y2;    // n_vars (DESIGN SE)
       double wm_sum_w2 = 0.0;             // DESIGN SE
+      std::vector<double> obs_count;      // n_vars, when per_var_obs: count of observing analogs
+      std::vector<double> obs_sum_w;      // n_vars, when per_var_obs: their weight sum
+      std::vector<double> obs_sum_w2;     // n_vars, when per_var_obs: their squared-weight sum
 
       void reset(const StatLayout& L, bool has_values) {
             count = 0.0;
@@ -147,6 +162,14 @@ struct FocalAccum {
                         wm_sum_w2y.assign(L.n_vars, 0.0);
                         wm_sum_w2y2.assign(L.n_vars, 0.0);
                   }
+            }
+            obs_count.clear();
+            obs_sum_w.clear();
+            obs_sum_w2.clear();
+            if (L.per_var_obs) {
+                  obs_count.assign(L.n_vars, 0.0);
+                  obs_sum_w.assign(L.n_vars, 0.0);
+                  obs_sum_w2.assign(L.n_vars, 0.0);
             }
       }
 };
@@ -183,6 +206,12 @@ inline int write_nonregression_stats(const StatLayout& L, const FocalAccum& a,
       // WEIGHTED_MEAN when requested.
       if (has_values && L.n_value > 0) {
             for (int v = 0; v < L.n_vars; ++v) {
+                  // Variable v's denominators (see header comment)
+                  const double cnt  = L.per_var_obs ? a.obs_count[v]  : a.count;
+                  const double sw   = L.per_var_obs ? a.obs_sum_w[v]  : a.sum_weights;
+                  const double sw2  = L.per_var_obs ? a.obs_sum_w2[v] : a.sum_weights_squared;
+                  const double w2   = L.per_var_obs ? a.obs_sum_w2[v] : a.wm_sum_w2;
+
                   for (int idx = 0; idx < L.n_value; ++idx) {
                         const AggregateCode code = L.acodes[L.value_pos[idx]];
                         const int accum_idx = v * L.n_value + idx;
@@ -191,28 +220,27 @@ inline int write_nonregression_stats(const StatLayout& L, const FocalAccum& a,
                         if (code == AggregateCode::SUM) {
                               result = a.value_accum[accum_idx];
                         } else if (code == AggregateCode::MEAN) {
-                              result = (a.count > 0) ? (a.value_accum[accum_idx] / a.count) : NA_REAL;
+                              result = (cnt > 0) ? (a.value_accum[accum_idx] / cnt) : NA_REAL;
                         } else if (code == AggregateCode::WEIGHTED_SUM) {
                               result = a.value_accum[accum_idx];
                         } else if (code == AggregateCode::WEIGHTED_MEAN) {
-                              result = (a.sum_weights > 0) ? (a.value_accum[accum_idx] / a.sum_weights) : NA_REAL;
+                              result = (sw > 0) ? (a.value_accum[accum_idx] / sw) : NA_REAL;
                         }
 
                         row[col_idx++] = result;
 
                         if (L.wm_se && idx == L.wm_value_idx) {
                               double se_val = NA_REAL;
-                              if (a.sum_weights > 0.0 && !ISNAN(result)) {
+                              if (sw > 0.0 && !ISNAN(result)) {
                                     const double ybar = result;
                                     const double sum_wy2 = a.wm_sum_wy2[v];
 
                                     if (L.se_code == SeCode::ESS) {
                                           // n_eff = (Σw)^2 / Σw^2;  var_w(y) = Σwy^2/Σw - ybar^2
                                           // SE = sqrt(var_w / n_eff)
-                                          if (a.sum_weights_squared > 0.0) {
-                                                const double n_eff =
-                                                      (a.sum_weights * a.sum_weights) / a.sum_weights_squared;
-                                                double var_w = (sum_wy2 / a.sum_weights) - (ybar * ybar);
+                                          if (sw2 > 0.0) {
+                                                const double n_eff = (sw * sw) / sw2;
+                                                double var_w = (sum_wy2 / sw) - (ybar * ybar);
                                                 if (var_w < 0.0) var_w = 0.0;  // fp guard
                                                 if (n_eff > 0.0 && std::isfinite(var_w)) {
                                                       se_val = std::sqrt(var_w / n_eff);
@@ -223,10 +251,10 @@ inline int write_nonregression_stats(const StatLayout& L, const FocalAccum& a,
                                           //   numerator = Σw^2 y^2 - 2 ybar Σw^2 y + ybar^2 Σw^2
                                           double num = a.wm_sum_w2y2[v]
                                                 - 2.0 * ybar * a.wm_sum_w2y[v]
-                                                + ybar * ybar * a.wm_sum_w2;
+                                                + ybar * ybar * w2;
                                           if (num < 0.0) num = 0.0;  // fp guard
                                           if (std::isfinite(num)) {
-                                                se_val = std::sqrt(num) / a.sum_weights;
+                                                se_val = std::sqrt(num) / sw;
                                           }
                                     }
                               }

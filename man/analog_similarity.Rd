@@ -48,7 +48,10 @@ values for each reference location (must have same number of rows/cells
 as \code{pool}). Required for stats \code{"sum"}, \code{"mean"}, \code{"weighted_sum"},
 \code{"weighted_mean"}, \code{"regression"}, and \code{"tabulate"}. Numeric for
 continuous stats; factor or coercible-to-factor (character, integer,
-logical) for \code{stat = "tabulate"}.}
+logical) for \code{stat = "tabulate"}. Missing (\code{NA}) values are skipped: each
+\code{y} variable's statistics use only the analogs that observe it, including
+in their denominators (for \code{"mean"}, \code{"weighted_mean"}, and
+\code{"regression"}). \code{"count"} still counts every analog in the neighborhood.}
 
 \item{weight}{Optional pool site weights for use in aggregation.
 Numeric vector, single-column matrix/data.frame, or single-layer

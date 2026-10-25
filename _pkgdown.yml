@@ -30,6 +30,7 @@ reference:
 - contents:
   - tiled_analog_search
   - tune_index_res
+  - fft_method
 
 - title: Other
 - contents:

@@ -193,9 +193,6 @@ test_that("fft rejects unsupported configurations", {
                    "downsample")
       expect_error(try_fft(stat = "regression", covariates = d$covs, se = "design"),
                    "design")
-      y_na <- d$y[, "a"]
-      y_na[1] <- NA
-      expect_error(try_fft(y = y_na), "missing")
 
       four <- cbind(d$pool, e3 = rnorm(nrow(d$pool)), e4 = rnorm(nrow(d$pool)))
       expect_error(analog_search(four, four, y = d$y[, "a"], env = env,
@@ -335,4 +332,75 @@ test_that("fft works with projected raster inputs and normalization", {
       expect_identical(is.na(e), is.na(f))
       ok <- is.finite(e) & e > stats::quantile(e, 0.05, na.rm = TRUE)
       expect_lt(stats::median(abs(f[ok] - e[ok]) / e[ok]), 0.03)
+})
+
+
+test_that("fft matches exact for value stats with missing responses", {
+      d <- fft_test_data()
+      y <- d$y
+      y[sample(nrow(y), 300), "b"] <- NA
+      r <- run_both(d$focal, d$pool, y = y,
+                    env = kernel("gaussian", theta = 0.4, max = 1.5),
+                    stat = c("count", "sum", "mean", "weighted_mean"),
+                    se = "ess", coord_type = "projected")
+      ok <- r$exact$count >= 30
+      for (col in c("weighted_mean_a", "weighted_mean_b", "se_weighted_mean_b")) {
+            expect_lt(fft_rel_err(r$exact, r$fft, col, ok), 0.02)
+      }
+      for (col in c("sum_b", "mean_b")) {
+            expect_lt(fft_rel_err(r$exact, r$fft, col, ok), 0.1)
+      }
+})
+
+
+test_that("fft check works with leave-one-out", {
+      # Narrow kernel and noisy y, so each focal's own row carries real weight:
+      # if the exact rerun on the checked subset excluded the wrong pool rows,
+      # its error would be on the order of the leave-one-out effect itself.
+      set.seed(1)
+      n <- 1500
+      pool <- cbind(x = runif(n), y = runif(n), e1 = rnorm(n), e2 = rnorm(n))
+      y <- pool[, 3] + rnorm(n, sd = 2)
+      args <- list(pool, pool, y = y, env = kernel("gaussian", theta = 0.15, max = 0.6),
+                   stat = c("count", "weighted_mean"), coord_type = "projected")
+      loo  <- do.call(analog_search, c(args, exclude_self = TRUE))
+      self <- do.call(analog_search, c(args, exclude_self = FALSE))
+      ok <- is.finite(loo$weighted_mean) & is.finite(self$weighted_mean)
+      loo_gap <- sqrt(mean((loo$weighted_mean[ok] - self$weighted_mean[ok])^2))
+
+      res <- do.call(analog_search, c(args, exclude_self = TRUE,
+                                      method = list(fft_method(check = 300))))
+      chk <- attr(res, "fft_check")
+      expect_identical(chk$column, c("count", "weighted_mean"))
+      expect_lt(chk$rms_err[2], loo_gap / 10)
+})
+
+
+
+test_that("fft runs through tiled_analog_search and matches untiled fft", {
+      skip_if_not_installed("terra")
+      set.seed(4)
+      r <- terra::rast(nrows = 80, ncols = 80, ext = terra::ext(0, 8e4, 0, 8e4),
+                       crs = "EPSG:32633")
+      xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+      e1 <- r; terra::values(e1) <- 3 * xy[, 1] / 8e4 + rnorm(terra::ncell(r), sd = 0.2)
+      e2 <- r; terra::values(e2) <- 2 * xy[, 2] / 8e4 + rnorm(terra::ncell(r), sd = 0.2)
+      pool <- c(e1, e2); names(pool) <- c("e1", "e2")
+      fut <- pool + 0.3
+      y <- e1 + e2; names(y) <- "y"
+      args <- list(geog = kernel(max = 1e4),
+                   env = kernel("gaussian", theta = 0.15, max = 0.45),
+                   stat = c("weighted_mean", "sum_weights"), method = "fft")
+
+      untiled <- do.call(analog_impact, c(list(x = fut, pool = pool, y = y), args))
+      tiled <- do.call(tiled_analog_search,
+                       c(list(x = fut, pool = pool, y = y, n_tiles = 4,
+                              fun = analog_impact, progress = FALSE), args))
+
+      u <- terra::values(untiled[["weighted_mean"]])[, 1]
+      t <- terra::values(tiled[["weighted_mean"]])[, 1]
+      expect_identical(is.finite(u), is.finite(t))
+      ok <- is.finite(u)
+      # Tiles place grid nodes differently, so results differ by binning error only
+      expect_lt(stats::median(abs(t[ok] - u[ok])) / stats::sd(u[ok]), 0.01)
 })

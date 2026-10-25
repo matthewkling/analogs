@@ -13,47 +13,122 @@
 #'
 #' Configures the binned-convolution backend for [analog_search()] and its
 #' wrappers. Pass the result as `method = fft_method(...)`, or use
-#' `method = "fft"` for the defaults.
+#' `method = "fft"` for the defaults. The FFT method computes the same
+#' kernel-weighted statistics as the exact method, approximately, without
+#' visiting every focal-analog pair, which can make it much faster for large
+#' problems.
 #'
-#' The FFT method evaluates kernel-weighted sums for all focals at once by
-#' binning the pool onto a regular grid over the active analog axes, convolving
-#' with the kernel via fast Fourier transforms, and interpolating the result at
-#' each focal (Wand 1994). Its cost depends on the grid size rather than on the
-#' number of focal-analog pairs, so it is much faster than the exact engine
-#' when there are many focals and kernels are wide, and it gives
-#' approximately the same results. Binning error shrinks roughly with the
-#' square of `bin` for smooth (Gaussian, inverse) kernels, and in proportion to
-#' `bin` for hard edges (uniform kernels, `max`/`min` cutoffs, `count`).
+#' ## How it works
 #'
-#' A family (environment or geography) gets grid axes when its kernel weights
-#' or applies a distance limit, so the grid has up to two geographic plus up
-#' to three environmental axes. Grid size grows with the product of the
-#' per-axis node counts, which makes combined geographic and environmental
-#' kernels the most demanding case; `max_cells` guards memory, and a coarser
-#' `bin` or the exact method are the alternatives when it is exceeded. The
-#' grid covers only the region where focals and pool points are within each
-#' other's reach, so focals confined to part of the pool's extent cost less.
+#' Every statistic the package computes for a focal is built from
+#' kernel-weighted sums over the pool, such as the sum of weights or the sum
+#' of weights times `y`. The exact method evaluates these sums focal by focal.
+#' The FFT method (a multivariate version of binned kernel estimation; Wand
+#' 1994) evaluates them for all focals at once using an internal grid. This
+#' grid is not the input raster: it is a coarse regular lattice spanning the
+#' analog space, with one axis per environmental variable when the
+#' environmental kernel weights or applies a limit, and two geographic axes
+#' when the geographic kernel does. Nodes are spaced at a fraction (`bin`) of
+#' each kernel's bandwidth. For example, with a geographic `theta` of 400 km
+#' over a 4000 km domain and `bin = 0.25`, the geographic axes have nodes
+#' every 100 km, about 40 per axis. Each sum is then computed in three steps:
+#'
+#' \enumerate{
+#'   \item **Bin.** Each pool point's contribution is split among the grid
+#'     nodes surrounding it, in proportion to its closeness to each (linear
+#'     binning). The grid then holds how much pool "mass" lies near each node.
+#'   \item **Convolve.** Each node is assigned the kernel-weighted sum of the
+#'     mass at every node: the value a hypothetical focal sitting exactly on
+#'     that node would get. Done directly this would cost (number of nodes)^2
+#'     operations; the fast Fourier transform does it in about (number of
+#'     nodes) x log(number of nodes), by transforming the grid and the kernel,
+#'     multiplying them, and transforming back. The grid is padded by one
+#'     kernel width of empty nodes along each axis, so that mass near one edge
+#'     does not wrap around to the opposite edge.
+#'   \item **Read off.** Each focal's value is interpolated from the grid nodes
+#'     surrounding its exact location and environment (multilinear
+#'     interpolation).
+#' }
+#'
+#' Because the convolved surface is a sum of kernel-shaped bumps, it changes
+#' little between nodes spaced well within the kernel's width, so the coarse
+#' grid loses little accuracy. The output keeps the resolution of the focal
+#' data: two neighboring raster cells with different climates read off
+#' different parts of the environmental axes and can get quite different
+#' results. Statistics that need several sums (for example, a regression
+#' needs weighted cross-products of the covariates and `y`) repeat the bin and
+#' convolve steps once per sum. For leave-one-out (`exclude_self = TRUE`),
+#' each focal's own binned contribution is subtracted after read-off.
+#'
+#' The grid covers only the region where focals and pool points are within
+#' each other's reach, so focals confined to part of the pool's extent cost
+#' less. A family's nodes are spaced at `bin * theta` (`bin * max` for a
+#' uniform kernel, or `bin * min` if a geographic `min` is smaller than
+#' `theta`), shrunk slightly so that nodes fall exactly on the ends of the
+#' range.
+#'
+#' ## Accuracy and cost
+#'
+#' `bin` controls the trade-off between accuracy and cost. For the Gaussian
+#' kernel, binning error shrinks with the square of `bin`; for the inverse
+#' kernel (which has a sharp peak at zero distance) and for hard edges
+#' (uniform kernels, `max`/`min` cutoffs where the weight is still
+#' appreciable, `count`) it shrinks roughly in proportion to `bin`. Hard limits
+#' are anti-aliased on the grid (each node counts in proportion to the
+#' fraction of its cell inside the limit), which reduces but does not remove
+#' this edge error. Halving `bin` multiplies the number of grid nodes by `2^d`
+#' for `d` active axes. The default `bin = 0.25` typically gives errors well
+#' under 1%, but error at a given `bin` is larger in sparse neighborhoods and
+#' for ratio statistics such as regression coefficients; use `check` to
+#' measure it.
+#'
+#' ## When to use it
+#'
+#' The FFT method's cost is set by the size of its grid rather than by the
+#' number of focal-analog pairs. Each axis has roughly `range / (bin * theta)`
+#' nodes, where `range` is the data's extent along that axis, and grid size is
+#' the product over axes. So what matters is how many axes are active and how
+#' narrow the kernels are relative to the data's range:
+#'
+#' \itemize{
+#'   \item **Two active axes** (e.g. two environmental variables, or a
+#'     geographic kernel alone): the grid stays small even for narrow kernels,
+#'     and the FFT method is typically one to three orders of magnitude faster
+#'     than the exact method for large numbers of focals.
+#'   \item **Three or more active axes**: grid size grows with the product of
+#'     the range-to-bandwidth ratios across axes. The FFT method pays off when
+#'     the kernels are wide relative to the data's range. When a kernel is
+#'     narrow, analog neighborhoods are small, the exact method's search index
+#'     is efficient, and the FFT grid may exceed `max_cells`.
+#' }
+#'
+#' Speedups also shrink with more threads, since the exact method
+#' parallelizes over focals more completely than the FFT method. When in
+#' doubt, time both on a subset of focals. If `max_cells` is exceeded, use a
+#' coarser `bin` or the exact method; for raster inputs,
+#' [tiled_analog_search()] accepts `method = "fft"` and builds a separate,
+#' smaller grid for each tile and its halo (spanning only the environments
+#' found there), which is the most effective way to cut peak memory when
+#' geographic axes are active.
+#'
+#' ## Requirements
 #'
 #' Geographic kernels require projected coordinates (ideally an equal-area
 #' projection), since on a longitude/latitude grid a fixed-distance kernel
-#' changes shape with latitude. The FFT method requires `select = "all"`, does
-#' not support `stat = "none"`, `x_cov`, or design-based standard errors for
-#' `"regression"`, and requires `y` without missing values for `"sum"`,
-#' `"mean"`, `"weighted_sum"`, and `"weighted_mean"`. Gaussian kernels without
-#' a `max` are truncated at 7 `theta`. Hard limits are anti-aliased on the
-#' grid (each grid cell counts in proportion to its area inside the limit),
-#' but their error still shrinks only in proportion to `bin`; a geographic
-#' `min` (e.g. a cross-validation buffer) sets the geographic grid spacing
-#' when it is smaller than `theta`.
+#' changes shape with latitude. The FFT method requires `select = "all"` and
+#' a raw (non-index) `pool`, and does not support `stat = "none"`, `x_cov`,
+#' `downsample < 1`, or design-based standard errors for `"regression"`.
+#' Gaussian kernels without a `max` are truncated at 7 `theta`.
 #'
 #' @param bin Grid spacing, as a fraction of each kernel's scale: `theta` for
-#'   Gaussian and inverse kernels, `max` for uniform kernels. Default `0.25`.
+#'   Gaussian and inverse kernels, `max` for uniform kernels (see Details).
+#'   Default `0.25`.
 #' @param check Number of randomly chosen focals to recompute with the exact
 #'   engine for an accuracy report, attached to the output as the
-#'   `fft_check` attribute (see [metadata()]). Default `0` (no check). Not
-#'   available with `exclude_self = TRUE`.
-#' @param max_cells Upper limit on the number of padded grid nodes, as a
-#'   guard against memory exhaustion. Default `1e8`.
+#'   `fft_check` attribute (see [metadata()]). Default `0` (no check).
+#' @param max_cells Upper limit on the number of grid nodes, as a guard
+#'   against memory exhaustion (each node of each grid takes 8 bytes).
+#'   Default `1e8`.
 #'
 #' @return An object of class `"analog_fft_method"`.
 #'
@@ -148,12 +223,6 @@ print.analog_fft_method <- function(x, ...) {
             stop('`method = "fft"` supports at most 3 environmental variables ',
                  "(found ", n_env, ").", call. = FALSE)
       }
-      if (!is.null(values_mat) && anyNA(values_mat) &&
-          any(stat %in% c("sum", "mean", "weighted_sum", "weighted_mean"))) {
-            stop('`method = "fft"` requires `y` without missing values for ',
-                 '"sum", "mean", "weighted_sum", and "weighted_mean".',
-                 call. = FALSE)
-      }
 
       # Grid axes: geography first, then environment (each only if active).
       fams <- list()
@@ -174,7 +243,8 @@ print.analog_fft_method <- function(x, ...) {
             stop("The FFT grid would have ", format(prod(as.numeric(n_nodes)), big.mark = ","),
                  " nodes, more than `max_cells` (",
                  format(fft$max_cells, big.mark = ","), "). Increase `bin` in ",
-                 "fft_method(), raise `max_cells`, or use the exact method.",
+                 "fft_method(), raise `max_cells`, run raster inputs through ",
+                 "tiled_analog_search(), or use the exact method.",
                  call. = FALSE)
       }
       cols <- unlist(lapply(fams, `[[`, "cols"), use.names = FALSE)
@@ -209,6 +279,7 @@ print.analog_fft_method <- function(x, ...) {
             n_classes_per_var = as.integer(n_classes_per_var),
             lambda            = lambda,
             has_values        = !is.null(values_mat),
+            values_have_na    = !is.null(values_mat) && anyNA(values_mat),
             user_weight_mean  = uw_mean
       )
 
@@ -228,23 +299,16 @@ print.analog_fft_method <- function(x, ...) {
       )
 
       if (fft$check > 0L) {
-            if (isTRUE(exclude_self)) {
-                  warning("`check` in fft_method() is not available with ",
-                          "`exclude_self = TRUE`; skipping the accuracy check.",
-                          call. = FALSE)
-            } else {
-                  rows <- sort(sample.int(nrow(focal), min(fft$check, nrow(focal))))
-                  exact <- exact_fn(rows)
-                  approx <- res[rows, , drop = FALSE]
-                  err <- approx - exact
-                  attr(res, "fft_check") <- data.frame(
-                        column      = seq_len(ncol(res)),
-                        n           = colSums(is.finite(err)),
-                        max_abs_err = suppressWarnings(apply(abs(err), 2, max, na.rm = TRUE)),
-                        rms_err     = sqrt(colMeans(err^2, na.rm = TRUE)),
-                        rms_exact   = sqrt(colMeans(exact^2, na.rm = TRUE))
-                  )
-            }
+            rows <- sort(sample.int(nrow(focal), min(fft$check, nrow(focal))))
+            exact <- exact_fn(rows)
+            err <- res[rows, , drop = FALSE] - exact
+            attr(res, "fft_check") <- data.frame(
+                  column      = seq_len(ncol(res)),
+                  n           = colSums(is.finite(err)),
+                  max_abs_err = suppressWarnings(apply(abs(err), 2, max, na.rm = TRUE)),
+                  rms_err     = sqrt(colMeans(err^2, na.rm = TRUE)),
+                  rms_exact   = sqrt(colMeans(exact^2, na.rm = TRUE))
+            )
       }
 
       res
@@ -450,6 +514,21 @@ print.analog_fft_method <- function(x, ...) {
             roles$wm_w2y  <- vapply(seq_len(n_vars), function(v) add("K2", c("pw", "pw", yv(v))), integer(1))
             roles$wm_w2y2 <- vapply(seq_len(n_vars), function(v) add("K2", c("pw", "pw", yv(v), yv(v))), integer(1))
       }
+      # Per-variable denominators when any response is missing (see
+      # focal_stats.h): fields over the analogs observing each variable, or the
+      # shared fields for variables with no missing values.
+      if (n_vars > 0L && anyNA(values_mat) && length(value_stats) > 0L) {
+            has_na <- colSums(is.na(values_mat)) > 0
+            per_var <- function(shared, kern, toks) {
+                  if (shared < 0L) return(integer(0))
+                  vapply(seq_len(n_vars), function(v) {
+                        if (has_na[v]) add(kern, c(toks, paste0("o", v))) else shared
+                  }, integer(1))
+            }
+            roles$obs_count <- per_var(roles$count, "I", character(0))
+            roles$obs_sw    <- per_var(roles$sw, "K", "pw")
+            roles$obs_sw2   <- per_var(roles$sw2, "K2", c("pw", "pw"))
+      }
       roles$tab <- if ("tabulate" %in% stat) unlist(lapply(seq_len(n_vars), function(v) {
             vapply(seq_len(n_classes_per_var[v]), function(k) add("K", c("pw", paste0("c", v, "_", k))), integer(1))
       }), use.names = FALSE)
@@ -477,7 +556,8 @@ print.analog_fft_method <- function(x, ...) {
             }
       }
 
-      slots <- c("count", "sw", "sw2", "value", "wm_wy2", "wm_w2y", "wm_w2y2", "tab",
+      slots <- c("count", "sw", "sw2", "obs_count", "obs_sw", "obs_sw2",
+                 "value", "wm_wy2", "wm_w2y", "wm_w2y2", "tab",
                  "xtwx", "xtwy", "reg_wy2", "own", "own_xtwx", "own_sw", "own_sw2")
       roles <- lapply(stats::setNames(slots, slots), function(s) as.integer(roles[[s]] %||% integer(0)))
 

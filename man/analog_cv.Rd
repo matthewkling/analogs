@@ -124,6 +124,13 @@ around each focal. Choosing \code{min} on the order of the autocorrelation
 range of the residuals gives a less biased estimate of predictive skill
 than either plain LOO or unblocked k-fold. See \code{\link[=kernel]{kernel()}} for details.
 
+For speed, pass \code{method = "fft"} (or an \code{\link[=fft_method]{fft_method()}} object) through
+\code{...}. All CV methods support it, including buffered LOO; the FFT method
+removes each focal's own contribution from its binned sums. When tuning a
+kernel bandwidth by repeating CV over many candidate values, running the
+sweep with a coarser \code{fft_method(bin = 0.4)} is usually accurate enough to
+rank the candidates, followed by a final fit at the default \code{bin}.
+
 Supported functions: \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_regression]{analog_regression()}}, and
 \code{\link[=analog_search]{analog_search()}}. Other \verb{analog_*()} functions have no \code{y} input and
 thus no prediction to validate.

@@ -29,7 +29,10 @@
 #'   as `pool`). Required for stats `"sum"`, `"mean"`, `"weighted_sum"`,
 #'   `"weighted_mean"`, `"regression"`, and `"tabulate"`. Numeric for
 #'   continuous stats; factor or coercible-to-factor (character, integer,
-#'   logical) for `stat = "tabulate"`.
+#'   logical) for `stat = "tabulate"`. Missing (`NA`) values are skipped: each
+#'   `y` variable's statistics use only the analogs that observe it, including
+#'   in their denominators (for `"mean"`, `"weighted_mean"`, and
+#'   `"regression"`). `"count"` still counts every analog in the neighborhood.
 #'
 #' @param covariates Optional matrix/data.frame or SpatRaster giving
 #'   covariate values for each reference location (must have same number of
