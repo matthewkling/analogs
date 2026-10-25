@@ -31,6 +31,7 @@ analog_search(
   env_res_adj = "auto",
   cell_area_weight = "auto",
   mean_cell_area = NULL,
+  method = "exact",
   n_threads = NULL,
   progress = FALSE
 )
@@ -71,7 +72,11 @@ analog_search(
   rows/cells as `pool`). Required for stats `"sum"`, `"mean"`,
   `"weighted_sum"`, `"weighted_mean"`, `"regression"`, and `"tabulate"`.
   Numeric for continuous stats; factor or coercible-to-factor
-  (character, integer, logical) for `stat = "tabulate"`.
+  (character, integer, logical) for `stat = "tabulate"`. Missing (`NA`)
+  values are skipped: each `y` variable's statistics use only the
+  analogs that observe it, including in their denominators (for
+  `"mean"`, `"weighted_mean"`, and `"regression"`). `"count"` still
+  counts every analog in the neighborhood.
 
 - covariates:
 
@@ -332,6 +337,19 @@ analog_search(
   [`build_analog_index()`](https://matthewkling.github.io/analogs/reference/build_analog_index.md)
   for details.
 
+- method:
+
+  Computation method: `"exact"` (default) visits every focal-analog
+  pair; `"fft"`, or an
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+  object for custom settings, evaluates kernel-weighted sums for all
+  focals at once by binned convolution, which is much faster for large
+  problems and gives approximately the same results. The FFT method
+  requires `select = "all"` and a raw (non-index) `pool`, and ignores
+  `geog_res_adj` / `env_res_adj`; see
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+  for its other requirements.
+
 - n_threads:
 
   Optional integer number of threads to use for the computation. If
@@ -449,6 +467,10 @@ mind:
   is tuned for optimal performance.
 
 - Parallel processing is available via the `n_threads` parameter.
+
+- For kernel-weighted aggregation over many focals, `method = "fft"`
+  replaces pairwise distance computations with binned convolution (see
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)).
 
 - You can `downsample` prohibitively large reference pool datasets to
   improve speed and memory, using a stratified sampling scheme that

@@ -18,6 +18,7 @@ analog_availability(
   env_res_adj = "auto",
   geog_res_adj = "auto",
   cell_area_weight = "auto",
+  method = "exact",
   n_threads = NULL,
   downsample = 1,
   seed = NULL,
@@ -163,6 +164,19 @@ analog_availability(
   this argument must agree with the index's stored configuration:
   `cell_area_weight = FALSE` errors if the index was built with
   cell-area weighting on (rebuild the index instead).
+
+- method:
+
+  Computation method: `"exact"` (default) visits every focal-analog
+  pair; `"fft"`, or an
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+  object for custom settings, evaluates kernel-weighted sums for all
+  focals at once by binned convolution, which is much faster for large
+  problems and gives approximately the same results. The FFT method
+  requires `select = "all"` and a raw (non-index) `pool`, and ignores
+  `geog_res_adj` / `env_res_adj`; see
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+  for its other requirements.
 
 - n_threads:
 

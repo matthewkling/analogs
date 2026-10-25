@@ -141,7 +141,9 @@ for detail.
 
 - `binning_method`:
 
-  Internal indexing method; one of `"lattice"` or `"lattice_ecef"`.
+  Internal indexing method; one of `"lattice"`, `"lattice_ecef"`, or
+  `"fft"` (see
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)).
 
 - `total_bins`, `n_bins_nonempty`, `min_bin_occupancy`,
   `max_bin_occupancy`, `avg_bin_occupancy`,
@@ -165,6 +167,23 @@ for detail.
 
   Integer vector of realized bins per axis (geographic axes first, then
   environment), showing how the budget was distributed.
+
+### FFT method diagnostics
+
+Present when `method = "fft"` (see
+[`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)).
+
+- `fft_grid`:
+
+  Data frame with one row per grid axis: the axis, its number of grid
+  nodes, node spacing, and padded FFT length.
+
+- `fft_check`:
+
+  When `fft_method(check = )` is positive: data frame with one row per
+  output column, giving the number of checked focals with finite values
+  (`n`), and the maximum absolute error, root mean squared error, and
+  root mean square of the exact values over those focals.
 
 ### Cross-validation metadata
 

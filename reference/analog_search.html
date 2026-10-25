@@ -70,6 +70,7 @@ then optionally aggregating the results.</p>
 <span>  env_res_adj <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  cell_area_weight <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  mean_cell_area <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"exact"</span>,</span>
 <span>  n_threads <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  progress <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -108,7 +109,10 @@ values for each reference location (must have same number of rows/cells
 as <code>pool</code>). Required for stats <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
 <code>"weighted_mean"</code>, <code>"regression"</code>, and <code>"tabulate"</code>. Numeric for
 continuous stats; factor or coercible-to-factor (character, integer,
-logical) for <code>stat = "tabulate"</code>.</p></dd>
+logical) for <code>stat = "tabulate"</code>. Missing (<code>NA</code>) values are skipped: each
+<code>y</code> variable's statistics use only the analogs that observe it, including
+in their denominators (for <code>"mean"</code>, <code>"weighted_mean"</code>, and
+<code>"regression"</code>). <code>"count"</code> still counts every analog in the neighborhood.</p></dd>
 
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
@@ -324,6 +328,16 @@ leave this <code>NULL</code> (auto-computed from the raster pool). See
 <code><a href="build_analog_index.html">build_analog_index()</a></code> for details.</p></dd>
 
 
+<dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
+<dd><p>Computation method: <code>"exact"</code> (default) visits every
+focal-analog pair; <code>"fft"</code>, or an <code><a href="fft_method.html">fft_method()</a></code> object for custom
+settings, evaluates kernel-weighted sums for all focals at once by binned
+convolution, which is much faster for large problems and gives
+approximately the same results. The FFT method requires <code>select = "all"</code>
+and a raw (non-index) <code>pool</code>, and ignores <code>geog_res_adj</code> / <code>env_res_adj</code>;
+see <code><a href="fft_method.html">fft_method()</a></code> for its other requirements.</p></dd>
+
+
 <dt id="arg-n-threads">n_threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
 <dd><p>Optional integer number of threads to use for the
 computation. If <code>NULL</code> (default), the global RcppParallel setting
@@ -413,6 +427,9 @@ parameter. These local covariance values need to be pre-calculated.</p>
 search through large reference datasets. By default, the lattice
 resolution is tuned for optimal performance.</p></li>
 <li><p>Parallel processing is available via the <code>n_threads</code> parameter.</p></li>
+<li><p>For kernel-weighted aggregation over many focals, <code>method = "fft"</code>
+replaces pairwise distance computations with binned convolution
+(see <code><a href="fft_method.html">fft_method()</a></code>).</p></li>
 <li><p>You can <code>downsample</code> prohibitively large reference pool datasets
 to improve speed and memory, using a stratified sampling
 scheme that reduces loss of precision relative to random sampling.</p></li>

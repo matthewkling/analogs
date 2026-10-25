@@ -206,7 +206,10 @@ values for each reference location (must have same number of rows/cells
 as <code>pool</code>). Required for stats <code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>,
 <code>"weighted_mean"</code>, <code>"regression"</code>, and <code>"tabulate"</code>. Numeric for
 continuous stats; factor or coercible-to-factor (character, integer,
-logical) for <code>stat = "tabulate"</code>.</p></dd>
+logical) for <code>stat = "tabulate"</code>. Missing (<code>NA</code>) values are skipped: each
+<code>y</code> variable's statistics use only the analogs that observe it, including
+in their denominators (for <code>"mean"</code>, <code>"weighted_mean"</code>, and
+<code>"regression"</code>). <code>"count"</code> still counts every analog in the neighborhood.</p></dd>
 
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>

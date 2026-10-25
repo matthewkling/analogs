@@ -185,7 +185,7 @@ not needed to reproduce the result. See <code><a href="build_analog_index.html">
 detail.</p>
 <dl><dt><code>binning_method</code></dt>
 <dd><p>Internal indexing method; one of
-<code>"lattice"</code> or <code>"lattice_ecef"</code>.</p></dd>
+<code>"lattice"</code>, <code>"lattice_ecef"</code>, or <code>"fft"</code> (see <code><a href="fft_method.html">fft_method()</a></code>).</p></dd>
 
 <dt><code>total_bins</code>, <code>n_bins_nonempty</code>, <code>min_bin_occupancy</code>,
 <code>max_bin_occupancy</code>, <code>avg_bin_occupancy</code>,
@@ -207,6 +207,25 @@ targets passed to the lattice builder (the absolute values the
 <dd><p>Integer vector of realized bins per axis
 (geographic axes first, then environment), showing how the budget was
 distributed.</p></dd>
+
+
+</dl></div>
+
+<div class="section">
+<h3 id="fft-method-diagnostics">FFT method diagnostics<a class="anchor" aria-label="anchor" href="#fft-method-diagnostics"></a></h3>
+
+
+<p>Present when <code>method = "fft"</code> (see <code><a href="fft_method.html">fft_method()</a></code>).</p>
+<dl><dt><code>fft_grid</code></dt>
+<dd><p>Data frame with one row per grid axis: the axis,
+its number of grid nodes, node spacing, and padded FFT length.</p></dd>
+
+<dt><code>fft_check</code></dt>
+<dd><p>When <code>fft_method(check = )</code> is positive: data frame
+with one row per output column, giving the number of checked focals
+with finite values (<code>n</code>), and the maximum absolute error, root mean
+squared error, and root mean square of the exact values over those
+focals.</p></dd>
 
 
 </dl></div>

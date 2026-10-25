@@ -44,6 +44,8 @@
   : Tiled analog search for memory-constrained queries
 - [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md)
   : Tune Index Resolution
+- [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+  : FFT (binned-convolution) execution method
 
 ## Other
 

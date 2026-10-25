@@ -151,6 +151,15 @@ predictive skill than either plain LOO or unblocked k-fold. See
 [`kernel()`](https://matthewkling.github.io/analogs/reference/kernel.md)
 for details.
 
+For speed, pass `method = "fft"` (or an
+[`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+object) through `...`. All CV methods support it, including buffered
+LOO; the FFT method removes each focal's own contribution from its
+binned sums. When tuning a kernel bandwidth by repeating CV over many
+candidate values, running the sweep with a coarser
+`fft_method(bin = 0.4)` is usually accurate enough to rank the
+candidates, followed by a final fit at the default `bin`.
+
 Supported functions:
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md),
 [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md),

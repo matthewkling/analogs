@@ -26,6 +26,7 @@ query_analog_index(
   se,
   normalize = "auto",
   exclude_self = FALSE,
+  fft = NULL,
   n_threads,
   show_progress = FALSE
 )

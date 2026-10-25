@@ -64,6 +64,11 @@ The package is designed to maximize performance in various ways:
   [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md).
 - To increase speed at the cost of some precision, you can adaptively
   `downsample` your reference data.
+- For kernel-weighted summaries, you can use `method = "fft"` to replace
+  pairwise distance calculations with binned convolution via fast
+  Fourier transforms, which can dramatically increase speed but does
+  introduce small approximation errors (see
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)).
 
 ## Installation
 
