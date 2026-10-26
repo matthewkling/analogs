@@ -4,6 +4,7 @@
 
 library(analogs)
 library(terra)
+#> terra 1.9.27
 ```
 
 ## Overview
@@ -633,7 +634,9 @@ model, plot a map of the residuals, and quantify the model’s
 performance. If we wanted to tune a model parameter (`labmda`
 `max_geog`, `theta`, etc.), we could call
 `cv_performance(analog_cv(...))` repeatedly with different parameter
-values to identify the best-performing settings.
+values to identify the best-performing settings. For large sweeps, the
+FFT method described under [Computational
+performance](#computational-performance) can make each run much faster.
 
 ``` r
 
@@ -669,37 +672,6 @@ cv_performance(cv)
 The package is designed for large-scale analyses involving millions of
 pairwise comparisons.
 
-#### Pre-built indices
-
-When running multiple queries against the same reference pool, build the
-lattice index once and reuse it:
-
-``` r
-
-idx <- build_analog_index(hist)
-
-# Multiple queries reuse the same index
-avail_tight <- analog_availability(fut, idx, env = kernel(max = 0.3), geog = kernel(max = 100))
-avail_loose <- analog_availability(fut, idx, env = kernel(max = 0.8), geog = kernel(max = 300))
-```
-
-#### Index tuning
-
-By default, the lattice resolution is auto-tuned for each query. For
-repeated queries with the same configuration, you can tune once and
-reuse:
-
-``` r
-
-res <- tune_index_res(
-      x = fut, pool = hist,
-      stat = "count",
-      env = kernel(max = 0.5), geog = kernel(max = 200),
-      verbose = TRUE
-)
-idx <- build_analog_index(hist, index_res = res)
-```
-
 #### Parallel processing
 
 Use the `n_threads` parameter to parallelize across focal locations:
@@ -727,6 +699,63 @@ result <- tiled_analog_search(
 )
 ```
 
+#### FFT method
+
+For analog functions that involve kernel-weighted summaries
+(`select = "all"` with stats like `weighted_mean`, `sum_weights`,
+`tabulate`, or `regression`), you can calculate results via **fast
+Fourier transform (FFT)** instead of computing pairwise distances. FFT
+can increase speed by orders of magnitude, especially under large kernel
+bandwidth, but gives approximate results (typically within a fraction of
+a percent).
+
+Select FFA by specifying `method = "fft"` or `method = fft_method()`.
+The
+[`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+function can check accuracy against the exact method on a random sample
+of focals (via `check`), and can be used to set the FFT grid resolution
+that dials the trad-eoff between accuracy and compute cost ( via `bin`).
+Halving the `bin` parameter cuts binning error about fourfold for smooth
+kernels and multiplies grid size by `2^d` for `d` active axes. See
+[`?fft_method`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+for details.
+
+Here’s a climate-only analog impact model. On the example rasters, the
+FFT method runs it several hundred times faster than the exact method
+and has a very low RMSE:
+
+``` r
+
+imp_fft <- analog_impact(
+      x = fut, pool = hist, y = eco_var,
+      env = kernel("gaussian", theta = 0.15, max = 0.5),
+      method = fft_method(check = 1000)
+)
+plot(imp_fft$weighted_mean, main = "Analog impact model (FFT method)")
+```
+
+![](figures/fft-1.png)
+
+plot of chunk fft
+
+``` r
+
+
+# Accuracy relative to the exact method, on 1000 random focal sites
+metadata(imp_fft)$fft_check
+#>          column    n  max_abs_err      rms_err    rms_exact
+#> 1         count 1000 390.54830969 59.386599535 18991.575118
+#> 2   sum_weights 1000  54.01453916 10.120352437  3475.805148
+#> 3 weighted_mean 1000   0.06320815  0.002374415     1.128551
+```
+
+Geographic kernels require projected coordinates (e.g. via
+[`terra::project()`](https://rspatial.github.io/terra/reference/project.html))
+for use with FFT. If a query exceeds `max_cells`, use a coarser `bin`,
+run raster inputs through
+[`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
+(which accepts `method = "fft"`), or use the exact method.
+
 #### Downsampling
 
 For very large reference pools, downsampling reduces computation. The
@@ -746,4 +775,35 @@ result <- analog_availability(
       geog = kernel(max = 200),
       downsample = 0.1
 )
+```
+
+#### Pre-built indices
+
+When running multiple queries against the same reference pool, build the
+lattice index once and reuse it:
+
+``` r
+
+idx <- build_analog_index(hist)
+
+# Multiple queries reuse the same index
+avail_tight <- analog_availability(fut, idx, env = kernel(max = 0.3), geog = kernel(max = 100))
+avail_loose <- analog_availability(fut, idx, env = kernel(max = 0.8), geog = kernel(max = 300))
+```
+
+#### Index tuning
+
+By default, the lattice resolution is auto-tuned for each query. For
+repeated queries with the same configuration, you can tune the index
+once and reuse it:
+
+``` r
+
+res <- tune_index_res(
+      x = fut, pool = hist,
+      stat = "count",
+      env = kernel(max = 0.5), geog = kernel(max = 200),
+      verbose = TRUE
+)
+idx <- build_analog_index(hist, index_res = res)
 ```

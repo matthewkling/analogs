@@ -67,7 +67,8 @@
 -->
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/matthewkling/analogs" class="external-link">analogs</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span></code></pre></div>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span>
+<span><span class="co">#&gt; terra 1.9.27</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
@@ -722,7 +723,9 @@ model, plot a map of the residuals, and quantify the model’s
 performance. If we wanted to tune a model parameter (<code>labmda</code>
 <code>max_geog</code>, <code>theta</code>, etc.), we could call
 <code>cv_performance(analog_cv(...))</code> repeatedly with different
-parameter values to identify the best-performing settings.</p>
+parameter values to identify the best-performing settings. For large
+sweeps, the FFT method described under <a href="#computational-performance">Computational performance</a> can make
+each run much faster.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Run cross-validation and plot residuals</span></span>
 <span><span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_cv.html">analog_cv</a></span><span class="op">(</span></span>
@@ -755,38 +758,11 @@ plot of chunk cv
 <p>The package is designed for large-scale analyses involving millions
 of pairwise comparisons.</p>
 <div class="section level4">
-<h4 id="pre-built-indices">Pre-built indices<a class="anchor" aria-label="anchor" href="#pre-built-indices"></a>
-</h4>
-<p>When running multiple queries against the same reference pool, build
-the lattice index once and reuse it:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Multiple queries reuse the same index</span></span>
-<span><span class="va">avail_tight</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">avail_loose</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.8</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">300</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level4">
-<h4 id="index-tuning">Index tuning<a class="anchor" aria-label="anchor" href="#index-tuning"></a>
-</h4>
-<p>By default, the lattice resolution is auto-tuned for each query. For
-repeated queries with the same configuration, you can tune once and
-reuse:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tune_index_res.html">tune_index_res</a></span><span class="op">(</span></span>
-<span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>,</span>
-<span>      stat <span class="op">=</span> <span class="st">"count"</span>,</span>
-<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
-<span>      verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span>, index_res <span class="op">=</span> <span class="va">res</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level4">
 <h4 id="parallel-processing">Parallel processing<a class="anchor" aria-label="anchor" href="#parallel-processing"></a>
 </h4>
 <p>Use the <code>n_threads</code> parameter to parallelize across focal
 locations:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_velocity.html">analog_velocity</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">hist</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.5</span><span class="op">)</span>, k <span class="op">=</span> <span class="fl">1</span>, n_threads <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
@@ -795,7 +771,7 @@ locations:</p>
 <p>For rasters too large to fit in memory,
 <code><a href="../reference/tiled_analog_search.html">tiled_analog_search()</a></code> processes the focal data in spatial
 tiles:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tiled_analog_search.html">tiled_analog_search</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">very_large_raster</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">idx</span>,</span>
@@ -804,6 +780,55 @@ tiles:</p>
 <span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      n_tiles <span class="op">=</span> <span class="fl">16</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="fft-method">FFT method<a class="anchor" aria-label="anchor" href="#fft-method"></a>
+</h4>
+<p>For analog functions that involve kernel-weighted summaries
+(<code>select = "all"</code> with stats like <code>weighted_mean</code>,
+<code>sum_weights</code>, <code>tabulate</code>, or
+<code>regression</code>), you can calculate results via <strong>fast
+Fourier transform (FFT)</strong> instead of computing pairwise
+distances. FFT can increase speed by orders of magnitude, especially
+under large kernel bandwidth, but gives approximate results (typically
+within a fraction of a percent).</p>
+<p>Select FFA by specifying <code>method = "fft"</code> or
+<code>method = fft_method()</code>. The <code><a href="../reference/fft_method.html">fft_method()</a></code>
+function can check accuracy against the exact method on a random sample
+of focals (via <code>check</code>), and can be used to set the FFT grid
+resolution that dials the trad-eoff between accuracy and compute cost (
+via <code>bin</code>). Halving the <code>bin</code> parameter cuts
+binning error about fourfold for smooth kernels and multiplies grid size
+by <code>2^d</code> for <code>d</code> active axes. See
+<code><a href="../reference/fft_method.html">?fft_method</a></code> for details.</p>
+<p>Here’s a climate-only analog impact model. On the example rasters,
+the FFT method runs it several hundred times faster than the exact
+method and has a very low RMSE:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">imp_fft</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_impact.html">analog_impact</a></span><span class="op">(</span></span>
+<span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>, y <span class="op">=</span> <span class="va">eco_var</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
+<span>      method <span class="op">=</span> <span class="fu"><a href="../reference/fft_method.html">fft_method</a></span><span class="op">(</span>check <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">imp_fft</span><span class="op">$</span><span class="va">weighted_mean</span>, main <span class="op">=</span> <span class="st">"Analog impact model (FFT method)"</span><span class="op">)</span></span></code></pre></div>
+<div class="figure">
+<img src="figures/fft-1.png" alt=""><p class="caption">
+plot of chunk fft
+</p>
+</div>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
+<span><span class="co"># Accuracy relative to the exact method, on 1000 random focal sites</span></span>
+<span><span class="fu"><a href="../reference/metadata.html">metadata</a></span><span class="op">(</span><span class="va">imp_fft</span><span class="op">)</span><span class="op">$</span><span class="va">fft_check</span></span>
+<span><span class="co">#&gt;          column    n  max_abs_err      rms_err    rms_exact</span></span>
+<span><span class="co">#&gt; 1         count 1000 390.54830969 59.386599535 18991.575118</span></span>
+<span><span class="co">#&gt; 2   sum_weights 1000  54.01453916 10.120352437  3475.805148</span></span>
+<span><span class="co">#&gt; 3 weighted_mean 1000   0.06320815  0.002374415     1.128551</span></span></code></pre></div>
+<p>Geographic kernels require projected coordinates (e.g. via
+<code><a href="https://rspatial.github.io/terra/reference/project.html" class="external-link">terra::project()</a></code>) for use with FFT. If a query exceeds
+<code>max_cells</code>, use a coarser <code>bin</code>, run raster
+inputs through <code><a href="../reference/tiled_analog_search.html">tiled_analog_search()</a></code> (which accepts
+<code>method = "fft"</code>), or use the exact method.</p>
 </div>
 <div class="section level4">
 <h4 id="downsampling">Downsampling<a class="anchor" aria-label="anchor" href="#downsampling"></a>
@@ -823,6 +848,33 @@ that downsampling doesn’t bias the results:</p>
 <span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
 <span>      downsample <span class="op">=</span> <span class="fl">0.1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="pre-built-indices">Pre-built indices<a class="anchor" aria-label="anchor" href="#pre-built-indices"></a>
+</h4>
+<p>When running multiple queries against the same reference pool, build
+the lattice index once and reuse it:</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Multiple queries reuse the same index</span></span>
+<span><span class="va">avail_tight</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">100</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">avail_loose</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">idx</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.8</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">300</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="index-tuning">Index tuning<a class="anchor" aria-label="anchor" href="#index-tuning"></a>
+</h4>
+<p>By default, the lattice resolution is auto-tuned for each query. For
+repeated queries with the same configuration, you can tune the index
+once and reuse it:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tune_index_res.html">tune_index_res</a></span><span class="op">(</span></span>
+<span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>,</span>
+<span>      stat <span class="op">=</span> <span class="st">"count"</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>, geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
+<span>      verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span>, index_res <span class="op">=</span> <span class="va">res</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
