@@ -94,7 +94,7 @@
 <li>Optimal index parameters for your specific data can be identified with <code><a href="reference/tune_index_res.html">tune_index_res()</a></code>, which is used internally by default.</li>
 <li>Memory-safe queries for large raster datasets are available via <code><a href="reference/tiled_analog_search.html">tiled_analog_search()</a></code>.</li>
 <li>To increase speed at the cost of some precision, you can adaptively <code>downsample</code> your reference data.</li>
-<li>For kernel-weighted summaries, you can use <code>method = "fft"</code> to replace pairwise distance calculations with binned convolution via fast Fourier transforms, which can dramatically increase speed but does introduce small approximation errors (see <code><a href="reference/fft_method.html">fft_method()</a></code>).</li>
+<li>For kernel-weighted summaries, you can specify <code>method = "fft"</code> to use fast Fourier transforms instead of computing pairwise distances, which can dramatically increase speed but does introduce small approximation errors (see <code><a href="reference/fft_method.html">fft_method()</a></code>).</li>
 </ul>
 </div>
 <div class="section level2">

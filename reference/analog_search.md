@@ -339,16 +339,21 @@ analog_search(
 
 - method:
 
-  Computation method: `"exact"` (default) visits every focal-analog
-  pair; `"fft"`, or an
-  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
-  object for custom settings, evaluates kernel-weighted sums for all
-  focals at once by binned convolution, which is much faster for large
-  problems and gives approximately the same results. The FFT method
-  requires `select = "all"` and a raw (non-index) `pool`, and ignores
-  `geog_res_adj` / `env_res_adj`; see
-  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
-  for its other requirements.
+  Computation method:
+
+  - `"exact"` (default) visits every focal-analog pair, using the
+    lattice search index.
+
+  - `"fft"` (or an
+    [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+    object for custom settings) evaluates kernel-weighted sums for all
+    focals at once via fast Fourier Transform (FFT, aka binned
+    convolution), which can be faster for large problems at the cost of
+    a typically small amount of error. The FFT method requires
+    `select = "all"` and a raw (non-index) `pool`, and ignores
+    `geog_res_adj` / `env_res_adj`; see
+    [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)
+    for its other requirements.
 
 - n_threads:
 

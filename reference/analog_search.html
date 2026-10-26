@@ -329,13 +329,15 @@ leave this <code>NULL</code> (auto-computed from the raster pool). See
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
-<dd><p>Computation method: <code>"exact"</code> (default) visits every
-focal-analog pair; <code>"fft"</code>, or an <code><a href="fft_method.html">fft_method()</a></code> object for custom
-settings, evaluates kernel-weighted sums for all focals at once by binned
-convolution, which is much faster for large problems and gives
-approximately the same results. The FFT method requires <code>select = "all"</code>
-and a raw (non-index) <code>pool</code>, and ignores <code>geog_res_adj</code> / <code>env_res_adj</code>;
-see <code><a href="fft_method.html">fft_method()</a></code> for its other requirements.</p></dd>
+<dd><p>Computation method:</p><ul><li><p><code>"exact"</code> (default) visits every focal-analog pair, using the lattice
+search index.</p></li>
+<li><p><code>"fft"</code> (or an <code><a href="fft_method.html">fft_method()</a></code> object for custom settings) evaluates
+kernel-weighted sums for all focals at once via fast Fourier Transform
+(FFT, aka binned convolution), which can be faster for large problems
+at the cost of a typically small amount of error. The FFT method requires
+<code>select = "all"</code> and a raw (non-index) <code>pool</code>, and ignores <code>geog_res_adj</code>
+/ <code>env_res_adj</code>; see <code><a href="fft_method.html">fft_method()</a></code> for its other requirements.</p></li>
+</ul></dd>
 
 
 <dt id="arg-n-threads">n_threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
