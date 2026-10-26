@@ -2,7 +2,7 @@
 % Please edit documentation in R/fft.R
 \name{fft_method}
 \alias{fft_method}
-\title{FFT (binned-convolution) execution method}
+\title{Fast Fourier Transform (FFT) execution method}
 \usage{
 fft_method(bin = 0.25, check = 0, max_cells = 1e+08)
 }
@@ -24,40 +24,32 @@ An object of class \code{"analog_fft_method"}.
 }
 \description{
 Configures the binned-convolution backend for \code{\link[=analog_search]{analog_search()}} and its
-wrappers. Pass the result as \code{method = fft_method(...)}, or use
-\code{method = "fft"} for the defaults. The FFT method computes the same
-kernel-weighted statistics as the exact method, approximately, without
-visiting every focal-analog pair, which can make it much faster for large
-problems.
+wrappers. For kernel-weighted summary stats (regression, density, impact,
+etc.), the FFT method computes an approximate result without visiting
+every focal-analog pair, which can make it orders of magnitude
+faster for large problems. Use this function by passing the result as
+\code{method = fft_method(...)}, or use \code{method = "fft"} for the defaults.
 }
 \details{
 \subsection{How it works}{
 
-Every statistic the package computes for a focal is built from
-kernel-weighted sums over the pool, such as the sum of weights or the sum
-of weights times \code{y}. The exact method evaluates these sums focal by focal.
-The FFT method (a multivariate version of binned kernel estimation; Wand
-1994) evaluates them for all focals at once using an internal grid. This
-grid is not the input raster: it is a coarse regular lattice spanning the
-analog space, with one axis per environmental variable when the
-environmental kernel weights or applies a limit, and two geographic axes
-when the geographic kernel does. Nodes are spaced at a fraction (\code{bin}) of
-each kernel's bandwidth. For example, with a geographic \code{theta} of 400 km
-over a 4000 km domain and \code{bin = 0.25}, the geographic axes have nodes
-every 100 km, about 40 per axis. Each sum is then computed in three steps:
+FFT is only compatible with kernel-weighted summary statistics. Rather than
+separately visiting every focal-analog pair, as in the \code{"exact"} method,
+FFT (a multivariate version of binned kernel estimation; Wand
+1994) evaluates them for all focals at once using an coarse internal grid.
+Nodes are spaced at a fraction (\code{bin}) of each kernel's bandwidth.
+Each sum (or related value liek regression coefficient) is then computed
+in three steps:
 
 \enumerate{
 \item \strong{Bin.} Each pool point's contribution is split among the grid
 nodes surrounding it, in proportion to its closeness to each (linear
 binning). The grid then holds how much pool "mass" lies near each node.
 \item \strong{Convolve.} Each node is assigned the kernel-weighted sum of the
-mass at every node: the value a hypothetical focal sitting exactly on
-that node would get. Done directly this would cost (number of nodes)^2
-operations; the fast Fourier transform does it in about (number of
-nodes) x log(number of nodes), by transforming the grid and the kernel,
-multiplying them, and transforming back. The grid is padded by one
-kernel width of empty nodes along each axis, so that mass near one edge
-does not wrap around to the opposite edge.
+mass at every node, done via the fast Fourier transform by transforming
+the grid and the kernel, multiplying them, and transforming back.
+The grid is padded by one kernel width of empty nodes along each axis,
+so that mass near one edge does not wrap around to the opposite edge.
 \item \strong{Read off.} Each focal's value is interpolated from the grid nodes
 surrounding its exact location and environment (multilinear
 interpolation).
@@ -66,7 +58,7 @@ interpolation).
 Because the convolved surface is a sum of kernel-shaped bumps, it changes
 little between nodes spaced well within the kernel's width, so the coarse
 grid loses little accuracy. The output keeps the resolution of the focal
-data: two neighboring raster cells with different climates read off
+data: two neighboring focal raster cells with different climates read off
 different parts of the environmental axes and can get quite different
 results. Statistics that need several sums (for example, a regression
 needs weighted cross-products of the covariates and \code{y}) repeat the bin and

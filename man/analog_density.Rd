@@ -145,13 +145,17 @@ pre-built \code{analog_index}, this argument must agree with the index's
 stored configuration: \code{cell_area_weight = FALSE} errors if the index
 was built with cell-area weighting on (rebuild the index instead).}
 
-\item{method}{Computation method: \code{"exact"} (default) visits every
-focal-analog pair; \code{"fft"}, or an \code{\link[=fft_method]{fft_method()}} object for custom
-settings, evaluates kernel-weighted sums for all focals at once by binned
-convolution, which is much faster for large problems and gives
-approximately the same results. The FFT method requires \code{select = "all"}
-and a raw (non-index) \code{pool}, and ignores \code{geog_res_adj} / \code{env_res_adj};
-see \code{\link[=fft_method]{fft_method()}} for its other requirements.}
+\item{method}{Computation method:
+\itemize{
+\item \code{"exact"} (default) visits every focal-analog pair, using the lattice
+search index.
+\item \code{"fft"} (or an \code{\link[=fft_method]{fft_method()}} object for custom settings) evaluates
+kernel-weighted sums for all focals at once via fast Fourier Transform
+(FFT, aka binned convolution), which can be faster for large problems
+at the cost of a typically small amount of error. The FFT method requires
+\code{select = "all"} and a raw (non-index) \code{pool}, and ignores \code{geog_res_adj}
+/ \code{env_res_adj}; see \code{\link[=fft_method]{fft_method()}} for its other requirements.
+}}
 
 \item{n_threads}{Optional integer number of threads to use for the
 computation. If \code{NULL} (default), the global RcppParallel setting

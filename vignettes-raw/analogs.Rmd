@@ -400,9 +400,9 @@ result <- tiled_analog_search(
 
 ### FFT method
 
-For kernel-weighted summaries (`select = "all"` with stats like `weighted_mean`, `sum_weights`, `tabulate`, or `regression`), you can use `method = "fft"` calculate results via **fast Fourier transform (FFT)** instead of computing pairwise distances. FFT can increase speed by orders of magnitude, but gives approximate results (typically within a fraction of a percent).
+For analog functions that involve kernel-weighted summaries (`select = "all"` with stats like `weighted_mean`, `sum_weights`, `tabulate`, or `regression`), you can calculate results via **fast Fourier transform (FFT)** instead of computing pairwise distances. FFT can increase speed by orders of magnitude, especially under large kernel bandwidth, but gives approximate results (typically within a fraction of a percent).
 
-`fft_method()` can check accuracy against the exact method on a random sample of focals (`check`), and sets the FFT grid resolution that dials the trad-eoff between accuracy and compute cost (`bin`). Halving the `bin` parameter cuts binning error about fourfold for smooth kernels and multiplies grid size by `2^d` for `d` active axes. See `?fft_method` for details.
+Select FFA by specifying `method = "fft"` or `method = fft_method()`. The `fft_method()` function can check accuracy against the exact method on a random sample of focals (via `check`), and can be used to set the FFT grid resolution that dials the trad-eoff between accuracy and compute cost ( via `bin`). Halving the `bin` parameter cuts binning error about fourfold for smooth kernels and multiplies grid size by `2^d` for `d` active axes. See `?fft_method` for details.
 
 Here's a climate-only analog impact model. On the example rasters, the FFT method runs it several hundred times faster than the exact method and has a very low RMSE:
 
@@ -418,7 +418,7 @@ plot(imp_fft$weighted_mean, main = "Analog impact model (FFT method)")
 metadata(imp_fft)$fft_check
 ```
 
-Geographic kernels require projected coordinates (e.g. via `terra::project()`). If a query exceeds `max_cells`, use a coarser `bin`, run raster inputs through `tiled_analog_search()` (which accepts `method = "fft"`), or use the exact method.
+Geographic kernels require projected coordinates (e.g. via `terra::project()`) for use with FFT. If a query exceeds `max_cells`, use a coarser `bin`, run raster inputs through `tiled_analog_search()` (which accepts `method = "fft"`), or use the exact method.
 
 
 ### Downsampling
