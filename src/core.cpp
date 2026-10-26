@@ -300,10 +300,23 @@ SEXP query_analog_index_cpp(SEXP index_list,
             stop("max_env must be length 1 or equal to number of environment variables");
       }
 
+      // Distance limits are inclusive (d <= max, d >= min). Every comparison
+      // in the engine is made against these slightly widened limits, so that
+      // floating-point rounding cannot flip a distance lying exactly on a
+      // limit -- common on regular grids and rounded data -- and so that the
+      // squared comparisons (kNN fast path) and unsquared ones (other paths)
+      // agree. The user-supplied values are still reported in the attributes.
+      const double kLimitTol = 1e-12;
+      const double max_env_lim = max_env_scalar * (1.0 + kLimitTol);  // Inf stays Inf
+      std::vector<double> max_env_pervar_lim(max_env_pervar_std);
+      for (double& v : max_env_pervar_lim) v *= (1.0 + kLimitTol);
+      const double max_geog_lim = max_geog * (1.0 + kLimitTol);
+      const double min_geog_lim = min_geog * (1.0 - kLimitTol);
+
       const bool use_geog_filter = std::isfinite(max_geog);
       const double max_geog_chord = (use_ecef && std::isfinite(max_geog))
-            ? km_to_chord(max_geog, R_earth)
-                  : max_geog;
+            ? km_to_chord(max_geog_lim, R_earth)
+                  : max_geog_lim;
 
       // Geographic annulus inner radius. min_geog <= 0 means "no floor"
       // (inactive). When active, candidates strictly closer than min_geog are
@@ -312,8 +325,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
       // Geographic-only: there is no environmental analogue (rejected in R).
       const bool use_geog_min = (min_geog > 0.0);
       const double min_geog_chord = (use_ecef && use_geog_min)
-            ? km_to_chord(min_geog, R_earth)
-                  : min_geog;
+            ? km_to_chord(min_geog_lim, R_earth)
+                  : min_geog_lim;
 
       const SelectCode scode = static_cast<SelectCode>(select_code);
 
@@ -498,12 +511,12 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               use_haversine,
                               use_scalar_env,
                               use_pervar_env,
-                              max_env_scalar,
-                              max_geog,
+                              max_env_lim,
+                              max_geog_lim,
                               max_geog_chord,
-                              max_env_pervar_std,
+                              max_env_pervar_lim,
                               use_geog_min,
-                              min_geog,
+                              min_geog_lim,
                               min_geog_chord,
                               scode,
                               k_knn,
@@ -637,12 +650,12 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               use_haversine,
                               use_scalar_env,
                               use_pervar_env,
-                              max_env_scalar,
-                              max_geog,
+                              max_env_lim,
+                              max_geog_lim,
                               max_geog_chord,
-                              max_env_pervar_std,
+                              max_env_pervar_lim,
                               use_geog_min,
-                              min_geog,
+                              min_geog_lim,
                               min_geog_chord,
                               scode,
                               acodes,
