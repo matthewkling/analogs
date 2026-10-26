@@ -108,13 +108,15 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             // -----------------------------------------------------------------
             // Fast path: KNN modes + lattice + (planar OR ECEF)
+            // Lon/lat queries run here in ECEF chord space: chord distance is
+            // monotone in great-circle distance, so ranking and pruning by chord
+            // gives the same neighbors (emit_pairs reports great-circle km).
             // Note: Mahalanobis doesn't use the fast path because lattice
             // needs bounding box adjustments. Falls through to regular path.
             // -----------------------------------------------------------------
             if (knn_mode &&
                 use_lattice &&
                 lattice_ptr != nullptr &&
-                !use_haversine &&
                 !use_mahalanobis)  // Mahalanobis uses regular path
             {
                   // Use lattice KNN expansion (Euclidean only)
@@ -160,8 +162,11 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
                               lattice_ptr->knn_query(
                                           fgeo_vec.data(),
                                           fenv_vec.data(),
-                                          ref_ptr,
-                                          static_cast<size_tu>(stride_r),
+                                          // The lattice's own coordinates: ECEF
+                                          // (X, Y, Z, env...) for lon/lat, else
+                                          // the planar ref matrix.
+                                          ref_latt_ptr,
+                                          static_cast<size_tu>(stride_latt_r),
                                           static_cast<size_tu>(n_env),
                                           rank_by_geog,
                                           geog_thresh,
@@ -195,7 +200,7 @@ void PairWorker::operator()(std::size_t begin, std::size_t end) {
 
             // -----------------------------------------------------------------
             // Fallback path: gather candidates
-            // (Used for: Haversine, Mahalanobis, or ALL mode)
+            // (Used for: Mahalanobis, or ALL mode)
             // -----------------------------------------------------------------
             cand.clear();
             cand_weights.clear();
@@ -533,6 +538,8 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             const double fx = focal_ptr[i];
             const double fy = focal_ptr[i + stride_f];
             const double* f_env_col = focal_ptr + i + 2 * stride_f;
+            const std::size_t self_row = self_rows
+                  ? static_cast<std::size_t>(self_rows[i]) : i;
 
             // Get candidates from lattice
             if (use_lattice) {
@@ -611,10 +618,10 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                   for (size_t t = 0; t < cand.size(); ++t) {
                         const index_t j = cand[t];
 
-                        // Self-exclusion: skip pool row that corresponds to this focal.
-                        // Only active when exclude_self is set; the R layer enforces
-                        // identical(x, pool) so j == i is the correct identity check.
-                        if (exclude_self && static_cast<std::size_t>(j) == i) {
+                        // Self-exclusion: skip the pool row that corresponds to this
+                        // focal. The R layer enforces identical(x, pool), so that row is
+                        // i, or self_rows[i] when x is a subset of the pool's rows.
+                        if (exclude_self && static_cast<std::size_t>(j) == self_row) {
                               continue;
                         }
 

@@ -286,6 +286,10 @@ struct AggWorker : public Worker {
       // denominators (see focal_stats.h). Set by the caller after construction.
       bool values_have_na = false;
 
+      // With exclude_self, the 0-based pool row each focal excludes; nullptr
+      // means focal i excludes pool row i. Set by the caller after construction.
+      const int* self_rows = nullptr;
+
       std::vector<double>& agg; // flat output: size = n_focal * n_stats
       int n_stats;              // number of stats to compute (total columns in output)
 

@@ -233,7 +233,8 @@ SEXP query_analog_index_cpp(SEXP index_list,
                             const IntegerVector& n_classes_per_var,
                             SEXP area_weight_sexp,
                             SEXP user_weight_sexp,
-                            bool exclude_self = false)
+                            bool exclude_self = false,
+                            SEXP self_rows_sexp = R_NilValue)
 {
       // Extract lattice and metadata from index
       List idx = as<List>(index_list);
@@ -675,6 +676,17 @@ SEXP query_analog_index_cpp(SEXP index_list,
                               exclude_self,
                               agg_vals,
                               n_total_cols);
+
+            // Self-exclusion on a subset of focals: focal i excludes pool row
+            // self_rows[i] (0-based) instead of pool row i.
+            IntegerVector self_rows;
+            if (exclude_self && self_rows_sexp != R_NilValue) {
+                  self_rows = IntegerVector(self_rows_sexp);
+                  if (self_rows.size() != n_focal) {
+                        stop("self_rows must have one entry per focal.");
+                  }
+                  aworker.self_rows = self_rows.begin();
+            }
 
             if (has_values) {
                   const std::size_t n_val = static_cast<std::size_t>(n_ref) * n_vars;

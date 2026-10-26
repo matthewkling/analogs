@@ -281,6 +281,8 @@ query_analog_index <- function(x,
                   area_weight = area_weight_vec,
                   user_weight = user_weight_vec,
                   exclude_self = exclude_self,
+                  # With exclude_self on a subset, focal k is pool row rows[k]
+                  self_rows = if (isTRUE(exclude_self) && !is.null(rows)) as.integer(rows - 1L),
                   show_progress = show_progress
             )
       }
@@ -668,6 +670,7 @@ query_analog_index <- function(x,
                                area_weight = NULL,
                                user_weight = NULL,
                                exclude_self = FALSE,
+                               self_rows = NULL,
                                show_progress = FALSE) {
 
       # If progress not requested or dataset too small, just call C++ directly
@@ -694,7 +697,8 @@ query_analog_index <- function(x,
                   n_classes_per_var = n_classes_per_var,
                   area_weight_sexp = area_weight,
                   user_weight_sexp = user_weight,
-                  exclude_self = exclude_self
+                  exclude_self = exclude_self,
+                  self_rows_sexp = self_rows
             ))
       }
 

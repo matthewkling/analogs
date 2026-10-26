@@ -27,6 +27,7 @@
   area_weight = NULL,
   user_weight = NULL,
   exclude_self = FALSE,
+  self_rows = NULL,
   show_progress = FALSE
 )
 }

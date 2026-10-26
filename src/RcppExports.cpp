@@ -27,8 +27,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // query_analog_index_cpp
-SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_env, double max_geog, double min_geog, int select_code, const IntegerVector& aggregate_codes, int env_kernel_code, int geog_kernel_code, double theta_env, double theta_geog, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, SEXP area_weight_sexp, SEXP user_weight_sexp, bool exclude_self);
-RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_envSEXP, SEXP max_geogSEXP, SEXP min_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP env_kernel_codeSEXP, SEXP geog_kernel_codeSEXP, SEXP theta_envSEXP, SEXP theta_geogSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP area_weight_sexpSEXP, SEXP user_weight_sexpSEXP, SEXP exclude_selfSEXP) {
+SEXP query_analog_index_cpp(SEXP index_list, const NumericMatrix& focal_mm, const NumericMatrix& ref_mm, int k, const NumericVector& max_env, double max_geog, double min_geog, int select_code, const IntegerVector& aggregate_codes, int env_kernel_code, int geog_kernel_code, double theta_env, double theta_geog, SEXP x_cov_sexp, SEXP values_sexp, SEXP covariates_sexp, double lambda, int se_code, const IntegerVector& n_classes_per_var, SEXP area_weight_sexp, SEXP user_weight_sexp, bool exclude_self, SEXP self_rows_sexp);
+RcppExport SEXP _analogs_query_analog_index_cpp(SEXP index_listSEXP, SEXP focal_mmSEXP, SEXP ref_mmSEXP, SEXP kSEXP, SEXP max_envSEXP, SEXP max_geogSEXP, SEXP min_geogSEXP, SEXP select_codeSEXP, SEXP aggregate_codesSEXP, SEXP env_kernel_codeSEXP, SEXP geog_kernel_codeSEXP, SEXP theta_envSEXP, SEXP theta_geogSEXP, SEXP x_cov_sexpSEXP, SEXP values_sexpSEXP, SEXP covariates_sexpSEXP, SEXP lambdaSEXP, SEXP se_codeSEXP, SEXP n_classes_per_varSEXP, SEXP area_weight_sexpSEXP, SEXP user_weight_sexpSEXP, SEXP exclude_selfSEXP, SEXP self_rows_sexpSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -54,7 +54,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type area_weight_sexp(area_weight_sexpSEXP);
     Rcpp::traits::input_parameter< SEXP >::type user_weight_sexp(user_weight_sexpSEXP);
     Rcpp::traits::input_parameter< bool >::type exclude_self(exclude_selfSEXP);
-    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_env, max_geog, min_geog, select_code, aggregate_codes, env_kernel_code, geog_kernel_code, theta_env, theta_geog, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self));
+    Rcpp::traits::input_parameter< SEXP >::type self_rows_sexp(self_rows_sexpSEXP);
+    rcpp_result_gen = Rcpp::wrap(query_analog_index_cpp(index_list, focal_mm, ref_mm, k, max_env, max_geog, min_geog, select_code, aggregate_codes, env_kernel_code, geog_kernel_code, theta_env, theta_geog, x_cov_sexp, values_sexp, covariates_sexp, lambda, se_code, n_classes_per_var, area_weight_sexp, user_weight_sexp, exclude_self, self_rows_sexp));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -148,7 +149,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_analogs_build_analog_index_cpp", (DL_FUNC) &_analogs_build_analog_index_cpp, 6},
-    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 22},
+    {"_analogs_query_analog_index_cpp", (DL_FUNC) &_analogs_query_analog_index_cpp, 23},
     {"_analogs_emit_pairs_cpp", (DL_FUNC) &_analogs_emit_pairs_cpp, 11},
     {"_analogs_fft_fields_cpp", (DL_FUNC) &_analogs_fft_fields_cpp, 11},
     {"_analogs_fft_finalize_cpp", (DL_FUNC) &_analogs_fft_finalize_cpp, 11},

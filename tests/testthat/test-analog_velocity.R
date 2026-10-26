@@ -69,3 +69,55 @@ test_that("analog_velocity works with analog_index", {
       expect_equal(nrow(v), nrow(d$focal))
       expect_true(all(c("index", "analog_index", "geog_dist") %in% names(v)))
 })
+
+
+# Lon/lat kNN queries use the lattice's expanding search in ECEF chord space.
+# These tests compare against brute-force great-circle distances on a regional
+# pool large enough that the lattice has several bins per axis. Data are
+# continuous, so there are no exact ties at the climate threshold.
+lonlat_regional_data <- function(seed = 7, nref = 3000, nfocal = 150) {
+      set.seed(seed)
+      mk <- function(n) {
+            m <- cbind(runif(n, -115, -95), runif(n, 30, 50), rnorm(n), rnorm(n))
+            m[, 3] <- m[, 3] + (m[, 2] - 40) / 5   # climate gradient with latitude
+            m
+      }
+      list(ref = mk(nref), focal = mk(nfocal))
+}
+
+test_that("lon/lat knn_geog (k > 1, geographic annulus) matches brute force", {
+      d <- lonlat_regional_data()
+      max_env <- 0.6
+      k <- 3
+      nn <- analog_search(d$focal, d$ref, select = "knn_geog", k = k,
+                          env = kernel(max = max_env),
+                          geog = kernel(max = 800, min = 50),
+                          coord_type = "lonlat")
+
+      denv <- xdist(d$focal, d$ref, "env")
+      dgeog <- xdist(d$focal, d$ref, "lonlat")
+      dgeog[denv > max_env | dgeog > 800 | dgeog < 50] <- Inf
+      for (i in seq_len(nrow(d$focal))) {
+            want <- unname(sort(dgeog[i, ])[1:k])
+            want <- want[is.finite(want)]
+            got <- sort(nn$geog_dist[nn$index == i])
+            expect_equal(got, want, tolerance = 1e-8)
+      }
+})
+
+test_that("lon/lat knn_env within a geographic radius matches brute force", {
+      d <- lonlat_regional_data()
+      k <- 4
+      nn <- analog_search(d$focal, d$ref, select = "knn_env", k = k,
+                          geog = kernel(max = 300), coord_type = "lonlat")
+
+      denv <- xdist(d$focal, d$ref, "env")
+      dgeog <- xdist(d$focal, d$ref, "lonlat")
+      denv[dgeog > 300] <- Inf
+      for (i in seq_len(nrow(d$focal))) {
+            want <- unname(sort(denv[i, ])[1:k])
+            want <- want[is.finite(want)]
+            got <- sort(nn$env_dist[nn$index == i])
+            expect_equal(got, want, tolerance = 1e-8)
+      }
+})
