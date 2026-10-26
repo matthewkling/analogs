@@ -594,12 +594,17 @@ analog_search <- function(
             geo_adj_use  <- if (geo_constrained)  geo_adj_req  else 0
             env_adj_use <- if (env_constrained) env_adj_req else 0
 
-            # The FFT method never queries the lattice, so build a trivial one
-            # (one bin per axis) and skip tuning.
+            # The FFT method never queries the lattice, so skip tuning. Without
+            # an accuracy check, build a trivial lattice (one bin per axis);
+            # with one, keep the default resolution (families the query does
+            # not constrain are still deactivated above), since the check
+            # reruns the exact engine on a sample of focals with this index.
             if (!is.null(fft)) {
                   tune_requested <- FALSE
-                  geo_adj_use <- 0
-                  env_adj_use <- 0
+                  if (fft$check == 0L) {
+                        geo_adj_use <- 0
+                        env_adj_use <- 0
+                  }
             }
 
             # Resolve tuning (minimal: a single overall scale on both families).

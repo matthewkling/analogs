@@ -235,9 +235,10 @@ active, or the problem is small (<= 2000 focal points), the inputs are
 returned unchanged.
 
 A subsample of focal points is used for benchmarking to keep tuning fast
-while still being representative of actual query performance. Only the query
-is timed, not the index build (indexes are built once and queried many
-times).
+while still being representative of actual query performance. Each
+candidate's query is timed three times and the fastest run kept, to damp
+timing noise. Only the query is timed, not the index build (indexes are
+built once and queried many times).
 }
 \examples{
 \dontrun{

@@ -30,9 +30,10 @@
 #' returned unchanged.
 #'
 #' A subsample of focal points is used for benchmarking to keep tuning fast
-#' while still being representative of actual query performance. Only the query
-#' is timed, not the index build (indexes are built once and queried many
-#' times).
+#' while still being representative of actual query performance. Each
+#' candidate's query is timed three times and the fastest run kept, to damp
+#' timing noise. Only the query is timed, not the index build (indexes are
+#' built once and queried many times).
 #'
 #' @examples
 #' \dontrun{
@@ -140,8 +141,19 @@ tune_index_res <- function(x,
             x_cov_samp <- x_cov[idx, , drop = FALSE]
       }
 
+      # Resolve coord_type once up front (as build_analog_index() would), so
+      # the per-candidate builds below skip coordinate detection.
+      coord_type <- match.arg(coord_type)
+      if (coord_type == "auto" && !is_analog_index(pool)) {
+            coord_type <- .detect_geo(.format_data(pool)[, 1:2, drop = FALSE], pool)
+      }
+
       # Evaluate elapsed query time for a given (geo_adj, env_adj) pair. Only
       # the query is timed; the index build is excluded (build-once/query-many).
+      # The query is timed three times and the minimum kept: benchmark queries
+      # on the subsample are short (tens of ms), so single timings are noisy.
+      # gcFirst = FALSE because a full garbage collection before each run would
+      # cost more than the query itself.
       eval_time <- function(geo_adj, env_adj) {
             index <- build_analog_index(
                   pool = pool,
@@ -152,7 +164,7 @@ tune_index_res <- function(x,
                   downsample = downsample,
                   seed = seed
             )
-            st <- system.time({
+            run_query <- function() system.time({
                   query_analog_index(
                         x = focal_samp,
                         index = index,
@@ -172,8 +184,8 @@ tune_index_res <- function(x,
                         theta_geog = theta_geog,
                         n_threads = n_threads
                   )
-            })
-            st[["elapsed"]]
+            }, gcFirst = FALSE)[["elapsed"]]
+            min(run_query(), run_query(), run_query())
       }
 
       # Memoized timing cache keyed on the rounded (geo, env) adjustment pair,

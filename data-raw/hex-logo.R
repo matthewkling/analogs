@@ -36,7 +36,7 @@ seed <- 7
 
 # palette. The background is a dark bivariate climate map, with hue from CWD and luminance
 # from AET. Lines and their endpoints are tints of the glow colors.
-col <- list(border = "#07130F",
+col <- list(border = "white",
             fwd = "#FFC23D",                 # forward analogs
             bwd = "#B59BFF",                 # backward analogs
             bg_hue = c(160, 200),
@@ -147,7 +147,7 @@ line_layers <- function(d, color){
 
 # vignette mask and distance contours
 bg$dist <- with(bg, sqrt((X)^2 + (Y)^2))
-bg$k <- with(bg, dnorm(dist, sd = 250))
+bg$k <- with(bg, dnorm(dist, sd = 350)^2)
 
 p <- ggplot() +
       geom_raster(data = bg, aes(X, Y, fill = fill)) +
