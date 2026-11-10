@@ -337,3 +337,24 @@ test_that("optimize_tile_grid creates square-ish tiles", {
       expect_true(grid$n_x * grid$n_y >= 16 * 0.8)
       expect_true(grid$n_x * grid$n_y <= 16 * 1.2)
 })
+
+test_that("data.frame y works with an empty pool, as in a tile with no pool in its halo", {
+      d <- point_fixture()
+      far <- d$focal[1:3, ]
+      far$x <- far$x + 5000                       # beyond every pool point's reach
+      res <- do.call(analog_impact, c(list(x = far, pool = d$pool[0, ], y = d$y[0, ],
+                                           coord_type = "projected"), d$args))
+      expect_equal(nrow(res), 3)
+      expect_true(all(is.na(res$weighted_mean_a)))
+
+      # Through tiling: focals spanning a gap wider than the halo, so some
+      # tiles have focals but no pool points
+      focal <- rbind(d$focal, far)
+      untiled <- do.call(analog_impact, c(list(x = focal, pool = d$pool, y = d$y,
+                                               coord_type = "projected"), d$args))
+      tiled <- do.call(tiled_analog_search,
+                       c(list(x = focal, pool = d$pool, y = d$y, n_tiles = 30,
+                              fun = analog_impact, coord_type = "projected",
+                              progress = FALSE), d$args))
+      expect_equal(strip_meta(tiled), strip_meta(untiled))
+})

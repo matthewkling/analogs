@@ -461,7 +461,14 @@
 
       } else if (is.data.frame(y)) {
             values_names <- colnames(y)
+            # Check the columns, not the matrix: as.matrix() of a zero-row
+            # data frame is logical whatever its column types (e.g. a
+            # tiled_analog_search() tile with no pool points in its halo)
+            if (!all(vapply(y, is.numeric, logical(1)))) {
+                  stop("'y' must be numeric")
+            }
             y <- as.matrix(y)
+            storage.mode(y) <- "double"
 
       } else if (is.matrix(y)) {
             values_names <- colnames(y)
