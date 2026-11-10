@@ -268,3 +268,45 @@ test_that("tune_index_res works with lonlat coordinates", {
       expect_true(res$geog_res_adj >= ADJ_MIN && res$geog_res_adj <= ADJ_MAX)
       expect_true(res$env_res_adj >= ADJ_MIN && res$env_res_adj <= ADJ_MAX)
 })
+
+
+# ---- Random stream ----------------------------------------------------------
+
+tune_large <- function(d, ...) {
+      tune_index_res(x = d$focal, pool = d$ref, stat = "count",
+                     env = kernel(max = 1), geog = kernel(max = 2),
+                     coord_type = "projected", verbose = FALSE, ...)
+}
+
+test_that("tune_index_res does not reset the caller's random stream", {
+      d <- make_large(seed = 2)
+      set.seed(42)
+      tune_large(d)
+      a <- runif(1)
+      tune_large(d)
+      b <- runif(1)
+      # A reset to a fixed state would make every draw after a call the same
+      expect_false(a == b)
+})
+
+test_that("tune_index_res with an explicit seed leaves the caller's stream untouched", {
+      d <- make_large(seed = 3)
+      set.seed(42); expected <- runif(1)
+      set.seed(42); tune_large(d, seed = 5); expect_identical(runif(1), expected)
+      # The pass-through path (no tuning) also draws nothing
+      small <- sim_test_data()
+      set.seed(42)
+      tune_index_res(x = small$focal, pool = small$ref, stat = "count",
+                     env = kernel(max = 1), geog = kernel(max = 2),
+                     coord_type = "projected", seed = 5)
+      expect_identical(runif(1), expected)
+})
+
+test_that("tune_index_res works in a session that has not used the RNG", {
+      d <- make_large(seed = 4)
+      env <- globalenv()
+      old <- get(".Random.seed", envir = env)
+      on.exit(assign(".Random.seed", old, envir = env))
+      rm(".Random.seed", envir = env)
+      expect_no_error(tune_large(d))
+})

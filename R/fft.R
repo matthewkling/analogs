@@ -44,7 +44,21 @@
 #'
 #' Because the convolved surface is a sum of kernel-shaped bumps, it changes
 #' little between nodes spaced well within the kernel's width, so the coarse
-#' grid loses little accuracy. The output keeps the resolution of the focal
+#' grid loses little accuracy.
+#'
+#' Binning also spreads a little weight past the kernel's limits, so a focal
+#' with no pool points within its limits still picks up small sums. To match
+#' the exact method there (`NA` for ratio statistics such as
+#' `weighted_mean`, zero for counts and weight sums), two indicator sums on
+#' a separate grid at twice the spacing, with the limits shrunk and grown by
+#' the most binning can move a point, show which focals certainly have
+#' analogs and which certainly have none. Focals near the edge of the pool's
+#' reach, which neither settles, are recomputed with the exact engine;
+#' [metadata()] reports how many as `fft_exact_rows`. These are also the
+#' sparsely supported focals where binning error is largest. The share of
+#' such focals grows with `bin`, and in very sparse pools it can be large.
+#'
+#' The output keeps the resolution of the focal
 #' data: two neighboring focal raster cells with different climates read off
 #' different parts of the environmental axes and can get quite different
 #' results. Statistics that need several sums (for example, a regression
@@ -97,7 +111,7 @@
 #' Speedups also shrink with more threads, since the exact method
 #' parallelizes over focals more completely than the FFT method. When in
 #' doubt, time both on a subset of focals. If `max_cells` is exceeded, use a
-#' coarser `bin` or the exact method; for raster inputs,
+#' coarser `bin` or the exact method;
 #' [tiled_analog_search()] accepts `method = "fft"` and builds a separate,
 #' smaller grid for each tile and its halo (spanning only the environments
 #' found there), which is the most effective way to cut peak memory when
@@ -221,42 +235,67 @@ print.analog_fft_method <- function(x, ...) {
       if (geog$active) fams$geog <- c(geog, list(cols = 1:2))
       if (env$active)  fams$env  <- c(env,  list(cols = 2L + seq_len(n_env)))
 
-      # Fields, then kernels for the kernel types the fields use.
+      # The kernel-weighted sums the requested stats need
       fields <- .fft_build_fields(stat, se, values_mat, covariates_mat,
                                   n_classes_per_var, area_weight, user_weight,
                                   n_pool = nrow(ref))
-      axes <- lapply(fams, .fft_family_axes,
-                     pool = ref, focal = focal, bin = fft$bin,
-                     kernel_types = fields$kernel_types)
+      cols <- unlist(lapply(fams, `[[`, "cols"), use.names = FALSE)
 
+      # Grid axes for the given node spacing and kernel types, and the binned,
+      # convolved, read-off values of `masses` on them.
+      grid_axes <- function(bin, kernel_types) {
+            lapply(fams, .fft_family_axes, pool = ref, focal = focal,
+                   bin = bin, kernel_types = kernel_types)
+      }
+      run_fields <- function(axes, kernel_types, masses, field_kernel) {
+            .fft_fields_cpp(
+                  pool_pts     = ref[, cols, drop = FALSE],
+                  focal_pts    = focal[, cols, drop = FALSE],
+                  origin       = unlist(lapply(axes, `[[`, "origin"), use.names = FALSE),
+                  delta        = unlist(lapply(axes, `[[`, "delta"), use.names = FALSE),
+                  n_nodes      = unlist(lapply(axes, `[[`, "n"), use.names = FALSE),
+                  group_sizes  = as.integer(vapply(fams, function(f) length(f$cols), 1L)),
+                  pad_sizes    = unlist(lapply(axes, `[[`, "pad"), use.names = FALSE),
+                  kernels      = lapply(kernel_types, function(kt) {
+                        lapply(axes, function(ax) ax$kernels[[kt]])
+                  }),
+                  masses       = masses,
+                  field_kernel = field_kernel,
+                  exclude_self = isTRUE(exclude_self)
+            )
+      }
+
+      axes <- grid_axes(fft$bin, fields$kernel_types)
       n_nodes <- unlist(lapply(axes, `[[`, "n"), use.names = FALSE)
       pad <- unlist(lapply(axes, `[[`, "pad"), use.names = FALSE)
       if (prod(as.numeric(n_nodes)) > fft$max_cells) {
             stop("The FFT grid would have ", format(prod(as.numeric(n_nodes)), big.mark = ","),
                  " nodes, more than `max_cells` (",
                  format(fft$max_cells, big.mark = ","), "). Increase `bin` in ",
-                 "fft_method(), raise `max_cells`, run raster inputs through ",
+                 "fft_method(), raise `max_cells`, run the query through ",
                  "tiled_analog_search(), or use the exact method.",
                  call. = FALSE)
       }
-      cols <- unlist(lapply(fams, `[[`, "cols"), use.names = FALSE)
-      kernels <- lapply(fields$kernel_types, function(kt) {
-            lapply(axes, function(ax) ax$kernels[[kt]])
-      })
+      vals <- run_fields(axes, fields$kernel_types, fields$masses, fields$field_kernel)
 
-      vals <- .fft_fields_cpp(
-            pool_pts     = ref[, cols, drop = FALSE],
-            focal_pts    = focal[, cols, drop = FALSE],
-            origin       = unlist(lapply(axes, `[[`, "origin"), use.names = FALSE),
-            delta        = unlist(lapply(axes, `[[`, "delta"), use.names = FALSE),
-            n_nodes      = as.integer(n_nodes),
-            group_sizes  = as.integer(vapply(fams, function(f) length(f$cols), 1L)),
-            pad_sizes    = as.integer(pad),
-            kernels      = kernels,
-            masses       = fields$masses,
-            field_kernel = fields$field_kernel,
-            exclude_self = isTRUE(exclude_self)
-      )
+      # Support check (see .fft_support()) on its own grid, at twice the
+      # spacing: 2^-D the nodes, at the cost of a wider band of focals left
+      # unresolved and computed exactly.
+      n_class <- ncol(fields$support_masks)
+      support_mass <- matrix(as.numeric(fields$support_masks), nrow(ref), n_class)
+      sup <- run_fields(grid_axes(min(1, 2 * fft$bin), c("Iin", "Iout")),
+                        c("Iin", "Iout"), cbind(support_mass, support_mass),
+                        rep(0:1, each = n_class))
+      support <- .fft_support(sup[, seq_len(n_class), drop = FALSE],
+                              sup[, n_class + seq_len(n_class), drop = FALSE])
+
+      # Fields of focals with no pool point of their class within the limits
+      # hold only binning spill; zero them so the finalizer treats those
+      # focals exactly as the exact engine does (NA ratios, zero counts).
+      for (k in seq_len(n_class)) {
+            empty <- which(support$empty[, k])
+            if (length(empty) > 0L) vals[empty, fields$field_class == k] <- 0
+      }
 
       uw_mean <- if (is.null(user_weight) || !any(user_weight > 0)) 1 else
             mean(user_weight[user_weight > 0])
@@ -275,6 +314,10 @@ print.analog_fft_method <- function(x, ...) {
             user_weight_mean  = uw_mean
       )
 
+      # Focals whose support the grid can't settle are computed exactly.
+      exact_rows <- which(support$unresolved)
+      if (length(exact_rows) > 0L) res[exact_rows, ] <- exact_fn(exact_rows)
+
       attr(res, "n_x") <- nrow(focal)
       attr(res, "n_pool") <- nrow(ref)
       attr(res, "n_env") <- n_env
@@ -289,6 +332,7 @@ print.analog_fft_method <- function(x, ...) {
             spacing = unlist(lapply(axes, `[[`, "delta"), use.names = FALSE),
             fft_len = pad
       )
+      attr(res, "fft_exact_rows") <- length(exact_rows)
 
       if (fft$check > 0L) {
             rows <- sort(sample.int(nrow(focal), min(fft$check, nrow(focal))))
@@ -351,26 +395,35 @@ print.analog_fft_method <- function(x, ...) {
       lim <- rep_len(fam$max, d)                  # Inf when unlimited
       limited <- any(is.finite(lim)) || fam$min > 0
 
+      # Length scale the grid must resolve: theta (max for a uniform kernel),
+      # or the inner radius of an annulus if that is smaller. Node spacing
+      # ends up at most `step`.
+      scale <- if (fam$kernel == "uniform") lim else rep(fam$theta, d)
+      if (fam$min > 0) scale <- pmin(scale, fam$min)
+      step <- bin * scale
+
       # Support radius (distance units) per kernel type
       r_K <- if (fam$kernel == "gaussian") pmin(lim, 7 * fam$theta) else lim
       r_need <- rep(0, d)
       if (any(kernel_types %in% c("K", "K2"))) r_need <- pmax(r_need, r_K)
-      if ("I" %in% kernel_types) r_need <- pmax(r_need, lim)
+      if (any(kernel_types %in% c("I", "Iin", "Iout"))) r_need <- pmax(r_need, lim)
+      # "Iout" reaches past the limits by up to two node spacings per axis
+      # (see .fft_support()), so its kernel array is wider. The grid range
+      # needn't be: points beyond it have no partner within the limits, which
+      # is all "Iout" is used to detect.
+      r_kern <- if ("Iout" %in% kernel_types) {
+            pmax(r_need, lim + if (box) 2 * step else 2 * sqrt(sum(step^2)))
+      } else r_need
 
       # Grid range: overlap of pool and focal ranges, widened by the support
       lo <- pmax(pmin(p_lo, f_lo), pmax(p_lo, f_lo) - r_need)
       hi <- pmin(pmax(p_hi, f_hi), pmin(p_hi, f_hi) + r_need)
       hi <- pmax(hi, lo)
 
-      # Length scale the grid must resolve: theta (max for a uniform kernel),
-      # or the inner radius of an annulus if that is smaller.
-      scale <- if (fam$kernel == "uniform") lim else rep(fam$theta, d)
-      if (fam$min > 0) scale <- pmin(scale, fam$min)
-      step <- bin * scale
       n <- ifelse(hi > lo, ceiling((hi - lo) / step) + 1, 1)
       delta <- ifelse(n > 1, (hi - lo) / (n - 1), step)
       # Half a cell extra so anti-aliased edge cells are kept
-      h <- as.integer(pmin(ceiling(r_need / delta + 0.5), n - 1))
+      h <- as.integer(pmin(ceiling(r_kern / delta + 0.5), n - 1))
       dims <- 2L * h + 1L
       offs <- lapply(seq_len(d), function(k) seq(-h[k], h[k]) * delta[k])
 
@@ -420,9 +473,57 @@ print.analog_fft_method <- function(x, ...) {
       }
       if ("I" %in% kernel_types) kern$I <- cover
 
+      # Hard-edged limit indicators, shrunk ("Iin") or grown ("Iout") by the
+      # farthest binning plus read-off can displace a pool-focal offset: one
+      # node spacing per axis each (see .fft_support()).
+      if (any(c("Iin", "Iout") %in% kernel_types)) {
+            grow <- 2 * delta
+            grow_r <- sqrt(sum(grow^2))
+            limit_indicator <- function(s) {
+                  inside <- array(TRUE, dim = dims)
+                  if (box) {
+                        inside <- 1
+                        for (k in seq_len(d)) {
+                              inside <- outer(inside, abs(offs[[k]]) <= lim[k] + s * grow[k], `*`)
+                        }
+                        inside <- array(inside > 0, dim = dims)
+                  } else if (is.finite(fam$max)) {
+                        inside <- dist <= fam$max + s * grow_r
+                  }
+                  if (fam$min > 0) inside <- inside & dist >= fam$min - s * grow_r
+                  array(as.numeric(inside), dim = dims)
+            }
+            if ("Iin" %in% kernel_types) kern$Iin <- limit_indicator(-1)
+            if ("Iout" %in% kernel_types) kern$Iout <- limit_indicator(1)
+      }
+
       list(origin = lo, delta = delta, n = as.integer(n), h = h,
            pad = as.integer(vapply(n + h, stats::nextn, numeric(1), factors = c(2, 3, 5))),
            kernels = kern)
+}
+
+
+# Support ----------------------------------------------------------------------
+
+# Which focals have at least one pool point (of each support class) within the
+# kernel limits. Binning spreads a little mass past the limits, so a focal with
+# no analogs still gets small positive sums; without this check, ratio stats
+# would be computed from that spill where the exact engine returns NA.
+#
+# Binning moves each pool point's mass to nodes within one node spacing per
+# axis, and read-off takes each focal's value from nodes within one spacing,
+# so a pool point reaches a focal only through kernel offsets within two
+# spacings (per axis) of their true offset. Hence, with 0/1 masses:
+#   - "Iin" (limits shrunk by that margin) > 0.5 means some point's true
+#     offset is inside the limits: the focal has support;
+#   - "Iout" (limits grown by it) is at least 1 for every point whose true
+#     offset is inside the limits, so < 0.5 means the focal has none.
+# The 0.5 thresholds sit far from FFT round-off. Focals that are neither are
+# `unresolved`, and are computed with the exact engine.
+.fft_support <- function(inner, outer) {
+      has <- inner > 0.5
+      empty <- outer < 0.5
+      list(empty = empty, unresolved = rowSums(!(has | empty)) > 0)
 }
 
 
@@ -553,9 +654,30 @@ print.analog_fft_method <- function(x, ...) {
                  "xtwx", "xtwy", "reg_wy2", "own", "own_xtwx", "own_sw", "own_sw2")
       roles <- lapply(stats::setNames(slots, slots), function(s) as.integer(roles[[s]] %||% integer(0)))
 
+      # Support classes for .fft_support(): the pool points a field's mass can
+      # be nonzero at. That is points with positive weight if the field
+      # carries `pw`, and with an observed response v if it carries any
+      # response-v factor (y, o, or c). Fields with the same class share one.
+      support_masks <- list()
+      field_class <- vapply(keys, function(key) {
+            toks <- strsplit(sub("^[^:]*:", "", key), "*", fixed = TRUE)[[1]]
+            m <- if ("pw" %in% toks) !is.na(pw) & pw > 0 else rep(TRUE, n_pool)
+            vars <- unique(as.integer(sub("^[yoc]([0-9]+).*", "\\1",
+                                          grep("^[yoc][0-9]", toks, value = TRUE))))
+            for (v in vars) m <- m & !is.na(values_mat[, v])
+            hit <- Position(function(s) identical(s, m), support_masks)
+            if (is.na(hit)) {
+                  support_masks[[length(support_masks) + 1L]] <<- m
+                  hit <- length(support_masks)
+            }
+            as.integer(hit)
+      }, integer(1), USE.NAMES = FALSE)
+
       kernel_types <- unique(kern_of)
-      list(masses       = do.call(cbind, masses) %||% matrix(0, n_pool, 0),
-           field_kernel = as.integer(match(kern_of, kernel_types) - 1L),
-           kernel_types = kernel_types,
-           roles        = roles)
+      list(masses        = do.call(cbind, masses) %||% matrix(0, n_pool, 0),
+           field_kernel  = as.integer(match(kern_of, kernel_types) - 1L),
+           kernel_types  = kernel_types,
+           roles         = roles,
+           support_masks = do.call(cbind, support_masks) %||% matrix(TRUE, n_pool, 0),
+           field_class   = field_class)
 }

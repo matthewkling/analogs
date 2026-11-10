@@ -57,7 +57,21 @@ interpolation).
 
 Because the convolved surface is a sum of kernel-shaped bumps, it changes
 little between nodes spaced well within the kernel's width, so the coarse
-grid loses little accuracy. The output keeps the resolution of the focal
+grid loses little accuracy.
+
+Binning also spreads a little weight past the kernel's limits, so a focal
+with no pool points within its limits still picks up small sums. To match
+the exact method there (\code{NA} for ratio statistics such as
+\code{weighted_mean}, zero for counts and weight sums), two indicator sums on
+a separate grid at twice the spacing, with the limits shrunk and grown by
+the most binning can move a point, show which focals certainly have
+analogs and which certainly have none. Focals near the edge of the pool's
+reach, which neither settles, are recomputed with the exact engine;
+\code{\link[=metadata]{metadata()}} reports how many as \code{fft_exact_rows}. These are also the
+sparsely supported focals where binning error is largest. The share of
+such focals grows with \code{bin}, and in very sparse pools it can be large.
+
+The output keeps the resolution of the focal
 data: two neighboring focal raster cells with different climates read off
 different parts of the environmental axes and can get quite different
 results. Statistics that need several sums (for example, a regression
@@ -112,7 +126,7 @@ is efficient, and the FFT grid may exceed \code{max_cells}.
 Speedups also shrink with more threads, since the exact method
 parallelizes over focals more completely than the FFT method. When in
 doubt, time both on a subset of focals. If \code{max_cells} is exceeded, use a
-coarser \code{bin} or the exact method; for raster inputs,
+coarser \code{bin} or the exact method;
 \code{\link[=tiled_analog_search]{tiled_analog_search()}} accepts \code{method = "fft"} and builds a separate,
 smaller grid for each tile and its halo (spanning only the environments
 found there), which is the most effective way to cut peak memory when

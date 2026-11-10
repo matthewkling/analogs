@@ -1,12 +1,107 @@
-test_that("tiled_analog_search requires SpatRaster inputs", {
-      # Create non-raster data
-      focal_df <- data.frame(x = 1:10, y = 1:10, var1 = rnorm(10))
+test_that("tiled_analog_search rejects inputs that are neither rasters nor point tables", {
       ref_df <- data.frame(x = 1:100, y = 1:100, var1 = rnorm(100))
-
       expect_error(
-            tiled_analog_search(focal_df, ref_df, n_tiles = 4, fun = analog_velocity, geog = kernel(max = 100)),
-            "x must be a SpatRaster"
+            tiled_analog_search(list(1), ref_df, n_tiles = 4, fun = analog_velocity, geog = kernel(max = 100)),
+            "x must be a SpatRaster, matrix, or data.frame"
       )
+      expect_error(
+            tiled_analog_search(ref_df, build_analog_index(ref_df, coord_type = "projected"),
+                                n_tiles = 4, fun = analog_velocity, geog = kernel(max = 100)),
+            "pool must be a SpatRaster, matrix, or data.frame"
+      )
+})
+
+
+# --- point-table inputs -------------------------------------------------------
+
+# Drop per-call index diagnostics (n_pool, bins_per_axis, ...), which describe
+# one tile's index rather than the result
+strip_meta <- function(d) {
+      attributes(d) <- attributes(d)[c("names", "row.names", "class")]
+      d
+}
+
+point_fixture <- function(n_pool = 3000, n_focal = 800) {
+      set.seed(11)
+      pool <- data.frame(x = runif(n_pool, 0, 1000), y = runif(n_pool, 0, 600))
+      pool$e1 <- pool$x / 300 + rnorm(n_pool, sd = 0.3)
+      pool$e2 <- pool$y / 200 + rnorm(n_pool, sd = 0.3)
+      focal <- data.frame(x = runif(n_focal, 0, 1000), y = runif(n_focal, 0, 600))
+      focal$e1 <- focal$x / 300 + 0.2
+      focal$e2 <- focal$y / 200 + 0.2
+      # Missing coordinates and missing environment, both of which must come
+      # back as NA rows in their original positions
+      focal[5, c("x", "y")] <- NA
+      focal[9, "e1"] <- NA
+      y <- data.frame(a = pool$e1 + rnorm(n_pool), b = rbinom(n_pool, 1, 0.3))
+      list(pool = pool, focal = focal, y = y,
+           args = list(env = kernel("gaussian", theta = 0.3, max = 0.9),
+                       geog = kernel("gaussian", theta = 40, max = 120),
+                       stat = c("weighted_mean", "sum_weights")))
+}
+
+test_that("point x and point pool match the non-tiled result exactly", {
+      d <- point_fixture()
+      untiled <- do.call(analog_impact, c(list(x = d$focal, pool = d$pool, y = d$y,
+                                               coord_type = "projected"), d$args))
+      tiled <- do.call(tiled_analog_search,
+                       c(list(x = d$focal, pool = d$pool, y = d$y, n_tiles = 6,
+                              fun = analog_impact, coord_type = "projected",
+                              progress = FALSE), d$args))
+      expect_equal(strip_meta(tiled), strip_meta(untiled))
+      expect_true(all(is.na(tiled[c(5, 9), "weighted_mean_a"])))
+})
+
+test_that("point x with point pool forwards and subsets weight", {
+      d <- point_fixture()
+      w <- runif(nrow(d$pool))
+      untiled <- do.call(analog_impact, c(list(x = d$focal, pool = d$pool, y = d$y, weight = w,
+                                               coord_type = "projected"), d$args))
+      tiled <- do.call(tiled_analog_search,
+                       c(list(x = d$focal, pool = d$pool, y = d$y, weight = w, n_tiles = 6,
+                              fun = analog_impact, coord_type = "projected",
+                              progress = FALSE), d$args))
+      expect_equal(strip_meta(tiled), strip_meta(untiled))
+})
+
+test_that("point x returns pair results in x's row order with x's indices", {
+      d <- point_fixture(n_focal = 60)
+      args <- list(x = d$focal, pool = d$pool, coord_type = "projected",
+                   env = kernel(max = 0.5), geog = kernel(max = 60), select = "all", stat = NULL)
+      untiled <- do.call(analog_search, args)
+      tiled <- do.call(tiled_analog_search,
+                       c(args, list(n_tiles = 6, fun = analog_search, progress = FALSE)))
+      key <- function(r) r[order(r$index, r$analog_index), c("index", "analog_index", "geog_dist")]
+      expect_false(is.unsorted(tiled$index, na.rm = TRUE))
+      expect_equal(key(tiled), key(untiled), ignore_attr = TRUE)
+})
+
+test_that("raster x with a lonlat point pool matches the non-tiled result", {
+      set.seed(12)
+      x <- terra::rast(nrows = 30, ncols = 40, xmin = -110, xmax = -106, ymin = 38, ymax = 41,
+                       crs = "EPSG:4326")
+      xy <- terra::xyFromCell(x, seq_len(terra::ncell(x)))
+      terra::values(x) <- xy[, 1] / 2 + xy[, 2] / 3
+      names(x) <- "e"
+      pool <- data.frame(x = runif(4000, -111, -105), y = runif(4000, 37, 42))
+      pool$e <- pool$x / 2 + pool$y / 3 + rnorm(4000, sd = 0.2)
+      y <- pool$e + rnorm(4000)
+      args <- list(env = kernel(max = 0.5), geog = kernel(max = 60), stat = "weighted_mean")
+      untiled <- do.call(analog_impact, c(list(x = x, pool = pool, y = y), args))
+      tiled <- do.call(tiled_analog_search,
+                       c(list(x = x, pool = pool, y = y, n_tiles = 4, fun = analog_impact,
+                              coord_type = "lonlat", progress = FALSE), args))
+      expect_equal(terra::values(tiled[["weighted_mean"]]), terra::values(untiled[["weighted_mean"]]))
+})
+
+test_that("point pool companions must be row-aligned, and cell_area_weight needs a raster", {
+      d <- point_fixture()
+      base <- c(list(x = d$focal, pool = d$pool, n_tiles = 4, fun = analog_impact,
+                     coord_type = "projected", progress = FALSE), d$args)
+      expect_error(do.call(tiled_analog_search, c(base, list(y = d$y[-1, ]))),
+                   "y must be a vector, matrix, or data.frame with one row per row of pool")
+      expect_error(do.call(tiled_analog_search, c(base, list(y = d$y, cell_area_weight = TRUE))),
+                   "requires a raster pool")
 })
 
 test_that("tiled_analog_search requires matching CRS", {

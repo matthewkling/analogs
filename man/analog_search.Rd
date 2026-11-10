@@ -432,7 +432,7 @@ Meteorology and Climatology}, \strong{52}(4), 733-752.
 }
 \seealso{
 \code{\link[=kernel_params]{kernel_params()}} recommends parameter values calibrated to target
-kernel coverage. \code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large raster
+kernel coverage. \code{\link[=tiled_analog_search]{tiled_analog_search()}} offers memory-safe searches on large
 datasets. Helper functions such as \code{\link[=analog_impact]{analog_impact()}}, \code{\link[=analog_velocity]{analog_velocity()}},
 and \code{\link[=analog_density]{analog_density()}} offer simpler interfaces for common search types.
 \code{\link[=analog_cv]{analog_cv()}} provides cross-validation workflows.

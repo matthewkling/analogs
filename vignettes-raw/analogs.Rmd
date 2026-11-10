@@ -384,7 +384,7 @@ result <- analog_velocity(fut, hist, env = kernel(0.5), k = 1, n_threads = 4)
 
 ### Large raster datasets
 
-For rasters too large to fit in memory, `tiled_analog_search()` processes the focal data in spatial tiles:
+For rasters or point sets too large to fit in memory, `tiled_analog_search()` processes the focal data in spatial tiles:
 
 ```{r tiled, eval = FALSE}
 result <- tiled_analog_search(
@@ -418,7 +418,7 @@ plot(imp_fft$weighted_mean, main = "Analog impact model (FFT method)")
 metadata(imp_fft)$fft_check
 ```
 
-Geographic kernels require projected coordinates (e.g. via `terra::project()`) for use with FFT. If a query exceeds `max_cells`, use a coarser `bin`, run raster inputs through `tiled_analog_search()` (which accepts `method = "fft"`), or use the exact method.
+Geographic kernels require projected coordinates (e.g. via `terra::project()`) for use with FFT. If a query exceeds `max_cells`, use a coarser `bin`, run the query through `tiled_analog_search()` (which accepts `method = "fft"`), or use the exact method.
 
 
 ### Downsampling

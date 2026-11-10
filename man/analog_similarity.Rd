@@ -212,5 +212,5 @@ i2 <- analog_similarity(x = sites2, pool = index, geog = kernel(max = 50), k = 1
 }
 \seealso{
 \code{\link[=analog_search]{analog_search()}} for the underlying flexible analog search function;
-\code{\link[=tiled_analog_search]{tiled_analog_search()}} for memory-safe searches on large raster datasets.
+\code{\link[=tiled_analog_search]{tiled_analog_search()}} for memory-safe searches on large datasets.
 }

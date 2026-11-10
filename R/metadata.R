@@ -111,6 +111,9 @@
 #'       with finite values (`n`), and the maximum absolute error, root mean
 #'       squared error, and root mean square of the exact values over those
 #'       focals.}
+#'     \item{`fft_exact_rows`}{Number of focals near the edge of the pool's
+#'       reach that were recomputed with the exact engine (see
+#'       [fft_method()]).}
 #'   }
 #'
 #'   ## Cross-validation metadata
@@ -176,7 +179,7 @@ metadata <- function(x) {
             "avg_bin_occupancy", "avg_nonempty_bin_occupancy",
             "geog_res_adj", "env_res_adj", "geo_target", "env_target", "bins_per_axis",
             # FFT method
-            "fft_grid", "fft_check",
+            "fft_grid", "fft_check", "fft_exact_rows",
             # Cross-validation
             "cv_method", "cv_fun", "cv_n_folds", "cv_pred_target"
       )

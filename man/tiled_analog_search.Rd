@@ -15,15 +15,22 @@ tiled_analog_search(
   x_cov = NULL,
   weight = NULL,
   cell_area_weight = "auto",
+  coord_type = c("auto", "lonlat", "projected"),
   ...,
   output_file = NULL,
   progress = TRUE
 )
 }
 \arguments{
-\item{x}{SpatRaster with focal locations (points to find analogs for).}
+\item{x}{Focal locations: a SpatRaster with environmental variable layers,
+or a matrix/data.frame with columns x, y, and environmental variables.}
 
-\item{pool}{SpatRaster with reference locations (potential analog pool).}
+\item{pool}{Reference locations (potential analog pool): a SpatRaster, or a
+matrix/data.frame with columns x, y, and environmental variables. An
+\code{analog_index} is not accepted, since each tile needs its own pool subset.
+Point tables carry no CRS, so \code{x} and \code{pool} must share a coordinate
+system whenever either is a point table (not checked), and \code{coord_type}
+should usually be given explicitly.}
 
 \item{n_tiles}{Approximate number of tiles. The function will find a grid
 close to this number that creates square-ish tiles. Choosing larger
@@ -43,27 +50,40 @@ is bounded, hence \code{geog} with a finite \code{max} is required.}
 \item{env}{Optional \code{\link[=kernel]{kernel()}} object giving the environmental search treatment,
 forwarded to \code{fun}. \code{NULL} (default) means no environmental kernel is passed.}
 
-\item{y}{Optional SpatRaster with values to aggregate across analogs.
-Must have spatial properties matching pool.}
+\item{y}{Optional values to aggregate across analogs. A SpatRaster matching
+\code{pool}'s CRS and extent when \code{pool} is a raster; a vector, factor, or
+matrix/data.frame with one row per row of \code{pool} when \code{pool} is a point
+table.}
 
-\item{x_cov}{Optional SpatRaster with covariates for focal points. Must have
-spatial properties matching x.}
+\item{x_cov}{Optional focal covariances. A SpatRaster matching \code{x}'s CRS
+and extent when \code{x} is a raster; a matrix/data.frame with one row per row
+of \code{x} when \code{x} is a point table.}
 
-\item{weight}{Optional single-layer SpatRaster of per-pool-cell weights.
-Must have the same CRS and extent as \code{pool}. See \code{\link[=analog_search]{analog_search()}} for
-details.}
+\item{weight}{Optional per-pool-site weights. A single-layer SpatRaster
+matching \code{pool}'s CRS and extent when \code{pool} is a raster; a numeric
+vector with one value per row of \code{pool} when \code{pool} is a point table.
+See \code{\link[=analog_search]{analog_search()}} for details.}
 
 \item{cell_area_weight}{Controls cell-area weighting. One of \code{"auto"}
-(default; on for raster pools, which is always the case here), \code{TRUE},
-or \code{FALSE}. Unlike a non-tiled query, where weights are normalized to
-mean 1 over whatever pool is passed, here weights are normalized to
-mean 1 over the \emph{full pool raster} once at the outer level, and the
-resulting raster is sliced per tile. This keeps absolute magnitudes of
-weighted stats (e.g. \code{sum_weights}) consistent across tiles.}
+(default; on for raster pools, off for point pools), \code{TRUE}, or \code{FALSE}.
+\code{TRUE} requires a raster pool. Unlike a non-tiled query, where weights
+are normalized to mean 1 over whatever pool is passed, here weights are
+normalized to mean 1 over the \emph{full pool raster} once at the outer level,
+and the resulting raster is sliced per tile. This keeps absolute
+magnitudes of weighted stats (e.g. \code{sum_weights}) consistent across
+tiles.}
+
+\item{coord_type}{One of \code{"auto"} (default), \code{"lonlat"}, or \code{"projected"};
+see \code{\link[=analog_search]{analog_search()}}. \code{"auto"} reads the CRS of whichever of \code{x} and
+\code{pool} is a raster, and falls back to a coordinate-range check only when
+both are point tables. That check reads small projected coordinates (any
+within +/-180, +/-90) as lon/lat, so set this explicitly for point
+tables. Required to be \code{"projected"} for geographic kernels with
+\code{method = "fft"}.}
 
 \item{...}{Additional arguments passed to fun (e.g. \code{select}, \code{stat}, \code{k}).
-May include \code{covariates} as a SpatRaster matching \code{pool}'s CRS and
-extent (cropped per tile alongside \code{y}). May also include \code{normalize}
+May include \code{covariates}, aligned with \code{pool} in the same way as \code{y}
+(cropped or subset per tile alongside \code{y}). May also include \code{normalize}
 for helpers that support it (e.g. \code{analog_density()}); when normalization
 is requested, the global mean cell area is computed once over the full
 pool and propagated to each tile so per-tile \code{D_max} values are
@@ -78,13 +98,15 @@ results are too large to fit in memory. Ignored for data.frame results.}
 }
 \value{
 Same type as fun returns (SpatRaster or data.frame). If output_file
-is specified, returns a disk-backed SpatRaster.
+is specified, returns a disk-backed SpatRaster. When \code{x} is a point
+table, rows come back in the order of \code{x}, and the \code{index} column refers
+to rows of \code{x}, exactly as in a non-tiled call.
 }
 \description{
-Performs analog searches on large raster datasets by dividing the focal
-region into tiles and processing each tile separately. This reduces memory
-usage at the cost of increasing compute time. Works with any \verb{analog_*()}
-function.
+Performs analog searches on large datasets by dividing the focal region
+into tiles and processing each tile separately. This reduces memory usage,
+and with \code{method = "fft"} it also keeps each tile's FFT grid small. Works
+with any \verb{analog_*()} function.
 }
 \details{
 Tiled analog searches work by splitting x into a number of smaller tiles and
@@ -92,8 +114,14 @@ calling the requested analog function on each tile, using an analog pool
 that is the size of the tile buffered by the geographic radius (\code{geog}'s
 \code{max}). This buffer is necessary
 for correctness but increases compute time, particularly if the radius is
-large. The results for each tile are temporarily written to disk, and are
-merged into a single results raster once all tiles have processed.
+large. Raster results for each tile are merged into a single results raster
+once all tiles have processed (via temporary files when \code{output_file} is
+set).
+
+Raster inputs are cropped to each tile and halo; point-table inputs are
+subset by row. Each focal point belongs to exactly one tile, and focal rows
+with missing coordinates are passed with the first tile, so they come back
+as \code{NA} rows just as they would without tiling.
 
 The function requires \code{geog} to have a finite \code{max}, as tiling is only beneficial when
 geographic distance constraints limit the reference pool size for each

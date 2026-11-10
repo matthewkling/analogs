@@ -404,3 +404,117 @@ test_that("fft runs through tiled_analog_search and matches untiled fft", {
       # Tiles place grid nodes differently, so results differ by binning error only
       expect_lt(stats::median(abs(t[ok] - u[ok])) / stats::sd(u[ok]), 0.01)
 })
+
+
+test_that("fft runs through tiled_analog_search with point tables", {
+      set.seed(5)
+      n <- 4000
+      pool <- data.frame(x = runif(n, 0, 8e4), y = runif(n, 0, 8e4))
+      pool$e1 <- 3 * pool$x / 8e4 + rnorm(n, sd = 0.2)
+      pool$e2 <- 2 * pool$y / 8e4 + rnorm(n, sd = 0.2)
+      focal <- pool[sample(n, 1500), ]
+      focal$e1 <- focal$e1 + 0.3
+      focal[3, c("x", "y")] <- NA
+      y <- pool$e1 + pool$e2
+      args <- list(geog = kernel("gaussian", theta = 6e3, max = 1.8e4),
+                   env = kernel("gaussian", theta = 0.3, max = 0.9),
+                   stat = c("weighted_mean", "sum_weights"), method = "fft",
+                   coord_type = "projected")
+
+      untiled <- do.call(analog_impact, c(list(x = focal, pool = pool, y = y), args))
+      tiled <- do.call(tiled_analog_search,
+                       c(list(x = focal, pool = pool, y = y, n_tiles = 4,
+                              fun = analog_impact, progress = FALSE), args))
+
+      expect_identical(tiled$index, untiled$index)
+      u <- untiled$weighted_mean
+      t <- tiled$weighted_mean
+      expect_identical(is.finite(u), is.finite(t))
+      ok <- is.finite(u)
+      expect_lt(stats::median(abs(t[ok] - u[ok])) / stats::sd(u[ok]), 0.01)
+})
+
+
+# Focals without analogs ------------------------------------------------------
+
+# A patchy pool: geographic holes wider than the kernels' `max`, and no warm
+# climates, with focals spread over and beyond it, so many focals have no pool
+# point within the limits and many more sit near the edge of the pool's reach.
+fft_patchy_data <- function(seed = 7, n = 4000, n_focal = 3000) {
+      set.seed(seed)
+      pool <- cbind(x = runif(n, 0, 300), y = runif(n, 0, 300),
+                    e1 = rnorm(n), e2 = rnorm(n))
+      hole <- (pool[, "x"] - 150)^2 + (pool[, "y"] - 150)^2 < 100^2 |
+            (pool[, "x"] > 240 & pool[, "y"] < 90) |
+            pool[, "e1"] > 0.5
+      pool <- pool[!hole, ]
+      focal <- cbind(x = runif(n_focal, -30, 330), y = runif(n_focal, -30, 330),
+                     e1 = rnorm(n_focal, sd = 1.3), e2 = rnorm(n_focal))
+      y <- cbind(a = pool[, "e1"] + rnorm(nrow(pool)),
+                 b = rbinom(nrow(pool), 1, 0.3))
+      list(pool = pool, focal = focal, y = y,
+           covs = cbind(c1 = pool[, "e2"] + rnorm(nrow(pool))))
+}
+
+# NA where exact is NA, exact zeros where exact is zero
+expect_same_support <- function(exact, fft) {
+      for (col in setdiff(names(exact), c("index", "x", "y"))) {
+            expect_identical(is.na(fft[[col]]), is.na(exact[[col]]), label = col)
+      }
+      for (col in intersect(c("count", "sum_weights", "ess"), names(exact))) {
+            z <- which(exact[[col]] == 0)
+            expect_true(all(fft[[col]][z] == 0), label = col)
+      }
+}
+
+test_that("fft returns NA and zeros where no pool point is within the limits", {
+      d <- fft_patchy_data()
+      r <- run_both(d$focal, d$pool, y = d$y, coord_type = "projected",
+                    geog = kernel("gaussian", theta = 30, max = 90),
+                    env = kernel("gaussian", theta = 0.5, max = 1.5),
+                    stat = c("weighted_mean", "mean", "count", "sum_weights", "ess"),
+                    bin = 0.25)
+      expect_gt(sum(is.na(r$exact$weighted_mean_a)), 100)   # the case is exercised
+      expect_same_support(r$exact, r$fft)
+      expect_gt(metadata(r$fft)$fft_exact_rows, 0)
+})
+
+test_that("fft support matches exact with uniform kernels, box limits, and an annulus", {
+      d <- fft_patchy_data()
+      r <- run_both(d$focal, d$pool, y = d$y, coord_type = "projected",
+                    geog = kernel(max = 90, min = 25),
+                    env = kernel("inverse", theta = 0.5, max = c(1, 2)),
+                    stat = c("weighted_mean", "count"), bin = 0.25)
+      expect_gt(sum(is.na(r$exact$weighted_mean_a)), 100)
+      expect_same_support(r$exact, r$fft)
+})
+
+test_that("fft support is per response when responses are missing", {
+      d <- fft_patchy_data()
+      # Response b observed only in the west: focals in the east have analogs
+      # for a but none for b
+      d$y[d$pool[, "x"] > 180, "b"] <- NA
+      r <- run_both(d$focal, d$pool, y = d$y, coord_type = "projected",
+                    geog = kernel("gaussian", theta = 30, max = 90),
+                    env = kernel("gaussian", theta = 0.5, max = 1.5),
+                    covariates = d$covs,
+                    stat = c("weighted_mean", "sum_weights", "regression"), bin = 0.25)
+      only_a <- !is.na(r$exact$weighted_mean_a) & is.na(r$exact$weighted_mean_b)
+      expect_gt(sum(only_a), 100)
+      expect_same_support(r$exact, r$fft)
+})
+
+test_that("fft support matches exact under leave-one-out", {
+      # A sparse pool, so that many points have no other point within the
+      # limits once their own is excluded
+      set.seed(8)
+      pool <- cbind(x = runif(150, 0, 300), y = runif(150, 0, 300), e1 = rnorm(150))
+      args <- list(pool, pool, y = pool[, "e1"] + rnorm(150), coord_type = "projected",
+                   geog = kernel("gaussian", theta = 7, max = 20),
+                   env = kernel("gaussian", theta = 0.5, max = 1.5),
+                   stat = c("weighted_mean", "count"), exclude_self = TRUE)
+      exact <- do.call(analog_search, args)
+      fft <- do.call(analog_search, c(args, method = "fft"))
+      expect_gt(sum(is.na(exact$weighted_mean)), 10)
+      expect_same_support(exact, fft)
+})

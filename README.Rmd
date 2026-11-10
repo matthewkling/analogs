@@ -52,7 +52,7 @@ The package is designed to maximize performance in various ways:
 - The package uses a lattice search index to efficiently query large candidate pools.
 - For repeated queries against the same candidate pool, `build_analog_index()` can be used to pre-build a reusable search index.
 - Optimal index parameters for your specific data can be identified with `tune_index_res()`, which is used internally by default.
-- Memory-safe queries for large raster datasets are available via `tiled_analog_search()`.
+- Memory-safe queries for large raster or point datasets are available via `tiled_analog_search()`.
 - To increase speed at the cost of some precision, you can adaptively `downsample` your reference data.
 - For kernel-weighted summaries, you can specify `method = "fft"` to use fast Fourier transforms instead of computing pairwise distances, which can dramatically increase speed but does introduce small approximation errors (see `fft_method()`).
 

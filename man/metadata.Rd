@@ -112,6 +112,9 @@ with one row per output column, giving the number of checked focals
 with finite values (\code{n}), and the maximum absolute error, root mean
 squared error, and root mean square of the exact values over those
 focals.}
+\item{\code{fft_exact_rows}}{Number of focals near the edge of the pool's
+reach that were recomputed with the exact engine (see
+\code{\link[=fft_method]{fft_method()}}).}
 }
 }
 

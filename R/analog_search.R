@@ -380,7 +380,7 @@
 #' \doi{10.1175/JAMC-D-12-0170.1}
 #'
 #' @seealso [kernel_params()] recommends parameter values calibrated to target
-#'   kernel coverage. [tiled_analog_search()] offers memory-safe searches on large raster
+#'   kernel coverage. [tiled_analog_search()] offers memory-safe searches on large
 #'   datasets. Helper functions such as [analog_impact()], [analog_velocity()],
 #'   and [analog_density()] offer simpler interfaces for common search types.
 #'   [analog_cv()] provides cross-validation workflows.

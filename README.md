@@ -65,8 +65,8 @@ The package is designed to maximize performance in various ways:
   index.
 - Optimal index parameters for your specific data can be identified with
   `tune_index_res()`, which is used internally by default.
-- Memory-safe queries for large raster datasets are available via
-  `tiled_analog_search()`.
+- Memory-safe queries for large raster or point datasets are available
+  via `tiled_analog_search()`.
 - To increase speed at the cost of some precision, you can adaptively
   `downsample` your reference data.
 - For kernel-weighted summaries, you can specify `method = "fft"` to use

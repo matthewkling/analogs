@@ -97,8 +97,11 @@ tune_index_res <- function(x,
       theta_env  <- .env_w$theta
       theta_geog  <- .geog_w$theta
 
-      if (is.null(seed)) seed <- .Random.seed[1]
-      set.seed(seed)
+      # One seed for the focal subsample and every trial index build, so all
+      # trials time the same downsampled pool. As in build_analog_index(), a
+      # NULL seed is drawn from the caller's random stream, which otherwise is
+      # left as it was.
+      if (is.null(seed)) seed <- sample.int(.Machine$integer.max, 1L)
 
       # Bounds on the per-family resolution adjustment during search.
       ADJ_MIN <- 1 / 32
@@ -132,7 +135,7 @@ tune_index_res <- function(x,
 
       # Subsample focal sites for faster benchmarking.
       n_samp <- min(1000L, max(100L, as.integer(n_focal * 0.01)))
-      idx    <- sample.int(n_focal, n_samp)
+      idx    <- .with_seed(seed, sample.int(n_focal, n_samp))
       focal_samp <- focal[idx, , drop = FALSE]
       attr(focal_samp, "template") <- attr(focal, "template")
 
@@ -295,4 +298,21 @@ tune_index_res <- function(x,
 
       list(geog_res_adj = as.numeric(geo_adj),
            env_res_adj = as.numeric(env_adj))
+}
+
+
+# Evaluate `expr` with the RNG seeded by `seed`, then restore the caller's
+# random stream (including its absence, in a session that hasn't used it).
+.with_seed <- function(seed, expr) {
+      env <- globalenv()
+      old <- if (exists(".Random.seed", envir = env, inherits = FALSE)) {
+            get(".Random.seed", envir = env, inherits = FALSE)
+      }
+      on.exit(if (is.null(old)) {
+            rm(".Random.seed", envir = env)
+      } else {
+            assign(".Random.seed", old, envir = env)
+      })
+      set.seed(seed)
+      expr
 }
