@@ -251,7 +251,7 @@ for a more complete AIM implementation.
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
 for the underlying flexible analog search function;
 [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
-for memory-safe searches on large raster datasets.
+for memory-safe searches on large datasets.
 
 ## Examples
 

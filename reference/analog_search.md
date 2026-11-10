@@ -544,8 +544,7 @@ of Applied Meteorology and Climatology*, **52**(4), 733-752.
 [`kernel_params()`](https://matthewkling.github.io/analogs/reference/kernel_params.md)
 recommends parameter values calibrated to target kernel coverage.
 [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
-offers memory-safe searches on large raster datasets. Helper functions
-such as
+offers memory-safe searches on large datasets. Helper functions such as
 [`analog_impact()`](https://matthewkling.github.io/analogs/reference/analog_impact.md),
 [`analog_velocity()`](https://matthewkling.github.io/analogs/reference/analog_velocity.md),
 and

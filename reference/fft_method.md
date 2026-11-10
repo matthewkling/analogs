@@ -70,14 +70,29 @@ in three steps:
 
 Because the convolved surface is a sum of kernel-shaped bumps, it
 changes little between nodes spaced well within the kernel's width, so
-the coarse grid loses little accuracy. The output keeps the resolution
-of the focal data: two neighboring focal raster cells with different
-climates read off different parts of the environmental axes and can get
-quite different results. Statistics that need several sums (for example,
-a regression needs weighted cross-products of the covariates and `y`)
-repeat the bin and convolve steps once per sum. For leave-one-out
-(`exclude_self = TRUE`), each focal's own binned contribution is
-subtracted after read-off.
+the coarse grid loses little accuracy.
+
+Binning also spreads a little weight past the kernel's limits, so a
+focal with no pool points within its limits still picks up small sums.
+To match the exact method there (`NA` for ratio statistics such as
+`weighted_mean`, zero for counts and weight sums), two indicator sums on
+a separate grid at twice the spacing, with the limits shrunk and grown
+by the most binning can move a point, show which focals certainly have
+analogs and which certainly have none. Focals near the edge of the
+pool's reach, which neither settles, are recomputed with the exact
+engine;
+[`metadata()`](https://matthewkling.github.io/analogs/reference/metadata.md)
+reports how many as `fft_exact_rows`. These are also the sparsely
+supported focals where binning error is largest. The share of such
+focals grows with `bin`, and in very sparse pools it can be large.
+
+The output keeps the resolution of the focal data: two neighboring focal
+raster cells with different climates read off different parts of the
+environmental axes and can get quite different results. Statistics that
+need several sums (for example, a regression needs weighted
+cross-products of the covariates and `y`) repeat the bin and convolve
+steps once per sum. For leave-one-out (`exclude_self = TRUE`), each
+focal's own binned contribution is subtracted after read-off.
 
 The grid covers only the region where focals and pool points are within
 each other's reach, so focals confined to part of the pool's extent cost
@@ -124,7 +139,7 @@ data's range:
 Speedups also shrink with more threads, since the exact method
 parallelizes over focals more completely than the FFT method. When in
 doubt, time both on a subset of focals. If `max_cells` is exceeded, use
-a coarser `bin` or the exact method; for raster inputs,
+a coarser `bin` or the exact method;
 [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
 accepts `method = "fft"` and builds a separate, smaller grid for each
 tile and its halo (spanning only the environments found there), which is

@@ -60,7 +60,8 @@ The package is designed to maximize performance in various ways:
 - Optimal index parameters for your specific data can be identified with
   [`tune_index_res()`](https://matthewkling.github.io/analogs/reference/tune_index_res.md),
   which is used internally by default.
-- Memory-safe queries for large raster datasets are available via
+- Memory-safe queries for large raster or point datasets are available
+  via
   [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md).
 - To increase speed at the cost of some precision, you can adaptively
   `downsample` your reference data.

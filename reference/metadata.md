@@ -185,6 +185,12 @@ Present when `method = "fft"` (see
   (`n`), and the maximum absolute error, root mean squared error, and
   root mean square of the exact values over those focals.
 
+- `fft_exact_rows`:
+
+  Number of focals near the edge of the pool's reach that were
+  recomputed with the exact engine (see
+  [`fft_method()`](https://matthewkling.github.io/analogs/reference/fft_method.md)).
+
 ### Cross-validation metadata
 
 Present only when `x` is a result from
