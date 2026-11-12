@@ -567,6 +567,7 @@ NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles,
       const int r_count = role("count")[0];
       const int r_sw = role("sw")[0];
       const int r_sw2 = role("sw2")[0];
+      const int r_swk = role("swk")[0];
       const std::vector<int> r_obs_count = role("obs_count");
       const std::vector<int> r_obs_sw = role("obs_sw");
       const std::vector<int> r_obs_sw2 = role("obs_sw2");
@@ -603,6 +604,7 @@ NumericMatrix fft_finalize_cpp(NumericMatrix field_vals, List roles,
             a.count = get(r_count);
             a.sum_weights = get(r_sw);
             a.sum_weights_squared = get(r_sw2);
+            a.sum_w_kernel = get(r_swk);
             for (int idx = 0; idx < L.n_regular; ++idx) {
                   const AggregateCode code = L.acodes[L.regular_pos[idx]];
                   if (code == AggregateCode::SUM_WEIGHTS || code == AggregateCode::MEAN_WEIGHTS) {

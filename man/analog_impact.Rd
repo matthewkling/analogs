@@ -90,12 +90,15 @@ of options. Common choices:
 \item \code{"tabulate"}: Per-class similarity-weighted support under
 categorical y. Output has one column per class, named
 \verb{n_<level>} (single-y) or \verb{<varname>_n_<level>} (multi-y).
-\code{"tabulate"} is mutually exclusive with \code{weighted_mean}/\code{sum}/
-\code{mean}/\code{weighted_sum}/\code{regression}, but can be combined with
-\code{count}, \code{sum_weights}, \code{mean_weights}, and \code{ess}.
+\code{"tabulate"} is mutually exclusive with \code{weighted_mean}/
+\code{weighted_sd}/\code{sum}/\code{mean}/\code{weighted_sum}/\code{regression}, but can be
+combined with \code{count}, \code{sum_weights}, \code{mean_weights}, \code{ess}, and
+\code{effective_weight}.
 \item \code{"count"}: Analog availability (number of analogs)
 \item \code{"sum_weights"}: Analog density (sum of climate-similarity
 weights across analogs)
+\item \code{"ess"}, \code{"effective_weight"}, \code{"weighted_sd"}: Describe the
+evidence behind each prediction; see Interpreting Results.
 }
 The default \code{c("count", "sum_weights", "weighted_mean")} is appropriate
 for continuous \code{y}; for categorical \code{y}, swap \code{weighted_mean} for
@@ -113,7 +116,9 @@ approaching the weighted mean as \code{lambda -> Inf}. Ignored when
 \item \code{"none"} (default): no SE columns are returned.
 \item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
 \code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
-effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
+effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²} (so
+\code{SE = weighted_sd / sqrt(ess)}). This treats analogs as independent
+samples, which spatially autocorrelated sites usually are not. For regression,
 \verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
 using \code{n_eff - p} degrees of freedom.
 \item \code{"design"}: design-based framing (no assumption that weights are
@@ -281,6 +286,33 @@ Pass \code{normalize = TRUE} to express \code{sum_weights} (and any \code{tabula
 columns) as a fraction of theoretical maximum analog availability,
 on roughly \verb{[0, 1]}. See \code{\link[=analog_search]{analog_search()}} for preconditions.
 }
+}
+
+\subsection{Describing the evidence behind a prediction}{
+
+Every analog's weight is the product of its kernel weights (1 for an exact
+match) and any downsampling, cell-area or user weight. Four stats describe
+the evidence:
+\itemize{
+\item \code{sum_weights} (support): quantity and quality together, the number
+of exact matches the evidence is worth.
+\item \code{ess} (effective sample size): how many analogs effectively share
+the weight. It ignores how close they are: ten analogs at weight 0.01
+give the same ESS as ten exact matches.
+\item \code{effective_weight} (closeness): the typical kernel weight of the
+analogs that drive the prediction, from near 0 (weak matches only) to 1
+(exact matches). Without downsampling, cell-area or user weights,
+\code{sum_weights = ess * effective_weight}, so low support is either few
+analogs or poor ones. \code{sum_weights} must be raw for this, not
+normalized (see \code{normalize}).
+\item \code{weighted_sd} (spread): how much the analogs' outcomes disagree
+(population form, so somewhat low where the ESS is small).
+\code{se = "ess"} turns it into a standard error, \code{weighted_sd / sqrt(ess)},
+which assumes independent analogs and so tends to be too small.
+}
+All four depend on the kernel bandwidths (wider kernels raise every
+weight), so compare them across sites within one analysis rather than
+across kernels.
 }
 }
 \examples{

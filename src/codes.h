@@ -26,7 +26,9 @@ enum class AggregateCode : int {
             WEIGHTED_MEAN  = 7,
             ESS            = 8,
             REGRESSION     = 9,
-            TABULATE       = 10
+            TABULATE       = 10,
+            EFFECTIVE_WEIGHT = 11,
+            WEIGHTED_SD    = 12
 };
 
 // Compute Euclidean environment distance (scalar) and/or per-var checks.

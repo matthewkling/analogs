@@ -546,6 +546,10 @@ print.analog_fft_method <- function(x, ...) {
       if (!is.null(user_weight)) pw <- pw * user_weight
       n_vars <- if (is.null(values_mat)) 0L else ncol(values_mat)
       n_covs <- if (is.null(covariates_mat)) 0L else ncol(covariates_mat)
+      # Without area or user weights the point weight is 1 everywhere, and
+      # dropping it lets fields that differ only in `pw` factors share one
+      # (e.g. effective_weight's Σk²·pw and ess's Σk²·pw²)
+      unit_pw <- isTRUE(all(pw == 1))
 
       factor_vec <- function(tok) {
             type <- substr(tok, 1, 1)
@@ -569,6 +573,7 @@ print.analog_fft_method <- function(x, ...) {
       masses <- list()
       kern_of <- character(0)
       add <- function(kern, toks) {
+            if (unit_pw) toks <- toks[toks != "pw"]
             toks <- sort(toks)
             key <- paste0(kern, ":", paste(toks, collapse = "*"))
             hit <- match(key, keys)
@@ -582,9 +587,11 @@ print.analog_fft_method <- function(x, ...) {
       yv <- function(v) paste0("y", v)
       xt <- function(a) if (a == 0L) character(0) else paste0("x", a)  # a = 0: intercept
 
-      weighted_stats <- c("sum_weights", "mean_weights", "ess", "weighted_sum",
-                          "weighted_mean", "regression", "tabulate")
-      value_stats <- stat[stat %in% c("sum", "mean", "weighted_sum", "weighted_mean")]
+      weighted_stats <- c("sum_weights", "mean_weights", "ess", "effective_weight",
+                          "weighted_sum", "weighted_mean", "weighted_sd",
+                          "regression", "tabulate")
+      value_stats <- stat[stat %in% c("sum", "mean", "weighted_sum", "weighted_mean",
+                                      "weighted_sd")]
       want_se <- se != "none"
       wm_se <- want_se && "weighted_mean" %in% stat && n_vars > 0L
       reg <- "regression" %in% stat && n_vars > 0L
@@ -593,7 +600,9 @@ print.analog_fft_method <- function(x, ...) {
             count = if (any(stat %in% c("count", "mean_weights", "mean"))) add("I", character(0)) else -1L,
             sw    = if (any(stat %in% weighted_stats)) add("K", "pw") else -1L,
             sw2   = if ("ess" %in% stat || (want_se && any(stat %in% c("weighted_mean", "regression"))))
-                  add("K2", c("pw", "pw")) else -1L
+                  add("K2", c("pw", "pw")) else -1L,
+            # Σ w·k, with w = k·pw: effective_weight's numerator
+            swk   = if ("effective_weight" %in% stat) add("K2", "pw") else -1L
       )
 
       roles$value <- unlist(lapply(seq_len(n_vars), function(v) {
@@ -601,7 +610,8 @@ print.analog_fft_method <- function(x, ...) {
                   add(if (st %in% c("sum", "mean")) "I" else "K", c("pw", yv(v)))
             }, integer(1))
       }), use.names = FALSE)
-      roles$wm_wy2 <- if (wm_se) vapply(seq_len(n_vars), function(v) add("K", c("pw", yv(v), yv(v))), integer(1))
+      # Σw·y²: the weighted_mean SE and weighted_sd share it
+      roles$wm_wy2 <- if (wm_se || ("weighted_sd" %in% stat && n_vars > 0L)) vapply(seq_len(n_vars), function(v) add("K", c("pw", yv(v), yv(v))), integer(1))
       roles$wm_w2y <- roles$wm_w2y2 <- NULL
       if (wm_se && se == "design") {
             roles$wm_w2y  <- vapply(seq_len(n_vars), function(v) add("K2", c("pw", "pw", yv(v))), integer(1))
@@ -649,7 +659,7 @@ print.analog_fft_method <- function(x, ...) {
             }
       }
 
-      slots <- c("count", "sw", "sw2", "obs_count", "obs_sw", "obs_sw2",
+      slots <- c("count", "sw", "sw2", "swk", "obs_count", "obs_sw", "obs_sw2",
                  "value", "wm_wy2", "wm_w2y", "wm_w2y2", "tab",
                  "xtwx", "xtwy", "reg_wy2", "own", "own_xtwx", "own_sw", "own_sw2")
       roles <- lapply(stats::setNames(slots, slots), function(s) as.integer(roles[[s]] %||% integer(0)))

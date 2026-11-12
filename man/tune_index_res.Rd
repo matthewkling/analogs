@@ -70,16 +70,32 @@ analogs (see \code{kernel} and \code{theta}). When \code{normalize = TRUE}, the
 reported value is the normalized density \code{D / D_max}, on roughly
 \verb{[0, 1]}; otherwise it is the raw kernel-weight sum.
 \item \code{"mean_weights"}: For each focal, mean of weights of selected
-analogs.
+analogs (\code{sum_weights / count}).
 \item \code{"sum"}: Sum of \code{y} values across analogs (requires \code{y}).
 \item \code{"mean"}: Mean of \code{y} values across analogs (requires \code{y}).
 \item \code{"weighted_sum"}: Sum of (\code{y} × kernel weight) across analogs
 (requires \code{y} and \code{kernel}).
 \item \code{"weighted_mean"}: Weighted mean of \code{y} values across analogs
 (requires \code{y} and \code{kernel}).
+\item \code{"weighted_sd"}: Weighted standard deviation of \code{y} values across
+analogs, \code{sqrt(sum(w * (y - ybar)^2) / sum(w))} with \code{ybar} the
+weighted mean: how much the analogs' outcomes disagree (requires \code{y}).
+This is the population form, with no small-sample correction, so it
+runs somewhat low where the ESS is small. For a 0/1 \code{y} it equals
+\code{sqrt(p * (1 - p))} for weighted mean \code{p}.
 \item \code{"ess"}: Kish's effective sample size (ESS), computed as the
-squared sum of weights divided by the sum of squared weights
-(requires \code{kernel}).
+squared sum of weights divided by the sum of squared weights:
+how evenly weight is spread across analogs. It depends only on
+relative weights, so it does not reflect how close the analogs are.
+\item \code{"effective_weight"}: The mean kernel weight of the analogs, each
+counted by its full weight: \code{sum(w * k) / sum(w)}, where \code{k} is an
+analog's kernel weight and \code{w} its full weight (\code{k} times any
+downsampling, cell-area and user weights). Describes how closely the
+analogs that drive a prediction match the focal site, from 0 to 1
+(exact matches). Without downsampling, cell-area or user weights,
+\code{w = k}, so it equals \code{sum(w^2) / sum(w)} and
+\code{sum_weights = ess * effective_weight}. \code{NA} where there are no
+analogs.
 \item \code{"regression"}: Weighted least squares (or ridge) regression
 of \code{y} on \code{covariates} within each analog neighborhood.
 Returns intercept and slope coefficients. Requires \code{y},
@@ -91,9 +107,10 @@ reduces to a per-class vote count; with a distance-decay kernel it
 gives similarity-weighted support per class. Requires \code{y} (factor or
 coercible-to-factor).
 Output has one column per class. \code{"tabulate"} is mutually exclusive with
-\code{"sum"}, \code{"mean"}, \code{"weighted_sum"}, \code{"weighted_mean"}, and \code{"regression"}
-(different \code{y} semantics); it can be combined with \code{"count"},
-\code{"sum_weights"}, \code{"mean_weights"}, and \code{"ess"}.
+\code{"sum"}, \code{"mean"}, \code{"weighted_sum"}, \code{"weighted_mean"}, \code{"weighted_sd"},
+and \code{"regression"} (different \code{y} semantics); it can be combined with
+\code{"count"}, \code{"sum_weights"}, \code{"mean_weights"}, \code{"ess"}, and
+\code{"effective_weight"}.
 \item A character vector combining multiple stats (e.g.,
 \code{c("count", "weighted_mean", "regression")}).
 Note: \code{"none"} cannot be combined with other stats.
@@ -165,7 +182,9 @@ approaching the weighted mean as \code{lambda -> Inf}. Ignored when
 \item \code{"none"} (default): no SE columns are returned.
 \item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
 \code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
-effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
+effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²} (so
+\code{SE = weighted_sd / sqrt(ess)}). This treats analogs as independent
+samples, which spatially autocorrelated sites usually are not. For regression,
 \verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
 using \code{n_eff - p} degrees of freedom.
 \item \code{"design"}: design-based framing (no assumption that weights are

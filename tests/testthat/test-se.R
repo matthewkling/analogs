@@ -477,3 +477,27 @@ test_that("invalid se value is rejected", {
             )
       )
 })
+
+
+test_that("regression SE (ESS) is invariant to weight scale and matches weighted_mean SE when intercept-only", {
+      set.seed(3)
+      n <- 300
+      pool <- data.frame(x = runif(n, 0, 100), y = runif(n, 0, 100), t = rnorm(n))
+      x <- data.frame(x = c(40, 60), y = c(50, 55), t = c(0, 0.5))
+      yv <- rnorm(n, 5, 2)
+      u <- runif(n, 0.2, 3)
+      run <- function(w, covs) analog_search(
+            x, pool, y = yv, covariates = covs, weight = w, select = "all",
+            env = kernel("gaussian", theta = 1, max = 3),
+            geog = kernel("gaussian", theta = 10, max = 30),
+            stat = c("ess", "weighted_mean", "regression"), se = "ess",
+            coord_type = "projected")
+
+      covs <- data.frame(c1 = rnorm(n))
+      expect_equal(run(u * 10, covs)$se_c1, run(u, covs)$se_c1)
+
+      r <- run(u, matrix(0, n, 0))
+      # The regression SE carries an n_eff / (n_eff - 1) degrees-of-freedom
+      # correction that the weighted_mean SE does not
+      expect_equal(r$se_intercept, r$se_weighted_mean * sqrt(r$ess / (r$ess - 1)))
+})

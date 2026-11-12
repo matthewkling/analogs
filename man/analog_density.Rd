@@ -75,7 +75,8 @@ assumes \code{max_geog} is in projection units).
 
 \item{stat}{Character vector of one or more density-style summary statistics.
 Allowed options: \code{"sum_weights"} (default), \code{"mean_weights"}, \code{"count"},
-\code{"ess"}. See \code{\link[=analog_search]{analog_search()}} for detailed stat descriptions.}
+\code{"ess"}, \code{"effective_weight"}. See \code{\link[=analog_search]{analog_search()}} for detailed stat
+descriptions.}
 
 \item{env, geog}{Per-family distance treatment, each a \code{\link[=kernel]{kernel()}} object (or
 \code{NULL}). A kernel bundles the hard distance threshold, the weighting kernel
@@ -193,7 +194,7 @@ locations that satisfy the supplied environmental and geographic constraints.
 \details{
 This function is a wrapper that calls \code{\link[=analog_search]{analog_search()}} using
 \code{select = "all"} and \code{stat = "sum_weights"}. It also supports \code{"count"},
-\code{"mean_weights"}, and \code{"ess"} as additional stats.
+\code{"mean_weights"}, \code{"ess"}, and \code{"effective_weight"} as additional stats.
 
 By default (\code{normalize = "auto"}), the returned \code{sum_weights} column is
 divided by a global scalar \code{D_max} whenever \code{pool} meets the prerequisites

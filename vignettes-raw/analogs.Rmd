@@ -223,7 +223,7 @@ plot(intens, main = "Analog density")
 
 Compared to the functions covered above that simply enumerate analogs, analog-based prediction functions find analogs and then fit a model that summarizes additional properties (outcome variables `y`) of those analogs. Model options include weighted means and categorical counts (via `analog_impact()`) and ordinary and ridge regression on additional `covariates` (via `analog_regression()`).
 
-Options for assessing uncertainty include returning standard errors on fitted means and coefficients (via the `se` parameter) and running various forms of cross-validation within `pool` (via `analog_cv()`).
+Options for assessing uncertainty include stats that describe the evidence behind each prediction (see [Evidence behind a prediction](#evidence-behind-a-prediction)), standard errors on fitted means and coefficients (via the `se` parameter), and various forms of cross-validation within `pool` (via `analog_cv()`).
 
 
 ## Analog impact models
@@ -248,6 +248,39 @@ plot(impact[[c("weighted_mean", "se_weighted_mean")]],
 ```
 
 The `kernel` and `theta` parameters control how analog influence decays with environmental distance. A Gaussian kernel with `theta = 0.15` means analogs at an environmental dissimilarity distance of 0.15 receive about 60% weight, while those at 0.45 (= 3 × theta) receive almost none. The hard threshold `max` provides an absolute cutoff.
+
+## Evidence behind a prediction
+
+A weighted mean doesn't say how much evidence it rests on. Two focal sites can get the same prediction from fifty close analogs or from three marginal ones. Several stats describe that evidence, and any of them can be requested alongside a prediction. They add little compute time, because they reuse the kernel sums the prediction already computes.
+
+They are all built from the analog weights `w`. Each weight is the product of the environmental and geographic kernel weights `k`, times any downsampling, cell-area or user weight. With every kernel shape, an exact match gets a kernel weight of 1.
+
+| `stat` | Formula | What it describes |
+|---|---|---|
+| `count` | number of analogs | How many pool sites fall within the `max` limits, regardless of how well they match. |
+| `sum_weights` | Σw | **Support**: quantity and quality together. It's the number of exact matches the evidence is worth. Ten close analogs score near 10; ten marginal ones score well under 1. |
+| `ess` | (Σw)² / Σw² | **Effective sample size** (Kish): how evenly the weight is spread across analogs. It depends only on relative weights, so ten analogs at weight 0.01 have the same ESS as ten exact matches. |
+| `effective_weight` | Σwk / Σw | **Closeness**: the typical kernel weight of the analogs that drive the prediction. It's the analogs' mean kernel weight, with each analog counted by its full weight. Near 1 means the prediction rests on close matches; near 0, only on weak ones. Unlike `mean_weights` (Σw / count), it is barely affected by the many low-weight analogs near the `max` cutoff. |
+| `weighted_sd` | √(Σw(y − ȳ)² / Σw) | **Spread**: how much the analogs' outcomes disagree, for each `y` variable. It has no small-sample correction, so it runs somewhat low where the ESS is small. |
+
+Without downsampling, cell-area or user weights, `w = k`, and three of these fit together exactly: `sum_weights = ess × effective_weight`. When support is low, the other two say why: either there are few analogs (low `ess`), or the analogs are poor matches (low `effective_weight`). This needs raw `sum_weights`: with a raster pool, `normalize` (on by default) rescales `sum_weights` but not the other two, so the example below turns it off. Raster pools also carry cell-area weights by default, so the identity holds only approximately there.
+
+`weighted_sd` describes real variation among the analogs, not uncertainty in the mean. Combined with the ESS it gives the standard error that `se = "ess"` returns, `weighted_sd / sqrt(ess)`. That standard error assumes the analogs are independent samples, which may understate the uncertainty. For a 0/1 response, `weighted_sd` equals `sqrt(p * (1 - p))`, where `p` is the weighted mean, so it adds nothing beyond the prediction itself.
+
+All of these depend on the kernel bandwidths. Widening `theta` raises every analog's weight, which increases support and closeness even when the analogs are the same. Compare these stats across sites within one analysis, not across analyses with different kernels. For an absolute scale for `sum_weights` on raster pools, use `normalize` (see `analog_search()`).
+
+```{r support, eval = FALSE}
+support <- analog_impact(
+      x = fut,
+      pool = hist,
+      y = eco_var,
+      env = kernel(weight =  "gaussian", theta = 0.15, max = 0.5),
+      geog = kernel(max = 200),
+      stat = c("weighted_mean", "sum_weights", "ess", "effective_weight", "weighted_sd"),
+      normalize = FALSE
+)
+```
+
 
 
 ## Spatial interpolation

@@ -81,7 +81,8 @@
             # Validate each stat value
             valid_stats <- c("none", "count", "sum_weights", "mean_weights",
                              "sum", "mean", "weighted_sum", "weighted_mean",
-                             "ess", "regression", "tabulate")
+                             "weighted_sd", "ess", "effective_weight",
+                             "regression", "tabulate")
             invalid <- setdiff(stat, valid_stats)
             if (length(invalid) > 0) {
                   stop("Invalid stat value(s): ", paste(invalid, collapse = ", "),
@@ -95,11 +96,13 @@
 
             # tabulate is mutually exclusive with continuous-y stats and
             # regression (different y semantics). It can be combined with
-            # regular non-y stats (count, sum_weights, mean_weights, ess).
+            # regular non-y stats (count, sum_weights, mean_weights, ess,
+            # effective_weight).
             if ("tabulate" %in% stat) {
                   incompatible <- intersect(stat,
                                             c("sum", "mean", "weighted_sum",
-                                              "weighted_mean", "regression"))
+                                              "weighted_mean", "weighted_sd",
+                                              "regression"))
                   if (length(incompatible) > 0L) {
                         stop("stat = 'tabulate' cannot be combined with ",
                              paste(sprintf("'%s'", incompatible), collapse = ", "),
@@ -140,7 +143,7 @@
       }
 
       # Check for value-based stats
-      value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean")
+      value_stats <- c("sum", "mean", "weighted_sum", "weighted_mean", "weighted_sd")
       has_value_stat <- any(stat %in% value_stats)
 
       # If y value stats requested, y must be provided
@@ -198,7 +201,8 @@
       # tabulate sums per-class WEIGHTS, so it's a weighted aggregation.
       has_weighted_stat <- any(stat %in% c("sum_weights", "mean_weights",
                                            "weighted_sum", "weighted_mean",
-                                           "ess", "regression", "tabulate"))
+                                           "weighted_sd", "ess", "effective_weight",
+                                           "regression", "tabulate"))
 
       # Per-family theta validation helper: NULL ok (C++ default), else a
       # single positive number. uniform families must not carry a theta.
@@ -221,7 +225,9 @@
             # including both families uniform. With uniform weights each stat
             # simply reduces to its unweighted form: sum_weights/mean_weights
             # sum/average the (area or sample) weights, weighted_mean becomes a
-            # plain mean, ess becomes n, regression becomes ordinary regression,
+            # plain mean (weighted_sd a plain SD), ess becomes n,
+            # effective_weight the (area or sample) weight, regression becomes
+            # ordinary regression,
             # and tabulate counts per class. So no non-uniform kernel is
             # required; we only validate per-family theta coherence.
             .check_family_theta(kernel_env, theta_env, "env")

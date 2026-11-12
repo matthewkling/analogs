@@ -65,6 +65,24 @@ test_that("fft matches exact for weighted aggregation stats", {
 })
 
 
+test_that("fft matches exact for effective_weight and weighted_sd", {
+      d <- fft_test_data()
+      y <- d$y
+      y[sample(nrow(y), 200), "b"] <- NA
+      r <- run_both(d$focal, d$pool, y = y, weight = runif(nrow(d$pool), 0.5, 2),
+                    env = kernel("gaussian", theta = 0.4, max = 1.5),
+                    stat = c("count", "effective_weight", "weighted_sd"),
+                    coord_type = "projected")
+
+      expect_identical(names(r$fft), names(r$exact))
+      ok <- r$exact$count >= 30
+      for (col in c("effective_weight", "weighted_sd_a", "weighted_sd_b")) {
+            expect_lt(fft_rel_err(r$exact, r$fft, col, ok), 0.02)
+      }
+      expect_true(all(r$fft$weighted_sd_a >= 0, na.rm = TRUE))
+})
+
+
 test_that("fft matches exact for regression, including missing responses", {
       d <- fft_test_data()
       y <- d$y

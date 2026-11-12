@@ -161,7 +161,8 @@ query_analog_index <- function(x,
       # Map stat(s) for C++
       # Aggregate codes: 0=none, 1=count, 2=sum_weights, 3=mean_weights,
       #                  4=sum, 5=mean, 6=weighted_sum, 7=weighted_mean,
-      #                  8=ess, 9=regression, 10=tabulate
+      #                  8=ess, 9=regression, 10=tabulate,
+      #                  11=effective_weight, 12=weighted_sd
       stat_name_to_code <- c(
             "none"           = 0L,
             "count"          = 1L,
@@ -173,7 +174,9 @@ query_analog_index <- function(x,
             "weighted_mean"  = 7L,
             "ess"            = 8L,
             "regression"     = 9L,
-            "tabulate"       = 10L
+            "tabulate"       = 10L,
+            "effective_weight" = 11L,
+            "weighted_sd"    = 12L
       )
       aggregate_codes <- stat_name_to_code[stat]
       names(aggregate_codes) <- NULL
@@ -474,9 +477,11 @@ query_analog_index <- function(x,
       # to reconstruct the naming convention.
       tabulate_col_names <- character(0)
 
-      # Regular stats (count, sum_weights, mean_weights, ess): 1 col each
+      # Regular stats (count, sum_weights, mean_weights, ess,
+      # effective_weight): 1 col each
       regular_stats <- intersect(stat,
-                                 c("count", "sum_weights", "mean_weights", "ess"))
+                                 c("count", "sum_weights", "mean_weights", "ess",
+                                   "effective_weight"))
       for (s in regular_stats) {
             out[[s]] <- res_full[, col_idx]
             col_idx <- col_idx + 1L
@@ -484,7 +489,8 @@ query_analog_index <- function(x,
 
       # Value-based stats: one column per value var
       value_stats <- intersect(stat,
-                               c("sum", "mean", "weighted_sum", "weighted_mean"))
+                               c("sum", "mean", "weighted_sum", "weighted_mean",
+                                 "weighted_sd"))
 
       if (length(value_stats) > 0L) {
             for (v in seq_len(n_vals)) {

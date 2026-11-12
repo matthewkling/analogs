@@ -5,7 +5,7 @@
 #'
 #' This function is a wrapper that calls [analog_search()] using
 #' `select = "all"` and `stat = "sum_weights"`. It also supports `"count"`,
-#' `"mean_weights"`, and `"ess"` as additional stats.
+#' `"mean_weights"`, `"ess"`, and `"effective_weight"` as additional stats.
 #'
 #' By default (`normalize = "auto"`), the returned `sum_weights` column is
 #' divided by a global scalar `D_max` whenever `pool` meets the prerequisites
@@ -15,7 +15,8 @@
 #'
 #' @param stat Character vector of one or more density-style summary statistics.
 #'   Allowed options: `"sum_weights"` (default), `"mean_weights"`, `"count"`,
-#'   `"ess"`. See [analog_search()] for detailed stat descriptions.
+#'   `"ess"`, `"effective_weight"`. See [analog_search()] for detailed stat
+#'   descriptions.
 #'
 #' @param ... Additional arguments forwarded to [analog_search()] (e.g.
 #'   `mean_cell_area` for tiled workflows).
@@ -109,7 +110,8 @@ analog_density <- function(
             ...
 ) {
       # Validate
-      allowed_density_stats <- c("count", "sum_weights", "mean_weights", "ess")
+      allowed_density_stats <- c("count", "sum_weights", "mean_weights", "ess",
+                                 "effective_weight")
       bad <- setdiff(stat, allowed_density_stats)
       if (length(bad) > 0L) {
             stop(

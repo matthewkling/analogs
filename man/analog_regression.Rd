@@ -147,7 +147,9 @@ be requested alongside regression coefficients. Default includes
 \item \code{"none"} (default): no SE columns are returned.
 \item \code{"ess"}: effective-sample-size framing. For \code{weighted_mean},
 \code{SE = sqrt(var_w(y) / n_eff)}, where \verb{n_eff = (Σw)² / Σw²} is Kish's
-effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²}. For regression,
+effective sample size and \verb{var_w(y) = Σwy²/Σw - ȳ_w²} (so
+\code{SE = weighted_sd / sqrt(ess)}). This treats analogs as independent
+samples, which spatially autocorrelated sites usually are not. For regression,
 \verb{Var(β̂) = σ²_ess · (X'WX + λI)⁻¹}, with residual variance corrected
 using \code{n_eff - p} degrees of freedom.
 \item \code{"design"}: design-based framing (no assumption that weights are

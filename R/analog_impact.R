@@ -17,12 +17,15 @@
 #'     \item `"tabulate"`: Per-class similarity-weighted support under
 #'       categorical y. Output has one column per class, named
 #'       `n_<level>` (single-y) or `<varname>_n_<level>` (multi-y).
-#'       `"tabulate"` is mutually exclusive with `weighted_mean`/`sum`/
-#'       `mean`/`weighted_sum`/`regression`, but can be combined with
-#'       `count`, `sum_weights`, `mean_weights`, and `ess`.
+#'       `"tabulate"` is mutually exclusive with `weighted_mean`/
+#'       `weighted_sd`/`sum`/`mean`/`weighted_sum`/`regression`, but can be
+#'       combined with `count`, `sum_weights`, `mean_weights`, `ess`, and
+#'       `effective_weight`.
 #'     \item `"count"`: Analog availability (number of analogs)
 #'     \item `"sum_weights"`: Analog density (sum of climate-similarity
 #'       weights across analogs)
+#'     \item `"ess"`, `"effective_weight"`, `"weighted_sd"`: Describe the
+#'       evidence behind each prediction; see Interpreting Results.
 #'   }
 #'   The default `c("count", "sum_weights", "weighted_mean")` is appropriate
 #'   for continuous `y`; for categorical `y`, swap `weighted_mean` for
@@ -104,6 +107,32 @@
 #'     on roughly `[0, 1]`. See [analog_search()] for preconditions.
 #' }
 #'
+#' ## Describing the evidence behind a prediction
+#'
+#' Every analog's weight is the product of its kernel weights (1 for an exact
+#' match) and any downsampling, cell-area or user weight. Four stats describe
+#' the evidence:
+#' \itemize{
+#'   \item `sum_weights` (support): quantity and quality together, the number
+#'     of exact matches the evidence is worth.
+#'   \item `ess` (effective sample size): how many analogs effectively share
+#'     the weight. It ignores how close they are: ten analogs at weight 0.01
+#'     give the same ESS as ten exact matches.
+#'   \item `effective_weight` (closeness): the typical kernel weight of the
+#'     analogs that drive the prediction, from near 0 (weak matches only) to 1
+#'     (exact matches). Without downsampling, cell-area or user weights,
+#'     `sum_weights = ess * effective_weight`, so low support is either few
+#'     analogs or poor ones. `sum_weights` must be raw for this, not
+#'     normalized (see `normalize`).
+#'   \item `weighted_sd` (spread): how much the analogs' outcomes disagree
+#'     (population form, so somewhat low where the ESS is small).
+#'     `se = "ess"` turns it into a standard error, `weighted_sd / sqrt(ess)`,
+#'     which assumes independent analogs and so tends to be too small.
+#' }
+#' All four depend on the kernel bandwidths (wider kernels raise every
+#' weight), so compare them across sites within one analysis rather than
+#' across kernels.
+#'
 #' @return A data.frame, or a SpatRaster when `x` is one. Contains
 #'   `index`, `x`, `y` plus one or more columns determined by `stat`.
 #'   See [analog_search()] for column-naming conventions across stats
@@ -179,7 +208,8 @@ analog_impact <- function(
       # a vector of multiple stats; instead we restrict to the set this
       # wrapper exposes. (analog_search() owns the master valid_stats list.)
       allowed_impact_stats <- c("count", "sum_weights", "mean_weights",
-                                "weighted_mean", "ess", "tabulate", "regression")
+                                "weighted_mean", "weighted_sd", "ess",
+                                "effective_weight", "tabulate", "regression")
       bad <- setdiff(stat, allowed_impact_stats)
       if (length(bad) > 0L) {
             stop("`stat` value(s) not supported by analog_impact(): ",

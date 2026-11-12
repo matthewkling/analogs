@@ -7,9 +7,10 @@
 // identical formulas.
 //
 // Column layout of one focal's output row:
-//   [regular stats]   COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS, in request order
+//   [regular stats]   COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS, EFFECTIVE_WEIGHT,
+//                     in request order
 //   [value stats]     for each y variable: SUM, MEAN, WEIGHTED_SUM,
-//                     WEIGHTED_MEAN in request order, with the weighted_mean
+//                     WEIGHTED_MEAN, WEIGHTED_SD in request order, with the weighted_mean
 //                     SE column directly after WEIGHTED_MEAN when requested
 //   [tabulate]        for each y variable: one column per class
 //   [regression]      for each y variable: intercept + slopes; then, when SEs
@@ -41,6 +42,7 @@ struct StatLayout {
       int wm_value_idx = -1;         // index into value_pos of WEIGHTED_MEAN, or -1
       bool has_regression = false;
       bool has_tabulate = false;
+      bool has_weighted_sd = false;
       bool need_weights = false;     // does any stat use distance weights?
       int n_regular = 0;
       int n_value = 0;
@@ -48,6 +50,7 @@ struct StatLayout {
       bool want_se;
       bool wm_se;                    // weighted_mean SE accumulators needed
       bool wm_se_design;
+      bool need_wy2;                 // Σw·y² per variable (weighted_mean ESS SE, weighted_sd)
 
       std::vector<int> n_classes_per_var;
       std::vector<int> tab_offsets;  // start of variable v's classes in the tabulate block
@@ -69,7 +72,9 @@ struct StatLayout {
                   const AggregateCode a = acodes[s];
                   if (a == AggregateCode::SUM || a == AggregateCode::MEAN ||
                       a == AggregateCode::WEIGHTED_SUM ||
-                      a == AggregateCode::WEIGHTED_MEAN) {
+                      a == AggregateCode::WEIGHTED_MEAN ||
+                      a == AggregateCode::WEIGHTED_SD) {
+                        if (a == AggregateCode::WEIGHTED_SD) has_weighted_sd = true;
                         if (a == AggregateCode::WEIGHTED_MEAN) {
                               wm_value_idx = static_cast<int>(value_pos.size());
                         }
@@ -79,13 +84,15 @@ struct StatLayout {
                   } else if (a == AggregateCode::TABULATE) {
                         has_tabulate = true;
                   } else {
-                        regular_pos.push_back(s);  // COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS
+                        regular_pos.push_back(s);  // COUNT, SUM_WEIGHTS, MEAN_WEIGHTS, ESS, EFFECTIVE_WEIGHT
                   }
                   if (a == AggregateCode::SUM_WEIGHTS ||
                       a == AggregateCode::MEAN_WEIGHTS ||
                       a == AggregateCode::WEIGHTED_SUM ||
                       a == AggregateCode::WEIGHTED_MEAN ||
                       a == AggregateCode::ESS ||
+                      a == AggregateCode::EFFECTIVE_WEIGHT ||
+                      a == AggregateCode::WEIGHTED_SD ||
                       a == AggregateCode::REGRESSION ||
                       a == AggregateCode::TABULATE) {
                         need_weights = true;
@@ -97,6 +104,7 @@ struct StatLayout {
             want_se = (se_code != SeCode::NONE);
             wm_se = want_se && (wm_value_idx >= 0) && has_values;
             wm_se_design = wm_se && (se_code == SeCode::DESIGN);
+            need_wy2 = has_values && (wm_se || has_weighted_sd);
 
             if (has_tabulate) {
                   tab_offsets.assign(n_vars, 0);
@@ -128,10 +136,11 @@ struct FocalAccum {
       double count = 0.0;                 // integer-valued in the exact engine
       double sum_weights = 0.0;
       double sum_weights_squared = 0.0;
+      double sum_w_kernel = 0.0;          // Σ w * kernel weight (EFFECTIVE_WEIGHT)
       std::vector<double> regular_accum;  // n_regular (SUM_WEIGHTS / MEAN_WEIGHTS slots)
       std::vector<double> value_accum;    // n_vars x n_value, index v * n_value + idx
       std::vector<double> tabulate_accum; // tab_total
-      std::vector<double> wm_sum_wy2;     // n_vars (ESS and DESIGN SE)
+      std::vector<double> wm_sum_wy2;     // n_vars (weighted_mean SE, weighted_sd)
       std::vector<double> wm_sum_w2y;     // n_vars (DESIGN SE)
       std::vector<double> wm_sum_w2y2;    // n_vars (DESIGN SE)
       double wm_sum_w2 = 0.0;             // DESIGN SE
@@ -143,6 +152,7 @@ struct FocalAccum {
             count = 0.0;
             sum_weights = 0.0;
             sum_weights_squared = 0.0;
+            sum_w_kernel = 0.0;
             regular_accum.assign(L.n_regular, 0.0);
             value_accum.clear();
             if (has_values && L.n_value > 0) {
@@ -156,12 +166,10 @@ struct FocalAccum {
             wm_sum_w2y.clear();
             wm_sum_w2y2.clear();
             wm_sum_w2 = 0.0;
-            if (L.wm_se) {
-                  wm_sum_wy2.assign(L.n_vars, 0.0);
-                  if (L.wm_se_design) {
-                        wm_sum_w2y.assign(L.n_vars, 0.0);
-                        wm_sum_w2y2.assign(L.n_vars, 0.0);
-                  }
+            if (L.need_wy2) wm_sum_wy2.assign(L.n_vars, 0.0);
+            if (L.wm_se_design) {
+                  wm_sum_w2y.assign(L.n_vars, 0.0);
+                  wm_sum_w2y2.assign(L.n_vars, 0.0);
             }
             obs_count.clear();
             obs_sum_w.clear();
@@ -197,6 +205,14 @@ inline int write_nonregression_stats(const StatLayout& L, const FocalAccum& a,
                   } else {
                         result = 0.0;
                   }
+            } else if (code == AggregateCode::EFFECTIVE_WEIGHT) {
+                  // Σ(w k) / Σw: the mean kernel weight k of the analogs, each
+                  // counted by its full weight w. In [0, 1] whatever the
+                  // downsampling, area or user weights; without those, w = k
+                  // and this is Σw² / Σw = sum_weights / ess. NA with no analogs.
+                  if (a.sum_weights > 0.0) {
+                        result = a.sum_w_kernel / a.sum_weights;
+                  }
             }
 
             row[col_idx++] = result;
@@ -225,6 +241,14 @@ inline int write_nonregression_stats(const StatLayout& L, const FocalAccum& a,
                               result = a.value_accum[accum_idx];
                         } else if (code == AggregateCode::WEIGHTED_MEAN) {
                               result = (sw > 0) ? (a.value_accum[accum_idx] / sw) : NA_REAL;
+                        } else if (code == AggregateCode::WEIGHTED_SD) {
+                              // sqrt(Σwy²/Σw - ȳ²); value_accum holds Σwy
+                              if (sw > 0) {
+                                    const double ybar = a.value_accum[accum_idx] / sw;
+                                    double var_w = a.wm_sum_wy2[v] / sw - ybar * ybar;
+                                    if (var_w < 0.0) var_w = 0.0;  // fp / FFT binning guard
+                                    if (std::isfinite(var_w)) result = std::sqrt(var_w);
+                              }
                         }
 
                         row[col_idx++] = result;

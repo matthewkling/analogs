@@ -481,7 +481,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
       const std::vector<int>& value_stat_positions = L.value_pos;
       const bool has_regression = L.has_regression;
       const bool has_tabulate = L.has_tabulate;
-      const bool wm_se = L.wm_se;
+      const bool need_wy2 = L.need_wy2;
       const bool wm_se_design = L.wm_se_design;
       const bool need_weights = L.need_weights;
       const std::vector<int>& tab_offsets = L.tab_offsets;
@@ -589,6 +589,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             int count = 0;
             double sum_weights = 0.0;
             double sum_weights_squared = 0.0;
+            double sum_w_kernel = 0.0;
 
             double fx_ecef = 0, fy_ecef = 0, fz_ecef = 0;
             if (use_ecef) {
@@ -704,6 +705,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                         const double combined_weight = dist_weight * sample_weight * area_w * user_w;
                         sum_weights += combined_weight;
                         sum_weights_squared += (combined_weight * combined_weight);
+                        sum_w_kernel += combined_weight * dist_weight;
 
                         // Update regular stat accumulators
                         for (int idx = 0; idx < n_regular; ++idx) {
@@ -747,21 +749,21 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
                                                 value_accum[accum_idx] += (val * point_weight);
                                           } else if (acodes[s] == AggregateCode::WEIGHTED_SUM) {
                                                 value_accum[accum_idx] += (val * combined_weight);
-                                          } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN) {
+                                          } else if (acodes[s] == AggregateCode::WEIGHTED_MEAN ||
+                                                     acodes[s] == AggregateCode::WEIGHTED_SD) {
                                                 value_accum[accum_idx] += (val * combined_weight);
                                           }
                                     }
 
-                                    // weighted_mean SE accumulators (extra work only
-                                    // when weighted_mean SE is requested)
-                                    if (wm_se) {
-                                          const double w = combined_weight;
-                                          wm_sum_wy2[v] += w * val * val;
-                                          if (wm_se_design) {
-                                                const double w2 = w * w;
-                                                wm_sum_w2y[v]  += w2 * val;
-                                                wm_sum_w2y2[v] += w2 * val * val;
-                                          }
+                                    // Σw·y² (weighted_mean SE, weighted_sd) and the
+                                    // design SE's sums, only when requested
+                                    if (need_wy2) {
+                                          wm_sum_wy2[v] += combined_weight * val * val;
+                                    }
+                                    if (wm_se_design) {
+                                          const double w2 = combined_weight * combined_weight;
+                                          wm_sum_w2y[v]  += w2 * val;
+                                          wm_sum_w2y2[v] += w2 * val * val;
                                     }
                               }
                               if (wm_se_design) {
@@ -807,6 +809,7 @@ void AggWorker::operator()(std::size_t begin, std::size_t end) {
             acc.count = static_cast<double>(count);
             acc.sum_weights = sum_weights;
             acc.sum_weights_squared = sum_weights_squared;
+            acc.sum_w_kernel = sum_w_kernel;
             acc.wm_sum_w2 = wm_sum_w2;
             double* row = &agg[i * n_stats];
             const int col_idx = write_nonregression_stats(L, acc, has_values, row);

@@ -166,9 +166,12 @@ inline void cholesky_inverse(const std::vector<double>& L, int dim,
 // is active, and is a close approximation otherwise.
 //
 // SE formulas:
-//   ESS:    Var(beta) = sigma2_ess * A^{-1}
+//   ESS:    Var(beta) = sigma2_ess * (sum_w / n_eff) * A^{-1}
 //           sigma2_ess = (RSS_w / sum_w) * n_eff / (n_eff - p)
 //           n_eff = (sum_w)^2 / sum_w_sq
+//           The sum_w / n_eff factor makes the SEs invariant to the scale of
+//           the weights (A^{-1} scales as 1 / weight), and reduces an
+//           intercept-only fit to the weighted_mean SE, sigma2 / n_eff.
 //   DESIGN: Var(beta) = A^{-1} M A^{-1}
 //           M_{ab} = sum_t w_t^2 r_t^2 x_{ta} x_{tb}
 //
@@ -371,8 +374,9 @@ inline void ess_se_from_rss(double rss_w, double sum_w, double n_eff, int dim,
             fill_na(out_se_v, dim);
             return;
       }
+      const double scale = sum_w / n_eff;   // see "SE formulas" above
       for (int d = 0; d < dim; ++d) {
-            out_se_v[d] = std::sqrt(sigma2 * inv_diag[d]);
+            out_se_v[d] = std::sqrt(sigma2 * scale * inv_diag[d]);
       }
 }
 
