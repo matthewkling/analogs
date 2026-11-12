@@ -122,7 +122,8 @@ assumes <code>max_geog</code> is in projection units).</p></li>
 <dt id="arg-stat">stat<a class="anchor" aria-label="anchor" href="#arg-stat"></a></dt>
 <dd><p>Character vector of one or more density-style summary statistics.
 Allowed options: <code>"sum_weights"</code> (default), <code>"mean_weights"</code>, <code>"count"</code>,
-<code>"ess"</code>. See <code><a href="analog_search.html">analog_search()</a></code> for detailed stat descriptions.</p></dd>
+<code>"ess"</code>, <code>"effective_weight"</code>. See <code><a href="analog_search.html">analog_search()</a></code> for detailed stat
+descriptions.</p></dd>
 
 
 <dt id="arg-env-geog">env, geog<a class="anchor" aria-label="anchor" href="#arg-env-geog"></a></dt>
@@ -249,7 +250,7 @@ for attached metadata attributes.</p>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>This function is a wrapper that calls <code><a href="analog_search.html">analog_search()</a></code> using
 <code>select = "all"</code> and <code>stat = "sum_weights"</code>. It also supports <code>"count"</code>,
-<code>"mean_weights"</code>, and <code>"ess"</code> as additional stats.</p>
+<code>"mean_weights"</code>, <code>"ess"</code>, and <code>"effective_weight"</code> as additional stats.</p>
 <p>By default (<code>normalize = "auto"</code>), the returned <code>sum_weights</code> column is
 divided by a global scalar <code>D_max</code> whenever <code>pool</code> meets the prerequisites
 (raster <code>pool</code> with cell-area weighting active). This gives values on roughly

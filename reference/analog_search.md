@@ -181,7 +181,7 @@ analog_search(
     otherwise it is the raw kernel-weight sum.
 
   - `"mean_weights"`: For each focal, mean of weights of selected
-    analogs.
+    analogs (`sum_weights / count`).
 
   - `"sum"`: Sum of `y` values across analogs (requires `y`).
 
@@ -193,9 +193,27 @@ analog_search(
   - `"weighted_mean"`: Weighted mean of `y` values across analogs
     (requires `y` and `kernel`).
 
+  - `"weighted_sd"`: Weighted standard deviation of `y` values across
+    analogs, `sqrt(sum(w * (y - ybar)^2) / sum(w))` with `ybar` the
+    weighted mean: how much the analogs' outcomes disagree (requires
+    `y`). This is the population form, with no small-sample correction,
+    so it runs somewhat low where the ESS is small. For a 0/1 `y` it
+    equals `sqrt(p * (1 - p))` for weighted mean `p`.
+
   - `"ess"`: Kish's effective sample size (ESS), computed as the squared
-    sum of weights divided by the sum of squared weights (requires
-    `kernel`).
+    sum of weights divided by the sum of squared weights: how evenly
+    weight is spread across analogs. It depends only on relative
+    weights, so it does not reflect how close the analogs are.
+
+  - `"effective_weight"`: The mean kernel weight of the analogs, each
+    counted by its full weight: `sum(w * k) / sum(w)`, where `k` is an
+    analog's kernel weight and `w` its full weight (`k` times any
+    downsampling, cell-area and user weights). Describes how closely the
+    analogs that drive a prediction match the focal site, from 0 to 1
+    (exact matches). Without downsampling, cell-area or user weights,
+    `w = k`, so it equals `sum(w^2) / sum(w)` and
+    `sum_weights = ess * effective_weight`. `NA` where there are no
+    analogs.
 
   - `"regression"`: Weighted least squares (or ridge) regression of `y`
     on `covariates` within each analog neighborhood. Returns intercept
@@ -209,9 +227,9 @@ analog_search(
     similarity-weighted support per class. Requires `y` (factor or
     coercible-to-factor). Output has one column per class. `"tabulate"`
     is mutually exclusive with `"sum"`, `"mean"`, `"weighted_sum"`,
-    `"weighted_mean"`, and `"regression"` (different `y` semantics); it
-    can be combined with `"count"`, `"sum_weights"`, `"mean_weights"`,
-    and `"ess"`.
+    `"weighted_mean"`, `"weighted_sd"`, and `"regression"` (different
+    `y` semantics); it can be combined with `"count"`, `"sum_weights"`,
+    `"mean_weights"`, `"ess"`, and `"effective_weight"`.
 
   - A character vector combining multiple stats (e.g.,
     `c("count", "weighted_mean", "regression")`). Note: `"none"` cannot
@@ -233,7 +251,9 @@ analog_search(
 
   - `"ess"`: effective-sample-size framing. For `weighted_mean`,
     `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
-    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
+    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²` (so
+    `SE = weighted_sd / sqrt(ess)`). This treats analogs as independent
+    samples, which spatially autocorrelated sites usually are not. For
     regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
     variance corrected using `n_eff - p` degrees of freedom.
 

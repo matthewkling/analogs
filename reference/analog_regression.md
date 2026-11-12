@@ -201,7 +201,9 @@ analog_regression(
 
   - `"ess"`: effective-sample-size framing. For `weighted_mean`,
     `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
-    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
+    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²` (so
+    `SE = weighted_sd / sqrt(ess)`). This treats analogs as independent
+    samples, which spatially autocorrelated sites usually are not. For
     regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
     variance corrected using `n_eff - p` degrees of freedom.
 

@@ -193,16 +193,32 @@ analogs (see <code>kernel</code> and <code>theta</code>). When <code>normalize =
 reported value is the normalized density <code>D / D_max</code>, on roughly
 <code>[0, 1]</code>; otherwise it is the raw kernel-weight sum.</p></li>
 <li><p><code>"mean_weights"</code>: For each focal, mean of weights of selected
-analogs.</p></li>
+analogs (<code>sum_weights / count</code>).</p></li>
 <li><p><code>"sum"</code>: Sum of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
 <li><p><code>"mean"</code>: Mean of <code>y</code> values across analogs (requires <code>y</code>).</p></li>
 <li><p><code>"weighted_sum"</code>: Sum of (<code>y</code> × kernel weight) across analogs
 (requires <code>y</code> and <code>kernel</code>).</p></li>
 <li><p><code>"weighted_mean"</code>: Weighted mean of <code>y</code> values across analogs
 (requires <code>y</code> and <code>kernel</code>).</p></li>
+<li><p><code>"weighted_sd"</code>: Weighted standard deviation of <code>y</code> values across
+analogs, <code>sqrt(sum(w * (y - ybar)^2) / sum(w))</code> with <code>ybar</code> the
+weighted mean: how much the analogs' outcomes disagree (requires <code>y</code>).
+This is the population form, with no small-sample correction, so it
+runs somewhat low where the ESS is small. For a 0/1 <code>y</code> it equals
+<code>sqrt(p * (1 - p))</code> for weighted mean <code>p</code>.</p></li>
 <li><p><code>"ess"</code>: Kish's effective sample size (ESS), computed as the
-squared sum of weights divided by the sum of squared weights
-(requires <code>kernel</code>).</p></li>
+squared sum of weights divided by the sum of squared weights:
+how evenly weight is spread across analogs. It depends only on
+relative weights, so it does not reflect how close the analogs are.</p></li>
+<li><p><code>"effective_weight"</code>: The mean kernel weight of the analogs, each
+counted by its full weight: <code>sum(w * k) / sum(w)</code>, where <code>k</code> is an
+analog's kernel weight and <code>w</code> its full weight (<code>k</code> times any
+downsampling, cell-area and user weights). Describes how closely the
+analogs that drive a prediction match the focal site, from 0 to 1
+(exact matches). Without downsampling, cell-area or user weights,
+<code>w = k</code>, so it equals <code>sum(w^2) / sum(w)</code> and
+<code>sum_weights = ess * effective_weight</code>. <code>NA</code> where there are no
+analogs.</p></li>
 <li><p><code>"regression"</code>: Weighted least squares (or ridge) regression
 of <code>y</code> on <code>covariates</code> within each analog neighborhood.
 Returns intercept and slope coefficients. Requires <code>y</code>,
@@ -214,9 +230,10 @@ reduces to a per-class vote count; with a distance-decay kernel it
 gives similarity-weighted support per class. Requires <code>y</code> (factor or
 coercible-to-factor).
 Output has one column per class. <code>"tabulate"</code> is mutually exclusive with
-<code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>, <code>"weighted_mean"</code>, and <code>"regression"</code>
-(different <code>y</code> semantics); it can be combined with <code>"count"</code>,
-<code>"sum_weights"</code>, <code>"mean_weights"</code>, and <code>"ess"</code>.</p></li>
+<code>"sum"</code>, <code>"mean"</code>, <code>"weighted_sum"</code>, <code>"weighted_mean"</code>, <code>"weighted_sd"</code>,
+and <code>"regression"</code> (different <code>y</code> semantics); it can be combined with
+<code>"count"</code>, <code>"sum_weights"</code>, <code>"mean_weights"</code>, <code>"ess"</code>, and
+<code>"effective_weight"</code>.</p></li>
 <li><p>A character vector combining multiple stats (e.g.,
 <code>c("count", "weighted_mean", "regression")</code>).
 Note: <code>"none"</code> cannot be combined with other stats.</p></li>
@@ -236,7 +253,9 @@ approaching the weighted mean as <code>lambda -&gt; Inf</code>. Ignored when
 (<code>"weighted_mean"</code> and <code>"regression"</code>). One of:</p><ul><li><p><code>"none"</code> (default): no SE columns are returned.</p></li>
 <li><p><code>"ess"</code>: effective-sample-size framing. For <code>weighted_mean</code>,
 <code>SE = sqrt(var_w(y) / n_eff)</code>, where <code>n_eff = (Σw)² / Σw²</code> is Kish's
-effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regression,
+effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code> (so
+<code>SE = weighted_sd / sqrt(ess)</code>). This treats analogs as independent
+samples, which spatially autocorrelated sites usually are not. For regression,
 <code>Var(β̂) = σ²_ess · (X'WX + λI)⁻¹</code>, with residual variance corrected
 using <code>n_eff - p</code> degrees of freedom.</p></li>
 <li><p><code>"design"</code>: design-based framing (no assumption that weights are

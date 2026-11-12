@@ -4,7 +4,6 @@
 
 library(analogs)
 library(terra)
-#> terra 1.9.27
 ```
 
 ## Overview
@@ -89,8 +88,6 @@ plot(hist, main = c("Historical CWD", "Historical AET"))
 ```
 
 ![](figures/data-1.png)
-
-plot of chunk data
 
 ## Defining analogs
 
@@ -298,8 +295,6 @@ plot(vel, range = range(minmax(vel)),
 
 ![](figures/velocity-1.png)
 
-plot of chunk velocity
-
 In addition to geographic and environmental distances, the result also
 includes the spatial coordinates of each site’s nearest analog (as well
 as the analog’s index in the `pool`). This can be used for a variety of
@@ -316,8 +311,6 @@ plot(fwd_vel$bearing, main = c("Bearing to forward analog (deg)"),
 ```
 
 ![](figures/bearing-1.png)
-
-plot of chunk bearing
 
 ### Environmental similarity
 
@@ -342,8 +335,6 @@ plot(sim$env_dist, main = "Similarity of best nearby climate analog")
 
 ![](figures/similarity-1.png)
 
-plot of chunk similarity
-
 ### Analog availability
 
 How many analogs exist within specified environmental and geographic
@@ -365,8 +356,6 @@ plot(avail, main = "Analog availability (count)")
 ```
 
 ![](figures/availability-1.png)
-
-plot of chunk availability
 
 ### Analog density
 
@@ -391,8 +380,6 @@ plot(intens, main = "Analog density")
 
 ![](figures/density-1.png)
 
-plot of chunk density
-
 ## Prediction functions
 
 Compared to the functions covered above that simply enumerate analogs,
@@ -404,9 +391,11 @@ analogs. Model options include weighted means and categorical counts
 and ordinary and ridge regression on additional `covariates` (via
 [`analog_regression()`](https://matthewkling.github.io/analogs/reference/analog_regression.md)).
 
-Options for assessing uncertainty include returning standard errors on
-fitted means and coefficients (via the `se` parameter) and running
-various forms of cross-validation within `pool` (via
+Options for assessing uncertainty include stats that describe the
+evidence behind each prediction (see [Evidence behind a
+prediction](#evidence-behind-a-prediction)), standard errors on fitted
+means and coefficients (via the `se` parameter), and various forms of
+cross-validation within `pool` (via
 [`analog_cv()`](https://matthewkling.github.io/analogs/reference/analog_cv.md)).
 
 ### Analog impact models
@@ -442,13 +431,69 @@ plot(impact[[c("weighted_mean", "se_weighted_mean")]],
 
 ![](figures/impact-1.png)
 
-plot of chunk impact
-
 The `kernel` and `theta` parameters control how analog influence decays
 with environmental distance. A Gaussian kernel with `theta = 0.15` means
 analogs at an environmental dissimilarity distance of 0.15 receive about
 60% weight, while those at 0.45 (= 3 × theta) receive almost none. The
 hard threshold `max` provides an absolute cutoff.
+
+### Evidence behind a prediction
+
+A weighted mean doesn’t say how much evidence it rests on. Two focal
+sites can get the same prediction from fifty close analogs or from three
+marginal ones. Several stats describe that evidence, and any of them can
+be requested alongside a prediction. They add little compute time,
+because they reuse the kernel sums the prediction already computes.
+
+They are all built from the analog weights `w`. Each weight is the
+product of the environmental and geographic kernel weights `k`, times
+any downsampling, cell-area or user weight. With every kernel shape, an
+exact match gets a kernel weight of 1.
+
+| `stat` | Formula | What it describes |
+|----|----|----|
+| `count` | number of analogs | How many pool sites fall within the `max` limits, regardless of how well they match. |
+| `sum_weights` | Σw | **Support**: quantity and quality together. It’s the number of exact matches the evidence is worth. Ten close analogs score near 10; ten marginal ones score well under 1. |
+| `ess` | (Σw)² / Σw² | **Effective sample size** (Kish): how evenly the weight is spread across analogs. It depends only on relative weights, so ten analogs at weight 0.01 have the same ESS as ten exact matches. |
+| `effective_weight` | Σwk / Σw | **Closeness**: the typical kernel weight of the analogs that drive the prediction. It’s the analogs’ mean kernel weight, with each analog counted by its full weight. Near 1 means the prediction rests on close matches; near 0, only on weak ones. Unlike `mean_weights` (Σw / count), it is barely affected by the many low-weight analogs near the `max` cutoff. |
+| `weighted_sd` | √(Σw(y − ȳ)² / Σw) | **Spread**: how much the analogs’ outcomes disagree, for each `y` variable. It has no small-sample correction, so it runs somewhat low where the ESS is small. |
+
+Without downsampling, cell-area or user weights, `w = k`, and three of
+these fit together exactly: `sum_weights = ess × effective_weight`. When
+support is low, the other two say why: either there are few analogs (low
+`ess`), or the analogs are poor matches (low `effective_weight`). This
+needs raw `sum_weights`: with a raster pool, `normalize` (on by default)
+rescales `sum_weights` but not the other two, so the example below turns
+it off. Raster pools also carry cell-area weights by default, so the
+identity holds only approximately there.
+
+`weighted_sd` describes real variation among the analogs, not
+uncertainty in the mean. Combined with the ESS it gives the standard
+error that `se = "ess"` returns, `weighted_sd / sqrt(ess)`. That
+standard error assumes the analogs are independent samples, which may
+understate the uncertainty. For a 0/1 response, `weighted_sd` equals
+`sqrt(p * (1 - p))`, where `p` is the weighted mean, so it adds nothing
+beyond the prediction itself.
+
+All of these depend on the kernel bandwidths. Widening `theta` raises
+every analog’s weight, which increases support and closeness even when
+the analogs are the same. Compare these stats across sites within one
+analysis, not across analyses with different kernels. For an absolute
+scale for `sum_weights` on raster pools, use `normalize` (see
+[`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)).
+
+``` r
+
+support <- analog_impact(
+      x = fut,
+      pool = hist,
+      y = eco_var,
+      env = kernel(weight =  "gaussian", theta = 0.15, max = 0.5),
+      geog = kernel(max = 200),
+      stat = c("weighted_mean", "sum_weights", "ess", "effective_weight", "weighted_sd"),
+      normalize = FALSE
+)
+```
 
 ### Spatial interpolation
 
@@ -492,8 +537,6 @@ plot(interp[["weighted_mean"]], main = "Climate-informed spatial interpolation")
 ```
 
 ![](figures/interpolation-1.png)
-
-plot of chunk interpolation
 
 ### Local regression
 
@@ -556,8 +599,6 @@ plot(fit[[c("coef_aet", "se_aet", "pred")]],
 
 ![](figures/regression-1.png)
 
-plot of chunk regression
-
 ### Geographically weighted regression
 
 The same regression machinery supports geographically weighted
@@ -585,8 +626,6 @@ plot(gwr[[c("coef_intercept", "coef_aet")]],
 ```
 
 ![](figures/gwr-1.png)
-
-plot of chunk gwr
 
 ### Cross-validation
 
@@ -652,8 +691,6 @@ plot(cv$residual, main = "Cross-validation residual")
 
 ![](figures/cv-1.png)
 
-plot of chunk cv
-
 ``` r
 
 
@@ -661,9 +698,9 @@ plot of chunk cv
 cv_performance(cv)
 #>   variable       type metric         value
 #> 1        y continuous      n  2.288230e+05
-#> 2        y continuous   rmse  3.827635e-02
-#> 3        y continuous    mae  2.946300e-02
-#> 4        y continuous   bias -2.129624e-03
+#> 2        y continuous   rmse  3.827652e-02
+#> 3        y continuous    mae  2.946311e-02
+#> 4        y continuous   bias -2.129643e-03
 #> 5        y continuous     r2  9.985170e-01
 ```
 
@@ -683,7 +720,7 @@ result <- analog_velocity(fut, hist, env = kernel(0.5), k = 1, n_threads = 4)
 
 #### Large raster datasets
 
-For rasters too large to fit in memory,
+For rasters or point sets too large to fit in memory,
 [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
 processes the focal data in spatial tiles:
 
@@ -736,23 +773,21 @@ plot(imp_fft$weighted_mean, main = "Analog impact model (FFT method)")
 
 ![](figures/fft-1.png)
 
-plot of chunk fft
-
 ``` r
 
 
 # Accuracy relative to the exact method, on 1000 random focal sites
 metadata(imp_fft)$fft_check
 #>          column    n  max_abs_err      rms_err    rms_exact
-#> 1         count 1000 390.54830969 59.386599535 18991.575118
-#> 2   sum_weights 1000  54.01453916 10.120352437  3475.805148
-#> 3 weighted_mean 1000   0.06320815  0.002374415     1.128551
+#> 1         count 1000 284.94508924 56.122699227 19111.006512
+#> 2   sum_weights 1000  62.56996022 10.672212935  3535.246125
+#> 3 weighted_mean 1000   0.02221445  0.001297209     1.133157
 ```
 
 Geographic kernels require projected coordinates (e.g. via
 [`terra::project()`](https://rspatial.github.io/terra/reference/project.html))
 for use with FFT. If a query exceeds `max_cells`, use a coarser `bin`,
-run raster inputs through
+run the query through
 [`tiled_analog_search()`](https://matthewkling.github.io/analogs/reference/tiled_analog_search.md)
 (which accepts `method = "fft"`), or use the exact method.
 

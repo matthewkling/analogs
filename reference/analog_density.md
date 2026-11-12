@@ -94,7 +94,7 @@ analog_density(
 
   Character vector of one or more density-style summary statistics.
   Allowed options: `"sum_weights"` (default), `"mean_weights"`,
-  `"count"`, `"ess"`. See
+  `"count"`, `"ess"`, `"effective_weight"`. See
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   for detailed stat descriptions.
 
@@ -253,7 +253,8 @@ for attached metadata attributes.
 This function is a wrapper that calls
 [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
 using `select = "all"` and `stat = "sum_weights"`. It also supports
-`"count"`, `"mean_weights"`, and `"ess"` as additional stats.
+`"count"`, `"mean_weights"`, `"ess"`, and `"effective_weight"` as
+additional stats.
 
 By default (`normalize = "auto"`), the returned `sum_weights` column is
 divided by a global scalar `D_max` whenever `pool` meets the

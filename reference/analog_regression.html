@@ -230,7 +230,9 @@ be requested alongside regression coefficients. Default includes
 (<code>"weighted_mean"</code> and <code>"regression"</code>). One of:</p><ul><li><p><code>"none"</code> (default): no SE columns are returned.</p></li>
 <li><p><code>"ess"</code>: effective-sample-size framing. For <code>weighted_mean</code>,
 <code>SE = sqrt(var_w(y) / n_eff)</code>, where <code>n_eff = (Σw)² / Σw²</code> is Kish's
-effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regression,
+effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code> (so
+<code>SE = weighted_sd / sqrt(ess)</code>). This treats analogs as independent
+samples, which spatially autocorrelated sites usually are not. For regression,
 <code>Var(β̂) = σ²_ess · (X'WX + λI)⁻¹</code>, with residual variance corrected
 using <code>n_eff - p</code> degrees of freedom.</p></li>
 <li><p><code>"design"</code>: design-based framing (no assumption that weights are

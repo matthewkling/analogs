@@ -123,14 +123,18 @@ analog_impact(
   - `"tabulate"`: Per-class similarity-weighted support under
     categorical y. Output has one column per class, named `n_<level>`
     (single-y) or `<varname>_n_<level>` (multi-y). `"tabulate"` is
-    mutually exclusive with `weighted_mean`/`sum`/
-    `mean`/`weighted_sum`/`regression`, but can be combined with
-    `count`, `sum_weights`, `mean_weights`, and `ess`.
+    mutually exclusive with `weighted_mean`/
+    `weighted_sd`/`sum`/`mean`/`weighted_sum`/`regression`, but can be
+    combined with `count`, `sum_weights`, `mean_weights`, `ess`, and
+    `effective_weight`.
 
   - `"count"`: Analog availability (number of analogs)
 
   - `"sum_weights"`: Analog density (sum of climate-similarity weights
     across analogs)
+
+  - `"ess"`, `"effective_weight"`, `"weighted_sd"`: Describe the
+    evidence behind each prediction; see Interpreting Results.
 
   The default `c("count", "sum_weights", "weighted_mean")` is
   appropriate for continuous `y`; for categorical `y`, swap
@@ -152,7 +156,9 @@ analog_impact(
 
   - `"ess"`: effective-sample-size framing. For `weighted_mean`,
     `SE = sqrt(var_w(y) / n_eff)`, where `n_eff = (Σw)² / Σw²` is Kish's
-    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²`. For
+    effective sample size and `var_w(y) = Σwy²/Σw - ȳ_w²` (so
+    `SE = weighted_sd / sqrt(ess)`). This treats analogs as independent
+    samples, which spatially autocorrelated sites usually are not. For
     regression, `Var(β̂) = σ²_ess · (X'WX + λI)⁻¹`, with residual
     variance corrected using `n_eff - p` degrees of freedom.
 
@@ -346,6 +352,36 @@ lets the kernel function (via `theta`) naturally control influence.
   availability, on roughly `[0, 1]`. See
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   for preconditions.
+
+### Describing the evidence behind a prediction
+
+Every analog's weight is the product of its kernel weights (1 for an
+exact match) and any downsampling, cell-area or user weight. Four stats
+describe the evidence:
+
+- `sum_weights` (support): quantity and quality together, the number of
+  exact matches the evidence is worth.
+
+- `ess` (effective sample size): how many analogs effectively share the
+  weight. It ignores how close they are: ten analogs at weight 0.01 give
+  the same ESS as ten exact matches.
+
+- `effective_weight` (closeness): the typical kernel weight of the
+  analogs that drive the prediction, from near 0 (weak matches only) to
+  1 (exact matches). Without downsampling, cell-area or user weights,
+  `sum_weights = ess * effective_weight`, so low support is either few
+  analogs or poor ones. `sum_weights` must be raw for this, not
+  normalized (see `normalize`).
+
+- `weighted_sd` (spread): how much the analogs' outcomes disagree
+  (population form, so somewhat low where the ESS is small).
+  `se = "ess"` turns it into a standard error,
+  `weighted_sd / sqrt(ess)`, which assumes independent analogs and so
+  tends to be too small.
+
+All four depend on the kernel bandwidths (wider kernels raise every
+weight), so compare them across sites within one analysis rather than
+across kernels.
 
 ## See also
 

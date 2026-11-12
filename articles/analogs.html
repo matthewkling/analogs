@@ -67,8 +67,7 @@
 -->
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/matthewkling/analogs" class="external-link">analogs</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span>
-<span><span class="co">#&gt; terra 1.9.27</span></span></code></pre></div>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
@@ -187,11 +186,7 @@ Let’s unpack them and make some quick maps:</p>
 <span><span class="va">fut</span> <span class="op">&lt;-</span> <span class="va">clim</span><span class="op">$</span><span class="va">future</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">hist</span>, main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Historical CWD"</span>, <span class="st">"Historical AET"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/data-1.png" alt=""><p class="caption">
-plot of chunk data
-</p>
-</div>
+<p><img src="figures/data-1.png" alt=""></p>
 </div>
 </div>
 <div class="section level2">
@@ -399,11 +394,7 @@ Sites with no analog in the reference pool—an important category— have
 <span><span class="va">vel</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">fwd_vel</span><span class="op">$</span><span class="va">geog_dist</span>, <span class="va">rev_vel</span><span class="op">$</span><span class="va">geog_dist</span><span class="op">)</span> <span class="op">/</span> <span class="va">decades</span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">vel</span>, range <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/minmax.html" class="external-link">minmax</a></span><span class="op">(</span><span class="va">vel</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Forward velocity (km/dec)"</span>, <span class="st">"Reverse velocity (km/dec)"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/velocity-1.png" alt=""><p class="caption">
-plot of chunk velocity
-</p>
-</div>
+<p><img src="figures/velocity-1.png" alt=""></p>
 <p>In addition to geographic and environmental distances, the result
 also includes the spatial coordinates of each site’s nearest analog (as
 well as the analog’s index in the <code>pool</code>). This can be used
@@ -415,11 +406,7 @@ direction from a site to its analog location:</p>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fwd_vel</span><span class="op">$</span><span class="va">bearing</span>, main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Bearing to forward analog (deg)"</span><span class="op">)</span>,</span>
 <span>     col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/grDevices/palettes.html" class="external-link">rainbow</a></span><span class="op">(</span><span class="fl">12</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/bearing-1.png" alt=""><p class="caption">
-plot of chunk bearing
-</p>
-</div>
+<p><img src="figures/bearing-1.png" alt=""></p>
 </div>
 <div class="section level3">
 <h3 id="environmental-similarity">Environmental similarity<a class="anchor" aria-label="anchor" href="#environmental-similarity"></a>
@@ -439,11 +426,7 @@ given limited dispersal capacity.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">env_dist</span>, main <span class="op">=</span> <span class="st">"Similarity of best nearby climate analog"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/similarity-1.png" alt=""><p class="caption">
-plot of chunk similarity
-</p>
-</div>
+<p><img src="figures/similarity-1.png" alt=""></p>
 </div>
 <div class="section level3">
 <h3 id="analog-availability">Analog availability<a class="anchor" aria-label="anchor" href="#analog-availability"></a>
@@ -462,11 +445,7 @@ with zero analogs represent novel or disappearing climates.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">avail</span>, main <span class="op">=</span> <span class="st">"Analog availability (count)"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/availability-1.png" alt=""><p class="caption">
-plot of chunk availability
-</p>
-</div>
+<p><img src="figures/availability-1.png" alt=""></p>
 </div>
 <div class="section level3">
 <h3 id="analog-density">Analog density<a class="anchor" aria-label="anchor" href="#analog-density"></a>
@@ -487,11 +466,7 @@ interpretable.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">intens</span>, main <span class="op">=</span> <span class="st">"Analog density"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/density-1.png" alt=""><p class="caption">
-plot of chunk density
-</p>
-</div>
+<p><img src="figures/density-1.png" alt=""></p>
 </div>
 </div>
 <div class="section level2">
@@ -504,10 +479,11 @@ model that summarizes additional properties (outcome variables
 and categorical counts (via <code><a href="../reference/analog_impact.html">analog_impact()</a></code>) and ordinary
 and ridge regression on additional <code>covariates</code> (via
 <code><a href="../reference/analog_regression.html">analog_regression()</a></code>).</p>
-<p>Options for assessing uncertainty include returning standard errors
-on fitted means and coefficients (via the <code>se</code> parameter) and
-running various forms of cross-validation within <code>pool</code> (via
-<code><a href="../reference/analog_cv.html">analog_cv()</a></code>).</p>
+<p>Options for assessing uncertainty include stats that describe the
+evidence behind each prediction (see <a href="#evidence-behind-a-prediction">Evidence behind a prediction</a>),
+standard errors on fitted means and coefficients (via the
+<code>se</code> parameter), and various forms of cross-validation within
+<code>pool</code> (via <code><a href="../reference/analog_cv.html">analog_cv()</a></code>).</p>
 <div class="section level3">
 <h3 id="analog-impact-models">Analog impact models<a class="anchor" aria-label="anchor" href="#analog-impact-models"></a>
 </h3>
@@ -536,17 +512,116 @@ errors based on effective sample size for each grid cell.</p>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">impact</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"weighted_mean"</span>, <span class="st">"se_weighted_mean"</span><span class="op">)</span><span class="op">]</span><span class="op">]</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Predicted ecological state"</span>, <span class="st">"Standard error"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/impact-1.png" alt=""><p class="caption">
-plot of chunk impact
-</p>
-</div>
+<p><img src="figures/impact-1.png" alt=""></p>
 <p>The <code>kernel</code> and <code>theta</code> parameters control how
 analog influence decays with environmental distance. A Gaussian kernel
 with <code>theta = 0.15</code> means analogs at an environmental
 dissimilarity distance of 0.15 receive about 60% weight, while those at
 0.45 (= 3 × theta) receive almost none. The hard threshold
 <code>max</code> provides an absolute cutoff.</p>
+</div>
+<div class="section level3">
+<h3 id="evidence-behind-a-prediction">Evidence behind a prediction<a class="anchor" aria-label="anchor" href="#evidence-behind-a-prediction"></a>
+</h3>
+<p>A weighted mean doesn’t say how much evidence it rests on. Two focal
+sites can get the same prediction from fifty close analogs or from three
+marginal ones. Several stats describe that evidence, and any of them can
+be requested alongside a prediction. They add little compute time,
+because they reuse the kernel sums the prediction already computes.</p>
+<p>They are all built from the analog weights <code>w</code>. Each
+weight is the product of the environmental and geographic kernel weights
+<code>k</code>, times any downsampling, cell-area or user weight. With
+every kernel shape, an exact match gets a kernel weight of 1.</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th><code>stat</code></th>
+<th>Formula</th>
+<th>What it describes</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>count</code></td>
+<td>number of analogs</td>
+<td>How many pool sites fall within the <code>max</code> limits,
+regardless of how well they match.</td>
+</tr>
+<tr class="even">
+<td><code>sum_weights</code></td>
+<td>Σw</td>
+<td>
+<strong>Support</strong>: quantity and quality together. It’s the
+number of exact matches the evidence is worth. Ten close analogs score
+near 10; ten marginal ones score well under 1.</td>
+</tr>
+<tr class="odd">
+<td><code>ess</code></td>
+<td>(Σw)² / Σw²</td>
+<td>
+<strong>Effective sample size</strong> (Kish): how evenly the weight
+is spread across analogs. It depends only on relative weights, so ten
+analogs at weight 0.01 have the same ESS as ten exact matches.</td>
+</tr>
+<tr class="even">
+<td><code>effective_weight</code></td>
+<td>Σwk / Σw</td>
+<td>
+<strong>Closeness</strong>: the typical kernel weight of the analogs
+that drive the prediction. It’s the analogs’ mean kernel weight, with
+each analog counted by its full weight. Near 1 means the prediction
+rests on close matches; near 0, only on weak ones. Unlike
+<code>mean_weights</code> (Σw / count), it is barely affected by the
+many low-weight analogs near the <code>max</code> cutoff.</td>
+</tr>
+<tr class="odd">
+<td><code>weighted_sd</code></td>
+<td>√(Σw(y − ȳ)² / Σw)</td>
+<td>
+<strong>Spread</strong>: how much the analogs’ outcomes disagree,
+for each <code>y</code> variable. It has no small-sample correction, so
+it runs somewhat low where the ESS is small.</td>
+</tr>
+</tbody>
+</table>
+<p>Without downsampling, cell-area or user weights, <code>w = k</code>,
+and three of these fit together exactly:
+<code>sum_weights = ess × effective_weight</code>. When support is low,
+the other two say why: either there are few analogs (low
+<code>ess</code>), or the analogs are poor matches (low
+<code>effective_weight</code>). This needs raw <code>sum_weights</code>:
+with a raster pool, <code>normalize</code> (on by default) rescales
+<code>sum_weights</code> but not the other two, so the example below
+turns it off. Raster pools also carry cell-area weights by default, so
+the identity holds only approximately there.</p>
+<p><code>weighted_sd</code> describes real variation among the analogs,
+not uncertainty in the mean. Combined with the ESS it gives the standard
+error that <code>se = "ess"</code> returns,
+<code>weighted_sd / sqrt(ess)</code>. That standard error assumes the
+analogs are independent samples, which may understate the uncertainty.
+For a 0/1 response, <code>weighted_sd</code> equals
+<code>sqrt(p * (1 - p))</code>, where <code>p</code> is the weighted
+mean, so it adds nothing beyond the prediction itself.</p>
+<p>All of these depend on the kernel bandwidths. Widening
+<code>theta</code> raises every analog’s weight, which increases support
+and closeness even when the analogs are the same. Compare these stats
+across sites within one analysis, not across analyses with different
+kernels. For an absolute scale for <code>sum_weights</code> on raster
+pools, use <code>normalize</code> (see
+<code><a href="../reference/analog_search.html">analog_search()</a></code>).</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">support</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_impact.html">analog_impact</a></span><span class="op">(</span></span>
+<span>      x <span class="op">=</span> <span class="va">fut</span>,</span>
+<span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
+<span>      y <span class="op">=</span> <span class="va">eco_var</span>,</span>
+<span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>weight <span class="op">=</span>  <span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
+<span>      geog <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span>max <span class="op">=</span> <span class="fl">200</span><span class="op">)</span>,</span>
+<span>      stat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"weighted_mean"</span>, <span class="st">"sum_weights"</span>, <span class="st">"ess"</span>, <span class="st">"effective_weight"</span>, <span class="st">"weighted_sd"</span><span class="op">)</span>,</span>
+<span>      normalize <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="spatial-interpolation">Spatial interpolation<a class="anchor" aria-label="anchor" href="#spatial-interpolation"></a>
@@ -567,7 +642,7 @@ different environment.</p>
 similarity and geographic proximity, with their relative importance
 determined by the <code>theta</code> parameters and the shape of the
 selected <code>kernel</code> function.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate sparse field observations at 500 random locations</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
 <span><span class="va">n_sites</span> <span class="op">&lt;-</span> <span class="fl">500</span></span>
@@ -585,11 +660,7 @@ selected <code>kernel</code> function.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">interp</span><span class="op">[[</span><span class="st">"weighted_mean"</span><span class="op">]</span><span class="op">]</span>, main <span class="op">=</span> <span class="st">"Climate-informed spatial interpolation"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/interpolation-1.png" alt=""><p class="caption">
-plot of chunk interpolation
-</p>
-</div>
+<p><img src="figures/interpolation-1.png" alt=""></p>
 </div>
 <div class="section level3">
 <h3 id="local-regression">Local regression<a class="anchor" aria-label="anchor" href="#local-regression"></a>
@@ -615,7 +686,7 @@ weighted mean, i.e. the behavior of <code><a href="../reference/analog_impact.h
 typical approach for choosing a <code>lambda</code> value is
 cross-validation (see the section on <code><a href="../reference/analog_cv.html">analog_cv()</a></code> below),
 but here we’ll arbitrarily pick a modest value.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate covariates for the pool (just using AET for expediency)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
 <span><span class="va">pool_covariates</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -646,11 +717,7 @@ but here we’ll arbitrarily pick a modest value.</p>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coef_aet"</span>, <span class="st">"se_aet"</span>, <span class="st">"pred"</span><span class="op">)</span><span class="op">]</span><span class="op">]</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A coefficient"</span>, <span class="st">"The coefficient's SE"</span>, <span class="st">"Predicted value"</span><span class="op">)</span>,</span>
 <span>     nr <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/regression-1.png" alt=""><p class="caption">
-plot of chunk regression
-</p>
-</div>
+<p><img src="figures/regression-1.png" alt=""></p>
 </div>
 <div class="section level3">
 <h3 id="geographically-weighted-regression">Geographically weighted regression<a class="anchor" aria-label="anchor" href="#geographically-weighted-regression"></a>
@@ -660,7 +727,7 @@ regression (GWR) by using geographic neighborhoods and geographic
 distance kernel weighting. This is a different configuration of the same
 underlying framework — no environmental constraint, geographic kernel,
 local regression on covariates.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># GWR: geographic neighborhood, geographic kernel weighting</span></span>
 <span><span class="va">gwr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_regression.html">analog_regression</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">hist</span>,</span>
@@ -675,11 +742,7 @@ local regression on covariates.</p>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">gwr</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coef_intercept"</span>, <span class="st">"coef_aet"</span><span class="op">)</span><span class="op">]</span><span class="op">]</span>,</span>
 <span>     main <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"GWR intercept"</span>, <span class="st">"GWR coefficient: cov1"</span><span class="op">)</span>,</span>
 <span>     range <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, fill_range <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/gwr-1.png" alt=""><p class="caption">
-plot of chunk gwr
-</p>
-</div>
+<p><img src="figures/gwr-1.png" alt=""></p>
 </div>
 <div class="section level3">
 <h3 id="cross-validation">Cross-validation<a class="anchor" aria-label="anchor" href="#cross-validation"></a>
@@ -726,7 +789,7 @@ performance. If we wanted to tune a model parameter (<code>labmda</code>
 parameter values to identify the best-performing settings. For large
 sweeps, the FFT method described under <a href="#computational-performance">Computational performance</a> can make
 each run much faster.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Run cross-validation and plot residuals</span></span>
 <span><span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_cv.html">analog_cv</a></span><span class="op">(</span></span>
 <span>      fun <span class="op">=</span> <span class="va">analog_impact</span>, pool <span class="op">=</span> <span class="va">hist</span>, y <span class="op">=</span> <span class="va">eco_var</span>,</span>
@@ -735,20 +798,16 @@ each run much faster.</p>
 <span>      se <span class="op">=</span> <span class="st">"ess"</span>, cv_method <span class="op">=</span> <span class="st">"loo"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">cv</span><span class="op">$</span><span class="va">residual</span>, main <span class="op">=</span> <span class="st">"Cross-validation residual"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/cv-1.png" alt=""><p class="caption">
-plot of chunk cv
-</p>
-</div>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<p><img src="figures/cv-1.png" alt=""></p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="co"># Calculate prediction error metrics</span></span>
 <span><span class="fu"><a href="../reference/cv_performance.html">cv_performance</a></span><span class="op">(</span><span class="va">cv</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   variable       type metric         value</span></span>
 <span><span class="co">#&gt; 1        y continuous      n  2.288230e+05</span></span>
-<span><span class="co">#&gt; 2        y continuous   rmse  3.827635e-02</span></span>
-<span><span class="co">#&gt; 3        y continuous    mae  2.946300e-02</span></span>
-<span><span class="co">#&gt; 4        y continuous   bias -2.129624e-03</span></span>
+<span><span class="co">#&gt; 2        y continuous   rmse  3.827652e-02</span></span>
+<span><span class="co">#&gt; 3        y continuous    mae  2.946311e-02</span></span>
+<span><span class="co">#&gt; 4        y continuous   bias -2.129643e-03</span></span>
 <span><span class="co">#&gt; 5        y continuous     r2  9.985170e-01</span></span></code></pre></div>
 </div>
 </div>
@@ -762,16 +821,16 @@ of pairwise comparisons.</p>
 </h4>
 <p>Use the <code>n_threads</code> parameter to parallelize across focal
 locations:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_velocity.html">analog_velocity</a></span><span class="op">(</span><span class="va">fut</span>, <span class="va">hist</span>, env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="fl">0.5</span><span class="op">)</span>, k <span class="op">=</span> <span class="fl">1</span>, n_threads <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
 <h4 id="large-raster-datasets">Large raster datasets<a class="anchor" aria-label="anchor" href="#large-raster-datasets"></a>
 </h4>
-<p>For rasters too large to fit in memory,
+<p>For rasters or point sets too large to fit in memory,
 <code><a href="../reference/tiled_analog_search.html">tiled_analog_search()</a></code> processes the focal data in spatial
 tiles:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tiled_analog_search.html">tiled_analog_search</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">very_large_raster</span>,</span>
 <span>      pool <span class="op">=</span> <span class="va">idx</span>,</span>
@@ -804,30 +863,26 @@ by <code>2^d</code> for <code>d</code> active axes. See
 <p>Here’s a climate-only analog impact model. On the example rasters,
 the FFT method runs it several hundred times faster than the exact
 method and has a very low RMSE:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">imp_fft</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_impact.html">analog_impact</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>, y <span class="op">=</span> <span class="va">eco_var</span>,</span>
 <span>      env <span class="op">=</span> <span class="fu"><a href="../reference/kernel.html">kernel</a></span><span class="op">(</span><span class="st">"gaussian"</span>, theta <span class="op">=</span> <span class="fl">0.15</span>, max <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>,</span>
 <span>      method <span class="op">=</span> <span class="fu"><a href="../reference/fft_method.html">fft_method</a></span><span class="op">(</span>check <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">imp_fft</span><span class="op">$</span><span class="va">weighted_mean</span>, main <span class="op">=</span> <span class="st">"Analog impact model (FFT method)"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure">
-<img src="figures/fft-1.png" alt=""><p class="caption">
-plot of chunk fft
-</p>
-</div>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<p><img src="figures/fft-1.png" alt=""></p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="co"># Accuracy relative to the exact method, on 1000 random focal sites</span></span>
 <span><span class="fu"><a href="../reference/metadata.html">metadata</a></span><span class="op">(</span><span class="va">imp_fft</span><span class="op">)</span><span class="op">$</span><span class="va">fft_check</span></span>
 <span><span class="co">#&gt;          column    n  max_abs_err      rms_err    rms_exact</span></span>
-<span><span class="co">#&gt; 1         count 1000 390.54830969 59.386599535 18991.575118</span></span>
-<span><span class="co">#&gt; 2   sum_weights 1000  54.01453916 10.120352437  3475.805148</span></span>
-<span><span class="co">#&gt; 3 weighted_mean 1000   0.06320815  0.002374415     1.128551</span></span></code></pre></div>
+<span><span class="co">#&gt; 1         count 1000 284.94508924 56.122699227 19111.006512</span></span>
+<span><span class="co">#&gt; 2   sum_weights 1000  62.56996022 10.672212935  3535.246125</span></span>
+<span><span class="co">#&gt; 3 weighted_mean 1000   0.02221445  0.001297209     1.133157</span></span></code></pre></div>
 <p>Geographic kernels require projected coordinates (e.g. via
 <code><a href="https://rspatial.github.io/terra/reference/project.html" class="external-link">terra::project()</a></code>) for use with FFT. If a query exceeds
-<code>max_cells</code>, use a coarser <code>bin</code>, run raster
-inputs through <code><a href="../reference/tiled_analog_search.html">tiled_analog_search()</a></code> (which accepts
+<code>max_cells</code>, use a coarser <code>bin</code>, run the query
+through <code><a href="../reference/tiled_analog_search.html">tiled_analog_search()</a></code> (which accepts
 <code>method = "fft"</code>), or use the exact method.</p>
 </div>
 <div class="section level4">
@@ -840,7 +895,7 @@ environmental-geographic space in order to preserve coverage in sparse
 regions. As noted above, each <code>pool</code> site in the downsampled
 data gets a sample weight that’s used to correct summary statistics so
 that downsampling doesn’t bias the results:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analog_availability.html">analog_availability</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, </span>
 <span>      pool <span class="op">=</span> <span class="va">hist</span>,</span>
@@ -854,7 +909,7 @@ that downsampling doesn’t bias the results:</p>
 </h4>
 <p>When running multiple queries against the same reference pool, build
 the lattice index once and reuse it:</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_analog_index.html">build_analog_index</a></span><span class="op">(</span><span class="va">hist</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Multiple queries reuse the same index</span></span>
@@ -867,7 +922,7 @@ the lattice index once and reuse it:</p>
 <p>By default, the lattice resolution is auto-tuned for each query. For
 repeated queries with the same configuration, you can tune the index
 once and reuse it:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/tune_index_res.html">tune_index_res</a></span><span class="op">(</span></span>
 <span>      x <span class="op">=</span> <span class="va">fut</span>, pool <span class="op">=</span> <span class="va">hist</span>,</span>
 <span>      stat <span class="op">=</span> <span class="st">"count"</span>,</span>

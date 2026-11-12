@@ -157,12 +157,15 @@ of options. Common choices:</p><ul><li><p><code>"weighted_mean"</code>: Expected
 <li><p><code>"tabulate"</code>: Per-class similarity-weighted support under
 categorical y. Output has one column per class, named
 <code>n_&lt;level&gt;</code> (single-y) or <code>&lt;varname&gt;_n_&lt;level&gt;</code> (multi-y).
-<code>"tabulate"</code> is mutually exclusive with <code>weighted_mean</code>/<code>sum</code>/
-<code>mean</code>/<code>weighted_sum</code>/<code>regression</code>, but can be combined with
-<code>count</code>, <code>sum_weights</code>, <code>mean_weights</code>, and <code>ess</code>.</p></li>
+<code>"tabulate"</code> is mutually exclusive with <code>weighted_mean</code>/
+<code>weighted_sd</code>/<code>sum</code>/<code>mean</code>/<code>weighted_sum</code>/<code>regression</code>, but can be
+combined with <code>count</code>, <code>sum_weights</code>, <code>mean_weights</code>, <code>ess</code>, and
+<code>effective_weight</code>.</p></li>
 <li><p><code>"count"</code>: Analog availability (number of analogs)</p></li>
 <li><p><code>"sum_weights"</code>: Analog density (sum of climate-similarity
 weights across analogs)</p></li>
+<li><p><code>"ess"</code>, <code>"effective_weight"</code>, <code>"weighted_sd"</code>: Describe the
+evidence behind each prediction; see Interpreting Results.</p></li>
 </ul><p>The default <code>c("count", "sum_weights", "weighted_mean")</code> is appropriate
 for continuous <code>y</code>; for categorical <code>y</code>, swap <code>weighted_mean</code> for
 <code>tabulate</code>.</p></dd>
@@ -181,7 +184,9 @@ approaching the weighted mean as <code>lambda -&gt; Inf</code>. Ignored when
 (<code>"weighted_mean"</code> and <code>"regression"</code>). One of:</p><ul><li><p><code>"none"</code> (default): no SE columns are returned.</p></li>
 <li><p><code>"ess"</code>: effective-sample-size framing. For <code>weighted_mean</code>,
 <code>SE = sqrt(var_w(y) / n_eff)</code>, where <code>n_eff = (Σw)² / Σw²</code> is Kish's
-effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code>. For regression,
+effective sample size and <code>var_w(y) = Σwy²/Σw - ȳ_w²</code> (so
+<code>SE = weighted_sd / sqrt(ess)</code>). This treats analogs as independent
+samples, which spatially autocorrelated sites usually are not. For regression,
 <code>Var(β̂) = σ²_ess · (X'WX + λI)⁻¹</code>, with residual variance corrected
 using <code>n_eff - p</code> degrees of freedom.</p></li>
 <li><p><code>"design"</code>: design-based framing (no assumption that weights are
@@ -351,6 +356,32 @@ Pass <code>normalize = TRUE</code> to express <code>sum_weights</code> (and any 
 columns) as a fraction of theoretical maximum analog availability,
 on roughly <code>[0, 1]</code>. See <code><a href="analog_search.html">analog_search()</a></code> for preconditions.</p></li>
 </ul></div>
+
+<div class="section">
+<h3 id="describing-the-evidence-behind-a-prediction">Describing the evidence behind a prediction<a class="anchor" aria-label="anchor" href="#describing-the-evidence-behind-a-prediction"></a></h3>
+
+
+<p>Every analog's weight is the product of its kernel weights (1 for an exact
+match) and any downsampling, cell-area or user weight. Four stats describe
+the evidence:</p><ul><li><p><code>sum_weights</code> (support): quantity and quality together, the number
+of exact matches the evidence is worth.</p></li>
+<li><p><code>ess</code> (effective sample size): how many analogs effectively share
+the weight. It ignores how close they are: ten analogs at weight 0.01
+give the same ESS as ten exact matches.</p></li>
+<li><p><code>effective_weight</code> (closeness): the typical kernel weight of the
+analogs that drive the prediction, from near 0 (weak matches only) to 1
+(exact matches). Without downsampling, cell-area or user weights,
+<code>sum_weights = ess * effective_weight</code>, so low support is either few
+analogs or poor ones. <code>sum_weights</code> must be raw for this, not
+normalized (see <code>normalize</code>).</p></li>
+<li><p><code>weighted_sd</code> (spread): how much the analogs' outcomes disagree
+(population form, so somewhat low where the ESS is small).
+<code>se = "ess"</code> turns it into a standard error, <code>weighted_sd / sqrt(ess)</code>,
+which assumes independent analogs and so tends to be too small.</p></li>
+</ul><p>All four depend on the kernel bandwidths (wider kernels raise every
+weight), so compare them across sites within one analysis rather than
+across kernels.</p>
+</div>
 
     </div>
     <div class="section level2">
