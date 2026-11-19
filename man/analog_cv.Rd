@@ -54,7 +54,9 @@ per-focal residual-equivalent columns (see \verb{@return}).}
 \code{lambda}, \code{select}, \code{se}, \code{weight}). Note:
 \code{fun} must accept \code{exclude_self} (directly or via \code{...}); \code{\link[=analog_search]{analog_search()}}
 accepts it as a named parameter, and the wrapper helpers forward it via
-their own \code{...}.}
+their own \code{...}. \code{progress = TRUE} reports progress through
+\pkg{progressr} (see \code{progress} in \code{\link[=analog_search]{analog_search()}}): per chunk of pool
+rows for \code{cv_method = "loo"}, one step per fold for \code{"kfold"}.}
 }
 \value{
 A data.frame or SpatRaster (matching the format of \code{pool}) with

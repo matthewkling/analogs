@@ -28,20 +28,6 @@ test_that("exclude_self = TRUE validates inputs", {
             )
       )
 
-      # Progress disallowed
-      expect_error(
-            analog_search(
-                  x = d$ref,
-                  pool = d$ref,
-                  stat = "count",
-                  env = kernel(max = 1),
-                  coord_type = "projected",
-                  exclude_self = TRUE,
-                  progress = TRUE
-            ),
-            "progress"
-      )
-
       # Downsample != 1 disallowed
       expect_error(
             analog_search(
@@ -222,17 +208,6 @@ test_that("analog_cv rejects unsupported fun and invalid configs", {
             "covariates"
       )
 
-      # progress = TRUE not allowed
-      expect_error(
-            analog_cv(
-                  fun = analog_impact,
-                  pool = d$ref, y = y,
-                  env = kernel(max = 1),
-                  cv_method = "loo",
-                  progress = TRUE
-            ),
-            "progress"
-      )
 })
 
 

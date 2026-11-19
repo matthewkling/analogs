@@ -224,13 +224,6 @@ query_analog_index <- function(x,
             RcppParallel::setThreadOptions(numThreads = as.integer(n_threads)[1L])
       }
 
-      # exclude_self is incompatible with chunking/progress; upstream validation
-      # should have caught this, but enforce again defensively.
-      if (isTRUE(exclude_self) && isTRUE(show_progress)) {
-            stop("`exclude_self = TRUE` is incompatible with `progress = TRUE`.",
-                 call. = FALSE)
-      }
-
       # Pool-weight streams. Cell-area weights live on the index (build-time
       # property); user weights are query-time. Either may be NULL.
       area_weight_vec <- index$cell_area_weight  # NULL if not applied
@@ -286,19 +279,23 @@ query_analog_index <- function(x,
                   exclude_self = exclude_self,
                   # With exclude_self on a subset, focal k is pool row rows[k]
                   self_rows = if (isTRUE(exclude_self) && !is.null(rows)) as.integer(rows - 1L),
-                  show_progress = show_progress
+                  # The FFT accuracy check (`rows` given) reports no progress
+                  show_progress = show_progress && is.null(rows)
             )
       }
 
       res <- if (is.null(fft)) {
             exact_fn()
       } else {
-            .query_fft(fft, focal, index$ref_data, stat, aggregate_codes, se,
+            p_fft <- .progressor(show_progress, steps = 1L)
+            res_fft <- .query_fft(fft, focal, index$ref_data, stat, aggregate_codes, se,
                        se_code, values_mat, covariates_mat, n_classes_per_var,
                        area_weight_vec, user_weight_vec, lambda,
                        kernel_env, theta_env, max_env_val,
                        kernel_geog, theta_geog, max_geog_num, min_geog_num,
                        x_cov_mat, exclude_self, index$coord_type, exact_fn)
+            if (!is.null(p_fft)) p_fft()
+            res_fft
       }
 
       # Capture diagnostic attributes (before they get lost)
@@ -662,8 +659,11 @@ query_analog_index <- function(x,
 
 #' Internal helper: Query C++ with optional chunking and progress tracking
 #'
-#' Wraps query_analog_index_cpp with optional chunking for progress bars.
-#' Handles merging of chunked results.
+#' Wraps query_analog_index_cpp. When `show_progress` is TRUE, focal rows are
+#' processed in chunks from the main R thread (the C++ worker threads cannot
+#' call R) and a progressr step is signalled after each chunk. Results are
+#' identical to a single call: each focal row is computed independently, and
+#' self-exclusion is carried per chunk through `self_rows`.
 #'
 #' @keywords internal
 .query_cpp_chunked <- function(index, focal, ref_mm, k, max_env, max_geog,
@@ -679,9 +679,8 @@ query_analog_index <- function(x,
                                self_rows = NULL,
                                show_progress = FALSE) {
 
-      # If progress not requested or dataset too small, just call C++ directly
-      if (!show_progress || nrow(focal) < 100) {
-            return(query_analog_index_cpp(
+      run <- function(focal, x_cov, self_rows) {
+            query_analog_index_cpp(
                   index_list = index,
                   focal_mm = focal,
                   ref_mm = ref_mm,
@@ -705,66 +704,41 @@ query_analog_index <- function(x,
                   user_weight_sexp = user_weight,
                   exclude_self = exclude_self,
                   self_rows_sexp = self_rows
-            ))
+            )
       }
 
-      # Chunked path (progress bar). exclude_self is incompatible with chunking
-      # because the worker's self-check uses j == i, which only holds for the
-      # full focal set. Upstream validation should prevent this combination.
-      if (isTRUE(exclude_self)) {
-            stop("Internal error: exclude_self = TRUE reached chunked path. ",
-                 "This combination should have been rejected upstream.",
-                 call. = FALSE)
+      n <- nrow(focal)
+      # Chunks of at least `min_chunk` rows (so per-call setup and thread
+      # dispatch stay negligible), at most `max_chunks` of them.
+      n_chunks <- if (isTRUE(show_progress)) {
+            ch <- .progress_chunking()
+            min(ch$max_chunks, ceiling(n / ch$min_chunk))
+      } else {
+            1L
       }
 
-      # Split focal into chunks
-      n_chunks <- min(100, nrow(focal))
-      chunk_size <- ceiling(nrow(focal) / n_chunks)
+      if (n_chunks <= 1L) {
+            p <- .progressor(show_progress, steps = 1L)
+            out <- run(focal, x_cov, self_rows)
+            if (!is.null(p)) p()
+            return(out)
+      }
 
-      # Progress bar
-      pb <- utils::txtProgressBar(min = 0, max = n_chunks, style = 3)
-      on.exit(close(pb), add = TRUE)
-
-      # Collect results per chunk
+      p <- .progressor(TRUE, steps = n_chunks)
+      bounds <- floor(seq(0, n, length.out = n_chunks + 1L))
       results <- vector("list", n_chunks)
 
       for (i in seq_len(n_chunks)) {
-            start_idx <- (i - 1) * chunk_size + 1
-            end_idx <- min(i * chunk_size, nrow(focal))
-            focal_chunk <- focal[start_idx:end_idx, , drop = FALSE]
-
-            x_cov_chunk <- if (!is.null(x_cov)) {
-                  x_cov[start_idx:end_idx, , drop = FALSE]
-            } else {
-                  NULL
+            idx <- (bounds[i] + 1):bounds[i + 1L]
+            # Self-exclusion: focal row r is pool row self_rows[r] (0-based),
+            # or r - 1 when the full focal set is the pool.
+            sr <- if (isTRUE(exclude_self)) {
+                  if (is.null(self_rows)) as.integer(idx - 1L) else self_rows[idx]
             }
-
-            results[[i]] <- query_analog_index_cpp(
-                  index_list = index,
-                  focal_mm = focal_chunk,
-                  ref_mm = ref_mm,
-                  k = k,
-                  max_env = max_env,
-                  max_geog = max_geog,
-                  min_geog = min_geog,
-                  select_code = select_code,
-                  aggregate_codes = aggregate_codes,
-                  env_kernel_code = env_kernel_code,
-                  geog_kernel_code = geog_kernel_code,
-                  theta_env = theta_env,
-                  theta_geog = theta_geog,
-                  x_cov_sexp = x_cov_chunk,
-                  values_sexp = y,
-                  covariates_sexp = covariates,
-                  lambda = lambda,
-                  se_code = se_code,
-                  n_classes_per_var = n_classes_per_var,
-                  area_weight_sexp = area_weight,
-                  user_weight_sexp = user_weight,
-                  exclude_self = FALSE   # always FALSE in chunked path
-            )
-
-            utils::setTxtProgressBar(pb, i)
+            results[[i]] <- run(focal[idx, , drop = FALSE],
+                                if (!is.null(x_cov)) x_cov[idx, , drop = FALSE],
+                                sr)
+            p()
       }
 
       # Merge results based on type

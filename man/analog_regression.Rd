@@ -228,10 +228,18 @@ at the cost of a typically small amount of error. The FFT method requires
 computation. If \code{NULL} (default), the global RcppParallel setting
 is used (see \code{RcppParallel::setThreadOptions}).}
 
-\item{progress}{Logical; if \code{TRUE}, display a progress bar during
-computation. Progress tracking works by splitting the focal dataset into
-chunks and processing them sequentially. Useful for large datasets. Default
-is \code{FALSE}.}
+\item{progress}{Logical; if \code{TRUE}, report progress through the
+\pkg{progressr} package. The exact engine then processes focal rows in
+up to 100 sequential chunks and signals one step per chunk (results are
+identical to an unchunked run); the FFT method signals a single step.
+Inside a progressr handler context, such as \code{\link[progressr:with_progress]{progressr::with_progress()}},
+\code{\link[progressr:withProgressShiny]{progressr::withProgressShiny()}}, or after
+\code{progressr::handlers(global = TRUE)}, progress goes to that handler.
+Otherwise the call sets one up itself, so progress is shown with the
+handlers configured by \code{\link[progressr:handlers]{progressr::handlers()}} (a text progress bar by
+default). With \code{FALSE} (default), no progress is signalled.
+As with any progressr-based progress, nothing is drawn in non-interactive
+sessions unless \code{options(progressr.enable = TRUE)} is set.}
 
 \item{...}{additional arguments passed to \code{analog_search()} (usually unneeded)}
 }

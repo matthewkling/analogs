@@ -197,8 +197,8 @@
 #'   for cross-validation, such as via [analog_cv()], in which case each focal
 #'   excludes the pool row at the same index from its analog neighborhood.
 #'   This requires `x` and `pool` to be the same R object (checked via
-#'   `identical()`), and is incompatible with pre-built indices,
-#'   `downsample != 1`, and `progress = TRUE`.
+#'   `identical()`), and is incompatible with pre-built indices and
+#'   `downsample != 1`.
 #'
 #' @param coord_type Coordinate system type:
 #'
@@ -260,10 +260,18 @@
 #'   computation. If `NULL` (default), the global RcppParallel setting
 #'   is used (see `RcppParallel::setThreadOptions`).
 #'
-#' @param progress Logical; if `TRUE`, display a progress bar during
-#'   computation. Progress tracking works by splitting the focal dataset into
-#'   chunks and processing them sequentially. Useful for large datasets. Default
-#'   is `FALSE`.
+#' @param progress Logical; if `TRUE`, report progress through the
+#'   \pkg{progressr} package. The exact engine then processes focal rows in
+#'   up to 100 sequential chunks and signals one step per chunk (results are
+#'   identical to an unchunked run); the FFT method signals a single step.
+#'   Inside a progressr handler context, such as [progressr::with_progress()],
+#'   [progressr::withProgressShiny()], or after
+#'   `progressr::handlers(global = TRUE)`, progress goes to that handler.
+#'   Otherwise the call sets one up itself, so progress is shown with the
+#'   handlers configured by [progressr::handlers()] (a text progress bar by
+#'   default). With `FALSE` (default), no progress is signalled.
+#'   As with any progressr-based progress, nothing is drawn in non-interactive
+#'   sessions unless `options(progressr.enable = TRUE)` is set.
 #'
 #' @return Return type depends on input format and query mode.
 #'
@@ -348,8 +356,8 @@
 #' - You can `downsample` prohibitively large reference pool datasets
 #'   to improve speed and memory, using a stratified sampling
 #'   scheme that reduces loss of precision relative to random sampling.
-#' - For large datasets, enable `progress = TRUE` to display
-#'   a progress bar during computation.
+#' - For large datasets, set `progress = TRUE` to report progress
+#'   through progressr (a console bar, or a Shiny progress bar, etc.).
 #' - For raster datasets that are too large to fit in memory,
 #'   `tiled_analog_search()` offers a memory-safe option.
 #'
@@ -501,9 +509,9 @@ analog_search <- function(
             stop('`normalize` must be TRUE, FALSE, or "auto".', call. = FALSE)
       }
 
-      # Validate exclude_self against x, pool, downsample, progress.
+      # Validate exclude_self against x, pool, downsample.
       # Must happen BEFORE pool is swapped for a built index below.
-      .validate_exclude_self(exclude_self, x, pool, downsample, progress)
+      .validate_exclude_self(exclude_self, x, pool, downsample)
 
       # Validate cell_area_weight format up front so error messages mention
       # the user-facing argument and not internal helpers.
@@ -683,8 +691,9 @@ analog_search <- function(
             )
       }
 
-      # Query the index
-      return(query_analog_index(
+      # Query the index (inside a progressr handler context when progress
+      # is requested and the caller has not set one up)
+      return(.with_progress_handler(progress, query_analog_index(
             x = x,
             index = index,
             select = select,
@@ -708,5 +717,5 @@ analog_search <- function(
             fft = fft,
             n_threads = n_threads,
             show_progress = progress
-      ))
+      )))
 }

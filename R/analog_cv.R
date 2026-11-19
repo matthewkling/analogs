@@ -90,7 +90,9 @@
 #' `lambda`, `select`, `se`, `weight`). Note:
 #'   `fun` must accept `exclude_self` (directly or via `...`); [analog_search()]
 #'   accepts it as a named parameter, and the wrapper helpers forward it via
-#'   their own `...`.
+#'   their own `...`. `progress = TRUE` reports progress through
+#'   \pkg{progressr} (see `progress` in [analog_search()]): per chunk of pool
+#'   rows for `cv_method = "loo"`, one step per fold for `"kfold"`.
 #'
 #' @return A data.frame or SpatRaster (matching the format of `pool`) with
 #'   one row per pool location, containing all variables that `fun` would
@@ -255,11 +257,14 @@ analog_cv <- function(fun,
       # Pre-parse extra args (before y coercion) so we can detect tabulate
       # mode and route y through categorical coercion if needed.
       extra <- list(...)
-      if (isTRUE(extra$progress)) {
-            stop("`progress = TRUE` is not supported inside analog_cv().",
-                 call. = FALSE)
+      # Progress: LOO forwards it to its single inner call (which reports per
+      # chunk of focal rows); k-fold reports one step per fold and runs its
+      # inner calls silently.
+      progress <- if (is.null(extra$progress)) FALSE else extra$progress
+      if (!is.logical(progress) || length(progress) != 1L || is.na(progress)) {
+            stop("`progress` must be TRUE or FALSE.", call. = FALSE)
       }
-      extra$progress <- FALSE
+      extra$progress <- if (cv_method == "loo") progress else FALSE
 
       # Intercept `weight` and `cell_area_weight` from extra so we can
       # subset them per fold ourselves (they're pool-side quantities). We
@@ -413,7 +418,7 @@ analog_cv <- function(fun,
                   extra = extra
             )
       } else {
-            res_df <- .cv_run_kfold(
+            res_df <- .with_progress_handler(progress, .cv_run_kfold(
                   fun = fun,
                   fun_name = fun_name,
                   pool_mat = pool_mat,
@@ -425,8 +430,9 @@ analog_cv <- function(fun,
                   cell_area_weight_vec = cell_area_weight_vec,
                   mean_cell_area = mean_cell_area_global,
                   folds = folds,
-                  extra = extra
-            )
+                  extra = extra,
+                  progress = progress
+            ))
       }
 
       # Append obs and residual columns ---------------------------------------
@@ -795,8 +801,9 @@ analog_cv <- function(fun,
                           y_levels_list, y_names, cov_mat,
                           weight_vec, cell_area_weight_vec,
                           mean_cell_area = NULL,
-                          folds, extra) {
+                          folds, extra, progress = FALSE) {
       unique_folds <- sort(unique(folds))
+      p <- .progressor(progress, steps = length(unique_folds))
 
       # Pre-compute whether we should inject mean_cell_area into per-fold
       # calls. Only inject when the helper accepts the argument (named
@@ -885,6 +892,7 @@ analog_cv <- function(fun,
             res_i$`.orig_row` <- focal_rows
             res_i$fold <- as.integer(fid)
             per_fold[[i]] <- res_i
+            if (!is.null(p)) p()
       }
 
       # rbind and reorder. Before rbind we align columns: per-fold dropped

@@ -173,10 +173,18 @@ not supported in this case; see those parameters for details).}
 (default), uses current R random state. Ignored if \code{pool} is a pre-built
 index or \code{downsample = 1}.}
 
-\item{progress}{Logical; if \code{TRUE}, display a progress bar during
-computation. Progress tracking works by splitting the focal dataset into
-chunks and processing them sequentially. Useful for large datasets. Default
-is \code{FALSE}.}
+\item{progress}{Logical; if \code{TRUE}, report progress through the
+\pkg{progressr} package. The exact engine then processes focal rows in
+up to 100 sequential chunks and signals one step per chunk (results are
+identical to an unchunked run); the FFT method signals a single step.
+Inside a progressr handler context, such as \code{\link[progressr:with_progress]{progressr::with_progress()}},
+\code{\link[progressr:withProgressShiny]{progressr::withProgressShiny()}}, or after
+\code{progressr::handlers(global = TRUE)}, progress goes to that handler.
+Otherwise the call sets one up itself, so progress is shown with the
+handlers configured by \code{\link[progressr:handlers]{progressr::handlers()}} (a text progress bar by
+default). With \code{FALSE} (default), no progress is signalled.
+As with any progressr-based progress, nothing is drawn in non-interactive
+sessions unless \code{options(progressr.enable = TRUE)} is set.}
 
 \item{...}{Additional arguments forwarded to \code{\link[=analog_search]{analog_search()}} (e.g.
 \code{mean_cell_area} for tiled workflows).}

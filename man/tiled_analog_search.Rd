@@ -94,7 +94,17 @@ fun returns a SpatRaster, tiles are written to temporary files during
 processing and merged to output_file at the end. This is useful when
 results are too large to fit in memory. Ignored for data.frame results.}
 
-\item{progress}{Logical indicating whether to show progress bar.}
+\item{progress}{Logical; if \code{TRUE} (default), report progress through the
+\pkg{progressr} package, one step per tile. Inside a progressr handler
+context, such as \code{\link[progressr:with_progress]{progressr::with_progress()}},
+\code{\link[progressr:withProgressShiny]{progressr::withProgressShiny()}}, or after
+\code{progressr::handlers(global = TRUE)}, progress goes to that handler;
+otherwise the call sets one up itself, showing progress with the handlers
+configured by \code{\link[progressr:handlers]{progressr::handlers()}} (a text progress bar by default).
+The per-tile calls to \code{fun} run with \code{progress = FALSE}. With \code{FALSE}, no
+progress is signalled.
+As with any progressr-based progress, nothing is drawn in non-interactive
+sessions unless \code{options(progressr.enable = TRUE)} is set.}
 }
 \value{
 Same type as fun returns (SpatRaster or data.frame). If output_file

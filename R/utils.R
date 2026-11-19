@@ -780,9 +780,8 @@
 #
 # Called from analog_search (and anywhere else that surfaces exclude_self).
 # Enforces identical(x, pool), disallows pre-built indices, and disallows
-# downsampling. Also disallows progress (chunking is incompatible with the
-# simple j==i self-exclusion check).
-.validate_exclude_self <- function(exclude_self, x, pool, downsample, progress) {
+# downsampling.
+.validate_exclude_self <- function(exclude_self, x, pool, downsample) {
       if (!is.logical(exclude_self) || length(exclude_self) != 1L || is.na(exclude_self)) {
             stop("`exclude_self` must be TRUE or FALSE.", call. = FALSE)
       }
@@ -809,14 +808,6 @@
             stop(
                   "`exclude_self = TRUE` is not compatible with `downsample != 1`. ",
                   "Self-exclusion semantics are ill-defined under downsampling.",
-                  call. = FALSE
-            )
-      }
-
-      if (isTRUE(progress)) {
-            stop(
-                  "`exclude_self = TRUE` is not compatible with `progress = TRUE`. ",
-                  "Disable progress or run without self-exclusion.",
                   call. = FALSE
             )
       }

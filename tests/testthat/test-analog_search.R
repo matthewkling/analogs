@@ -440,36 +440,23 @@ test_that("analog_search handles raster output correctly", {
 
 
 
-test_that("chunking/progress bars work correctly", {
-
+test_that("progress = TRUE does not change results", {
+      # Chunking and step counts are covered in test-progress.R
       d <- sim_test_data(nref = 100, nfocal = 2000)
+      withr::local_options(analogs.progress_min_chunk = 300L)
 
-      # test both agg and pair modes
-      for(stat in c("count", "none")){
-
-            # should print a progress bar
-            out <- capture.output(result <- analog_search(
+      for (stat in list("count", NULL)) {
+            run <- function(progress) progressr::without_progress(analog_search(
                   x = d$focal,
                   pool = d$ref,
                   select = "knn_geog", k = 5,
-                  stat = "count",
+                  stat = stat,
                   env = kernel(max = .1),
-                  progress = TRUE
+                  geog_res_adj = 1, env_res_adj = 1,
+                  progress = progress
             ))
-            expect_true(grepl("100%", out))
-
-            # should not affect results
-            result2 <- analog_search(
-                  x = d$focal,
-                  pool = d$ref,
-                  select = "knn_geog", k = 5,
-                  stat = "count",
-                  env = kernel(max = .1),
-                  progress = FALSE
-            )
-            expect_equal(result, result2)
+            expect_identical(run(TRUE), run(FALSE))
       }
-
 })
 
 

@@ -64,7 +64,17 @@
 #'   fun returns a SpatRaster, tiles are written to temporary files during
 #'   processing and merged to output_file at the end. This is useful when
 #'   results are too large to fit in memory. Ignored for data.frame results.
-#' @param progress Logical indicating whether to show progress bar.
+#' @param progress Logical; if `TRUE` (default), report progress through the
+#'   \pkg{progressr} package, one step per tile. Inside a progressr handler
+#'   context, such as [progressr::with_progress()],
+#'   [progressr::withProgressShiny()], or after
+#'   `progressr::handlers(global = TRUE)`, progress goes to that handler;
+#'   otherwise the call sets one up itself, showing progress with the handlers
+#'   configured by [progressr::handlers()] (a text progress bar by default).
+#'   The per-tile calls to `fun` run with `progress = FALSE`. With `FALSE`, no
+#'   progress is signalled.
+#'   As with any progressr-based progress, nothing is drawn in non-interactive
+#'   sessions unless `options(progressr.enable = TRUE)` is set.
 #'
 #' @return Same type as fun returns (SpatRaster or data.frame). If output_file
 #'   is specified, returns a disk-backed SpatRaster. When `x` is a point
@@ -284,14 +294,15 @@ tiled_analog_search <- function(
             x_tile[is.na(x_tile)] <- 1
       }
 
-      # Main tiling loop
+      # Main tiling loop, signalling one progressr step per tile. The block is
+      # evaluated in this function's frame (it is a promise), inside a
+      # default handler context when progress is requested and the caller
+      # has not set one up.
       results <- list()
       tile_files <- character(0)
-      if (progress) {
-            pb <- utils::txtProgressBar(min = 0, max = n_x * n_y, style = 3)
-      }
-
       tile_idx <- 1
+      .with_progress_handler(progress, {
+      p <- .progressor(progress, steps = n_x * n_y)
       for (i in 1:n_x) {
             for (j in 1:n_y) {
                   # Calculate tile bounds
@@ -308,7 +319,7 @@ tiled_analog_search <- function(
                         x_rows <- which(x_tile == tile_idx)
                         if (length(x_rows) == 0) {
                               tile_idx <- tile_idx + 1
-                              if (progress) utils::setTxtProgressBar(pb, tile_idx - 1)
+                              if (!is.null(p)) p()
                               next
                         }
                   }
@@ -428,11 +439,10 @@ tiled_analog_search <- function(
 
                   tile_idx <- tile_idx + 1
 
-                  if (progress) utils::setTxtProgressBar(pb, tile_idx - 1)
+                  if (!is.null(p)) p()
             }
       }
-
-      if (progress) close(pb)
+      })
 
       # Combine results
       if (!is.null(output_file) && length(tile_files) > 0) {
