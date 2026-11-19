@@ -211,10 +211,21 @@ analog_velocity(
 
 - progress:
 
-  Logical; if `TRUE`, display a progress bar during computation.
-  Progress tracking works by splitting the focal dataset into chunks and
-  processing them sequentially. Useful for large datasets. Default is
-  `FALSE`.
+  Logical; if `TRUE`, report progress through the progressr package. The
+  exact engine then processes focal rows in up to 100 sequential chunks
+  and signals one step per chunk (results are identical to an unchunked
+  run); the FFT method signals a single step. Inside a progressr handler
+  context, such as
+  [`progressr::with_progress()`](https://progressr.futureverse.org/reference/with_progress.html),
+  [`progressr::withProgressShiny()`](https://progressr.futureverse.org/reference/withProgressShiny.html),
+  or after `progressr::handlers(global = TRUE)`, progress goes to that
+  handler. Otherwise the call sets one up itself, so progress is shown
+  with the handlers configured by
+  [`progressr::handlers()`](https://progressr.futureverse.org/reference/handlers.html)
+  (a text progress bar by default). With `FALSE` (default), no progress
+  is signalled. As with any progressr-based progress, nothing is drawn
+  in non-interactive sessions unless `options(progressr.enable = TRUE)`
+  is set.
 
 ## Value
 

@@ -134,7 +134,19 @@ tiled_analog_search(
 
 - progress:
 
-  Logical indicating whether to show progress bar.
+  Logical; if `TRUE` (default), report progress through the progressr
+  package, one step per tile. Inside a progressr handler context, such
+  as
+  [`progressr::with_progress()`](https://progressr.futureverse.org/reference/with_progress.html),
+  [`progressr::withProgressShiny()`](https://progressr.futureverse.org/reference/withProgressShiny.html),
+  or after `progressr::handlers(global = TRUE)`, progress goes to that
+  handler; otherwise the call sets one up itself, showing progress with
+  the handlers configured by
+  [`progressr::handlers()`](https://progressr.futureverse.org/reference/handlers.html)
+  (a text progress bar by default). The per-tile calls to `fun` run with
+  `progress = FALSE`. With `FALSE`, no progress is signalled. As with
+  any progressr-based progress, nothing is drawn in non-interactive
+  sessions unless `options(progressr.enable = TRUE)` is set.
 
 ## Value
 

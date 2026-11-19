@@ -1,7 +1,11 @@
 # Internal helper: Query C++ with optional chunking and progress tracking
 
-Wraps query_analog_index_cpp with optional chunking for progress bars.
-Handles merging of chunked results.
+Wraps query_analog_index_cpp. When `show_progress` is TRUE, focal rows
+are processed in chunks from the main R thread (the C++ worker threads
+cannot call R) and a progressr step is signalled after each chunk.
+Results are identical to a single call: each focal row is computed
+independently, and self-exclusion is carried per chunk through
+`self_rows`.
 
 ## Usage
 

@@ -85,7 +85,11 @@ analog_cv(
   `exclude_self` (directly or via `...`);
   [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)
   accepts it as a named parameter, and the wrapper helpers forward it
-  via their own `...`.
+  via their own `...`. `progress = TRUE` reports progress through
+  progressr (see `progress` in
+  [`analog_search()`](https://matthewkling.github.io/analogs/reference/analog_search.md)):
+  per chunk of pool rows for `cv_method = "loo"`, one step per fold for
+  `"kfold"`.
 
 ## Value
 
